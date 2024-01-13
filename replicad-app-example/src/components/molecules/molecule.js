@@ -96,12 +96,10 @@ export default class Molecule extends Atom {
 
     this.setValues(values);
     //Add the molecule's output
-    this.placeAtom(
+    /*this.placeAtom(
       {
         parentMolecule: this,
-        x: GlobalVariables.pixelsToWidth(
-          GlobalVariables.canvas.current.width - 20
-        ),
+        x: 0.9,
         y: 0.5,
         parent: this,
         name: "Output",
@@ -109,7 +107,7 @@ export default class Molecule extends Atom {
         uniqueID: GlobalVariables.generateUniqueID(),
       },
       false
-    );
+    );*/
   }
 
   /**

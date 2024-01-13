@@ -25,40 +25,10 @@ export default memo(function FlowCanvas(props) {
   let size = props.displayProps.size;
   let setMesh = props.displayProps.setMesh;
   let mesh = props.displayProps.mesh;
+  let loadProject = props.props.loadProject;
 
   /** State for github molecule search input */
   const [searchingGitHub, setSearchingGitHub] = useState(false);
-
-  // Loads project
-  const loadProject = function (project) {
-    GlobalVariables.loadedRepo = project;
-    GlobalVariables.currentRepoName = project.name;
-    GlobalVariables.currentRepo = project;
-    GlobalVariables.totalAtomCount = 0;
-    GlobalVariables.numberOfAtomsToLoad = 0;
-    GlobalVariables.startTime = new Date().getTime();
-
-    var octokit = new Octokit();
-
-    octokit
-      .request("GET /repos/{owner}/{repo}/contents/project.maslowcreate", {
-        owner: project.owner.login,
-        repo: project.name,
-      })
-      .then((response) => {
-        //content will be base64 encoded
-        let rawFile = JSON.parse(atob(response.data.content));
-
-        if (rawFile.filetypeVersion == 1) {
-          GlobalVariables.topLevelMolecule.deserialize(rawFile);
-        } else {
-          GlobalVariables.topLevelMolecule.deserialize(
-            convertFromOldFormat(rawFile)
-          );
-        }
-        props.props.setActiveAtom(GlobalVariables.currentMolecule);
-      });
-  };
 
   useEffect(() => {
     GlobalVariables.writeToDisplay = (id, resetView = false) => {

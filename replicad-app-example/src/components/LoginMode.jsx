@@ -241,14 +241,9 @@ const ShowProjects = (props) => {
                                     content: window.btoa(licenseText),
                                   })
                                   .then(() => {
-                                    loadProject(GlobalVariables.currentRepo);
-
                                     navigate(
                                       `/${GlobalVariables.currentRepo.id}`
                                     );
-                                    intervalTimer = setInterval(() => {
-                                      this.saveProject();
-                                    }, 1200000); //Save the project regularly
                                   });
                               });
                           });

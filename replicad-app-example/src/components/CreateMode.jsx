@@ -134,6 +134,36 @@ function CreateMode(props) {
         });
     }
   };
+  // Loads project
+  const loadProject = function (project) {
+    GlobalVariables.loadedRepo = project;
+    GlobalVariables.currentRepoName = project.name;
+    GlobalVariables.currentRepo = project;
+    GlobalVariables.totalAtomCount = 0;
+    GlobalVariables.numberOfAtomsToLoad = 0;
+    GlobalVariables.startTime = new Date().getTime();
+
+    var octokit = new Octokit();
+
+    octokit
+      .request("GET /repos/{owner}/{repo}/contents/project.maslowcreate", {
+        owner: project.owner.login,
+        repo: project.name,
+      })
+      .then((response) => {
+        //content will be base64 encoded
+        let rawFile = JSON.parse(atob(response.data.content));
+
+        if (rawFile.filetypeVersion == 1) {
+          GlobalVariables.topLevelMolecule.deserialize(rawFile);
+        } else {
+          GlobalVariables.topLevelMolecule.deserialize(
+            convertFromOldFormat(rawFile)
+          );
+        }
+        props.props.setActiveAtom(GlobalVariables.currentMolecule);
+      });
+  };
   /**
    * Saves project by making a commit to the Github repository.
    */
@@ -192,6 +222,7 @@ function CreateMode(props) {
           />
           <FlowCanvas
             props={{
+              loadProject: loadProject,
               setActiveAtom: setActiveAtom,
               setSavePopUp: setSavePopUp,
               saveProject: saveProject,
