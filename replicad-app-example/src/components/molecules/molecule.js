@@ -95,19 +95,6 @@ export default class Molecule extends Atom {
     this.unitsIndex = 0;
 
     this.setValues(values);
-    //Add the molecule's output
-    /*this.placeAtom(
-      {
-        parentMolecule: this,
-        x: 0.9,
-        y: 0.5,
-        parent: this,
-        name: "Output",
-        atomType: "Output",
-        uniqueID: GlobalVariables.generateUniqueID(),
-      },
-      false
-    );*/
   }
 
   /**
@@ -491,12 +478,27 @@ export default class Molecule extends Atom {
     //Find the target molecule in the list
     let promiseArray = [];
 
+    //Try to place molecule's output
+    this.placeAtom(
+      {
+        parentMolecule: this,
+        x: 0.98,
+        y: 0.5,
+        parent: this,
+        name: "Output",
+        atomType: "Output",
+        uniqueID: GlobalVariables.generateUniqueID(),
+      },
+      false
+    );
+
     this.setValues(json); //Grab the values of everything from the passed object
     this.setValues(values); //Over write those values with the passed ones where needed
 
     if (json.allAtoms) {
       json.allAtoms.forEach((atom) => {
         //Place the atoms
+        console.log(atom);
 
         const promise = this.placeAtom(atom, false);
         promiseArray.push(promise);
