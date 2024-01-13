@@ -128,6 +128,7 @@ export default class Equation extends Atom {
         }
       }
     }
+
     return GlobalVariables.limitedEvaluate(substitutedEquation);
   }
 
@@ -135,22 +136,18 @@ export default class Equation extends Atom {
    * Evaluate the equation adding and removing inputs as needed
    */
   updateValue() {
+    console.log("Updating output in equation");
     try {
       this.addAndRemoveInputs();
 
       if (this.inputs.every((x) => x.ready)) {
         this.decreaseToProcessCountByOne();
-
         //Evaluate the equation
         this.value = this.evaluateEquation();
-
+        console.log(this);
+        console.log(this.output);
         this.output.setValue(this.value);
         this.output.ready = true;
-      }
-
-      //Updates the inputs
-      if (this.selected) {
-        this.updateSidebar();
       }
     } catch (err) {
       console.warn(err);
@@ -182,26 +179,6 @@ export default class Equation extends Atom {
     superSerialObject.currentEquation = this.currentEquation;
 
     return superSerialObject;
-  }
-
-  /**
-   * Add a dropdown to choose the equation type to the sidebar.
-   */
-  updateSidebar() {
-    //Update the side bar to make it possible to change the molecule name
-
-    var valueList = super.updateSidebar();
-
-    this.createEditableValueListItem(
-      valueList,
-      this,
-      "currentEquation",
-      "output=",
-      false,
-      (newEquation) => {
-        this.setEquation(newEquation);
-      }
-    );
   }
 
   /**

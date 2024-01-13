@@ -55,7 +55,7 @@ export default observer(function ParamsEditor({
       });
     }
   }
-  /** if active atom has output*/
+  /** if active atom has output - special molecules*/
   if (activeAtom.output) {
     let output = activeAtom.output;
     if (activeAtom.atomType == "Input") {
@@ -75,6 +75,31 @@ export default observer(function ParamsEditor({
         onChange: (value) => {
           output.value = value;
         },
+      };
+    } else if (activeAtom.atomType == "Equation") {
+      outputParams["equation"] = {
+        value: activeAtom.currentEquation,
+        label: "Current Equation",
+        disabled: false,
+        onChange: (value) => {
+          activeAtom.setEquation(value);
+        },
+      };
+      /**implement later dropdown for equation type */
+      outputParams["type"] = {
+        value: "Sum",
+        options: ["Sum", "Product", "Other"],
+        label: "Equation Type",
+        disabled: false,
+        onChange: (value) => {
+          //activeAtom.setEquation(value);
+        },
+      };
+
+      outputParams["result"] = {
+        value: activeAtom.output.value,
+        label: "Result",
+        disabled: true,
       };
     }
   }
@@ -96,8 +121,7 @@ export default observer(function ParamsEditor({
       description: {
         label: "Description",
         value: activeAtom.description,
-        rows: 6,
-        disabled: true,
+        rows: 3,
       },
     }),
     { store: store1 },
