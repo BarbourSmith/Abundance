@@ -33,6 +33,8 @@ export default function ParamsEditor({
   const store1 = useCreateStore();
   const store2 = useCreateStore();
 
+  const [newEquation, setNewEquation] = useState("");
+
   if (activeAtom !== null) {
     /** Runs through active atom inputs and adds IO parameters to default param*/
     if (activeAtom.inputs) {
@@ -83,6 +85,7 @@ export default function ParamsEditor({
         disabled: false,
         onChange: (value) => {
           activeAtom.setEquation(value);
+          setNewEquation(value);
         },
       };
       /**implement later dropdown for equation type */
@@ -127,8 +130,14 @@ export default function ParamsEditor({
     { store: store1 },
     [activeAtom]
   );
-  useControls(() => inputParamsConfig, { store: store1 }, [activeAtom]);
-  useControls(() => outputParamsConfig, { store: store1 }, [activeAtom]);
+  useControls(() => outputParamsConfig, { store: store1 }, [
+    activeAtom,
+    newEquation,
+  ]);
+  useControls(() => inputParamsConfig, { store: store1 }, [
+    activeAtom,
+    newEquation,
+  ]);
   useControls(() => inputNamesConfig, { store: store1 }, [activeAtom]);
 
   /** Creates Leva panel with grid settings */
