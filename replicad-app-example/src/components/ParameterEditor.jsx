@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useMemo } from "react";
+import React, { useRef, useState, useEffect, useMemo } from "react";
 import { observer } from "mobx-react";
 
 import { useParams } from "react-router-dom";
@@ -18,7 +18,7 @@ import {
 import { falseDependencies } from "mathjs";
 
 /**Creates new collapsible sidebar with Leva - edited from Replicad's ParamsEditor.jsx */
-export default observer(function ParamsEditor({
+export default function ParamsEditor({
   activeAtom,
   setActiveAtom,
   hidden,
@@ -159,6 +159,15 @@ export default observer(function ParamsEditor({
     },
     [activeAtom]
   );
+  /* Handles bug in Leva where panel doesn't resize correctly unless it's been collapsed*/
+  /**https://github.com/pmndrs/leva/issues/456#issuecomment-1537510948 */
+  const [collapsed, setCollapsed] = useState(true);
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setCollapsed(false);
+    }, 0);
+    return () => clearTimeout(timeoutId);
+  }, []);
 
   return (
     <>
@@ -167,10 +176,15 @@ export default observer(function ParamsEditor({
         <LevaPanel
           store={store1}
           hidden={false}
-          collapsed={true}
+          collapsed={{
+            collapsed,
+            onChange: (value) => {
+              setCollapsed(value);
+            },
+          }}
           hideCopyButton
           fill
-          oneLineLabels={true}
+          oneLineLabels={false}
           titleBar={{
             title: activeAtom.name || globalvariables.currentRepo.name,
           }}
@@ -184,11 +198,14 @@ export default observer(function ParamsEditor({
               highlight2: "#ededed",
               highlight3: "#ededed",
 
-              accent1: "#C4A3D5",
+              accent1: "#ededed",
               accent2: "#88748F", //apply button
               accent3: "#88748F",
 
               vivid1: "red",
+            },
+            borderWidths: {
+              focus: "2px",
             },
           }}
         />
@@ -224,4 +241,4 @@ export default observer(function ParamsEditor({
       </div>
     </>
   );
-});
+}

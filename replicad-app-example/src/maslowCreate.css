@@ -800,6 +800,7 @@ Sidebar navigation
   top: 52%;
   left: 10px;
   width: 280px;
+  max-height: fit-content;
   z-index: 3;
 }
 
