@@ -29,11 +29,25 @@ export default function ParamsEditor({
   let inputParams = {};
   let outputParams = {};
   let inputNames = {};
+  let equationParams = {};
 
   const store1 = useCreateStore();
   const store2 = useCreateStore();
 
-  const [newEquation, setNewEquation] = useState("");
+  const [equationResult, setEquationResult] = useState(0);
+
+  const handleEquationChange = (value) => {
+    console.log("handleEquationChange");
+    let newEquation;
+    if (value) {
+      activeAtom.setEquation(value);
+      newEquation = value;
+    } else {
+      newEquation = activeAtom.currentEquation;
+    }
+
+    setEquationResult(activeAtom.evaluateEquation());
+  };
 
   if (activeAtom !== null) {
     /** Runs through active atom inputs and adds IO parameters to default param*/
@@ -49,6 +63,9 @@ export default function ParamsEditor({
             value: input.value,
             disabled: checkConnector(),
             onChange: (value) => {
+              if (activeAtom.atomType == "Equation") {
+                handleEquationChange();
+              }
               input.setValue(value);
               activeAtom.sendToRender();
             },
@@ -79,31 +96,32 @@ export default function ParamsEditor({
         },
       };
     } else if (activeAtom.atomType == "Equation") {
-      outputParams["equation"] = {
+      equationParams["equation"] = {
         value: activeAtom.currentEquation,
         label: "Current Equation",
         disabled: false,
         onChange: (value) => {
-          activeAtom.setEquation(value);
-          setNewEquation(value);
-        },
-      };
-      /**implement later dropdown for equation type */
-      outputParams["type"] = {
-        value: "Sum",
-        options: ["Sum", "Product", "Other"],
-        label: "Equation Type",
-        disabled: false,
-        onChange: (value) => {
-          //activeAtom.setEquation(value);
+          handleEquationChange(value);
         },
       };
 
-      outputParams["result"] = {
+      equationParams[equationResult] = {
         value: activeAtom.output.value,
         label: "Result",
         disabled: true,
       };
+      /**placeholder: implement later dropdown for equation type (added it because of comment in old sidebar) */
+      /*
+      equationParams["type"] = {
+        value: "Sum",
+        options: ["Sum", "Product", "Other"],
+        label: "Equation Type",
+        disabled: true,
+        onChange: (value) => {
+          //activeAtom.setEquation(value);
+        },
+      };
+       */
     }
   }
 
@@ -116,6 +134,9 @@ export default function ParamsEditor({
   const inputNamesConfig = useMemo(() => {
     return { ...inputNames };
   }, [inputNames]);
+  const equationConfig = useMemo(() => {
+    return { ...equationParams };
+  }, [equationParams]);
 
   /** Creates Leva panel with parameters from active atom inputs */
 
@@ -130,15 +151,18 @@ export default function ParamsEditor({
     { store: store1 },
     [activeAtom]
   );
-  useControls(() => outputParamsConfig, { store: store1 }, [
-    activeAtom,
-    newEquation,
-  ]);
+
   useControls(() => inputParamsConfig, { store: store1 }, [
     activeAtom,
-    newEquation,
+    equationResult,
   ]);
+  useControls(() => outputParamsConfig, { store: store1 }, [activeAtom]);
   useControls(() => inputNamesConfig, { store: store1 }, [activeAtom]);
+
+  useControls(() => equationConfig, { store: store1 }, [
+    activeAtom,
+    equationResult,
+  ]);
 
   /** Creates Leva panel with grid settings */
   useControls(
