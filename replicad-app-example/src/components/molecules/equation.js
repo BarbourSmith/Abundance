@@ -144,8 +144,6 @@ export default class Equation extends Atom {
         this.decreaseToProcessCountByOne();
         //Evaluate the equation
         this.value = this.evaluateEquation();
-        console.log(this);
-        console.log(this.output);
         this.output.setValue(this.value);
         this.output.ready = true;
       }
