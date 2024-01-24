@@ -136,7 +136,6 @@ export default class Equation extends Atom {
    * Evaluate the equation adding and removing inputs as needed
    */
   updateValue() {
-    console.log("Updating output in equation");
     try {
       this.addAndRemoveInputs();
 

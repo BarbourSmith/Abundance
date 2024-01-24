@@ -5,16 +5,7 @@ import { useParams } from "react-router-dom";
 import { Octokit } from "https://esm.sh/octokit@2.0.19";
 import globalvariables from "./js/globalvariables";
 
-import {
-  useControls,
-  useStoreContext,
-  useCreateStore,
-  LevaPanel,
-  levaStore,
-  LevaStoreProvider,
-  Leva,
-  folder,
-} from "leva";
+import { useControls, useCreateStore, LevaPanel } from "leva";
 import { falseDependencies } from "mathjs";
 
 /**Creates new collapsible sidebar with Leva - edited from Replicad's ParamsEditor.jsx */
@@ -36,16 +27,12 @@ export default function ParamsEditor({
 
   const [equationResult, setEquationResult] = useState(0);
 
-  const handleEquationChange = (value) => {
-    console.log("handleEquationChange");
-    let newEquation;
+  const handleEquationInputChange = (value) => {
     if (value) {
+      /** calls handle equation function inside equation */
       activeAtom.setEquation(value);
-      newEquation = value;
-    } else {
-      newEquation = activeAtom.currentEquation;
     }
-
+    /** Sets equation result state to evaluate with current equation so sidebar menu updates */
     setEquationResult(activeAtom.evaluateEquation());
   };
 
@@ -64,7 +51,7 @@ export default function ParamsEditor({
             disabled: checkConnector(),
             onChange: (value) => {
               if (activeAtom.atomType == "Equation") {
-                handleEquationChange();
+                handleEquationInputChange();
               }
               input.setValue(value);
               activeAtom.sendToRender();
@@ -101,7 +88,7 @@ export default function ParamsEditor({
         label: "Current Equation",
         disabled: false,
         onChange: (value) => {
-          handleEquationChange(value);
+          handleEquationInputChange(value);
         },
       };
 
