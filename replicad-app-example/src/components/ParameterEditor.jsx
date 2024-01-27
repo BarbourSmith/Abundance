@@ -61,44 +61,43 @@ export default function ParamsEditor({
       });
     }
   }
-  /** if active atom has output - special molecules*/
-  if (activeAtom.output) {
-    let output = activeAtom.output;
-    if (activeAtom.atomType == "Input") {
-      inputNames[activeAtom.name] = {
-        value: activeAtom.name,
-        label: activeAtom.name,
-        disabled: false,
-        onChange: (value) => {
-          activeAtom.name = value;
-        },
-      };
-    } else if (activeAtom.atomType == "Constant") {
-      outputParams[activeAtom.name] = {
-        value: output.value,
-        label: output.name,
-        disabled: false,
-        onChange: (value) => {
-          output.value = value;
-        },
-      };
-    } else if (activeAtom.atomType == "Equation") {
-      equationParams["equation"] = {
-        value: activeAtom.currentEquation,
-        label: "Current Equation",
-        disabled: false,
-        onChange: (value) => {
-          handleEquationInputChange(value);
-        },
-      };
 
-      equationParams[equationResult] = {
-        value: activeAtom.output.value,
-        label: "Result",
-        disabled: true,
-      };
-      /**placeholder: implement later dropdown for equation type (added it because of comment in old sidebar) */
-      /*
+  let output = activeAtom.output;
+  if (activeAtom.atomType == "Input") {
+    inputNames[activeAtom.name] = {
+      value: activeAtom.name,
+      label: activeAtom.name,
+      disabled: false,
+      onChange: (value) => {
+        activeAtom.name = value;
+      },
+    };
+  } else if (activeAtom.atomType == "Constant") {
+    outputParams[activeAtom.name] = {
+      value: output.value,
+      label: output.name,
+      disabled: false,
+      onChange: (value) => {
+        output.value = value;
+      },
+    };
+  } else if (activeAtom.atomType == "Equation") {
+    equationParams["equation"] = {
+      value: activeAtom.currentEquation,
+      label: "Current Equation",
+      disabled: false,
+      onChange: (value) => {
+        handleEquationInputChange(value);
+      },
+    };
+
+    equationParams[equationResult] = {
+      value: activeAtom.output.value,
+      label: "Result",
+      disabled: true,
+    };
+    /**placeholder: implement later dropdown for equation type (added it because of comment in old sidebar) */
+    /*
       equationParams["type"] = {
         value: "Sum",
         options: ["Sum", "Product", "Other"],
@@ -109,7 +108,6 @@ export default function ParamsEditor({
         },
       };
        */
-    }
   }
 
   const outputParamsConfig = useMemo(() => {
