@@ -115,7 +115,6 @@ export default function ParamsEditor({
       };
        */
 
-    }
     if (activeAtom.atomType == "Add-BOM-Tag") {
       for (const key in activeAtom.BOMitem) {
         bomParams[key] = {
@@ -180,7 +179,7 @@ export default function ParamsEditor({
     equationResult,
   ]);
   useControls(() => bomParamsConfig, { store: store1 }, [activeAtom]);
- 
+
   useControls(() => outputParamsConfig, { store: store1 }, [activeAtom]);
   useControls(() => inputNamesConfig, { store: store1 }, [activeAtom]);
 
