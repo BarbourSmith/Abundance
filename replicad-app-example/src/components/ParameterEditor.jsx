@@ -112,33 +112,6 @@ export default function ParamsEditor({
       };
        */
   }
-  if (activeAtom.atomType == "Add-BOM-Tag") {
-    for (const key in activeAtom.BOMitem) {
-      bomParams[key] = {
-        value: activeAtom.BOMitem[key],
-        label: key,
-        disabled: false,
-        onChange: (value) => {
-          activeAtom.BOMitem[key] = value;
-          activeAtom.updateValue();
-        },
-      };
-    }
-  }
-  if (activeAtom.atomType == "Molecule") {
-    activeAtom.extractBomTags(activeAtom.output.value).then((result) => {
-      if (result != undefined) {
-        result.map((item) => {
-          console.log(item.BOMitemName);
-          bomParams["other"] = {
-            value: item.BOMitemName,
-            label: "me",
-            disabled: false,
-          };
-        });
-      }
-    });
-  }
 
   const outputParamsConfig = useMemo(() => {
     return { ...outputParams };
