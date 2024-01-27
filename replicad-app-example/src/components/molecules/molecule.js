@@ -2,7 +2,6 @@ import Atom from "../prototypes/atom.js";
 import Connector from "../prototypes/connector.js";
 import GlobalVariables from "../js/globalvariables.js";
 //import saveAs from '../lib/FileSaver.js'
-import { extractBomTags } from "../js/BOM.js";
 
 /**
  * This class creates the Molecule atom.
@@ -93,6 +92,11 @@ export default class Molecule extends Atom {
      * @type {array}
      */
     this.unitsIndex = 0;
+    /**
+     * List of BOM items.
+     * @type {array}
+     */
+    this.BOMlist;
 
     this.setValues(values);
   }
@@ -358,38 +362,13 @@ export default class Molecule extends Atom {
   }
 
   /**
-   * Creates a simple BOM list which cannot be edited. The generated element is added to the passed list.
-   * @param {object} list - The HTML object to append the created element to.
-   */
-  displaySimpleBOM(list) {
+   * Computes and returns an array of BOMEntry objects after looking at the tags of a geometry.*/
+  extractBomTags() {
     try {
-      const placementFunction = (bomList) => {
-        if (bomList.length > 0) {
-          list.appendChild(document.createElement("br"));
-          list.appendChild(document.createElement("br"));
+      var tag = "BOMitem";
+      let bomList = GlobalVariables.cad.extractBom(this.output.value, tag);
 
-          var div = document.createElement("h3");
-          div.setAttribute("style", "text-align:center;");
-          list.appendChild(div);
-          var valueText = document.createTextNode("Bill Of Materials");
-          div.appendChild(valueText);
-
-          var x = document.createElement("HR");
-          list.appendChild(x);
-
-          bomList.forEach((bomEntry) => {
-            this.createNonEditableValueListItem(
-              list,
-              bomEntry,
-              "numberNeeded",
-              bomEntry.BOMitemName,
-              false
-            );
-          });
-        }
-      };
-
-      extractBomTags(this.path, placementFunction);
+      return bomList;
     } catch (err) {
       this.setAlert("Unable to read BOM");
     }
@@ -498,7 +477,6 @@ export default class Molecule extends Atom {
     if (json.allAtoms) {
       json.allAtoms.forEach((atom) => {
         //Place the atoms
-        console.log(atom);
 
         const promise = this.placeAtom(atom, false);
         promiseArray.push(promise);

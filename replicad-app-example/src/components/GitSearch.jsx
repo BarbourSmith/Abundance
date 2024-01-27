@@ -59,12 +59,31 @@ function GitSearch(props) {
     searchBarValue = e.target.value;
   };
 
+  const [isHovering, setIsHovering] = useState(false);
+  const [panelItem, setPanelItem] = useState({});
+
+  const handleMouseOver = (item, key) => {
+    setPanelItem(item);
+    setIsHovering(true);
+  };
+  const handleMouseOut = () => {
+    setPanelItem({});
+    setIsHovering(false);
+  };
+
   const GitList = function () {
     return gitRepos.map((item, key) => {
       return (
-        <li onClick={(e) => placeGitHubMolecule(e, item)} key={key}>
-          {item.name}
-        </li>
+        <>
+          <li
+            onClick={(e) => placeGitHubMolecule(e, item)}
+            key={key}
+            onMouseEnter={() => handleMouseOver(item, key)}
+            onMouseLeave={() => handleMouseOut()}
+          >
+            {item.name}
+          </li>
+        </>
       );
     });
   };
@@ -72,23 +91,57 @@ function GitSearch(props) {
   return (
     <>
       {props.searchingGitHub ? (
-        <div
-          id="git_search"
-          style={{
-            top: GlobalVariables.lastClick[1] + "px",
-            left: GlobalVariables.lastClick[0] + "px",
-          }}
-        >
-          <input
-            type="text"
-            id="menuInput"
-            //onBlur="value=''"
-            onKeyDown={handleKeyDown}
-            onChange={handleChange}
-            placeholder="Search for atom.."
-            className="menu_search_canvas"
-          ></input>
-          <GitList />
+        <div className="search-container">
+          <div
+            id="git_search"
+            style={{
+              top: GlobalVariables.lastClick[1] + "px",
+              left: GlobalVariables.lastClick[0] + "px",
+            }}
+          >
+            <input
+              type="text"
+              id="menuInput"
+              //onBlur="value=''"
+              onKeyDown={handleKeyDown}
+              onChange={handleChange}
+              placeholder="Search for atom.."
+              className="menu_search_canvas"
+            ></input>
+            <GitList />
+          </div>
+          {isHovering ? (
+            <div
+              className="GitProjectInfoPanel"
+              style={{
+                top: GlobalVariables.lastClick[1] - 50 + "px",
+                left: GlobalVariables.lastClick[0] - 350 + "px",
+              }}
+            >
+              <div className="GitInfoLeft">
+                <img src={"/imgs/defaultThumbnail.svg"}></img>
+                <div style={{ display: "flex" }}>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    style={{ transform: "scale(.7)" }}
+                    width="16"
+                    height="16"
+                  >
+                    <path d="M8 .2l4.9 15.2L0 6h16L3.1 15.4z" />
+                  </svg>
+                  <p>{panelItem.stargazers_count}</p>
+                </div>
+              </div>
+
+              <div className="GitInfo">
+                <span>Project Name: {panelItem.name}</span>
+                <span>Owner: {panelItem.owner.login}</span>
+                <span>Description: {panelItem.description || null}</span>
+                <span>PLACEHOLDER FOR README</span>
+                <span>Tags: PLACEHOLDER FOR tags or categories</span>
+              </div>
+            </div>
+          ) : null}
         </div>
       ) : null}
     </>

@@ -20,7 +20,10 @@ export default function ParamsEditor({
   let inputParams = {};
   let outputParams = {};
   let inputNames = {};
+
   let equationParams = {};
+
+  let bomParams = {};
 
   const store1 = useCreateStore();
   const store2 = useCreateStore();
@@ -111,8 +114,40 @@ export default function ParamsEditor({
         },
       };
        */
+
+    }
+    if (activeAtom.atomType == "Add-BOM-Tag") {
+      for (const key in activeAtom.BOMitem) {
+        bomParams[key] = {
+          value: activeAtom.BOMitem[key],
+          label: key,
+          disabled: false,
+          onChange: (value) => {
+            activeAtom.BOMitem[key] = value;
+            activeAtom.updateValue();
+          },
+        };
+      }
+    }
+    if (activeAtom.atomType == "Molecule") {
+      activeAtom.extractBomTags(activeAtom.output.value).then((result) => {
+        if (result != undefined) {
+          result.map((item) => {
+            console.log(item.BOMitemName);
+            bomParams["other"] = {
+              value: item.BOMitemName,
+              label: "me",
+              disabled: false,
+            };
+          });
+        }
+      });
+    }
   }
 
+  const bomParamsConfig = useMemo(() => {
+    return { ...bomParams };
+  }, [bomParams]);
   const outputParamsConfig = useMemo(() => {
     return { ...outputParams };
   }, [outputParams]);
@@ -144,6 +179,8 @@ export default function ParamsEditor({
     activeAtom,
     equationResult,
   ]);
+  useControls(() => bomParamsConfig, { store: store1 }, [activeAtom]);
+ 
   useControls(() => outputParamsConfig, { store: store1 }, [activeAtom]);
   useControls(() => inputNamesConfig, { store: store1 }, [activeAtom]);
 
@@ -205,7 +242,6 @@ export default function ParamsEditor({
           }}
           hideCopyButton
           fill
-          oneLineLabels={false}
           titleBar={{
             title: activeAtom.name || globalvariables.currentRepo.name,
           }}

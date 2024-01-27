@@ -444,7 +444,7 @@ const ShowProjects = (props) => {
             {node.name}
           </p>
           <img className="project_image" src="/imgs/defaultThumbnail.svg"></img>
-          <div style={{ display: "flex" }}>
+          <div style={{ display: "inline" }}>
             <svg
               xmlns="http://www.w3.org/2000/svg"
               style={{ transform: "scale(.7)" }}
@@ -453,7 +453,7 @@ const ShowProjects = (props) => {
             >
               <path d="M8 .2l4.9 15.2L0 6h16L3.1 15.4z" />
             </svg>
-            <p>{node.stargazers_count}</p>
+            <p style={{ fontSize: ".5em" }}>{node.stargazers_count}</p>
           </div>
         </div>
       </Link>

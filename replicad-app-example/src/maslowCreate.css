@@ -329,6 +329,7 @@ body {
   transform: translate(-50%, -50%);
   transition: opacity 0.5s ease, transform 0.3s;
 }
+
 #git_search {
   background-color: #27292a;
   border: 1px solid #c4a3d5;
@@ -895,4 +896,32 @@ Sidebar navigation
   right: 20%;
   z-index: 4;
   color: #c4a3d5;
+}
+
+/*gitmolecule info panel on hover gitmolecule from list*/
+.GitProjectInfoPanel {
+  display: flex;
+  background-color: #27292ab0;
+  border: 2px solid #e7ddecc2;
+  color: white;
+  width: 300px;
+  position: absolute;
+  left: 0px;
+  top: 100px;
+  z-index: 10;
+  gap: 10px;
+}
+.GitProjectInfoPanel img {
+  width: 100px;
+  height: 100px;
+}
+.GitInfoLeft {
+  align-self: center;
+}
+.GitInfo {
+  display: flex;
+  gap: 10px;
+  flex-direction: column;
+  justify-content: space-evenly;
+  padding: 10px;
 }

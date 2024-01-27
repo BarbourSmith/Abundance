@@ -106,38 +106,6 @@ export default class Constant extends Atom {
   }
 
   /**
-   * Add entries for name and value to the side bar. Note: I think that should happen automatically and this function can be deleted. Please test that future self.
-   */
-  updateSidebar() {
-    //updates the sidebar to display information about this node
-
-    var valueList = super.updateSidebar(); //call the super function
-    this.createEditableValueListItem(valueList, this, "name", "Name", false);
-    this.createEditableValueListItem(
-      valueList,
-      this.output,
-      "value",
-      "Value",
-      true
-    );
-
-    this.createCheckbox(valueList, "Evolve", this.evolve, (event) => {
-      if (event.target.checked) {
-        this.evolve = true;
-        this.updateSidebar();
-      } else {
-        this.evolve = false;
-        this.updateSidebar();
-      }
-    });
-
-    if (this.evolve) {
-      this.createEditableValueListItem(valueList, this, "min", "Min", true);
-      this.createEditableValueListItem(valueList, this, "max", "Max", true);
-    }
-  }
-
-  /**
    * Used to walk back out the tree generating a list of constants...used for evolving
    */
   walkBackForConstants(callback) {

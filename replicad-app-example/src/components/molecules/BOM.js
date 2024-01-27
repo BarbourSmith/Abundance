@@ -60,29 +60,17 @@ export default class AddBOMTag extends Atom {
    * Set the value to be the BOMitem
    */
   updateValue() {
-    if (this.inputs.every((x) => x.ready)) {
-      try {
-        var inputPath = this.findIOValue("geometry");
-        const values = {
-          op: "item",
-          tag: JSON.stringify(this.BOMitem),
-          readPath: inputPath,
-          writePath: this.path,
-        };
-        this.basicThreadValueProcessing(values);
-        this.clearAlert();
-      } catch (err) {
-        this.setAlert(err);
-      }
-    }
-  }
+    try {
+      var inputID = this.findIOValue("geometry");
+      var TAG = "BOMitem";
+      var bomItem = this.BOMitem;
 
-  /**
-   * Updates the side bar to display the BOM item information
-   */
-  updateSidebar() {
-    var valueList = super.updateSidebar(); //call the super function
-    this.createBOM(valueList);
+      GlobalVariables.cad.bom(this.uniqueID, inputID, TAG, bomItem).then(() => {
+        this.basicThreadValueProcessing();
+      });
+    } catch (err) {
+      this.setAlert(err);
+    }
   }
 
   /**
@@ -111,59 +99,6 @@ export default class AddBOMTag extends Atom {
     );
     GlobalVariables.c.fill();
     GlobalVariables.c.closePath();
-  }
-
-  /**
-   * Creates an editable UI representation of the bom list.
-   * @param {Object} list - list is an object to which the generated HTML element will be appended
-   */
-  createBOM(list) {
-    list.appendChild(document.createElement("br"));
-    list.appendChild(document.createElement("br"));
-
-    var div = document.createElement("h3");
-    div.setAttribute("style", "text-align:center;");
-    list.appendChild(div);
-    var valueText = document.createTextNode("Bill Of Materials Entry");
-    div.appendChild(valueText);
-
-    var x = document.createElement("HR");
-    list.appendChild(x);
-
-    this.createEditableValueListItem(
-      list,
-      this.BOMitem,
-      "BOMitemName",
-      "Item",
-      false,
-      () => this.updateValue()
-    );
-    this.createEditableValueListItem(
-      list,
-      this.BOMitem,
-      "numberNeeded",
-      "Number",
-      true,
-      () => this.updateValue()
-    );
-    this.createEditableValueListItem(
-      list,
-      this.BOMitem,
-      "costUSD",
-      "Price",
-      true,
-      () => this.updateValue()
-    );
-    this.createEditableValueListItem(
-      list,
-      this.BOMitem,
-      "source",
-      "Source",
-      false,
-      () => this.updateValue()
-    );
-    x = document.createElement("HR");
-    list.appendChild(x);
   }
 
   /**
