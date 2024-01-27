@@ -72,7 +72,8 @@ export default function ParamsEditor({
         activeAtom.name = value;
       },
     };
-  } else if (activeAtom.atomType == "Constant") {
+  }
+  if (activeAtom.atomType == "Constant") {
     outputParams[activeAtom.name] = {
       value: output.value,
       label: output.name,
@@ -81,7 +82,9 @@ export default function ParamsEditor({
         output.value = value;
       },
     };
-  } else if (activeAtom.atomType == "Equation") {
+  }
+
+  if (activeAtom.atomType == "Equation") {
     equationParams["equation"] = {
       value: activeAtom.currentEquation,
       label: "Current Equation",
