@@ -28,9 +28,9 @@ const started = init();
 
 function createMesh(thickness) {
   return started.then(() => {
-    //const box = drawBox(thickness);
     // This is how you get the data structure that the replica-three-helper
     // can synchronize with three BufferGeometry
+    // will probably use eventually to fi
     return [];
   });
 }
@@ -225,6 +225,31 @@ function color(targetID, inputID, color) {
       tags: [color, ...library[inputID].tags],
       color: color,
     };
+    return true;
+  });
+}
+
+function pattern(targetID, inputID, x, number) {
+  return started.then(() => {
+    const polarCopies = (shape, count, radius) => {
+      const base = shape.clone().translate(0, radius);
+      const angle = 360 / count;
+
+      const copies = [];
+      for (let i = 0; i < count; i++) {
+        copies.push(base.clone().rotate(i * angle));
+      }
+      let fusedPattern = chainFuse(copies);
+      return fusedPattern;
+    };
+    console.log(library[inputID]);
+
+    library[targetID] = {
+      geometry: [polarCopies(library[inputID].geometry[0], 5, 12)],
+      tags: [...library[inputID].tags],
+      color: library[inputID].color,
+    };
+    console.log(library[targetID]);
     return true;
   });
 }
@@ -644,6 +669,7 @@ function generateDisplayMesh(id) {
     if (library[id].plane != undefined) {
       sketchPlane = library[id].plane;
     }
+    console.log(library[id]);
     let colorGeometry;
     let meshArray = [];
     // Iterate through all the color options and see what geometry matches
@@ -717,6 +743,7 @@ expose({
   layout,
   output,
   molecule,
+  pattern,
   bom,
   extractTag,
   intersect,

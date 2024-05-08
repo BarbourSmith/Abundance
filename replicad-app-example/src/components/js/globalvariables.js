@@ -17,6 +17,7 @@ import Svg from "../molecules/svg.js";
 import Step from "../molecules/step.js";
 //import Nest              from '../molecules/nest.js'
 import Intersection from "../molecules/intersection.js";
+import Pattern from "../molecules/pattern.js";
 import Difference from "../molecules/difference.js";
 import Constant from "../molecules/constant.js";
 import Equation from "../molecules/equation.js";
@@ -143,6 +144,11 @@ class GlobalVariables {
         atomCategory: "Actions",
       },
       move: { creator: Move, atomType: "Move", atomCategory: "Actions" },
+      pattern: {
+        creator: Pattern,
+        atomType: "Pattern",
+        atomCategory: "Actions",
+      },
       translate: { creator: Move, atomType: "Translate", atomCategory: "none" },
       GeneticAlgorithm: {
         creator: GeneticAlgorithm,
