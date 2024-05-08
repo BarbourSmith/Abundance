@@ -1,11 +1,4 @@
 /**
- * Begins the automatic process of saving the project
- */
-this.beginAutosave = function () {
-  intervalTimer = setInterval(() => this.saveProject(), 120000); //Save the project regularly
-};
-
-/**
  * Upload or remove files from github. Files with null content will be deleted.
  * @param {object} files A dictionary with paths as keys and the content as the answer.
  */

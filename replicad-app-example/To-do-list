@@ -4,7 +4,9 @@
 to-do-fix
 
 now:
-    -  Github molecule not loading correct values. problem is that even though value in IOs in correctly stored when it computes in the worker using the output of the molecule it saves the object to the library with whatever values it gets first and shows that until an update value triggers a rerender ? - aybe what we need to do is make a copy with its own set of atoms and output and if needed it can be updated from github ?
+    -  leva maxes out at 6 inputs because of max height 
+    - repeat pattern molecule
+    -Github molecule not loading correct values. problem is that even though value in IOs in correctly stored when it computes in the worker using the output of the molecule it saves the object to the library with whatever values it gets first and shows that until an update value triggers a rerender ? - aybe what we need to do is make a copy with its own set of atoms and output and if needed it can be updated from github ?
     - everything is duplicating when going to run mode and back. (i think it's loading the project again but not deleting old atoms) 
     - need to start implementing for UX alerts, (a.e.can't find tag), it's hard to tell when i'm doing something wrong in rendering vs when something is breaking.
     - model some things :S
