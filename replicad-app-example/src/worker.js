@@ -229,12 +229,11 @@ function color(targetID, inputID, color) {
   });
 }
 
-function pattern(targetID, inputID, x, number) {
+function pattern(targetID, inputID, count, radius) {
   return started.then(() => {
     const polarCopies = (shape, count, radius) => {
       const base = shape.clone().translate(0, radius);
       const angle = 360 / count;
-
       const copies = [];
       for (let i = 0; i < count; i++) {
         copies.push(base.clone().rotate(i * angle));
@@ -245,7 +244,7 @@ function pattern(targetID, inputID, x, number) {
     console.log(library[inputID]);
 
     library[targetID] = {
-      geometry: [polarCopies(library[inputID].geometry[0], 5, 12)],
+      geometry: [polarCopies(library[inputID].geometry[0], count, radius)],
       tags: [...library[inputID].tags],
       color: library[inputID].color,
     };

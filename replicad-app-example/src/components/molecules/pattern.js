@@ -13,9 +13,9 @@ export default class Pattern extends Atom {
     super(values);
 
     this.addIO("input", "geometry", this, "geometry", "", false, true);
-    this.addIO("input", "xDist", this, "number", 0);
+    this.addIO("input", "radius", this, "number", 12);
     //this.addIO("input", "yDist", this, "number", 0);
-    this.addIO("input", "number", this, "number", 0);
+    this.addIO("input", "count", this, "number", 5);
     this.addIO("output", "geometry", this, "geometry", "");
 
     /**
@@ -76,17 +76,23 @@ export default class Pattern extends Atom {
   updateValue() {
     if (this.inputs.every((x) => x.ready)) {
       try {
-        var inputID = this.findIOValue("geometry");
-        var x = this.findIOValue("xDist");
-        var number = this.findIOValue("number");
-        //var y = this.findIOValue("yDist");
-        //var z = this.findIOValue("zDist");
+        // find if it's circular or linear// add io to check
+        if (true) {
+          // circular
+          var inputID = this.findIOValue("geometry");
+          var radius = this.findIOValue("radius");
+          var count = this.findIOValue("count");
+          //var y = this.findIOValue("yDist");
+          //var z = this.findIOValue("zDist");
 
-        GlobalVariables.cad
-          .pattern(this.uniqueID, inputID, x, number)
-          .then(() => {
-            this.basicThreadValueProcessing();
-          });
+          GlobalVariables.cad
+            .pattern(this.uniqueID, inputID, count, radius)
+            .then(() => {
+              this.basicThreadValueProcessing();
+            });
+        } else {
+          // linear
+        }
       } catch (err) {
         this.setAlert(err);
       }
