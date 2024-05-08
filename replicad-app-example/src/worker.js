@@ -26,19 +26,12 @@ const init = async () => {
 };
 const started = init();
 
-function createBlob(thickness) {
-  // note that you might want to do some caching for more complex models
-  return started.then(() => {
-    return drawBox(thickness).blobSTEP();
-  });
-}
-
 function createMesh(thickness) {
   return started.then(() => {
-    const box = drawBox(thickness);
+    //const box = drawBox(thickness);
     // This is how you get the data structure that the replica-three-helper
     // can synchronize with three BufferGeometry
-    return [{ faces: box.mesh(), edges: box.meshEdges() }];
+    return [];
   });
 }
 
@@ -705,7 +698,6 @@ function generateDisplayMesh(id) {
 // comlink is great to expose your functions within the worker as a simple API
 // to your app.
 expose({
-  createBlob,
   createMesh,
   circle,
   color,
