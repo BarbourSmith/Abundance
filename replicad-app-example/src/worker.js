@@ -684,7 +684,6 @@ function generateDisplayMesh(id) {
     if (library[id].plane != undefined) {
       sketchPlane = library[id].plane;
     }
-    console.log(library[id]);
     let colorGeometry;
     let meshArray = [];
     // Iterate through all the color options and see what geometry matches

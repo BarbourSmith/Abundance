@@ -35,7 +35,7 @@ export default class Pattern extends Atom {
      * A description of this atom
      * @type {string}
      */
-    this.description = "Makes a linear pattern in one axis";
+    this.description = "Makes a linear or circular pattern";
 
     this.setValues(values);
   }
