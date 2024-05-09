@@ -229,7 +229,7 @@ function color(targetID, inputID, color) {
   });
 }
 
-function pattern(targetID, inputID, count, radius) {
+function circularPattern(targetID, inputID, count, radius) {
   return started.then(() => {
     const polarCopies = (shape, count, radius) => {
       const base = shape.clone().translate(0, radius);
@@ -241,14 +241,30 @@ function pattern(targetID, inputID, count, radius) {
       let fusedPattern = chainFuse(copies);
       return fusedPattern;
     };
-    console.log(library[inputID]);
-
     library[targetID] = {
       geometry: [polarCopies(library[inputID].geometry[0], count, radius)],
       tags: [...library[inputID].tags],
       color: library[inputID].color,
     };
-    console.log(library[targetID]);
+    return true;
+  });
+}
+function linearPattern(targetID, inputID, count, x, y) {
+  return started.then(() => {
+    const polarCopies = (shape, count, x, y) => {
+      const base = shape;
+      const copies = [];
+      for (let i = 0; i < count; i++) {
+        copies.push(base.clone().translate(i * x, i * y));
+      }
+      let fusedPattern = chainFuse(copies);
+      return fusedPattern;
+    };
+    library[targetID] = {
+      geometry: [polarCopies(library[inputID].geometry[0], count, x, y)],
+      tags: [...library[inputID].tags],
+      color: library[inputID].color,
+    };
     return true;
   });
 }
@@ -742,7 +758,8 @@ expose({
   layout,
   output,
   molecule,
-  pattern,
+  circularPattern,
+  linearPattern,
   bom,
   extractTag,
   intersect,
