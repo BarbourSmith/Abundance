@@ -5,6 +5,7 @@ to-do-fix
 
 now:
    - feat: thumbnails
+   - feat : fuse atom / make assembly cut always/ remove fuse from other molec
    - bug :need to change unit ratio because i can't quite zoom in into the piece
     - BUG: make sure BOM is getting deleted if molecule gets recomputed/ recompile!
     - bug: possibly replicad's - when atoms are not overlapping but share a vector point they throw an error when fusing 
