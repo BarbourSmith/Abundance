@@ -96,7 +96,6 @@ function loftShapes(targetID, inputsIDs) {
 
     inputsIDs.forEach((inputID) => {
       let partToLoft = flattenAndFuse(library[inputID]);
-      console.log(partToLoft);
       arrayOfSketchedGeometry.push(
         partToLoft.sketchOnPlane(library[inputID].plane)
       );
@@ -134,7 +133,6 @@ function extrude(targetID, inputID, height) {
 function is3D(inputs) {
   // if it's an assembly assume it's 3d since our assemblies don't work for drawings right now
   if (isAssembly(inputs)) {
-    console.log(inputs.geometry.some((input) => is3D(input)));
     return inputs.geometry.some((input) => is3D(input));
   } else if (inputs.geometry[0].mesh !== undefined) {
     return true;
@@ -174,7 +172,6 @@ function move(targetID, inputID, x, y, z) {
 
 function rotate(targetID, inputID, x, y, z, pivot) {
   return started.then(() => {
-    console.log(is3D(library[inputID]));
     if (is3D(library[inputID])) {
       library[targetID] = actOnLeafs(library[inputID], (leaf) => {
         let leafCenter = leaf.geometry[0].boundingBox.center;
@@ -195,7 +192,6 @@ function rotate(targetID, inputID, x, y, z, pivot) {
       library[targetID] = actOnLeafs(
         library[inputID],
         (leaf) => {
-          console.log(leaf);
           return {
             geometry: [leaf.geometry[0].clone().rotate(z, pivot, [0, 0, 1])],
             tags: leaf.tags,
@@ -242,7 +238,6 @@ function shrinkWrapSketches(targetID, inputIDs) {
       inputIDs.forEach((inputID) => {
         inputsToFuse.push(flattenAndFuse(library[inputID]));
       });
-      console.log(inputsToFuse);
       let geometryToWrap = chainFuse(inputsToFuse);
       library[targetID] = {
         geometry: [shrinkWrap(geometryToWrap, 50)],
@@ -784,7 +779,6 @@ let colorOptions = {
 
 function generateDisplayMesh(id) {
   return started.then(() => {
-    console.log(library[id]);
     // if there's a different plane than XY sketch there
     let sketchPlane = "XY";
     if (library[id].plane != undefined) {

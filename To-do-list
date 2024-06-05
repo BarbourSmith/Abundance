@@ -4,12 +4,13 @@
 to-do-fix
 
 now:
+    - import svg 
+    - import stp? 
    - feat: thumbnails
    - feat : fuse atom / make assembly cut always/ remove fuse from other molec
    - bug :need to change unit ratio because i can't quite zoom in into the piece
     - BUG: make sure BOM is getting deleted if molecule gets recomputed/ recompile!
-    - bug: possibly replicad's - when atoms are not overlapping but share a vector point they throw an error when fusing 
-    - maybe in run mode, inputs should have ranges instead of open numbers
+  
     - FEAT: Print object bounds option to let user know how big their object is?  
     - BUG: uncaught in promise error will break everything, must have a way of resetting, won't throw more errors after
 
@@ -50,16 +51,17 @@ mid :
     - BOM summary when molecule is active , button to download
     - Fix gitmolecule search bar max quota issue
     - Top molecule - choose units of measurement 
-    - add thumbnail images for projects
+      - maybe in run mode, inputs should have ranges instead of open numbers
 
 future:
-    - Feature : toggle atoms for finished project (a.e selection==1 rectangular top selection==2 circular top )
+
     - Zoom in camera on load to bounding box for renderer
     -  import parts ?
     - make sample project with readme walkthrough or sandbox
     - CSS Overhaul , make global fonts, margins, colors
     - keyboard commands r-e-10
-   
+    - Feature : toggle atoms for finished project (a.e selection==1 rectangular top selection==2 circular top )
+
 Qs :
   
 
