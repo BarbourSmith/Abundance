@@ -70,9 +70,6 @@ export default class Circle extends Atom {
    */
   updateValue() {
     try {
-      let unitScalar = this.parent.units[this.parent.unitsKey];
-      var diameter = this.findIOValue("diameter") * unitScalar;
-
       GlobalVariables.cad.circle(this.uniqueID, diameter).then(() => {
         this.basicThreadValueProcessing();
       });
