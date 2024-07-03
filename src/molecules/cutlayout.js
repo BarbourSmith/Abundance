@@ -38,6 +38,7 @@ export default class CutLayout extends Atom {
     this.addIO("input", "geometry", this, "geometry", null);
     this.addIO("input", "Material Thickness", this, "number",
       GlobalVariables.topLevelMolecule.unitsIndex == "MM" ? 19 : .75);
+    this.addIO("input", "Spacing", this, "number", GlobalVariables.topLevelMolecule.unitsIndex == "MM" ? 6.35 : .25);
     this.addIO("output", "geometry", this, "geometry", "");
 
     this.setValues(values);
@@ -102,6 +103,7 @@ export default class CutLayout extends Atom {
   updateValue() {
     var inputID = this.findIOValue("geometry");
     var materialThickness = this.findIOValue("Material Thickness");
+    var spacing = this.findIOValue("Spacing");
     var tag = "cutLayout";
 
     if (!inputID) {
@@ -110,7 +112,7 @@ export default class CutLayout extends Atom {
     }
 
     GlobalVariables.cad
-      .layout(this.uniqueID, inputID, tag, materialThickness)
+      .layout(this.uniqueID, inputID, tag, materialThickness, spacing)
       .then(() => {
         this.basicThreadValueProcessing();
       }).catch(this.alertingErrorHandler());
