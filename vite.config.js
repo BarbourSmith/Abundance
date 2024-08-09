@@ -4,9 +4,9 @@ import reactPlugin from "@vitejs/plugin-react";
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [reactPlugin()],
-  base: "https://barboursmith.github.io/Abundance/",
+  base: "/Abundance/",
   build: {
-    outDir: ".",
+    outDir: "build",
   },
   server: {
     port: 4444,
