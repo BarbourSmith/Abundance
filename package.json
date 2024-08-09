@@ -3,8 +3,11 @@
   "version": "0.14.6",
   "description": "A simple React app based on replicad.",
   "private": true,
+  "homepage": "https://barboursmith.github.io/Abundance/",
   "scripts": {
     "start": "vite",
+    "predeploy" : "npm run build",
+    "deploy" : "gh-pages -d build",
     "build": "vite build",
     "serve": "vite preview"
   },
