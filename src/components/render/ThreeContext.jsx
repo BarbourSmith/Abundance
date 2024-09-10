@@ -1,27 +1,39 @@
-import React, { Suspense, useEffect, useState } from "react";
-import { Canvas } from "@react-three/fiber";
-import { Wireframe } from "@react-three/drei";
+import React, { Suspense, useEffect } from "react";
+import { Canvas, useThree } from "@react-three/fiber";
+import { Stage } from "@react-three/drei";
 import * as THREE from "three";
 import InfiniteGrid from "./InfiniteGrid.jsx";
 import Controls from "./ThreeControls.jsx";
 
-// We change the default orientation - threejs tends to use Y are the height,
-// while replicad uses Z. This is mostly a representation default.
-
 THREE.Object3D.DEFAULT_UP.set(0, 0, 1);
 
-// This is the basics to render a nice looking model user react-three-fiber
-//
-// The camera is positioned for the model we present (that cannot change size.
-// You might need to adjust this with something like the autoadjust from the
-// `Stage` component of `drei`
-//
-// Depending on your needs I would advice not using a light and relying on
-// a matcap material instead of the meshStandardMaterial used here.
-export default function ext({ children, ...props }) {
+export default function Ext({ children, ...props }) {
   const dpr = Math.min(window.devicePixelRatio, 2);
 
   let backColor = props.outdatedMesh ? "#ababab" : "#f5f5f5";
+
+  const AdjustCamera = () => {
+    const { camera, scene } = useThree();
+
+    useEffect(() => {
+      camera.updateProjectionMatrix();
+      camera.lookAt(scene.position);
+      // Optionally, you can use a bounding box to fit the camera to the content
+      const box = new THREE.Box3().setFromObject(scene);
+      const size = box.getSize(new THREE.Vector3()).length();
+      const center = box.getCenter(new THREE.Vector3());
+
+      camera.near = size / 100;
+      camera.far = size * 100;
+      camera.position.copy(center);
+      camera.position.x += size / 2.0;
+      camera.position.y += size / 2.0;
+      camera.position.z += size / 2.0;
+      camera.lookAt(center);
+    }, [children, scene, camera]);
+
+    return null;
+  };
 
   return (
     <Suspense fallback={null}>
@@ -33,27 +45,20 @@ export default function ext({ children, ...props }) {
         dpr={dpr}
         frameloop="demand"
         orthographic={true}
-        camera={{
-          fov: 75,
-          near: 0.1,
-          right: 2000,
-          left: -2000,
-          bottom: -2000,
-          far: 2000,
-          position: [600, 600, 600],
-          zoom: 1,
-        }}
         shadows={true}
       >
-        {props.gridParam ? <InfiniteGrid /> : null}
-        <Controls axesParam={props.axesParam} enableDamping={false}></Controls>
+        <Stage adjustCamera={true}>
+          {props.gridParam ? <InfiniteGrid /> : null}
+          <Controls axesParam={props.axesParam} enableDamping={false}></Controls>
 
-        {!props.outdatedMesh ? (
-          <ambientLight intensity={0.9} />
-        ) : (
-          <ambientLight intensity={0.4} />
-        )}
-        {children}
+          {!props.outdatedMesh ? (
+            <ambientLight intensity={0.9} />
+          ) : (
+            <ambientLight intensity={0.4} />
+          )}
+          {children}
+          <AdjustCamera />
+        </Stage>
       </Canvas>
     </Suspense>
   );
