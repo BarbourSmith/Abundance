@@ -576,7 +576,7 @@ function gcode(targetID, inputID, toolSize) {
     console.log("Before offset:");
     console.log(finalGeometry[0]);
 
-    let offsetGeometry = [finalGeometry[0].clone().offset(5)];
+    let offsetGeometry = [finalGeometry[0].clone().offset(toolSize)];
     console.log("After offset:");
     console.log(offsetGeometry);
 
