@@ -573,8 +573,15 @@ function gcode(targetID, inputID, toolSize) {
       finalGeometry = [fusedGeometry];
     }
 
+    console.log("Before offset:");
+    console.log(finalGeometry[0]);
+
+    let offsetGeometry = [finalGeometry[0].clone().offset(5)];
+    console.log("After offset:");
+    console.log(offsetGeometry);
+
     library[targetID] = {
-      geometry: finalGeometry,
+      geometry: offsetGeometry,
       color: library[inputID].color,
       plane: library[inputID].plane,
     };
