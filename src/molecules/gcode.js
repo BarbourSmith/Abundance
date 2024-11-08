@@ -74,28 +74,26 @@ export default class Gcode extends Atom {
   /**
    * Generate a layered outline of the part where the tool will cut
    */
+  /**
+   * Pass the input shape to the worker thread to compute the extruded shape.
+   */
   updateValue() {
     super.updateValue();
-    try {
-      var geometry = this.findIOValue("geometry");
+
+    if (this.inputs.every((x) => x.ready)) {
+      var inputID = this.findIOValue("geometry");
       var toolSize = this.findIOValue("tool size");
       var passes = this.findIOValue("passes");
       var speed = this.findIOValue("speed");
       var tabs = this.findIOValue("tabs");
       var safeHeight = this.findIOValue("safe height");
-      const values = {
-        op: "gcode",
-        readPath: geometry,
-        toolSize: toolSize,
-        passes: passes,
-        speed: speed,
-        tabs: tabs,
-        safeHeight: safeHeight,
-        writePath: this.path,
-      };
-      this.gcodeString = this.basicThreadValueProcessing(values);
-    } catch (err) {
-      this.setAlert(err);
+
+      GlobalVariables.cad
+        .gcode(this.uniqueID, inputID, toolSize)
+        .then(() => {
+          this.basicThreadValueProcessing();
+        })
+        .catch(this.alertingErrorHandler());
     }
   }
 

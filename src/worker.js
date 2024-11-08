@@ -559,6 +559,29 @@ function visExport(targetID, inputID, fileType) {
   });
 }
 
+/** Visualize STL or STEP*/
+function gcode(targetID, inputID, toolSize) {
+  console.log("Gcode called");
+  return started.then(() => {
+    let geometryToExport = extractKeepOut(library[inputID]);
+    let fusedGeometry = digFuse(geometryToExport);
+    let finalGeometry;
+    /** Fuses input geometry, draws a top view projection*/
+    if (is3D(library[inputID])) {
+      finalGeometry = [drawProjection(fusedGeometry, "top").visible];
+    } else {
+      finalGeometry = [fusedGeometry];
+    }
+
+    library[targetID] = {
+      geometry: finalGeometry,
+      color: library[inputID].color,
+      plane: library[inputID].plane,
+    };
+    return true;
+  });
+}
+
 /** down STL*/
 function downExport(ID, fileType, svgResolution, units) {
   return started.then(() => {
@@ -1588,4 +1611,5 @@ expose({
   loftShapes,
   text,
   resetView,
+  gcode,
 });
