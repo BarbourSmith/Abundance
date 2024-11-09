@@ -734,7 +734,7 @@ function extractKeepOut(inputGeometry) {
  */
 function layout(targetID, inputID, TAG, progressCallback, layoutConfig) {
   return started.then(() => {
-    var THICKNESS_TOLLERANCE = 0.001;
+    var THICKNESS_TOLLERANCE = 0.01;
 
     let taggedGeometry = extractTags(library[inputID], TAG);
     if (!taggedGeometry) {
@@ -749,7 +749,7 @@ function layout(targetID, inputID, TAG, progressCallback, layoutConfig) {
     // console.log(splitGeometry);
 
     // Rotate all shapes to be most cuttable.
-    library[targetID] = actOnLeafs(taggedGeometry, (leaf) => {
+    library[targetID] = actOnLeafs(taggedGeometry, (leaf) => { //This results in the shapes being shown flat, but not arranged when the button is first pressed while the calculation is concluding
       // For each face, consider it as the underside of the shape on the CNC bed.
       // In order to be considered, a face must be...
       //  1) a flat PLANE, not a cylander, or sphere or other curved face type.
@@ -856,6 +856,16 @@ function layout(targetID, inputID, TAG, progressCallback, layoutConfig) {
       return newLeaf;
     });
 
+    //Draw the bounding box where the parts will be laid out
+    library[targetID].geometry.push(
+      {
+        geometry: [drawRectangle(layoutConfig.width, layoutConfig.height).translate(layoutConfig.width / 2, layoutConfig.height / 2, 0)],
+        tags: [],
+        color: "#FF9065",
+        bom: [],
+      }
+    );
+
     let positionsPromise = computePositions(
       shapesForLayout,
       progressCallback,
@@ -921,6 +931,17 @@ function layout(targetID, inputID, TAG, progressCallback, layoutConfig) {
           };
         }
       );
+
+      //Draw the bounding box where the parts will be laid out
+      library[targetID].geometry.push(
+        {
+          geometry: [drawRectangle(layoutConfig.width, layoutConfig.height).translate(layoutConfig.width / 2, layoutConfig.height / 2, 0)],
+          tags: [],
+          color: "#FF9065",
+          bom: [],
+        }
+      );
+
       return warning;
     });
   });
