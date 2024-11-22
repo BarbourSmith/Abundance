@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
 import GlobalVariables from "../../js/globalvariables.js";
-import { Octokit } from "octokit";
+import { Octokit } from "@octokit/rest";
 import ToggleRunCreate from "../secondary/ToggleRunCreate.jsx";
 import TopMenu from "../secondary/TopMenu.jsx";
 import FlowCanvas from "./flowCanvas.jsx";
