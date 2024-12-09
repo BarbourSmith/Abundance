@@ -1,19 +1,6 @@
 # A web based CAD program for cooperative design.
 
-<<<<<<< Updated upstream
 Maslow create breaks with the tradition of CAD programs which inherit from drawing programs and instead inherits from logical languages like programming. This allows it to be a CAD program which can have language like features such as importing modules, version control, and collaboration.
-
-# Use
-
-A 3D model within Maslow Create is composed of interconnected nodes called Atoms and Molecules. An atom is an operation you can perform on a shape (ie translate it in space). A molecule can contain any number of atoms in a configuration (ie generate a table leg). Think of Atoms as the built-in functions of a programming language and molecules as the functions you create.
-
-You can place a new atom by right-clicking anywhere within the flow canvas area and entering an atom name in the search bar.
-
-Currently Maslow Create supports the folowing atoms:
-
-### Assembly 
-=======
-Abundance breaks with the tradition of CAD programs which inherit from drawing programs and instead inherits from logical languages like programming. This allows it to be a CAD program which can have language like features such as importing modules, version control, and collaboration.
 
 # Use
 
@@ -23,7 +10,7 @@ A 3D model within Maslow Create is composed of interconnected nodes called Atoms
 
 To see and place the available atoms on your flow screen start by right-clicking anywhere within the flow screen area to spawn the atom menu.
 
-![topMenu](https://raw.githubusercontent.com/alzatin/abundance-mo-fork/master/public/images/top_menu.png)
+![topMenu](https://raw.githubusercontent.com/alzatin/abundance-mo-fork/master/dist/imgs/top_menu.png)
 
 Currently Maslow Create supports the folowing atoms:
 
