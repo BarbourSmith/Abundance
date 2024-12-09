@@ -10,7 +10,7 @@ A 3D model within Maslow Create is composed of interconnected nodes called Atoms
 
 To see and place the available atoms on your flow screen start by right-clicking anywhere within the flow screen area to spawn the atom menu.
 
-![topMenu](https://raw.githubusercontent.com/alzatin/abundance-mo-fork/master/dist/imgs/top_menu.png)
+![topMenu](https://raw.githubusercontent.com/alzatin/abundance-mo-fork/master/public/imgs/top_menu.png)
 
 Currently Maslow Create supports the folowing atoms:
 
