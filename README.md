@@ -244,6 +244,8 @@ The output atom cannot be directly placed however, each molecule has one output 
 
 If you are not the owner of a project or are not logged in you can still see a project in Run Mode. 
 
+<img width="1436" alt="run-mode" src="https://github.com/user-attachments/assets/c3bed30e-f253-4245-a62c-67067a5319ee">
+
 
 # Development
 
