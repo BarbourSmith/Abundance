@@ -8,16 +8,31 @@ A 3D model within Maslow Create is composed of interconnected nodes called Atoms
 
 # Atom Menu
 
-To see and place the available atoms on your flow screen start by right-clicking anywhere within the flow screen area to spawn the atom menu.
+To see and place the available atoms on your flow screen start by right-clicking anywhere within the flow screen area to spawn the circular atom menu. Move your cursor around to spawn the sub-menus and click on the atom you want to place.
 
-![topMenu](https://raw.githubusercontent.com/alzatin/abundance-mo-fork/master/public/imgs/top_menu.png)
+![topMenu]([https://raw.githubusercontent.com/alzatin/abundance-mo-fork/refs/heads/main/public/imgs/top_menu.png])
 
-Currently Maslow Create supports the folowing atoms:
+
+These are the atoms currently available on the menu:
+
+## Shapes 
+
+### Circle
+
+The circle atom creates a circle sketch on the XY plane. Circle shapes are commonly extruded to create cylinders.
+
+
+![circle]([https://raw.githubusercontent.com/alzatin/abundance-mo-fork/refs/heads/main/public/imgs/circle-example.png])
+
+### Rectangle
+
+The rectangle atom creates a rectangle sketch on the XY plane. Rectangles are commonly extruded to make a 3D shape.
+
+![rectangle]([https://raw.githubusercontent.com/alzatin/abundance-mo-fork/refs/heads/main/public/imgs/rectangle-example.png])
 
 ### Assembly
->>>>>>> Stashed changes
 
-The assembly atom allows multiple shapes to be combigned into one unit called an assembly. The order in which atoms are combigned matters because where shapes intersect shapes earlier in the order subtract from shapes later in the order. For example if you have a bolt which needs to create a hole in a part you should assemble first the part and then the bolt.
+The assembly atom allows multiple shapes to be combined into one unit called an assembly. The order in which atoms are combigned matters because where shapes intersect shapes earlier in the order subtract from shapes later in the order. For example if you have a bolt which needs to create a hole in a part you should assemble first the part and then the bolt.
 
 ![assembly](https://raw.githubusercontent.com/BarbourSmith/Maslow-Create/master/images/Assembly.PNG)
 
@@ -28,11 +43,6 @@ The Add BOM Tag atom tags a part with a bill of materials item. This item will a
 {picture of tag}
 {picture of BOM file}
 
-### Circle
-
-The circle atom creates a circle shape. Circle shapes are commonly extruded to create cylinders.
-
-![circle](https://raw.githubusercontent.com/BarbourSmith/Maslow-Create/master/images/Circle.PNG)
 
 ### Code
 
@@ -111,11 +121,7 @@ The README atom provides notes to the next person reading the project. The text 
 
 {Show readme atom}
 
-### Rectangle
 
-The rectangle atom creates a rectangle shape. Rectangles are commonly extruded to make a 3D shape.
-
-{show picture of rectangle}
 
 ### Regular Polygon
 
