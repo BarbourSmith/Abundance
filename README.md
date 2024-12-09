@@ -81,7 +81,8 @@ The atoms available in the circular menu are divided into 6 categories:
 
 The regular polygon atom creates a regular polygon shape. Regular polygons are regularly extruded to create a 3D shape.
 
-![circle]([https://raw.githubusercontent.com/alzatin/abundance-mo-fork/public/imgs/circle-example.png])
+<img width="821" alt="polygon-example" src="https://github.com/user-attachments/assets/3d5b3fb7-34d5-49fc-b2aa-821e5df7cea4">
+
 
 ### Circle
 
