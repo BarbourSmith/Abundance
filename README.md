@@ -1,6 +1,6 @@
 # A web based CAD program for cooperative design.
 
-Maslow create breaks with the tradition of CAD programs which inherit from drawing programs and instead inherits from logical languages like programming. This allows it to be a CAD program which can have language like features such as importing modules, version control, and collaboration.
+Abundance breaks with the tradition of CAD programs which inherit from drawing programs and instead inherits from logical languages like programming. This allows it to be a CAD program which can have language like features such as importing modules, version control, and collaboration.
 
 ## Login with Github
 
@@ -9,6 +9,7 @@ After the initial screen prompts you to login with Github, all the projects you 
 ## Layout of the program
 
 Abundance has two main areas to interface with. Along the top of the screen is the logical flow of the design. In the lower portion you can see the rendering area where a 3D view of your model will appear. In the lower left is a cluster of menus that let you do things like change the parameters of your atoms. If no atom is selected, then information on the menus will reflect the information of the molecule you are currently on.
+
 
 # Use
 
@@ -42,7 +43,8 @@ The circle atom creates a circle sketch on the XY plane. Circle shapes are commo
 
 The rectangle atom creates a rectangle sketch on the XY plane. Rectangles are commonly extruded to make a 3D shape.
 
-![rectangle]([https://raw.githubusercontent.com/alzatin/abundance-mo-fork/refs/heads/main/public/imgs/rectangle-example.png])
+<img width="1252" alt="rectangle-example" src="https://github.com/user-attachments/assets/528c65fc-be71-47ec-be4d-874380d92ed3">
+
 
 ### Text
 
