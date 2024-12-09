@@ -128,15 +128,17 @@ The difference atom subtracts one shape from another.
 
 #### Assembly
 
-The assembly atom allows multiple shapes to be combined into one unit called an assembly. The order in which atoms are combigned matters because where shapes intersect shapes earlier in the order subtract from shapes later in the order. For example if you have a bolt which needs to create a hole in a part you should assemble first the part and then the bolt.
+The assembly selector allows multiple shapes to be combined into one unit called an assembly. The order in which atoms are combigned matters because where shapes intersect shapes earlier in the order subtract from shapes later in the order. For example if you have a bolt which needs to create a hole in a part you should assemble first the part and then the bolt.
 
-![assembly](https://raw.githubusercontent.com/BarbourSmith/Maslow-Create/master/images/Assembly.PNG)
+<img width="1162" alt="assembly-example" src="https://github.com/user-attachments/assets/49728e17-55dc-4924-a7fb-42a514ab755e">
+
 
 #### Fusion
 
-The assembly atom allows multiple shapes to be combined into one unit called an assembly. The order in which atoms are combigned matters because where shapes intersect shapes earlier in the order subtract from shapes later in the order. For example if you have a bolt which needs to create a hole in a part you should assemble first the part and then the bolt.
+The fusion selector atom allows multiple shapes to be combined into one unit. The shapes are fused, become one and are inseparable from then on.
 
-![assembly](https://raw.githubusercontent.com/BarbourSmith/Maslow-Create/master/images/Assembly.PNG)
+<img width="1126" alt="fusion-example" src="https://github.com/user-attachments/assets/8a91f7ff-55ca-4c03-ad02-dcf20ef04514">
+
 
 ### Shrinkwrap
 
