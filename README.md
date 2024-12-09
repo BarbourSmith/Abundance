@@ -2,11 +2,19 @@
 
 Maslow create breaks with the tradition of CAD programs which inherit from drawing programs and instead inherits from logical languages like programming. This allows it to be a CAD program which can have language like features such as importing modules, version control, and collaboration.
 
+## Login with Github
+
+After the initial screen prompts you to login with Github, all the projects you create on Abundance will be stored as Github Repositories but you can always search for them and find them through the Abundance Platform.
+
+## Layout of the program
+
+Abundance has two main areas to interface with. Along the top of the screen is the logical flow of the design. In the lower portion you can see the rendering area where a 3D view of your model will appear. In the lower left is a cluster of menus that let you do things like change the parameters of your atoms. If no atom is selected, then information on the menus will reflect the information of the molecule you are currently on.
+
 # Use
 
-A 3D model within Maslow Create is composed of interconnected nodes called Atoms and Molecules. An atom is a shape or an operation you can perform on a shape (ie circle or translate). A molecule can contain any number of atoms in a configuration (ie generate a table leg). Think of Atoms as the built-in functions of a programming language and molecules as the functions you create.
+A 3D model within Maslow Create is composed of interconnected nodes called Atoms and Molecules which are linked together through connectors. An atom is a shape or an operation you can perform on a shape (ie circle or translate). A molecule can contain any number of atoms in a configuration (ie generate a table leg). Think of Atoms as the built-in functions of a programming language and molecules as the functions you create. Each atom has attachment points to which connectors can attach. 
 
-# Atom Menu
+## Atom Menu
 
 To see and place the available atoms on your flow screen start by right-clicking anywhere within the flow screen area to spawn the circular atom menu. Move your cursor around to spawn the sub-menus and click on the atom you want to place.
 
@@ -86,9 +94,6 @@ The equation Atom lets you perform basic math operations on numbers produced by 
 
 {Show equation doing something}
 
-<<<<<<< Updated upstream
-### Extrude 
-=======
 ### Extrude
 >>>>>>> Stashed changes
 
@@ -196,12 +201,4 @@ You can read the complete documentation at [https://maslowcreate.org/documentati
 
 Your canvas piece should open up automatically at http://localhost:3000 and you should see 'HTML CANVAS BOILERPLATE' on hover.
 
-## Layout of the program
 
-Maslow Create has three main areas of the interface. Along the top of the screen is the logical flow of the design. In the lower left is a 3D rendering of the design, and in the lower right is the side bar which displays information related to the currently selected atom. If no atom is selected, then information about the open molecule is displayed.
-
-The logical flow of the design is composed of nodes called Atoms which are connected by connectors. Each atom has a number of attachment points where connectors can connect. Each atom type inherits from the atom class which is defined in the file `/dist/js/molecules/prototypes.js`. Each atom type then has it's own file which modifies the behavior of the default atom class.
-
-The lower left 3D rendring is an instance of the JSCAD project. It is currently a hacked version of 1.x while waiting for version 2 to be released. Right now the generated code is done through string manipulation. In version 2 we will pass actual JS objects to functions.
-
-The lower right corner of the screen is called the "Side Bar" It contains information about the currently selected atom. It is populated by that atom's "Generate Sidebar" function.
