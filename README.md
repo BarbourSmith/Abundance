@@ -8,11 +8,22 @@ Abundance breaks with the tradition of CAD programs which inherit from drawing p
 
 After the initial screen prompts you to login with Github, all the projects you create on Abundance will be stored as Github Repositories but you can always search for them and find them through the Abundance Platform.
 
+<img width="754" alt="login-screen" src="https://github.com/user-attachments/assets/9393527d-3e11-483f-ac79-96a4b14de2f9">
+
+
+# Projects Screen
+
+<img width="1395" alt="project-screen" src="https://github.com/user-attachments/assets/ce041419-ea68-43e2-92d5-90f0e41a9841">
+
+
 # Create Mode
 
 ## Layout of the program
 
 Abundance has two main areas to interface with. Along the top of the screen is the logical flow of the design. In the lower portion you can see the rendering area where a 3D view of your model will appear. In the lower left is a cluster of menus that let you do things like change the parameters of your atoms. If no atom is selected, then information on the menus will reflect the information of the molecule you are currently on.
+
+<img width="1436" alt="flow-screen" src="https://github.com/user-attachments/assets/0e746a20-cced-412e-b404-197a2a9640ad">
+
 
 ## Flow
 
@@ -226,6 +237,9 @@ The output atom cannot be directly placed however, each molecule has one output 
 ![output](https://raw.githubusercontent.com/BarbourSmith/Maslow-Create/master/images/Output.PNG)
 
 
+# Run Mode
+
+If you are not the owner of a project or are not logged in you can still see a project in Run Mode. 
 
 
 # Development
