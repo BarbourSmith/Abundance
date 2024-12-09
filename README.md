@@ -17,10 +17,16 @@ These are the atoms currently available on the menu:
 
 ## Shapes 
 
+
+### Regular Polygon
+
+The regular polygon atom creates a regular polygon shape. Regular polygons are regularly extruded to create a 3D shape.
+
+![circle]([https://raw.githubusercontent.com/alzatin/abundance-mo-fork/public/imgs/circle-example.png])
+
 ### Circle
 
 The circle atom creates a circle sketch on the XY plane. Circle shapes are commonly extruded to create cylinders.
-
 
 ![circle]([https://raw.githubusercontent.com/alzatin/abundance-mo-fork/refs/heads/main/public/imgs/circle-example.png])
 
@@ -29,6 +35,19 @@ The circle atom creates a circle sketch on the XY plane. Circle shapes are commo
 The rectangle atom creates a rectangle sketch on the XY plane. Rectangles are commonly extruded to make a 3D shape.
 
 ![rectangle]([https://raw.githubusercontent.com/alzatin/abundance-mo-fork/refs/heads/main/public/imgs/rectangle-example.png])
+
+### Text
+
+The text atom creates a basic sketch on the XY plane with a string of your choosing. Text is commonly extruded to make a 3D shape.
+
+![rectangle]([https://raw.githubusercontent.com/alzatin/abundance-mo-fork/refs/heads/main/public/imgs/rectangle-example.png])
+
+### Molecule
+
+The molecule atom can contain any number of atoms in a useful configuration. To add inputs to the molecule, place an input atom within it.
+
+{picture of molecule}
+
 
 ### Assembly
 
@@ -60,11 +79,8 @@ The difference atom subtracts one shape from another.
 
 ![difference](https://raw.githubusercontent.com/BarbourSmith/Maslow-Create/master/images/Difference.PNG)
 
-<<<<<<< Updated upstream
-### Equation 
-=======
+
 ### Equation
->>>>>>> Stashed changes
 
 The equation Atom lets you perform basic math operations on numbers produced by constants.
 
@@ -103,12 +119,6 @@ The intersection atom computes the area of intersection of two shapes and create
 
 {picture of intersection}
 
-### Molecule
-
-The molecule atom can contain any number of atoms in a useful configuration. To add inputs to the molecule, place an input atom within it.
-
-{picture of molecule}
-
 ### Output
 
 The output atom cannot be directly placed, however each molecule has one output which cannot be delted. Connect a shape to the output of a molecule to make that shape available one level up. The output of the top level molecule is the output of the project.
@@ -121,13 +131,6 @@ The README atom provides notes to the next person reading the project. The text 
 
 {Show readme atom}
 
-
-
-### Regular Polygon
-
-The regular polygon atom creates a regular polygon shape. Regular polygons are regularly extruded to create a 3D shape.
-
-![regular polygon](https://raw.githubusercontent.com/BarbourSmith/Maslow-Create/master/images/RegularPolygon.PNG)
 
 ### Rotate
 
