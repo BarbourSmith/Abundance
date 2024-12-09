@@ -392,6 +392,7 @@
   margin-right: 10px;
   border: 3px solid var(--loginPopup-input);
   border-radius: 5px 5px;
+  color: var(--loginPopup-projectColor);
   outline: none;
 }
 .order_dropdown {

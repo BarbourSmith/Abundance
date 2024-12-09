@@ -35,7 +35,7 @@ function ShareDialog({
       >
         {dialogContent == "share" ? (
           <div style={{ display: "flex", margin: "10px" }}>
-            <p>Use this link to share this project:</p>
+            <p>Share this project:</p>
             <a
               style={{ margin: "16px" }}
               href={
@@ -47,7 +47,7 @@ function ShareDialog({
               }
               target="_blank"
             >
-              /run/{GlobalVariables.currentRepo.owner}/
+              {window.location.origin}/run/{GlobalVariables.currentRepo.owner}/
               {GlobalVariables.currentRepo.repoName}
             </a>
           </div>
