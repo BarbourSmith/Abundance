@@ -101,7 +101,8 @@ The rectangle atom creates a rectangle sketch on the XY plane. Rectangles are co
 
 The text atom creates a basic sketch on the XY plane with a string of your choosing. Text is commonly extruded to make a 3D shape.
 
-![rectangle]([https://raw.githubusercontent.com/alzatin/abundance-mo-fork/refs/heads/main/public/imgs/rectangle-example.png])
+<img width="1203" alt="text-example" src="https://github.com/user-attachments/assets/8b63602f-c020-4f79-a7cd-b00fd311839d">
+
 
 ### Molecule
 
