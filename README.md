@@ -22,36 +22,38 @@ To see and place the available atoms on your flow screen start by right-clicking
 ![topMenu]([https://raw.githubusercontent.com/alzatin/abundance-mo-fork/refs/heads/main/public/imgs/top_menu.png])
 
 The atoms available in the circular menu are divided in 5 categories: 
-Shapes: 
+
+### Shapes: 
         - Regular Polygon
         - Circle
         - Rectangle
         - Text
         - Molecule
-InterActions: 
+        
+### Interactions: 
         - Intersection
         - Difference
         - Join 
         - Loft
         - ShrinkWrap
-Actions: 
+### Actions: 
         - Color
         - Rotate
         - Extrude
         - Move
         - Genetic Algorithm (disabled)
-Inputs: 
+### Inputs: 
         - Input
         - Constant
         - Equation
         - Code
-Tags:
+### Tags:
         - ReadMe
         - Add-Bom-Tag
         - Tag
         - Extract Tag
         - CutLayout 
-Import-Export:
+### Import-Export:
         - GCode
         - Import
         - Export
