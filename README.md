@@ -1,5 +1,6 @@
 # A web based CAD program for cooperative design.
 
+<<<<<<< Updated upstream
 Maslow create breaks with the tradition of CAD programs which inherit from drawing programs and instead inherits from logical languages like programming. This allows it to be a CAD program which can have language like features such as importing modules, version control, and collaboration.
 
 # Use
@@ -11,6 +12,23 @@ You can place a new atom by right-clicking anywhere within the flow canvas area 
 Currently Maslow Create supports the folowing atoms:
 
 ### Assembly 
+=======
+Abundance breaks with the tradition of CAD programs which inherit from drawing programs and instead inherits from logical languages like programming. This allows it to be a CAD program which can have language like features such as importing modules, version control, and collaboration.
+
+# Use
+
+A 3D model within Maslow Create is composed of interconnected nodes called Atoms and Molecules. An atom is a shape or an operation you can perform on a shape (ie circle or translate). A molecule can contain any number of atoms in a configuration (ie generate a table leg). Think of Atoms as the built-in functions of a programming language and molecules as the functions you create.
+
+# Atom Menu
+
+To see and place the available atoms on your flow screen start by right-clicking anywhere within the flow screen area to spawn the atom menu.
+
+![topMenu](https://raw.githubusercontent.com/alzatin/abundance-mo-fork/master/public/images/top_menu.png)
+
+Currently Maslow Create supports the folowing atoms:
+
+### Assembly
+>>>>>>> Stashed changes
 
 The assembly atom allows multiple shapes to be combigned into one unit called an assembly. The order in which atoms are combigned matters because where shapes intersect shapes earlier in the order subtract from shapes later in the order. For example if you have a bolt which needs to create a hole in a part you should assemble first the part and then the bolt.
 
@@ -45,13 +63,21 @@ The difference atom subtracts one shape from another.
 
 ![difference](https://raw.githubusercontent.com/BarbourSmith/Maslow-Create/master/images/Difference.PNG)
 
+<<<<<<< Updated upstream
 ### Equation 
+=======
+### Equation
+>>>>>>> Stashed changes
 
 The equation Atom lets you perform basic math operations on numbers produced by constants.
 
 {Show equation doing something}
 
+<<<<<<< Updated upstream
 ### Extrude 
+=======
+### Extrude
+>>>>>>> Stashed changes
 
 The extrude atom takes a 2D shape and makes it 3D.
 
@@ -150,7 +176,10 @@ The union atom combines multiple shapes into a single shape.
 
 {picture of union}
 
+<<<<<<< Updated upstream
 
+=======
+>>>>>>> Stashed changes
 # Development
 
 You can read the complete documentation at [https://maslowcreate.org/documentation/](https://maslowcreate.org/documentation/)
