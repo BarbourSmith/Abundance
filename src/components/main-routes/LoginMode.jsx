@@ -136,11 +136,6 @@ const AddProject = ({ setYearShow, nodes, authorizedUserOcto }) => {
           />
         </button>
         <label htmlFor="order-by">
-          <img
-            src={import.meta.env.VITE_APP_PATH_FOR_PICS + "/imgs/sort.svg"}
-            alt="Sort by"
-            style={{ width: "15px" }}
-          />
           <select
             className="order_dropdown"
             id="order-by"

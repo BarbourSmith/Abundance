@@ -20,7 +20,7 @@
   --flowCanvas-text-hover: var(--abundance-color-fontWhite);
 
   --settingsPopup-text: var(--abundance-color-hightlightOffWhite);
-  --settingsPopup-closeButton: var(--abundance-color-hightlightOffWhite);
+  --settingsPopup-closeButton: var(--abundance-color-darkGrey);
 
   --loginPopup-background: var(--abundance-color-veryLightPurple);
   --loginPopup-text: var(--abundance-color-fontGrey);
