@@ -170,20 +170,20 @@ The color atom gives color to a 2D or 3D shape.
 
 The move atom moves a 3D shape in 3D space or a 2D shape in 2D space.
 
-{picture of translate}
+{<img width="884" alt="move-example" src="https://github.com/user-attachments/assets/a8c1f8f7-b390-41fc-acd7-4bd7334ca6ba" />
 
 ### Extrude
->>>>>>> Stashed changes
 
-The extrude atom takes a 2D shape and makes it 3D.
+The Extrude atom takes a 2D shape and makes it 3D.
 
-![extrude](https://raw.githubusercontent.com/BarbourSmith/Maslow-Create/master/images/Extrude.PNG)
+<img width="886" alt="extrude-example" src="https://github.com/user-attachments/assets/c4f949b8-e87a-4a3c-a314-ea8d70e03180" />
 
 ### Rotate
 
 The rotate atom rotates a shape along any of its three axis.
 
-{picture of rotate}
+<img width="836" alt="rotate-example" src="https://github.com/user-attachments/assets/ae6097ad-07a4-4a14-b69b-23fda96b426b" />
+
 
 ## Tags
 
@@ -197,12 +197,15 @@ The README atom provides notes to the next person reading the project. The text 
 
 The tag atom adds a tag to a part which can be later used to retrieve that part from an assembly.
 
+<img width="986" alt="tag-example" src="https://github.com/user-attachments/assets/3b8a5270-6e7e-4a9e-9309-2902602a2ee2" />
+
+
 ### Add BOM Tag
 
-The Add BOM Tag atom tags a part with a bill of materials item. This item will appear in the project bill of materials one time each time the tagged part appears in the final shape. For example if you have a table leg which needs four bolts, and the final model has four table legs the bolt will automatically appear in the final bill of materials 16 times.
+The Add BOM Tag atom tags a part with a bill of materials item. This item will appear in the project bill of materials one time each time the tagged part appears in the final shape. For example if you have a table leg that needs four bolts, and the final model has four table legs the bolt will automatically appear in the final bill of materials 16 times.
 
-{picture of tag}
-{picture of BOM file}
+<img width="908" alt="bom-tag-example" src="https://github.com/user-attachments/assets/094216c3-26bb-4fb2-be46-62d3b4170d49" />
+<img width="1014" alt="bom-molecule-example" src="https://github.com/user-attachments/assets/4cc3a257-262f-4145-8f7d-60ac10dfc9c6" />
 
 ## Inputs
 
@@ -214,13 +217,13 @@ The input atom lets you define which variables are inputs to your program. They 
 
 ### Code
 
-The code atom allows you to enter arbitrary [jsxcad](https://jsxcad.js.org/) code. Please note that parts of this interface are likely to change in the near future.
+The code atom allows you to enter arbitrary replicad code. For all available methods see replicad.xyz
 
 ### Constant
 
-The constant atom defines a constant number which can be used to control multiple inputs.
+The constant atom defines a constant number that can be used to control multiple inputs.
 
-{picture of constant controling multiple inputs}
+{picture of constant controlling multiple inputs}
 
 ### Equation
 
