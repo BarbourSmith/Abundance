@@ -13,21 +13,23 @@ After the initial screen prompts you to login with Github, all the projects you 
 
 # Projects Screen
 
+Choose whether you want to create a new project, go into one of your existing projects or take a look at a project that someone else created. If you own the selected project you will be redirected to Create Mode. If the project belongs to someone else you will be redirected to Run Mode where you can choose to fork the project to modify it or simply download it. 
+
 <img width="1395" alt="project-screen" src="https://github.com/user-attachments/assets/ce041419-ea68-43e2-92d5-90f0e41a9841">
 
 
 # Create Mode
 
-## Layout of the program
-
-Abundance has two main areas to interface with. Along the top of the screen is the logical flow of the design. In the lower portion you can see the rendering area where a 3D view of your model will appear. In the lower left is a cluster of menus that let you do things like change the parameters of your atoms. If no atom is selected, then information on the menus will reflect the information of the molecule you are currently on.
-
-<img width="1436" alt="flow-screen" src="https://github.com/user-attachments/assets/0e746a20-cced-412e-b404-197a2a9640ad">
-
 
 ## Flow
 
 A 3D model within Maslow Create is composed of interconnected nodes called Atoms and Molecules which are linked together through connectors. An atom is a shape or an operation you can perform on a shape (ie circle or translate). A molecule can contain any number of atoms in a configuration (ie generate a table leg). Think of Atoms as the built-in functions of a programming language and molecules as the functions you create. Each atom has attachment points to which connectors can attach. 
+
+## Layout of the program
+
+Create Mode has two main areas to interface with. Along the top of the screen is the logical flow of the design. In the lower portion you can see the rendering area where a 3D view of your model will appear. In the lower left is a cluster of menus that lets you do things like change the parameters and dimensions of the selected shape. 
+
+<img width="1436" alt="flow-screen" src="https://github.com/user-attachments/assets/0e746a20-cced-412e-b404-197a2a9640ad">
 
 ## Atom Menu
 
@@ -117,13 +119,15 @@ The molecule atom can contain any number of atoms in a useful configuration. To 
 
 The intersection atom computes the area of intersection of two shapes and creates a new shape out of that area.
 
-{picture of intersection}
+<img width="904" alt="intersection-example" src="https://github.com/user-attachments/assets/ce2bd3ff-f34a-452b-a270-bc104f8988a2" />
+
 
 ### Difference
 
 The difference atom subtracts one shape from another.
 
-![difference](https://raw.githubusercontent.com/BarbourSmith/Maslow-Create/master/images/Difference.PNG)
+<img width="931" alt="difference-example" src="https://github.com/user-attachments/assets/a0a61322-8c4b-4bf7-9a73-0b26e053154f" />
+
 
 ### Join 
 
@@ -143,20 +147,24 @@ The fusion selector atom allows multiple shapes to be combined into one unit. Th
 
 ### Shrinkwrap
 
-The shrinkwrap atom combines multiple sketches into a single shape as if they had been shrinkwrapped. This is useful for creating shapes which would be difficult to create in other ways.
+The shrinkwrap atom combines multiple sketches into a single shape as if they had been shrinkwrapped. This is useful for creating shapes that would be difficult to create in other ways.
 
-{picture of shrinkwrap}
+<img width="1051" alt="shrinkwrap-example" src="https://github.com/user-attachments/assets/70ea489c-7e4b-4501-a798-14c828af3a68" />
+
 
 ### Loft
 
-## Actions
+<img width="940" alt="loft-example" src="https://github.com/user-attachments/assets/8ef7e0dd-38c3-42d9-bd21-db90da61d546" />
 
+
+## Actions
 
 ### Color
 
 The color atom gives color to a 2D or 3D shape.
 
-{picture of translate}
+<img width="890" alt="color-example" src="https://github.com/user-attachments/assets/4ac141c8-b401-4cae-9b9d-84affba28ad1" />
+
 
 ### Move
 
