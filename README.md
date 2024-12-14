@@ -213,7 +213,9 @@ The Add BOM Tag atom tags a part with a bill of materials item. This item will a
 
 The input atom lets you define which variables are inputs to your program. They function similar to constants, however when you share your project, the person on the other end will have the ability to change the values of the inputs. Inputs placed within a molecule will add inputs to that molecule up one level.
 
-{picture of project being shared}
+<img width="377" alt="inputs-example" src="https://github.com/user-attachments/assets/13d6bd15-8a2f-447d-8a2c-08ae5c250fd4" />
+<img width="426" alt="inputs-molecule-example" src="https://github.com/user-attachments/assets/af7c01bd-1719-42bb-b166-4f6e3bb59fb6" />
+
 
 ### Code
 
@@ -235,17 +237,13 @@ The equation Atom lets you perform basic math operations on numbers produced by 
 
 ### Gcode
 
-The gcode atom generates gcode to cut the input shape.
-
-![Gcode1](https://github.com/BarbourSmith/Maslow-Create/blob/master/images/Gcode1.PNG)
-![Gcode2](https://github.com/BarbourSmith/Maslow-Create/blob/master/images/Gcode2.PNG)
 
 ### GitHub Molecule
 
 The GitHub atom type is not directly available. By clicking on the GitHub tab when placing a new Atom you can search for and add any other Abundance project to your project as a molecule.
 
 
-### Output
+## Output
 
 The output atom cannot be directly placed however, each molecule has one output that can't be deleted. Connect a shape to the output of a molecule to make that shape available one level up. The output of the top-level molecule is the output of the project.
 
