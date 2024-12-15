@@ -1,6 +1,6 @@
 import opencascade from "replicad-opencascadejs/src/replicad_single.js";
 import opencascadeWasm from "replicad-opencascadejs/src/replicad_single.wasm?url";
-import { setOC, loadFont } from "replicad";
+import { setOC, loadFont, mirror } from "replicad";
 import { expose, proxy } from "comlink";
 import {
   drawCircle,
