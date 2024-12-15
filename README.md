@@ -13,21 +13,23 @@ After the initial screen prompts you to login with Github, all the projects you 
 
 # Projects Screen
 
+Choose whether you want to create a new project, go into one of your existing projects or take a look at a project that someone else created. If you own the selected project you will be redirected to Create Mode. If the project belongs to someone else you will be redirected to Run Mode where you can choose to fork the project to modify it or simply download it. 
+
 <img width="1395" alt="project-screen" src="https://github.com/user-attachments/assets/ce041419-ea68-43e2-92d5-90f0e41a9841">
 
 
 # Create Mode
 
-## Layout of the program
-
-Abundance has two main areas to interface with. Along the top of the screen is the logical flow of the design. In the lower portion you can see the rendering area where a 3D view of your model will appear. In the lower left is a cluster of menus that let you do things like change the parameters of your atoms. If no atom is selected, then information on the menus will reflect the information of the molecule you are currently on.
-
-<img width="1436" alt="flow-screen" src="https://github.com/user-attachments/assets/0e746a20-cced-412e-b404-197a2a9640ad">
-
 
 ## Flow
 
 A 3D model within Maslow Create is composed of interconnected nodes called Atoms and Molecules which are linked together through connectors. An atom is a shape or an operation you can perform on a shape (ie circle or translate). A molecule can contain any number of atoms in a configuration (ie generate a table leg). Think of Atoms as the built-in functions of a programming language and molecules as the functions you create. Each atom has attachment points to which connectors can attach. 
+
+## Layout of the program
+
+Create Mode has two main areas to interface with. Along the top of the screen is the logical flow of the design. In the lower portion you can see the rendering area where a 3D view of your model will appear. In the lower left is a cluster of menus that lets you do things like change the parameters and dimensions of the selected shape. 
+
+<img width="1436" alt="flow-screen" src="https://github.com/user-attachments/assets/0e746a20-cced-412e-b404-197a2a9640ad">
 
 ## Atom Menu
 
@@ -117,13 +119,15 @@ The molecule atom can contain any number of atoms in a useful configuration. To 
 
 The intersection atom computes the area of intersection of two shapes and creates a new shape out of that area.
 
-{picture of intersection}
+<img width="904" alt="intersection-example" src="https://github.com/user-attachments/assets/ce2bd3ff-f34a-452b-a270-bc104f8988a2" />
+
 
 ### Difference
 
 The difference atom subtracts one shape from another.
 
-![difference](https://raw.githubusercontent.com/BarbourSmith/Maslow-Create/master/images/Difference.PNG)
+<img width="931" alt="difference-example" src="https://github.com/user-attachments/assets/a0a61322-8c4b-4bf7-9a73-0b26e053154f" />
+
 
 ### Join 
 
@@ -143,39 +147,43 @@ The fusion selector atom allows multiple shapes to be combined into one unit. Th
 
 ### Shrinkwrap
 
-The shrinkwrap atom combines multiple sketches into a single shape as if they had been shrinkwrapped. This is useful for creating shapes which would be difficult to create in other ways.
+The shrinkwrap atom combines multiple sketches into a single shape as if they had been shrinkwrapped. This is useful for creating shapes that would be difficult to create in other ways.
 
-{picture of shrinkwrap}
+<img width="1051" alt="shrinkwrap-example" src="https://github.com/user-attachments/assets/70ea489c-7e4b-4501-a798-14c828af3a68" />
+
 
 ### Loft
 
-## Actions
+<img width="940" alt="loft-example" src="https://github.com/user-attachments/assets/8ef7e0dd-38c3-42d9-bd21-db90da61d546" />
 
+
+## Actions
 
 ### Color
 
 The color atom gives color to a 2D or 3D shape.
 
-{picture of translate}
+<img width="890" alt="color-example" src="https://github.com/user-attachments/assets/4ac141c8-b401-4cae-9b9d-84affba28ad1" />
+
 
 ### Move
 
 The move atom moves a 3D shape in 3D space or a 2D shape in 2D space.
 
-{picture of translate}
+{<img width="884" alt="move-example" src="https://github.com/user-attachments/assets/a8c1f8f7-b390-41fc-acd7-4bd7334ca6ba" />
 
 ### Extrude
->>>>>>> Stashed changes
 
-The extrude atom takes a 2D shape and makes it 3D.
+The Extrude atom takes a 2D shape and makes it 3D.
 
-![extrude](https://raw.githubusercontent.com/BarbourSmith/Maslow-Create/master/images/Extrude.PNG)
+<img width="886" alt="extrude-example" src="https://github.com/user-attachments/assets/c4f949b8-e87a-4a3c-a314-ea8d70e03180" />
 
 ### Rotate
 
 The rotate atom rotates a shape along any of its three axis.
 
-{picture of rotate}
+<img width="836" alt="rotate-example" src="https://github.com/user-attachments/assets/ae6097ad-07a4-4a14-b69b-23fda96b426b" />
+
 
 ## Tags
 
@@ -189,12 +197,15 @@ The README atom provides notes to the next person reading the project. The text 
 
 The tag atom adds a tag to a part which can be later used to retrieve that part from an assembly.
 
+<img width="986" alt="tag-example" src="https://github.com/user-attachments/assets/3b8a5270-6e7e-4a9e-9309-2902602a2ee2" />
+
+
 ### Add BOM Tag
 
-The Add BOM Tag atom tags a part with a bill of materials item. This item will appear in the project bill of materials one time each time the tagged part appears in the final shape. For example if you have a table leg which needs four bolts, and the final model has four table legs the bolt will automatically appear in the final bill of materials 16 times.
+The Add BOM Tag atom tags a part with a bill of materials item. This item will appear in the project bill of materials one time each time the tagged part appears in the final shape. For example if you have a table leg that needs four bolts, and the final model has four table legs the bolt will automatically appear in the final bill of materials 16 times.
 
-{picture of tag}
-{picture of BOM file}
+<img width="908" alt="bom-tag-example" src="https://github.com/user-attachments/assets/094216c3-26bb-4fb2-be46-62d3b4170d49" />
+<img width="1014" alt="bom-molecule-example" src="https://github.com/user-attachments/assets/4cc3a257-262f-4145-8f7d-60ac10dfc9c6" />
 
 ## Inputs
 
@@ -202,17 +213,19 @@ The Add BOM Tag atom tags a part with a bill of materials item. This item will a
 
 The input atom lets you define which variables are inputs to your program. They function similar to constants, however when you share your project, the person on the other end will have the ability to change the values of the inputs. Inputs placed within a molecule will add inputs to that molecule up one level.
 
-{picture of project being shared}
+<img width="377" alt="inputs-example" src="https://github.com/user-attachments/assets/13d6bd15-8a2f-447d-8a2c-08ae5c250fd4" />
+<img width="426" alt="inputs-molecule-example" src="https://github.com/user-attachments/assets/af7c01bd-1719-42bb-b166-4f6e3bb59fb6" />
+
 
 ### Code
 
-The code atom allows you to enter arbitrary [jsxcad](https://jsxcad.js.org/) code. Please note that parts of this interface are likely to change in the near future.
+The code atom allows you to enter arbitrary replicad code. For all available methods see replicad.xyz
 
 ### Constant
 
-The constant atom defines a constant number which can be used to control multiple inputs.
+The constant atom defines a constant number that can be used to control multiple inputs.
 
-{picture of constant controling multiple inputs}
+{picture of constant controlling multiple inputs}
 
 ### Equation
 
@@ -224,17 +237,13 @@ The equation Atom lets you perform basic math operations on numbers produced by 
 
 ### Gcode
 
-The gcode atom generates gcode to cut the input shape.
-
-![Gcode1](https://github.com/BarbourSmith/Maslow-Create/blob/master/images/Gcode1.PNG)
-![Gcode2](https://github.com/BarbourSmith/Maslow-Create/blob/master/images/Gcode2.PNG)
 
 ### GitHub Molecule
 
 The GitHub atom type is not directly available. By clicking on the GitHub tab when placing a new Atom you can search for and add any other Abundance project to your project as a molecule.
 
 
-### Output
+## Output
 
 The output atom cannot be directly placed however, each molecule has one output that can't be deleted. Connect a shape to the output of a molecule to make that shape available one level up. The output of the top-level molecule is the output of the project.
 
