@@ -221,19 +221,27 @@ The input atom lets you define which variables are inputs to your program. They 
 
 The code atom allows you to enter arbitrary replicad code. For all available methods see replicad.xyz
 
+<img width="1008" alt="code-example-1" src="https://github.com/user-attachments/assets/0617fda4-9adf-4a73-abba-7cd6cbb764f3" />
+<img width="1001" alt="code-example-2" src="https://github.com/user-attachments/assets/8bf72007-5dfa-4529-8848-eac2cc022c65" />
+
+
 ### Constant
 
 The constant atom defines a constant number that can be used to control multiple inputs.
 
-{picture of constant controlling multiple inputs}
+<img width="818" alt="constant-example" src="https://github.com/user-attachments/assets/2fa19ffb-198b-4046-96c1-cb850735b815" />
+
 
 ### Equation
 
 The equation Atom lets you perform basic math operations on numbers produced by constants.
 
-{Show equation doing something}
+<img width="872" alt="equation-example" src="https://github.com/user-attachments/assets/82a8915c-4085-42c9-915d-1f1b217bb34b" />
 
-## Import/Export
+
+## Import
+
+## Export
 
 ### Gcode
 
@@ -242,17 +250,17 @@ The equation Atom lets you perform basic math operations on numbers produced by 
 
 The GitHub atom type is not directly available. By clicking on the GitHub tab when placing a new Atom you can search for and add any other Abundance project to your project as a molecule.
 
+<img width="1298" alt="github-example" src="https://github.com/user-attachments/assets/bb63bb29-4a9c-4b79-85bb-f2b32c00fa2d" />
 
 ## Output
 
 The output atom cannot be directly placed however, each molecule has one output that can't be deleted. Connect a shape to the output of a molecule to make that shape available one level up. The output of the top-level molecule is the output of the project.
 
-![output](https://raw.githubusercontent.com/BarbourSmith/Maslow-Create/master/images/Output.PNG)
 
 
 # Run Mode
 
-If you are not the owner of a project or are not logged in you can still see a project in Run Mode. 
+If you are not the owner of a project or are not logged in, you can still see a project in Run Mode. 
 
 <img width="1436" alt="run-mode" src="https://github.com/user-attachments/assets/c3bed30e-f253-4245-a62c-67067a5319ee">
 
