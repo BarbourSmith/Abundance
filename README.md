@@ -111,7 +111,7 @@ The text atom creates a basic sketch on the XY plane with a string of your choos
 
 The molecule atom can contain any number of atoms in a useful configuration. To add inputs to the molecule, place an input atom within it.
 
-{picture of molecule}
+<img width="428" alt="molecule-example" src="https://github.com/user-attachments/assets/82eea26c-5383-4556-b12e-95a3d2f92fa0" />
 
 ## Interactions
 
@@ -191,7 +191,8 @@ The rotate atom rotates a shape along any of its three axis.
 
 The README atom provides notes to the next person reading the project. The text of the readme input is added to the readme page of the project (similar to this page you are reading now).
 
-{Show readme atom}
+<img width="588" alt="readme-example" src="https://github.com/user-attachments/assets/5ca90c52-4341-4b96-bb9f-36dcc70ea744" />
+
 
 ### Tag
 
@@ -239,12 +240,21 @@ The equation Atom lets you perform basic math operations on numbers produced by 
 <img width="872" alt="equation-example" src="https://github.com/user-attachments/assets/82a8915c-4085-42c9-915d-1f1b217bb34b" />
 
 
-## Import
-
-## Export
+## Import/Export
 
 ### Gcode
 
+### Import
+
+The Import atom allows you to upload a STL, SVG, or STEP file. Complex models might take a long time to compute. 
+
+<img width="986" alt="import-example" src="https://github.com/user-attachments/assets/76bef001-d2a9-4e79-83c4-3f83bec8e2f4" />
+
+### Export
+
+The export atom tags a part for export. An Export atom lets you download the selected part in a file format of your choosing and makes that part available for download in Run Mode
+
+<img width="997" alt="export-example" src="https://github.com/user-attachments/assets/2107d6cd-2812-4131-9f37-df52173e0716" />
 
 ### GitHub Molecule
 
@@ -255,6 +265,8 @@ The GitHub atom type is not directly available. By clicking on the GitHub tab wh
 ## Output
 
 The output atom cannot be directly placed however, each molecule has one output that can't be deleted. Connect a shape to the output of a molecule to make that shape available one level up. The output of the top-level molecule is the output of the project.
+
+<img width="241" alt="output-example" src="https://github.com/user-attachments/assets/946feb6f-9ebe-4c47-958f-8a5407afe9ba" />
 
 
 
