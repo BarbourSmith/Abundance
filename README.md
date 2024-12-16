@@ -279,7 +279,7 @@ If you are not the owner of a project or are not logged in, you can still see a 
 
 # Development
 
-You can read the complete documentation at [https://maslowcreate.org/documentation/](https://maslowcreate.org/documentation/)
+You can read the complete documentation at ----(Documentation pending)
 
 ## How To Setup
 
@@ -295,6 +295,6 @@ You can read the complete documentation at [https://maslowcreate.org/documentati
 
         npm start
 
-Your canvas piece should open up automatically at http://localhost:4444 and you should see 'HTML CANVAS BOILERPLATE' on hover.
+Your canvas piece should open up automatically at http://localhost:4444 
 
 
