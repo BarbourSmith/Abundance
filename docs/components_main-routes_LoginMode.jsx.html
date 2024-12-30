@@ -1,0 +1,1111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>components/main-routes/LoginMode.jsx - Documentation</title>
+
+    <script src="scripts/prettify/prettify.js"></script>
+    <script src="scripts/prettify/lang-css.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="https://code.ionicframework.com/ionicons/2.0.1/css/ionicons.min.css">
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+<body>
+
+<input type="checkbox" id="nav-trigger" class="nav-trigger" />
+<label for="nav-trigger" class="navicon-button x">
+  <div class="navicon"></div>
+</label>
+
+<label for="nav-trigger" class="overlay"></label>
+
+<nav>
+    <li class="nav-link nav-home-link"><a href="index.html">Home</a></li><li class="nav-heading">Classes</li><li class="nav-heading"><span class="nav-item-type type-class">C</span><span class="nav-item-name"><a href="BOMEntry.html">BOMEntry</a></span></li><li class="nav-heading"><span class="nav-item-type type-class">C</span><span class="nav-item-name"><a href="GlobalVariables.html">GlobalVariables</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#cancelLastDisplayWorker">cancelLastDisplayWorker</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#cancelLastDisplayWorker">cancelLastDisplayWorker</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#constrainToCanvasBorders">constrainToCanvasBorders</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#constrainToCanvasBorders">constrainToCanvasBorders</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#constrainToCanvasBordersPixels">constrainToCanvasBordersPixels</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#constrainToCanvasBordersPixels">constrainToCanvasBordersPixels</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#distBetweenPoints">distBetweenPoints</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#distBetweenPoints">distBetweenPoints</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#generateUniqueID">generateUniqueID</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#generateUniqueID">generateUniqueID</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#heightToPixels">heightToPixels</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#heightToPixels">heightToPixels</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#incrementVariableName">incrementVariableName</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#incrementVariableName">incrementVariableName</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#pixelsToHeight">pixelsToHeight</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#pixelsToHeight">pixelsToHeight</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#pixelsToWidth">pixelsToWidth</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#pixelsToWidth">pixelsToWidth</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#toBinaryStr">toBinaryStr</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#toBinaryStr">toBinaryStr</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#widthToPixels">widthToPixels</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#widthToPixels">widthToPixels</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#writeToDisplay">writeToDisplay</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#writeToDisplay">writeToDisplay</a></span></li><li class="nav-heading"><span class="nav-item-type type-class">C</span><span class="nav-item-name"><a href="module.html#.exports">exports</a></span></li><li class="nav-heading"><a href="global.html">Globals</a></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#addAndRemoveInputs">addAndRemoveInputs</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#addIO">addIO</a></span></li><li class="nav-item"><span class="nav-item-type type-member">M</span><span class="nav-item-name"><a href="global.html#addOrDeletePorts">addOrDeletePorts</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#addToConstantsList">addToConstantsList</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#alertingErrorHandler">alertingErrorHandler</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#applyLayout">applyLayout</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#Assembly">Assembly</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#assembly">assembly</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#attach">attach</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#attachSvgListeners">attachSvgListeners</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#basicThreadValueProcessing">basicThreadValueProcessing</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#beginEvaluatingIndividual">beginEvaluatingIndividual</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#beginPropagation">beginPropagation</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#breedAndCullPopulation">breedAndCullPopulation</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#breedTwo">breedTwo</a></span></li><li class="nav-item"><span class="nav-item-type type-member">M</span><span class="nav-item-name"><a href="global.html#cad">cad</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#census">census</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#changeColor">changeColor</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#clearAlert">clearAlert</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#clickDown">clickDown</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#clickUp">clickUp</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#closeCode">closeCode</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#computePosition">computePosition</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#computePositions">computePositions</a></span></li><li class="nav-item"><span class="nav-item-type type-member">M</span><span class="nav-item-name"><a href="global.html#convertLinks">convertLinks</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#copy">copy</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#copyInputsFromParent">copyInputsFromParent</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#createLevaInputs">createLevaInputs</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#CreateMode">CreateMode</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#customThreadValueProcessing">customThreadValueProcessing</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#cutAssembly">cutAssembly</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#decreaseToProcessCountByOne">decreaseToProcessCountByOne</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#deleteConnector">deleteConnector</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#deleteEmptyPort">deleteEmptyPort</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#deleteFromLibrary">deleteFromLibrary</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#deleteNode">deleteNode</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#deleteOutputAtom">deleteOutputAtom</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#deleteSelf">deleteSelf</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#deselect">deselect</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#deserialize">deserialize</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#disjointGeometryToAssembly">disjointGeometryToAssembly</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#displayLayout">displayLayout</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#doubleClick">doubleClick</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#downExport">downExport</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#downloadGCode">downloadGCode</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#downloadSvg">downloadSvg</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#draw">draw</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#editCode">editCode</a></span></li><li class="nav-item"><span class="nav-item-type type-member">M</span><span class="nav-item-name"><a href="global.html#ele">ele</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#evaluateEquation">evaluateEquation</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#exportFile">exportFile</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#extractBomList">extractBomList</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#extractBomTags">extractBomTags</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#findHighestInput">findHighestInput</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#findIOValue">findIOValue</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#fittingString">fittingString</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#generateUniqueID">generateUniqueID</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#getOutput">getOutput</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#getRandomValue">getRandomValue</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#getValue">getValue</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#goToParentMolecule">goToParentMolecule</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#howManyInputPortsAvailable">howManyInputPortsAvailable</a></span></li><li class="nav-item"><span class="nav-item-type type-member">M</span><span class="nav-item-name"><a href="global.html#id">id</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#initializePopulation">initializePopulation</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#InitialLog">InitialLog</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#isCloseEnoughToTarget">isCloseEnoughToTarget</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#keyPress">keyPress</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#layout">layout</a></span></li><li class="nav-item"><span class="nav-item-type type-member">M</span><span class="nav-item-name"><a href="global.html#licenses">licenses</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#loadFile">loadFile</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#loadGithubMoleculeByName">loadGithubMoleculeByName</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#mouseMove">mouseMove</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#newBlobFromBase64">newBlobFromBase64</a></span></li><li class="nav-item"><span class="nav-item-type type-member">M</span><span class="nav-item-name"><a href="global.html#octokit">octokit</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#parseInputs">parseInputs</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#placeAtom">placeAtom</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#placeConnector">placeConnector</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#propagate">propagate</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#propogate">propogate</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#recomputeMolecule">recomputeMolecule</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#recursiveCut">recursiveCut</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#reloadMoleculeFromGithub">reloadMoleculeFromGithub</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#remapIDs">remapIDs</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#removeIO">removeIO</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#renderSvg">renderSvg</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#requestReadme">requestReadme</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#rotate">rotate</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#Rotate">Rotate</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#rotateForLayout">rotateForLayout</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#saveCode">saveCode</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#selectBox">selectBox</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#sendToRender">sendToRender</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#serialize">serialize</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#setAlert">setAlert</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#setConfig">setConfig</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#setDefault">setDefault</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#setEquation">setEquation</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#setValue">setValue</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#setValues">setValues</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#startnest">startnest</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#stopnest">stopnest</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#svgToNest">svgToNest</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#toGeometry">toGeometry</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#undo">undo</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#unexpand">unexpand</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#update">update</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#updateCode">updateCode</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#updateConstantsList">updateConstantsList</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#updateDefault">updateDefault</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#updateFile">updateFile</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#updateParentName">updateParentName</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#updateSidebar">updateSidebar</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#updateValue">updateValue</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#updateValueButton">updateValueButton</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#visExport">visExport</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#waitOnComingInformation">waitOnComingInformation</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#walkBackForConstants">walkBackForConstants</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#wasConnectionMade">wasConnectionMade</a></span></li>
+</nav>
+
+<div id="main">
+    
+    <h1 class="page-title">components/main-routes/LoginMode.jsx</h1>
+    
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>import React, { useEffect, useRef, useState } from "react";
+import GlobalVariables from "../../js/globalvariables.js";
+import { Octokit } from "https://esm.sh/octokit@2.0.19";
+import { Link } from "react-router-dom";
+import globalvariables from "../../js/globalvariables.js";
+import NewProjectPopUp from "../secondary/NewProjectPopUp.jsx";
+
+import { useAuth0 } from "@auth0/auth0-react";
+
+/**
+ * The octokit instance which allows interaction with GitHub.
+ * @type {object}
+ */
+var octokit = null;
+
+/**
+ * Initial log component displays pop Up to either attempt Github login/browse projects
+ *
+ */
+const InitialLog = ({ setNoUserBrowsing }) => {
+  const { loginWithRedirect } = useAuth0();
+
+  return (
+    &lt;div className="login-page">
+      &lt;div className="form animate fadeInUp one">
+        &lt;div id="gitSide" className="logindiv">
+          &lt;img
+            className="logo"
+            src={
+              import.meta.env.VITE_APP_PATH_FOR_PICS +
+              "/imgs/abundance_logo.png"
+            }
+            alt="logo"
+          />
+          &lt;div id="welcome">
+            &lt;img
+              src={
+                import.meta.env.VITE_APP_PATH_FOR_PICS +
+                "/imgs/abundance_lettering.png"
+              }
+              alt="logo"
+              style={{ width: "300px" }}
+            />
+          &lt;/div>
+          &lt;p style={{ padding: "0 20px" }}>
+            Abundance projects are stored through GitHub. You control your
+            files.{" "}
+          &lt;/p>
+          &lt;form className="login-form">
+            &lt;button
+              type="button"
+              id="loginButton"
+              style={{ height: "40px" }}
+              className="submit-btn"
+              onClick={() => loginWithRedirect()}
+            >
+              Login With GitHub
+            &lt;/button>
+            &lt;p className="message">
+              Don't have an account?{" "}
+              &lt;a href="https://github.com/join">Create a free account&lt;/a>
+            &lt;/p>
+          &lt;/form>
+        &lt;/div>
+        &lt;div id="nonGitSide" className="logindiv curiousBrowse">
+          &lt;p
+            style={{
+              justifyContent: "flex-start",
+              display: "inline",
+            }}
+          >
+            Check out what others have designed in Abundance
+          &lt;/p>
+
+          &lt;button
+            type="button"
+            onClick={() => {
+              setNoUserBrowsing(true);
+            }}
+            className="submit-btn"
+            id="browseNonGit"
+            style={{ padding: "0 30px" }}
+          >
+            Browse all projects
+          &lt;/button>
+        &lt;/div>
+      &lt;/div>
+    &lt;/div>
+  );
+};
+
+// adds individual projects after API call
+const AddProject = ({
+  setYearShow,
+  nodes,
+  authorizedUserOcto,
+  projectToShow,
+}) => {
+  const [browseType, setBrowseType] = useState("thumb");
+
+  let initialOrder =
+    projectToShow == "featured"
+      ? "byStars"
+      : projectToShow == "all"
+      ? "byName"
+      : projectToShow == "recents"
+      ? "byDateModified"
+      : "byName";
+
+  const [orderType, setOrderType] = useState(initialOrder);
+  //looking for highest ranking project and tool
+  let highestRankingNode = null;
+  let highestRankingToolNode = null;
+
+  if (projectToShow == "featured" &amp;&amp; nodes.length > 0) {
+    const filteredNodes = nodes.filter((node) => {
+      return !node.topics.includes("abundance-tool");
+    });
+    const sortedNodes = filteredNodes.sort((a, b) => b.ranking - a.ranking);
+    highestRankingNode = sortedNodes[0];
+
+    const toolNodes = nodes.filter((node) =>
+      node.topics.includes("abundance-tool")
+    );
+    const sortedToolNodes = toolNodes.sort((a, b) => b.ranking - a.ranking);
+    highestRankingToolNode = sortedToolNodes[0];
+  }
+
+  return (
+    &lt;>
+      &lt;div
+        style={{
+          flexDirection: "row",
+          height: "30px",
+          widht: "50%",
+          margin: "25px 0 10px 20px",
+          display: "flex",
+        }}
+      >
+        &lt;button
+          className="list_thumb_button"
+          key="list-filter-button"
+          onClick={() => setBrowseType("list")}
+        >
+          &lt;img
+            src={import.meta.env.VITE_APP_PATH_FOR_PICS + "/imgs/list.svg"}
+            alt="list_search"
+            style={{
+              width: "20px",
+              marginRight: "5px",
+              opacity: "0.8",
+            }}
+          />
+        &lt;/button>
+        &lt;button
+          className="list_thumb_button"
+          key="thumb-filter-button"
+          onClick={() => setBrowseType("thumb")}
+        >
+          &lt;img
+            src={import.meta.env.VITE_APP_PATH_FOR_PICS + "/imgs/thumbnail.svg"}
+            alt="thumb_search"
+            style={{
+              width: "20px",
+              marginRight: "5px",
+              opacity: "0.8",
+            }}
+          />
+        &lt;/button>
+        &lt;label htmlFor="order-by">
+          &lt;select
+            className="order_dropdown"
+            id="order-by"
+            defaultValue={orderType}
+            onChange={(e) => setOrderType(e.target.value)}
+          >
+            &lt;option key={"name_order"} value={"byName"}>
+              Name
+            &lt;/option>
+            &lt;option key={"forks_order"} value={"byForks"}>
+              Forks
+            &lt;/option>
+            &lt;option key={"stars_order"} value={"byStars"}>
+              Stars
+            &lt;/option>
+            &lt;option key={"owner_order"} value={"byOwnerName"}>
+              Creator
+            &lt;/option>
+            &lt;option key={"date_order"} value={"byDateCreated"}>
+              Date Created
+            &lt;/option>
+            &lt;option key={"dateModified_order"} value={"byDateModified"}>
+              Date Modified
+            &lt;/option>
+          &lt;/select>
+        &lt;/label>
+      &lt;/div>
+      &lt;div
+        style={{ display: "flex", flexDirection: "column", height: "425px" }}
+      >
+        {projectToShow == "featured" &amp;&amp;
+        highestRankingNode &amp;&amp;
+        highestRankingToolNode ? (
+          &lt;div id="featured-div">
+            &lt;div
+              id="left-featured-div"
+              style={{ width: "50%", display: "flex" }}
+              className="project"
+            >
+              &lt;div>
+                &lt;h3 className="project_name">Featured Project: &lt;/h3>
+                &lt;p className="project_name">{highestRankingNode.repoName}&lt;/p>
+                &lt;p className="project_name">{highestRankingNode.owner}&lt;/p>
+              &lt;/div>
+              &lt;img
+                className="project_image"
+                src={highestRankingNode.svgURL}
+                onError={({ currentTarget }) => {
+                  currentTarget.onerror = null; // prevents looping
+                  currentTarget.src =
+                    import.meta.env.VITE_APP_PATH_FOR_PICS +
+                    "/imgs/defaultThumbnail.svg";
+                }}
+                alt={highestRankingNode.repoName}
+              >&lt;/img>
+            &lt;/div>
+            &lt;div
+              id="right-featured-div"
+              style={{ width: "50%", display: "flex" }}
+              className="project"
+            >
+              &lt;div>
+                &lt;h3 className="project_name">Featured Tool&lt;/h3>
+                &lt;p className="project_name">
+                  {highestRankingToolNode.repoName}
+                &lt;/p>
+                &lt;p className="project_name">{highestRankingToolNode.owner}&lt;/p>
+              &lt;/div>
+              &lt;img
+                className="project_image"
+                src={highestRankingToolNode.svgURL}
+                onError={({ currentTarget }) => {
+                  currentTarget.onerror = null; // prevents looping
+                  currentTarget.src =
+                    import.meta.env.VITE_APP_PATH_FOR_PICS +
+                    "/imgs/defaultThumbnail.svg";
+                }}
+                alt={highestRankingToolNode.repoName}
+              >&lt;/img>
+            &lt;/div>
+          &lt;/div>
+        ) : null}
+        {nodes.length > 0 ? (
+          &lt;ProjectDiv
+            {...{ nodes, browseType, orderType, authorizedUserOcto }}
+          />
+        ) : (
+          &lt;p>No projects match your search&lt;/p>
+        )}
+      &lt;/div>
+    &lt;/>
+  );
+};
+
+const ProjectDiv = ({ nodes, browseType, orderType }) => {
+  const ThumbItem = ({ node }) => {
+    return (
+      &lt;div
+        className="project"
+        style={
+          node.owner != GlobalVariables.currentUser
+            ? { backgroundColor: "rgb(233 221 242 / 58%)" }
+            : null
+        }
+        key={node.topMoleculeID + node.owner}
+        id={node.repoName}
+        onClick={() => {
+          GlobalVariables.currentRepo = node;
+        }}
+      >
+        &lt;p className="project_name">{node.repoName}&lt;/p>
+        &lt;img
+          className="project_image"
+          src={node.svgURL}
+          onError={({ currentTarget }) => {
+            currentTarget.onerror = null; // prevents looping
+            currentTarget.src =
+              import.meta.env.VITE_APP_PATH_FOR_PICS +
+              "/imgs/defaultThumbnail.svg";
+          }}
+          alt={node.repoName}
+        >&lt;/img>
+        &lt;div
+          style={{
+            height: "30px",
+            display: "flex",
+            justifyContent: "space-between",
+          }}
+        >
+          &lt;div style={{ display: "flex", justifyContent: "flex-start" }}>
+            &lt;svg
+              xmlns="http://www.w3.org/2000/svg"
+              style={{ transform: "scale(.7)", alignSelf: "center" }}
+              width="16"
+              height="16"
+            >
+              &lt;path d="M8 .2l4.9 15.2L0 6h16L3.1 15.4z" />
+            &lt;/svg>
+            &lt;p
+              style={{
+                fontSize: ".7em",
+                display: "inline",
+                alignSelf: "center",
+              }}
+            >
+              {node.ranking}
+            &lt;/p>
+          &lt;/div>
+          &lt;div style={{ alignSelf: "center" }}>
+            {node.topics &amp;&amp; node.topics.includes("abundance-tool") ? (
+              &lt;p> {"\u{1F528} "} &lt;/p>
+            ) : null}
+          &lt;/div>
+        &lt;/div>
+      &lt;/div>
+    );
+  };
+  const ListItem = (node) => {
+    let dateCreated = new Date(node.node.dateCreated).toDateString(); //converts date to string
+    if (dateCreated == "Invalid Date") {
+      dateCreated = "Date Created";
+    }
+    return (
+      &lt;div
+        className="project_list"
+        key={node.node.id}
+        id={node.node.id}
+        onClick={() => {
+          GlobalVariables.currentRepo = node.node;
+        }}
+      >
+        &lt;p className="project_name_list">{node.node.repoName}&lt;/p>
+
+        &lt;p className="project_name_list">{node.node.owner}&lt;/p>
+        &lt;p style={{ width: "20%", display: "block" }}>
+          {" "}
+          {node.node.topics &amp;&amp; node.node.topics.includes("abundance-tool")
+            ? "\u{1F528} "
+            : null}
+        &lt;/p>
+        &lt;p className="project_name_list">{dateCreated}&lt;/p>
+
+        &lt;div
+          style={{
+            width: "10%",
+            display: "flex",
+            flexDirection: "row",
+            alignItems: "center",
+          }}
+        >
+          &lt;svg
+            xmlns="http://www.w3.org/2000/svg"
+            style={{ transform: "scale(.75)" }}
+            width="16"
+            height="16"
+          >
+            &lt;path d="M8 .2l4.9 15.2L0 6h16L3.1 15.4z" />
+          &lt;/svg>
+          &lt;p className="project_name_list">{node.node.ranking}&lt;/p>
+        &lt;/div>
+      &lt;/div>
+    );
+  };
+
+  var sorters = {
+    byName: function (a, b) {
+      return a.repoName &lt; b.repoName ? -1 : a.repoName > b.repoName ? 1 : 0;
+    },
+    byForks: function (a, b) {
+      return b.forks - a.forks;
+    },
+    byStars: function (a, b) {
+      return b.ranking - a.ranking;
+    },
+    byOwnerName: function (a, b) {
+      return a.owner &lt; b.owner ? -1 : a.owner > b.owner ? 1 : 0;
+    },
+    byDateCreated: function (a, b) {
+      return new Date(a.dateCreated) > new Date(b.dateCreated)
+        ? -1
+        : new Date(a.dateCreated) &lt; new Date(b.dateCreated)
+        ? 1
+        : 0;
+    },
+    byDateModified: function (a, b) {
+      return new Date(a.dateModified) > new Date(b.dateModified)
+        ? -1
+        : new Date(a.dateModified) &lt; new Date(b.dateModified)
+        ? 1
+        : 0;
+    },
+  };
+  const dummyNode = {
+    forks: "Forks",
+    ranking: "#",
+    dateCreated: "Date Created",
+    owner: "Creator",
+    repoName: "Name",
+  };
+
+  return (
+    &lt;>
+      &lt;div className="project-item-div">
+        {browseType == "list" ? &lt;ListItem node={dummyNode} /> : null}
+        {nodes.sort(sorters[orderType]).map((node) => (
+          &lt;Link
+            key={node.owner + node.repoName}
+            to={
+              node.owner == globalvariables.currentUser
+                ? `/${node.owner}/${node.repoName}`
+                : `/run/${node.owner}/${node.repoName}`
+            }
+          >
+            {browseType == "list" ? (
+              &lt;ListItem {...{ node }} />
+            ) : (
+              &lt;ThumbItem {...{ node }} />
+            )}
+          &lt;/Link>
+        ))}
+      &lt;/div>
+    &lt;/>
+  );
+};
+
+/* to add: if current user is null show this next part */
+const ShowProjects = ({
+  projectToShow,
+  setExportPopUp,
+  setProjectsToShow,
+  user,
+  authorizedUserOcto,
+  pageDict,
+  loginWithRedirect,
+  setNoUserBrowsing,
+}) => {
+  const loadingMessages = {
+    loading: "Loading projects...",
+    error: "Error",
+    noProjects: "No projects found",
+  };
+
+  useEffect(() => {
+    setProjectsToShow("recents");
+  }, [GlobalVariables.currentUser]);
+
+  const [projectsLoaded, setStateLoaded] = useState([]);
+  const [lastKey, setLastKey] = useState("");
+  const [pageNumber, setPageNumber] = useState(0);
+  const [searchBarValue, setSearchBarValue] = useState("");
+  const [yearShow, setYearShow] = useState("2024");
+  const [apiStatus, setApiStatus] = useState(loadingMessages.loading);
+
+  const controllerRef = useRef(new AbortController());
+
+  useEffect(() => {
+    octokit = new Octokit();
+    var query;
+
+    const forkDummyProject = async function (authorizedUserOcto) {
+      console.log("forking dummy project");
+      /*var owner = "alzatin";
+      var repo = "My-first-Abundance-project";
+      // if authenticated and it is not your project, make a clone of the project and return to create mode
+      authorizedUserOcto
+        .request("GET /repos/{owner}/{repo}", {
+          owner: owner,
+          repo: repo,
+        })
+        .then((result) => {
+          authorizedUserOcto.rest.repos
+            .createFork({
+              owner: owner,
+              repo: repo,
+            })
+            .then(() => {
+              var activeUser = GlobalVariables.currentUser;
+              // return to create mode
+              authorizedUserOcto
+                .request("GET /repos/{owner}/{repo}", {
+                  owner: activeUser,
+                  repo: repo,
+                })
+                .then((result) => {
+                  GlobalVariables.currentRepo = result.data;
+                });
+            });
+        });*/
+    };
+    const repoSearchRequest = async () => {
+      setStateLoaded([]); /*sets loading while fetching*/
+      //pageDict[pageNumber] = lastKey;
+
+      /* aborting previous request */
+      if (controllerRef.current) {
+        controllerRef.current.abort();
+      }
+
+      controllerRef.current = new AbortController();
+      const signal = controllerRef.current.signal;
+
+      let lastKeyQuery = lastKey
+        ? "&amp;lastKey=" + lastKey.repoName + "~" + lastKey.owner
+        : "&amp;lastKey";
+
+      let searchQuery;
+      if (searchBarValue != "") {
+        searchQuery = "&amp;query=" + searchBarValue + "&amp;yearShow=" + yearShow;
+      } else {
+        searchQuery = "&amp;query" + "&amp;yearShow=" + yearShow;
+      }
+
+      if (projectToShow == "all") {
+        query = "attribute=searchField" + searchQuery + "&amp;user" + lastKeyQuery;
+      } else if (projectToShow == "owned") {
+        query =
+          "attribute=searchField" +
+          searchQuery +
+          "&amp;user=" +
+          user +
+          lastKeyQuery;
+      } else if (projectToShow == "featured") {
+        // placeholder for featured projects
+        const scanFeaturedApi =
+          "https://hg5gsgv9te.execute-api.us-east-2.amazonaws.com/abundance-stage/queryFeaturedProjects";
+        let awsRepos = await fetch(scanFeaturedApi, { signal });
+
+        return awsRepos.json();
+      } else if (projectToShow == "liked") {
+        // placeholder for liked projects
+        const scanUserApiUrl =
+          "https://hg5gsgv9te.execute-api.us-east-2.amazonaws.com/abundance-stage/USER-TABLE?user=" +
+          user +
+          "&amp;liked=true";
+        let awsLikeRepos = await fetch(scanUserApiUrl, { signal });
+
+        return awsLikeRepos.json();
+      } else if (projectToShow == "recents") {
+        query =
+          "attribute=searchField" +
+          searchQuery +
+          "&amp;user=" +
+          user +
+          lastKeyQuery;
+        const scanRecentApi =
+          "https://hg5gsgv9te.execute-api.us-east-2.amazonaws.com/abundance-stage/queryRecentProjects?" +
+          query;
+        let awsRepos = await fetch(scanRecentApi, { signal });
+        return awsRepos.json();
+      }
+      //API URL for the scan-search-abundance endpoint and abundance-projects table
+      const scanApiUrl =
+        "https://hg5gsgv9te.execute-api.us-east-2.amazonaws.com/abundance-stage/scan-search-abundance?" +
+        query;
+      let awsRepos = await fetch(scanApiUrl, { signal }); //&lt; return result.json();[repos]
+      //let awsRepos = await fetch(scanUserApiUrl);
+      return awsRepos.json();
+    };
+
+    repoSearchRequest(projectToShow)
+      .then((result) => {
+        setStateLoaded([]);
+        setApiStatus(loadingMessages.loading);
+        if (result["repos"].length == 0 &amp;&amp; projectToShow == "owned") {
+          setApiStatus(loadingMessages.noProjects);
+          forkDummyProject(authorizedUserOcto).then(() => {
+            repoSearchRequest().then((result) => {
+              //setBrowsing(true);
+              setStateLoaded(result["repos"]);
+            });
+          });
+        } else if (result["repos"].length == 0) {
+          setApiStatus(loadingMessages.noProjects);
+        } else {
+          setStateLoaded(result["repos"]);
+          setLastKey(result["lastKey"]);
+        }
+      })
+      .catch((err) => {
+        console.log(err);
+        if (err.name !== "AbortError") {
+          alert(
+            "Error loading projects from database. Please try again later. " +
+              err
+          );
+        }
+      });
+  }, [searchBarValue, pageNumber, projectToShow, yearShow]);
+
+  let nodes = [];
+
+  if (projectsLoaded.length > 0) {
+    var userRepos = [];
+    projectsLoaded /*[pageNumber].data.*/
+      .forEach((repo) => {
+        userRepos.push(repo);
+      });
+    nodes = [...userRepos];
+  }
+  const handleSearchChange = (e) => {
+    if (e.code == "Enter") {
+      setSearchBarValue(e.target.value);
+      setPageNumber(0);
+    }
+  };
+
+  const UserNavDiv = (
+    &lt;div className="left-login-div">
+      &lt;div
+        className="login-nav-item"
+        onClick={() => {
+          setExportPopUp(true);
+        }}
+      >
+        &lt;p>New project&lt;/p>
+      &lt;/div>
+      &lt;div
+        className={
+          "login-nav-item" +
+          (projectToShow == "owned" ? " login-nav-item-clicked" : "")
+        }
+        onClick={(e) => {
+          setProjectsToShow("owned");
+        }}
+      >
+        &lt;p>My Projects&lt;/p>
+      &lt;/div>
+      &lt;div
+        className={
+          "login-nav-item" +
+          (projectToShow == "recents" ? " login-nav-item-clicked" : "")
+        }
+        onClick={() => {
+          setProjectsToShow("recents");
+        }}
+      >
+        &lt;p> Recent Projects&lt;/p>
+      &lt;/div>
+      &lt;div
+        className={
+          "login-nav-item" +
+          (projectToShow == "liked" ? " login-nav-item-clicked" : "")
+        }
+        onClick={() => {
+          setProjectsToShow("liked");
+        }}
+      >
+        &lt;p> Liked Projects&lt;/p>
+      &lt;/div>
+      &lt;div
+        className={
+          "login-nav-item" +
+          (projectToShow == "featured" ? " login-nav-item-clicked" : "")
+        }
+        onClick={() => {
+          setProjectsToShow("featured");
+        }}
+      >
+        &lt;p> Browse Featured Projects&lt;/p>
+      &lt;/div>
+      &lt;div
+        className={
+          "login-nav-item" +
+          (projectToShow == "all" ? " login-nav-item-clicked" : "")
+        }
+        onClick={() => {
+          setProjectsToShow("all");
+        }}
+      >
+        &lt;p> Browse All Other Projects&lt;/p>
+      &lt;/div>
+    &lt;/div>
+  );
+
+  const noUserNavDiv = (
+    &lt;div className="left-login-div">
+      &lt;div
+        className="login-nav-item"
+        onClick={() => {
+          setNoUserBrowsing(false);
+          loginWithRedirect();
+        }}
+      >
+        &lt;p>Login&lt;/p>
+      &lt;/div>
+      &lt;div
+        className={
+          "login-nav-item" +
+          (projectToShow == "featured" ? " login-nav-item-clicked" : "")
+        }
+        onClick={() => {
+          setProjectsToShow("featured");
+        }}
+      >
+        &lt;p> Browse Featured Projects&lt;/p>
+      &lt;/div>
+      &lt;div
+        className={
+          "login-nav-item" +
+          (projectToShow == "all" ? " login-nav-item-clicked" : "")
+        }
+        onClick={() => {
+          setProjectsToShow("all");
+        }}
+      >
+        &lt;p> Browse All Other Projects&lt;/p>
+      &lt;/div>
+    &lt;/div>
+  );
+
+  return (
+    &lt;>
+      &lt;div className="login-content-div">
+        {GlobalVariables.currentUser ? UserNavDiv : noUserNavDiv}
+        &lt;div className="right-login-div">
+          &lt;span style={{ fontFamily: "Roboto" }}>
+            Welcome to Abundance {GlobalVariables.currentUser}
+          &lt;/span>
+          &lt;div className="home-section">
+            {projectToShow == "owned"
+              ? "My Projects"
+              : projectToShow == "liked"
+              ? "My Liked Projects"
+              : projectToShow == "all"
+              ? "Browsing Projects"
+              : projectToShow == "featured"
+              ? "Featured Projects"
+              : projectToShow == "recents"
+              ? "Recent Projects"
+              : null}
+          &lt;/div>
+          &lt;hr width="100%" color="#D3D3D3" />
+
+          &lt;div className="search-bar-div">
+            {projectsLoaded.length > 1 ? (
+              &lt;div
+                style={{
+                  display: "flex",
+                  flexDirection: "row",
+                  margin: "0px 10px 0px 10px",
+                }}
+              >
+                {lastKey ? (
+                  &lt;button
+                    onClick={() => {
+                      if (pageNumber > 0) {
+                        setPageNumber(pageNumber - 1);
+                      }
+                    }}
+                    className="page_back_button"
+                  >
+                    {"\u2190"}
+                  &lt;/button>
+                ) : null}
+
+                {lastKey ? (
+                  &lt;button
+                    className="page_forward_button"
+                    onClick={() => {
+                      if (lastKey != "") {
+                        setPageNumber(pageNumber + 1);
+                      }
+                    }}
+                  >
+                    {"\u2192"}
+                  &lt;/button>
+                ) : null}
+              &lt;/div>
+            ) : null}
+
+            &lt;input
+              type="text"
+              key="project-search-bar"
+              placeholder={searchBarValue}
+              //value={target.value}
+              //onChange={(e) => setSearchBarType(e.target.value)}
+              onKeyDown={(e) => {
+                handleSearchChange(e);
+              }}
+              className="menu_search searchButton"
+              id="project_search"
+            />
+            &lt;button className="list_thumb_button">
+              &lt;img
+                src={
+                  import.meta.env.VITE_APP_PATH_FOR_PICS +
+                  "/imgs/search_icon.svg"
+                }
+                alt="search"
+                style={{
+                  width: "20px",
+                  color: "white",
+                  marginRight: "5px",
+                  opacity: "0.5",
+                }}
+              />
+              {projectToShow == "all" ? (
+                &lt;label htmlFor="year-by">
+                  &lt;img
+                    src={
+                      import.meta.env.VITE_APP_PATH_FOR_PICS + "/imgs/sort.svg"
+                    }
+                    alt="year-show"
+                    style={{ width: "15px" }}
+                  />
+                  &lt;select
+                    className="order_dropdown"
+                    id="year-by"
+                    defaultValue={2024}
+                    onChange={(e) => setYearShow(e.target.value)}
+                  >
+                    &lt;option key={"2024_projects"} value={"2024"}>
+                      2024
+                    &lt;/option>
+                    &lt;option key={"2023_projects"} value={"2023"}>
+                      2023
+                    &lt;/option>
+                    &lt;option key={"2022_projects"} value={"2022"}>
+                      2022
+                    &lt;/option>
+                  &lt;/select>
+                &lt;/label>
+              ) : null}
+            &lt;/button>
+          &lt;/div>
+          {projectsLoaded.length > 0 ? (
+            &lt;AddProject
+              {...{
+                setYearShow,
+                nodes,
+                authorizedUserOcto,
+                user,
+                projectToShow,
+              }}
+            />
+          ) : (
+            apiStatus
+          )}
+        &lt;/div>
+      &lt;/div>
+    &lt;/>
+  );
+};
+
+function LoginMode({
+  tryLogin,
+  exportPopUp,
+  setExportPopUp,
+  setIsLoggedIn,
+  authorizedUserOcto,
+  setAuthorizedUserOcto,
+}) {
+  const pageDict = { 0: null };
+
+  const [noUserBrowsing, setNoUserBrowsing] = useState(false);
+
+  const {
+    loginWithRedirect,
+    logout,
+    isAuthenticated,
+    isLoading,
+    getAccessTokenSilently,
+  } = useAuth0();
+
+  const [projectToShow, setProjectsToShow] = useState("featured");
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      console.log("isAuthenticated");
+
+      const serverUrl =
+        "https://n3i60kesu6.execute-api.us-east-2.amazonaws.com/prox";
+
+      const callSecureApi = async () => {
+        try {
+          const token = await getAccessTokenSilently();
+
+          //Returns authorized user from proxy server
+          const response = await fetch(`${serverUrl}/api/greet`, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
+          const authResponse = await response.json();
+          const authorizedUser = new Octokit({
+            auth: authResponse.message,
+          });
+          const { data } = await authorizedUser.request("/user");
+          GlobalVariables.currentUser = data.login;
+          if (GlobalVariables.currentUser) {
+            setIsLoggedIn(true);
+            setAuthorizedUserOcto(authorizedUser);
+          }
+        } catch (error) {
+          console.error(error);
+        }
+      };
+      callSecureApi();
+    }
+  }, [isAuthenticated, getAccessTokenSilently]);
+
+  let popUpContent;
+  if (exportPopUp &amp;&amp; authorizedUserOcto) {
+    popUpContent = (
+      &lt;NewProjectPopUp
+        {...{ setExportPopUp, authorizedUserOcto, exporting: false }}
+      />
+    );
+  } else if (isAuthenticated &amp;&amp; authorizedUserOcto) {
+    popUpContent = (
+      &lt;ShowProjects
+        {...{
+          projectToShow,
+          setExportPopUp,
+          setProjectsToShow,
+          user: GlobalVariables.currentUser,
+          authorizedUserOcto,
+          pageDict,
+        }}
+      />
+    );
+  } else if (isAuthenticated || isLoading) {
+    popUpContent = (
+      &lt;div className="login-page">
+        &lt;div className="form animate fadeInUp one">
+          &lt;div id="gitSide" className="logindiv">
+            &lt;img
+              className="logo"
+              src={
+                import.meta.env.VITE_APP_PATH_FOR_PICS +
+                "/imgs/abundance_logo.png"
+              }
+              alt="logo"
+            />
+            &lt;div id="welcome">
+              &lt;img
+                src={
+                  import.meta.env.VITE_APP_PATH_FOR_PICS +
+                  "/imgs/abundance_lettering.png"
+                }
+                alt="logo"
+                style={{ width: "300px" }}
+              />
+            &lt;/div>
+
+            &lt;p> Redirecting you to your projects ... &lt;/p>
+          &lt;/div>
+        &lt;/div>
+      &lt;/div>
+    );
+  } else if (noUserBrowsing) {
+    popUpContent = (
+      &lt;ShowProjects
+        {...{
+          projectToShow,
+          setExportPopUp,
+          setProjectsToShow,
+          user: null,
+          authorizedUserOcto,
+          pageDict,
+          loginWithRedirect,
+          setNoUserBrowsing,
+        }}
+      />
+    );
+  } else {
+    popUpContent = (
+      &lt;InitialLog {...{ loginWithRedirect, tryLogin, setNoUserBrowsing }} />
+    );
+  }
+  return (
+    &lt;div
+      className="login-popup"
+      id="projects-popup"
+      style={{
+        padding: "0",
+        border: "10px solid #3e3d3d",
+      }}
+    >
+      &lt;div>
+        {" "}
+        {GlobalVariables.currentRepo &amp;&amp; isAuthenticated ? (
+          &lt;Link
+            to={`/${GlobalVariables.currentRepo.owner}/${GlobalVariables.currentRepo.repoName}`}
+          >
+            &lt;button
+              className="closeButton"
+              onClick={() => {
+                setExportPopUp(false);
+              }}
+            >
+              &lt;img>&lt;/img>
+              &lt;span> Return to project&lt;/span>
+            &lt;/button>
+          &lt;/Link>
+        ) : isAuthenticated ? (
+          &lt;button
+            className="closeButton"
+            onClick={() => {
+              logout({
+                returnTo: import.meta.env.VITE_APP_DEV
+                  ? window.location.origin
+                  : "https://barboursmith.github.io/Abundance", // Redirect to home page or specified URL
+              });
+            }}
+          >
+            &lt;span> Log out &lt;/span>
+          &lt;/button>
+        ) : null}
+      &lt;/div>
+      &lt;div className="top-banner" style={{ margin: "35px 0 0 30px" }}>
+        &lt;div
+          id="welcome-logo"
+          style={{ display: "flex", margin: "10px 10px", alignItems: "center" }}
+        >
+          &lt;img
+            src={
+              import.meta.env.VITE_APP_PATH_FOR_PICS +
+              "/imgs/abundance_logo.png"
+            }
+            alt="logo"
+            style={{ width: "40px", height: "40px", borderRadius: "50%" }}
+          />
+          &lt;img
+            src={
+              import.meta.env.VITE_APP_PATH_FOR_PICS +
+              "/imgs/abundance_lettering.png"
+            }
+            alt="logo"
+            style={{ height: "20px", padding: "10px" }}
+          />
+        &lt;/div>
+      &lt;/div>
+      {popUpContent}
+    &lt;/div>
+  );
+}
+
+export default LoginMode;
+
+/*--Credit to https://codepen.io/colorlib/pen/rxddKy */
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<br class="clear">
+
+<footer>
+    Generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.6.7</a> on Tue Dec 24 2024 16:29:23 GMT+0000 (Coordinated Universal Time) using the Minami theme.
+</footer>
+
+<script>prettyPrint();</script>
+<script src="scripts/linenumber.js"></script>
+</body>
+</html>

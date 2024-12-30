@@ -329,7 +329,6 @@ export default class Atom {
    * Returns an error handler function usable with Promise.catch.
    * Prints the stack trace of a thrown error in the console and sets
    * an alert on this atom with the message of the error.
-   * @returns
    */
   alertingErrorHandler() {
     return (err) => {

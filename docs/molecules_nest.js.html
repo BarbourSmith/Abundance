@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>molecules/nest.js - Documentation</title>
+
+    <script src="scripts/prettify/prettify.js"></script>
+    <script src="scripts/prettify/lang-css.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="https://code.ionicframework.com/ionicons/2.0.1/css/ionicons.min.css">
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+<body>
+
+<input type="checkbox" id="nav-trigger" class="nav-trigger" />
+<label for="nav-trigger" class="navicon-button x">
+  <div class="navicon"></div>
+</label>
+
+<label for="nav-trigger" class="overlay"></label>
+
+<nav>
+    <li class="nav-link nav-home-link"><a href="index.html">Home</a></li><li class="nav-heading">Classes</li><li class="nav-heading"><span class="nav-item-type type-class">C</span><span class="nav-item-name"><a href="BOMEntry.html">BOMEntry</a></span></li><li class="nav-heading"><span class="nav-item-type type-class">C</span><span class="nav-item-name"><a href="GlobalVariables.html">GlobalVariables</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#cancelLastDisplayWorker">cancelLastDisplayWorker</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#cancelLastDisplayWorker">cancelLastDisplayWorker</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#constrainToCanvasBorders">constrainToCanvasBorders</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#constrainToCanvasBorders">constrainToCanvasBorders</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#constrainToCanvasBordersPixels">constrainToCanvasBordersPixels</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#constrainToCanvasBordersPixels">constrainToCanvasBordersPixels</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#distBetweenPoints">distBetweenPoints</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#distBetweenPoints">distBetweenPoints</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#generateUniqueID">generateUniqueID</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#generateUniqueID">generateUniqueID</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#heightToPixels">heightToPixels</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#heightToPixels">heightToPixels</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#incrementVariableName">incrementVariableName</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#incrementVariableName">incrementVariableName</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#pixelsToHeight">pixelsToHeight</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#pixelsToHeight">pixelsToHeight</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#pixelsToWidth">pixelsToWidth</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#pixelsToWidth">pixelsToWidth</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#toBinaryStr">toBinaryStr</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#toBinaryStr">toBinaryStr</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#widthToPixels">widthToPixels</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#widthToPixels">widthToPixels</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#writeToDisplay">writeToDisplay</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#writeToDisplay">writeToDisplay</a></span></li><li class="nav-heading"><span class="nav-item-type type-class">C</span><span class="nav-item-name"><a href="module.html#.exports">exports</a></span></li><li class="nav-heading"><a href="global.html">Globals</a></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#addAndRemoveInputs">addAndRemoveInputs</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#addIO">addIO</a></span></li><li class="nav-item"><span class="nav-item-type type-member">M</span><span class="nav-item-name"><a href="global.html#addOrDeletePorts">addOrDeletePorts</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#addToConstantsList">addToConstantsList</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#alertingErrorHandler">alertingErrorHandler</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#applyLayout">applyLayout</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#Assembly">Assembly</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#assembly">assembly</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#attach">attach</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#attachSvgListeners">attachSvgListeners</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#basicThreadValueProcessing">basicThreadValueProcessing</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#beginEvaluatingIndividual">beginEvaluatingIndividual</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#beginPropagation">beginPropagation</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#breedAndCullPopulation">breedAndCullPopulation</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#breedTwo">breedTwo</a></span></li><li class="nav-item"><span class="nav-item-type type-member">M</span><span class="nav-item-name"><a href="global.html#cad">cad</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#census">census</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#changeColor">changeColor</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#clearAlert">clearAlert</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#clickDown">clickDown</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#clickUp">clickUp</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#closeCode">closeCode</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#computePosition">computePosition</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#computePositions">computePositions</a></span></li><li class="nav-item"><span class="nav-item-type type-member">M</span><span class="nav-item-name"><a href="global.html#convertLinks">convertLinks</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#copy">copy</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#copyInputsFromParent">copyInputsFromParent</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#createLevaInputs">createLevaInputs</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#CreateMode">CreateMode</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#customThreadValueProcessing">customThreadValueProcessing</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#cutAssembly">cutAssembly</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#decreaseToProcessCountByOne">decreaseToProcessCountByOne</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#deleteConnector">deleteConnector</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#deleteEmptyPort">deleteEmptyPort</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#deleteFromLibrary">deleteFromLibrary</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#deleteNode">deleteNode</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#deleteOutputAtom">deleteOutputAtom</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#deleteSelf">deleteSelf</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#deselect">deselect</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#deserialize">deserialize</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#disjointGeometryToAssembly">disjointGeometryToAssembly</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#displayLayout">displayLayout</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#doubleClick">doubleClick</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#downExport">downExport</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#downloadGCode">downloadGCode</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#downloadSvg">downloadSvg</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#draw">draw</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#editCode">editCode</a></span></li><li class="nav-item"><span class="nav-item-type type-member">M</span><span class="nav-item-name"><a href="global.html#ele">ele</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#evaluateEquation">evaluateEquation</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#exportFile">exportFile</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#extractBomList">extractBomList</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#extractBomTags">extractBomTags</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#findHighestInput">findHighestInput</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#findIOValue">findIOValue</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#fittingString">fittingString</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#generateUniqueID">generateUniqueID</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#getOutput">getOutput</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#getRandomValue">getRandomValue</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#getValue">getValue</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#goToParentMolecule">goToParentMolecule</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#howManyInputPortsAvailable">howManyInputPortsAvailable</a></span></li><li class="nav-item"><span class="nav-item-type type-member">M</span><span class="nav-item-name"><a href="global.html#id">id</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#initializePopulation">initializePopulation</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#InitialLog">InitialLog</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#isCloseEnoughToTarget">isCloseEnoughToTarget</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#keyPress">keyPress</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#layout">layout</a></span></li><li class="nav-item"><span class="nav-item-type type-member">M</span><span class="nav-item-name"><a href="global.html#licenses">licenses</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#loadFile">loadFile</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#loadGithubMoleculeByName">loadGithubMoleculeByName</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#mouseMove">mouseMove</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#newBlobFromBase64">newBlobFromBase64</a></span></li><li class="nav-item"><span class="nav-item-type type-member">M</span><span class="nav-item-name"><a href="global.html#octokit">octokit</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#parseInputs">parseInputs</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#placeAtom">placeAtom</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#placeConnector">placeConnector</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#propagate">propagate</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#propogate">propogate</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#recomputeMolecule">recomputeMolecule</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#recursiveCut">recursiveCut</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#reloadMoleculeFromGithub">reloadMoleculeFromGithub</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#remapIDs">remapIDs</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#removeIO">removeIO</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#renderSvg">renderSvg</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#requestReadme">requestReadme</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#rotate">rotate</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#Rotate">Rotate</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#rotateForLayout">rotateForLayout</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#saveCode">saveCode</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#selectBox">selectBox</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#sendToRender">sendToRender</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#serialize">serialize</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#setAlert">setAlert</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#setConfig">setConfig</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#setDefault">setDefault</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#setEquation">setEquation</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#setValue">setValue</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#setValues">setValues</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#startnest">startnest</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#stopnest">stopnest</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#svgToNest">svgToNest</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#toGeometry">toGeometry</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#undo">undo</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#unexpand">unexpand</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#update">update</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#updateCode">updateCode</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#updateConstantsList">updateConstantsList</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#updateDefault">updateDefault</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#updateFile">updateFile</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#updateParentName">updateParentName</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#updateSidebar">updateSidebar</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#updateValue">updateValue</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#updateValueButton">updateValueButton</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#visExport">visExport</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#waitOnComingInformation">waitOnComingInformation</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#walkBackForConstants">walkBackForConstants</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#wasConnectionMade">wasConnectionMade</a></span></li>
+</nav>
+
+<div id="main">
+    
+    <h1 class="page-title">molecules/nest.js</h1>
+    
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>import Atom from "../prototypes/atom";
+import GlobalVariables from "../js/globalvariables.js";
+import saveAs from "../lib/FileSaver.js";
+
+import * as svgNest from "../lib/svgnest.js";
+
+/**
+ * This class creates the nest atom which lets you download a nested .svg file.
+ */
+export default class Nest extends Atom {
+  /**
+   * The constructor function.
+   * @param {object} values An array of values passed in which will be assigned to the class as this.x
+   */
+  constructor(values) {
+    super(values);
+
+    /**
+     * This atom's name
+     * @type {string}
+     */
+    this.name = "Nest";
+    /**
+     * This atom's type
+     * @type {string}
+     */
+    this.atomType = "Nest";
+
+    /**
+     * This atom's value. Contains the value of the input geometry, not the stl
+     * @type {string}
+     */
+    this.value = null;
+
+    /**
+     * This atom's height as drawn on the screen
+     */
+    this.height = 0;
+
+    this.addIO("input", "geometry", this, "geometry", null);
+    this.addIO("input", "spacing", this, "number", 0.3);
+    this.addIO("input", "curveTolerance", this, "number", 0.3);
+
+    this.setValues(values);
+
+    /**
+     * Number of times nesting has been tried
+     */
+    this.iterations = 0;
+    /**
+     * Boolean to determine wether nesting process is ongoing
+     */
+    this.isworking = false;
+    /**
+     * Length and width inputs for svg placement
+     */
+    this.material = { width: 121, length: 243 };
+  }
+
+  /**
+   * Draw the svg atom which has a SVG icon.
+   */
+  draw() {
+    super.draw("rect");
+
+    let pixelsRadius = GlobalVariables.widthToPixels(this.radius);
+    this.height = pixelsRadius * 1.5;
+
+    GlobalVariables.c.beginPath();
+    GlobalVariables.c.fillStyle = "#484848";
+    GlobalVariables.c.font = `${pixelsRadius / 1.2}px Work Sans Bold`;
+    GlobalVariables.c.fillText(
+      "SVG",
+      GlobalVariables.widthToPixels(this.x - this.radius / 1.3),
+      GlobalVariables.heightToPixels(this.y) + this.height / 6
+    );
+    GlobalVariables.c.fill();
+    GlobalVariables.c.closePath();
+  }
+  /**
+   * Re excecutes configure function for nesting if values are updated by user
+   */
+  setValue() {
+    this.setConfig();
+  }
+
+  /**
+   * Set the value to be the input geometry, then call super updateValue()
+   */
+  updateValue() {
+    try {
+      const values = [this.findIOValue("geometry")];
+      this.basicThreadValueProcessing(values, "outline");
+    } catch (err) {
+      this.setAlert(err);
+    }
+    //Saves new config values for nesting (Stops any nesting in progress)
+    this.setConfig();
+  }
+
+  /**
+   * Create buttons to start nest, to download the .svg file and checkbox "Part in Part".
+   */
+  updateSidebar() {
+    const list = super.updateSidebar();
+    this.createEditableValueListItem(
+      list,
+      this.material,
+      "width",
+      "Width of Material",
+      true,
+      () => this.setConfig()
+    );
+    this.createEditableValueListItem(
+      list,
+      this.material,
+      "length",
+      "Length of Material",
+      true,
+      () => this.setConfig()
+    );
+
+    //this.createEditableValueListItem(list,this.BOMitem,'costUSD', 'Price', true, () => this.updateValue())
+    this.createCheckbox(list, "Part in Part", false, () => {
+      this.setConfig();
+    });
+    this.createButton(list, this, "Start Nest", () => {
+      this.svgToNest();
+    });
+    //remember to disable until svg is nested
+    this.createButton(list, this, "Download SVG", () => {
+      this.downloadSvg();
+    });
+
+    var svgButton = document.getElementById("DownloadSVG-button");
+    svgButton.disabled = true;
+    svgButton.classList.add("disabled");
+  }
+
+  /**
+   * Update values for config(). Called when the values on sidebar have been edited.
+   */
+  setConfig() {
+    // config = [distance, curve tolerance,rotations, population size, mutation rate, use holes, concave]
+    const configKeys = ["spacing", "curveTolerance"];
+    var c = {
+      useholes: false,
+      exploreConcave: false,
+      rotations: 4,
+      mutationRate: 10,
+      populationSize: 10,
+    };
+    for (var i = 0; i &lt; configKeys.length; i++) {
+      var key = configKeys[i];
+      c[key] = this.findIOValue(key);
+    }
+    var check1 = document.getElementById("Part in Part");
+    if (check1 !== null) {
+      if (check1.checked) {
+        c[check1] = true;
+      } else {
+        c[check1] = false;
+      }
+    }
+
+    window.SvgNest.config(c);
+
+    var svgButton = document.getElementById("DownloadSVG-button");
+    if (svgButton !== null) {
+      svgButton.disabled = true;
+      svgButton.classList.add("disabled");
+    }
+
+    // new configs will invalidate current nest
+    if (this.isworking) {
+      this.stopnest();
+    }
+    return false;
+  }
+
+  /**
+   * Turns geometry values into svg then starts nest and returns nested SVG
+   */
+  svgToNest() {
+    //turn into svg
+    const values = [this.findIOValue("geometry")];
+
+    const computeValue = async (values, key) => {
+      try {
+        return await GlobalVariables.ask({ values: values, op: key });
+      } catch (err) {
+        this.setAlert(err);
+      }
+    };
+    var unestedSVG;
+
+    computeValue(values, "svg")
+      .then((result) => {
+        if (result != -1) {
+          var decoder = new TextDecoder("utf8");
+          unestedSVG = decoder.decode(result);
+
+          return unestedSVG;
+        } else {
+          this.setAlert("Unable to compute");
+        }
+      })
+      .then((result) => {
+        try {
+          var svg = SvgNest.parsesvg(result);
+          var display = document.getElementById("select");
+          {
+            var wholeSVG = document.createElementNS(
+              "http://www.w3.org/2000/svg",
+              "svg"
+            );
+            // Copy relevant scaling info
+            wholeSVG.setAttribute("width", this.material["width"]);
+            wholeSVG.setAttribute("height", this.material["length"]);
+            wholeSVG.setAttribute("viewBox", svg.getAttribute("viewBox"));
+            var rect = document.createElementNS(wholeSVG.namespaceURI, "rect");
+            rect.setAttribute("x", wholeSVG.viewBox.baseVal.x);
+            rect.setAttribute("y", wholeSVG.viewBox.baseVal.x);
+            rect.setAttribute("width", "100%");
+            rect.setAttribute("height", "100%");
+            rect.setAttribute("class", "fullRect");
+
+            wholeSVG.appendChild(rect);
+          }
+          display.innerHTML = "";
+          display.appendChild(wholeSVG); // As a default bin in background
+          display.appendChild(svg);
+        } catch (e) {
+          console.warn(e);
+          //message.innerHTML = e;
+          //message.className = 'error animated bounce';
+          return;
+        }
+
+        //hideSplash();
+        //message.className = 'active animated bounce';
+        //start.className = 'button start disabled';
+
+        //attachSvgListeners(svg);
+
+        //set the bin to wholeSVG
+        this.attachSvgListeners(wholeSVG);
+      });
+  }
+  /**
+   * Defines bin which will be used to place parts for nested svg
+   */
+  attachSvgListeners(svg) {
+    // auto set bin to be whole svg
+    for (var i = 0; i &lt; svg.childNodes.length; i++) {
+      var node = svg.childNodes[i];
+
+      if (node.nodeType == 1) {
+        node.setAttribute("class", "active");
+
+        //if(display.className == 'disabled'){
+        //    return;
+        //}
+
+        var currentbin = document.querySelector("#select .active");
+        if (currentbin) {
+          var className = currentbin
+            .getAttribute("class")
+            .replace("active", "")
+            .trim();
+          if (!className) currentbin.removeAttribute("class");
+          else currentbin.setAttribute("class", className);
+        }
+        SvgNest.setbin(node);
+        node.setAttribute(
+          "class",
+          (node.getAttribute("class") ? node.getAttribute("class") + " " : "") +
+            "active"
+        );
+
+        //start.className = 'button start animated bounce';
+        //message.className = '';
+        this.startnest();
+      }
+    }
+  }
+  /**
+   * Starts nesting, replaces html svg for nested svg
+   */
+  async startnest() {
+    // Once started, don't allow this anymore
+    SvgNest.start(this.progress, this.renderSvg);
+    //remember to change label so nest can stop
+    //startlabel.innerHTML = 'Stop Nest';
+    //start.className = 'button spinner';
+    //configbutton.className = 'button config disabled';
+    //config.className = '';
+
+    var svg = document.querySelector("#select svg");
+    if (svg) {
+      svg.removeAttribute("style");
+    }
+    this.isworking = true;
+  }
+
+  /**
+   * Stops nest and changes flag to not working
+   */
+  stopnest() {
+    SvgNest.stop();
+    //startlabel.innerHTML = 'Start Nest'
+    //start.className = 'button start'
+    //configbutton.className = 'button config'
+
+    this.isworking = false;
+  }
+
+  /**
+     * NOT WORKING Defines percentage of nesting and estimates time and iterations
+              
+    progress(percent, prevpercent = 0){
+        
+        var transition = percent > prevpercent //? '; transition: width 0.1s' : ''
+        //document.getElementById('info_progress').setAttribute('style','width: '+Math.round(percent*100)+'% ' + transition)
+        //document.getElementById('info').setAttribute('style','display: block')
+                
+        prevpercent = percent
+                
+        var now = new Date().getTime()
+        if(startTime &amp;&amp; now){
+            var diff = now-startTime
+            // show a time estimate for long-running placements
+
+            var estimate = (diff/percent)*(1-percent)
+            //document.getElementById('info_time').innerHTML = millisecondsToStr(estimate)+' remaining'
+            console.log(estimate)        
+            if(diff > 5000 &amp;&amp; percent &lt; 0.3 &amp;&amp; percent > 0.02 &amp;&amp; estimate > 10000){
+                document.getElementById('info_time').setAttribute('style','display: block')
+            }
+        }
+                
+        if(percent > 0.95 || percent &lt; 0.02){
+            document.getElementById('info_time').setAttribute('style','display: none')
+        }
+        if(percent &lt; 0.02){
+            startTime = new Date().getTime()
+        }
+    }
+    */
+
+  /**
+   * NOT WORKING Defines HTML bit and defines svg list
+   */
+  renderSvg(svglist, efficiency, placed, total) {
+    //this.iterations++;
+
+    //document.getElementById('info_iterations').innerHTML = iterations;
+    //Enable download button if all parts have been placed
+
+    if (placed == total) {
+      var svgButton = document.getElementById("DownloadSVG-button");
+      svgButton.disabled = false;
+      svgButton.classList.remove("disabled");
+    }
+    if (!svglist || svglist.length == 0) {
+      return;
+    }
+    var bins = document.getElementById("bins");
+    bins.innerHTML = "";
+
+    for (var i = 0; i &lt; svglist.length; i++) {
+      if (svglist.length > 2) {
+        svglist[i].setAttribute("class", "grid");
+      }
+      bins.appendChild(svglist[i]);
+    }
+
+    if (efficiency || efficiency === 0) {
+      // document.getElementById('info_efficiency').innerHTML = Math.round(efficiency*100);
+    }
+
+    //document.getElementById('info_placed').innerHTML = placed+'/'+total;
+    //document.getElementById('info_placement').setAttribute('style','display: block');
+    //display.setAttribute('style','display: none');
+    //download.className = 'button download animated bounce';
+  }
+
+  /**
+   * The function which is called when you press the download button.
+   * Stops nest in progress and downloads file to computer. Only enabled if svg has been nested at least once
+   */
+  downloadSvg() {
+    //if it is still trying iterations stop nest
+    this.stopnest();
+    var bins = document.getElementById("bins");
+
+    if (bins.children.length == 0) {
+      console.warn("No SVG to export");
+      return;
+    }
+
+    var svg;
+
+    var display = document.getElementById("select");
+    svg = display.querySelector("svg");
+
+    if (!svg) {
+      svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    }
+
+    svg = svg.cloneNode(false);
+
+    // maintain stroke, fill etc of input
+    if (SvgNest.style) {
+      svg.appendChild(SvgNest.style);
+    }
+
+    var binHeight = parseInt(bins.children[0].getAttribute("height"));
+
+    for (var i = 0; i &lt; bins.children.length; i++) {
+      var b = bins.children[i];
+
+      var group = document.createElementNS("http://www.w3.org/2000/svg", "g");
+      group.setAttribute("fill", "none");
+      group.setAttribute("stroke-width", ".1");
+      group.setAttribute("fill", "none");
+      group.setAttribute(
+        "transform",
+        "translate(0 " + binHeight * 1.1 * i + ")"
+      );
+      for (var j = 0; j &lt; b.children.length; j++) {
+        group.appendChild(b.children[j].cloneNode(true));
+      }
+      svg.appendChild(group);
+    }
+
+    var output;
+    if (typeof XMLSerializer != "undefined") {
+      output = new XMLSerializer().serializeToString(svg);
+    } else {
+      output = svg.outerHTML;
+    }
+    var blob = new Blob([output], { type: "image/svg+xml;charset=utf-8" });
+    saveAs(blob, "SVGnest-output.svg");
+  }
+}
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<br class="clear">
+
+<footer>
+    Generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.6.7</a> on Tue Dec 24 2024 16:29:23 GMT+0000 (Coordinated Universal Time) using the Minami theme.
+</footer>
+
+<script>prettyPrint();</script>
+<script src="scripts/linenumber.js"></script>
+</body>
+</html>

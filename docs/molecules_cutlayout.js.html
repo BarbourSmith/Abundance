@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>molecules/cutlayout.js - Documentation</title>
+
+    <script src="scripts/prettify/prettify.js"></script>
+    <script src="scripts/prettify/lang-css.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="https://code.ionicframework.com/ionicons/2.0.1/css/ionicons.min.css">
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+<body>
+
+<input type="checkbox" id="nav-trigger" class="nav-trigger" />
+<label for="nav-trigger" class="navicon-button x">
+  <div class="navicon"></div>
+</label>
+
+<label for="nav-trigger" class="overlay"></label>
+
+<nav>
+    <li class="nav-link nav-home-link"><a href="index.html">Home</a></li><li class="nav-heading">Classes</li><li class="nav-heading"><span class="nav-item-type type-class">C</span><span class="nav-item-name"><a href="BOMEntry.html">BOMEntry</a></span></li><li class="nav-heading"><span class="nav-item-type type-class">C</span><span class="nav-item-name"><a href="GlobalVariables.html">GlobalVariables</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#cancelLastDisplayWorker">cancelLastDisplayWorker</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#cancelLastDisplayWorker">cancelLastDisplayWorker</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#constrainToCanvasBorders">constrainToCanvasBorders</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#constrainToCanvasBorders">constrainToCanvasBorders</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#constrainToCanvasBordersPixels">constrainToCanvasBordersPixels</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#constrainToCanvasBordersPixels">constrainToCanvasBordersPixels</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#distBetweenPoints">distBetweenPoints</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#distBetweenPoints">distBetweenPoints</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#generateUniqueID">generateUniqueID</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#generateUniqueID">generateUniqueID</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#heightToPixels">heightToPixels</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#heightToPixels">heightToPixels</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#incrementVariableName">incrementVariableName</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#incrementVariableName">incrementVariableName</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#pixelsToHeight">pixelsToHeight</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#pixelsToHeight">pixelsToHeight</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#pixelsToWidth">pixelsToWidth</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#pixelsToWidth">pixelsToWidth</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#toBinaryStr">toBinaryStr</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#toBinaryStr">toBinaryStr</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#widthToPixels">widthToPixels</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#widthToPixels">widthToPixels</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#writeToDisplay">writeToDisplay</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="GlobalVariables.html#writeToDisplay">writeToDisplay</a></span></li><li class="nav-heading"><span class="nav-item-type type-class">C</span><span class="nav-item-name"><a href="module.html#.exports">exports</a></span></li><li class="nav-heading"><a href="global.html">Globals</a></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#addAndRemoveInputs">addAndRemoveInputs</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#addIO">addIO</a></span></li><li class="nav-item"><span class="nav-item-type type-member">M</span><span class="nav-item-name"><a href="global.html#addOrDeletePorts">addOrDeletePorts</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#addToConstantsList">addToConstantsList</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#alertingErrorHandler">alertingErrorHandler</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#applyLayout">applyLayout</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#Assembly">Assembly</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#assembly">assembly</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#attach">attach</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#attachSvgListeners">attachSvgListeners</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#basicThreadValueProcessing">basicThreadValueProcessing</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#beginEvaluatingIndividual">beginEvaluatingIndividual</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#beginPropagation">beginPropagation</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#breedAndCullPopulation">breedAndCullPopulation</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#breedTwo">breedTwo</a></span></li><li class="nav-item"><span class="nav-item-type type-member">M</span><span class="nav-item-name"><a href="global.html#cad">cad</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#census">census</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#changeColor">changeColor</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#clearAlert">clearAlert</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#clickDown">clickDown</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#clickUp">clickUp</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#closeCode">closeCode</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#computePosition">computePosition</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#computePositions">computePositions</a></span></li><li class="nav-item"><span class="nav-item-type type-member">M</span><span class="nav-item-name"><a href="global.html#convertLinks">convertLinks</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#copy">copy</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#copyInputsFromParent">copyInputsFromParent</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#createLevaInputs">createLevaInputs</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#CreateMode">CreateMode</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#customThreadValueProcessing">customThreadValueProcessing</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#cutAssembly">cutAssembly</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#decreaseToProcessCountByOne">decreaseToProcessCountByOne</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#deleteConnector">deleteConnector</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#deleteEmptyPort">deleteEmptyPort</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#deleteFromLibrary">deleteFromLibrary</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#deleteNode">deleteNode</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#deleteOutputAtom">deleteOutputAtom</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#deleteSelf">deleteSelf</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#deselect">deselect</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#deserialize">deserialize</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#disjointGeometryToAssembly">disjointGeometryToAssembly</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#displayLayout">displayLayout</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#doubleClick">doubleClick</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#downExport">downExport</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#downloadGCode">downloadGCode</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#downloadSvg">downloadSvg</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#draw">draw</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#editCode">editCode</a></span></li><li class="nav-item"><span class="nav-item-type type-member">M</span><span class="nav-item-name"><a href="global.html#ele">ele</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#evaluateEquation">evaluateEquation</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#exportFile">exportFile</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#extractBomList">extractBomList</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#extractBomTags">extractBomTags</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#findHighestInput">findHighestInput</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#findIOValue">findIOValue</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#fittingString">fittingString</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#generateUniqueID">generateUniqueID</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#getOutput">getOutput</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#getRandomValue">getRandomValue</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#getValue">getValue</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#goToParentMolecule">goToParentMolecule</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#howManyInputPortsAvailable">howManyInputPortsAvailable</a></span></li><li class="nav-item"><span class="nav-item-type type-member">M</span><span class="nav-item-name"><a href="global.html#id">id</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#initializePopulation">initializePopulation</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#InitialLog">InitialLog</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#isCloseEnoughToTarget">isCloseEnoughToTarget</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#keyPress">keyPress</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#layout">layout</a></span></li><li class="nav-item"><span class="nav-item-type type-member">M</span><span class="nav-item-name"><a href="global.html#licenses">licenses</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#loadFile">loadFile</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#loadGithubMoleculeByName">loadGithubMoleculeByName</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#mouseMove">mouseMove</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#newBlobFromBase64">newBlobFromBase64</a></span></li><li class="nav-item"><span class="nav-item-type type-member">M</span><span class="nav-item-name"><a href="global.html#octokit">octokit</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#parseInputs">parseInputs</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#placeAtom">placeAtom</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#placeConnector">placeConnector</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#propagate">propagate</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#propogate">propogate</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#recomputeMolecule">recomputeMolecule</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#recursiveCut">recursiveCut</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#reloadMoleculeFromGithub">reloadMoleculeFromGithub</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#remapIDs">remapIDs</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#removeIO">removeIO</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#renderSvg">renderSvg</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#requestReadme">requestReadme</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#rotate">rotate</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#Rotate">Rotate</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#rotateForLayout">rotateForLayout</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#saveCode">saveCode</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#selectBox">selectBox</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#sendToRender">sendToRender</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#serialize">serialize</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#setAlert">setAlert</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#setConfig">setConfig</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#setDefault">setDefault</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#setEquation">setEquation</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#setValue">setValue</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#setValues">setValues</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#startnest">startnest</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#stopnest">stopnest</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#svgToNest">svgToNest</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#toGeometry">toGeometry</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#undo">undo</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#unexpand">unexpand</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#update">update</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#updateCode">updateCode</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#updateConstantsList">updateConstantsList</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#updateDefault">updateDefault</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#updateFile">updateFile</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#updateParentName">updateParentName</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#updateSidebar">updateSidebar</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#updateValue">updateValue</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#updateValueButton">updateValueButton</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#visExport">visExport</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#waitOnComingInformation">waitOnComingInformation</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#walkBackForConstants">walkBackForConstants</a></span></li><li class="nav-item"><span class="nav-item-type type-function">F</span><span class="nav-item-name"><a href="global.html#wasConnectionMade">wasConnectionMade</a></span></li>
+</nav>
+
+<div id="main">
+    
+    <h1 class="page-title">molecules/cutlayout.js</h1>
+    
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>import Atom from "../prototypes/atom.js";
+import GlobalVariables from "../js/globalvariables.js";
+//import GlobalVariables from '../js/globalvariables.js'
+import { proxy } from "comlink";
+import { button, LevaInputs } from "leva";
+
+
+/**
+ * The Cut Layout atom extracts a copy of each shape on the cutlist and places them optimally on a cut sheet.
+ */
+export default class CutLayout extends Atom {
+  /**
+   * The constructor function.
+   * @param {object} values An array of values passed in which will be assigned to the class as this.x
+   */
+  constructor(values) {
+    super(values);
+
+    /**
+     * This atom's type
+     * @type {string}
+     */
+    this.atomType = "Cut Layout";
+    /**
+     * This atom's type
+     * @type {string}
+     */
+    this.type = "cutLayout";
+    /**
+     * This atom's name
+     * @type {string}
+     */
+    this.name = "Cut Layout";
+    /**
+     * A description of this atom
+     * @type {string}
+     */
+    this.description =
+      "Extracts all parts tagged for cutting and lays them out on a sheet to cut.";
+    /**
+     * The array of placements returned by the layout function
+     * @type {array}
+     */
+    this.placements = [];
+
+    this.progress = 0.0;
+
+    this.cancelationHandle = undefined;
+
+    this.addIO("input", "geometry", this, "geometry", null);
+
+    this.addIO(
+      "input",
+      "Material Thickness",
+      this,
+      "number",
+      GlobalVariables.topLevelMolecule.unitsKey == "MM" ? 19 : 0.75
+    );
+    this.addIO(
+      "input",
+      "Sheet Width",
+      this,
+      "number",
+      GlobalVariables.topLevelMolecule.unitsKey == "MM" ? 2438 : 96
+    );
+    this.addIO(
+      "input",
+      "Sheet Height",
+      this,
+      "number",
+      GlobalVariables.topLevelMolecule.unitsKey == "MM" ? 1219 : 48
+    );
+    this.addIO(
+      "input",
+      "Part Padding",
+      this,
+      "number",
+      GlobalVariables.topLevelMolecule.unitsKey == "MM" ? 6 : .25
+    );
+
+    this.addIO("output", "geometry", this, "geometry", "");
+
+    this.setValues(values);
+  }
+
+  /**
+   * Draw the cutlayout icon
+   */
+  draw() {
+    super.draw(); //Super call to draw the rest
+
+    const xInPixels = GlobalVariables.widthToPixels(this.x);
+    const yInPixels = GlobalVariables.heightToPixels(this.y);
+    const radiusInPixels = GlobalVariables.widthToPixels(this.radius);
+
+    GlobalVariables.c.beginPath();
+    GlobalVariables.c.fillStyle = "#949294";
+    GlobalVariables.c.moveTo(
+      xInPixels - radiusInPixels / 2,
+      yInPixels + radiusInPixels / 2
+    );
+    GlobalVariables.c.lineTo(
+      xInPixels + radiusInPixels / 2,
+      yInPixels + radiusInPixels / 2
+    );
+    GlobalVariables.c.lineTo(xInPixels + radiusInPixels / 2, yInPixels);
+    GlobalVariables.c.lineTo(xInPixels - radiusInPixels / 2, yInPixels);
+    GlobalVariables.c.lineTo(
+      xInPixels - radiusInPixels / 2,
+      yInPixels + radiusInPixels / 2
+    );
+    //GlobalVariables.c.fill()
+    GlobalVariables.c.setLineDash([3, 3]);
+    GlobalVariables.c.stroke();
+    GlobalVariables.c.closePath();
+    GlobalVariables.c.beginPath();
+    GlobalVariables.c.lineTo(
+      xInPixels + radiusInPixels / 4,
+      yInPixels - radiusInPixels / 1.7
+    );
+    GlobalVariables.c.lineTo(
+      xInPixels - radiusInPixels / 4,
+      yInPixels - radiusInPixels / 2
+    );
+    GlobalVariables.c.lineTo(xInPixels - radiusInPixels / 4, yInPixels);
+    GlobalVariables.c.lineTo(xInPixels + radiusInPixels / 2, yInPixels);
+    GlobalVariables.c.lineTo(
+      xInPixels + radiusInPixels / 4,
+      yInPixels - radiusInPixels / 1.7
+    );
+
+    //GlobalVariables.c.fill()
+    GlobalVariables.c.lineWidth = 1;
+    GlobalVariables.c.lineJoin = "round";
+    GlobalVariables.c.stroke();
+    GlobalVariables.c.setLineDash([]);
+    GlobalVariables.c.closePath();
+
+
+    //draw progress circle in the middle
+    if (this.progress &lt; 1.0) {
+      GlobalVariables.c.beginPath();
+      GlobalVariables.c.fillStyle = this.centerColor;
+      GlobalVariables.c.moveTo(
+        GlobalVariables.widthToPixels(this.x),
+        GlobalVariables.heightToPixels(this.y)
+      );
+      GlobalVariables.c.arc(
+        GlobalVariables.widthToPixels(this.x),
+        GlobalVariables.heightToPixels(this.y),
+        GlobalVariables.widthToPixels(this.radius) / 1.5,
+        0,
+        this.progress * Math.PI * 2,
+        false
+      );
+      GlobalVariables.c.closePath();
+      GlobalVariables.c.fill();
+    }
+  }
+  /**
+   * We only want the layout to update when the button is pressed not when the inputs update so we block the regular update value behavior
+   */
+  updateValue() {
+
+    super.updateValue();
+
+    if (this.inputs.every((x) => x.ready)) {
+      this.processing = true;
+      var inputID = this.findIOValue("geometry");
+      var materialThickness = this.findIOValue("Material Thickness");
+      var sheetWidth = this.findIOValue("Sheet Width");
+      var sheetHeight = this.findIOValue("Sheet Height");
+      var sheetPadding = 0;//this.findIOValue("Sheet Padding"); //It's easier to just adjust the sheet size than to add padding
+      var partPadding = this.findIOValue("Part Padding");
+      var tag = "cutLayout";
+
+      if (!inputID) {
+        this.setAlert('"geometry" input is missing');
+        return;
+      }
+      
+      GlobalVariables.cad
+        .displayLayout(
+          this.uniqueID,
+          inputID,
+          [this.placements],
+          tag,
+          {
+            thickness: materialThickness,
+            width: sheetWidth,
+            height: sheetHeight,
+            sheetPadding: sheetPadding,
+            partPadding: partPadding
+          })
+        .then((warning) => {
+          this.basicThreadValueProcessing();
+          if (warning != undefined) {
+            this.setAlert(warning);
+          }
+          this.progress = 1.0;
+          this.cancelationHandle = undefined;
+          this.processing = false;
+        })
+        .catch(this.alertingErrorHandler());
+    }
+  }
+
+  /**
+   * Pass the input geometry to a worker function to compute the translation.
+   */
+  updateValueButton() {
+    super.updateValue();
+
+    if (this.inputs.every((x) => x.ready)) {
+      if (this.cancelationHandle) {
+        // There's an in-progress nesting worker. Cancel it and start another nesting
+        // computation with the new inputs.
+        this.cancelationHandle();
+      }
+      this.processing = true;
+      var inputID = this.findIOValue("geometry");
+      var materialThickness = this.findIOValue("Material Thickness");
+      var sheetWidth = this.findIOValue("Sheet Width");
+      var sheetHeight = this.findIOValue("Sheet Height");
+      var sheetPadding = 0;//this.findIOValue("Sheet Padding"); //It's easier to just adjust the sheet size than to add padding
+      var partPadding = this.findIOValue("Part Padding");
+      var tag = "cutLayout";
+
+      if (!inputID) {
+        this.setAlert('"geometry" input is missing');
+        return;
+      }
+
+      GlobalVariables.cad
+        .layout(
+          this.uniqueID,
+          inputID,
+          tag,
+          proxy((progress, cancelationHandle) => {
+            this.progress = progress;
+            this.cancelationHandle = cancelationHandle;
+          }),
+          proxy((placements) => {
+            this.placements = placements[0];
+          }),
+          {
+            thickness: materialThickness,
+            width: sheetWidth,
+            height: sheetHeight,
+            sheetPadding: sheetPadding,
+            partPadding: partPadding
+          })
+        .then((warning) => {
+          this.basicThreadValueProcessing();
+          if (warning != undefined) {
+            this.setAlert(warning);
+          }
+          this.progress = 1.0;
+          this.cancelationHandle = undefined;
+          this.processing = false;
+        })
+        .catch(this.alertingErrorHandler());
+    }
+  }
+
+  /**
+   * Add the "Compute Layout" button to the leva inputs.
+   */
+  createLevaInputs() {
+      let inputParams = super.createLevaInputs();
+  
+      inputParams["Compute Layout"] = button(() => {
+          this.updateValueButton();
+      });
+
+      //Expose the stored positions
+      this.placements.forEach((placement, index) => {
+        inputParams[this.uniqueID + "position" + index] = {
+          value: { x: placement.translate.x, y: placement.translate.y, z: placement.rotate },
+          label: " " + index,
+          onChange: (value, index) => {
+              const match = index.match(/position(\d+)/);
+              const indexNumber = match ? parseInt(match[1], 10) : null;
+          
+              if (indexNumber !== null) {
+                  const placement = this.placements[indexNumber];
+                  //If anything has changed we need to update the value and recompute
+                  if (placement.translate.x !== value.x || placement.translate.y !== value.y || placement.rotate !== value.z) {
+                      placement.translate.x = value.x;
+                      placement.translate.y = value.y;
+                      placement.rotate = value.z;
+          
+                      this.updateValue();
+                  }
+              }
+          },
+        };
+      });
+
+
+      return inputParams;
+  }
+
+  /**
+   * Save the placements to be loaded next time
+   */
+  serialize(values) {
+    //Save the readme text to the serial stream
+    var valuesObj = super.serialize(values);
+    valuesObj.placements = this.placements;
+
+    return valuesObj;
+  }
+
+}
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<br class="clear">
+
+<footer>
+    Generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.6.7</a> on Tue Dec 24 2024 16:29:23 GMT+0000 (Coordinated Universal Time) using the Minami theme.
+</footer>
+
+<script>prettyPrint();</script>
+<script src="scripts/linenumber.js"></script>
+</body>
+</html>
