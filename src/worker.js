@@ -53,6 +53,41 @@ function toGeometry(input) {
   }
 }
 
+
+/**
+ *  A utility function which checks to see if two geometries intersect
+ * Inputs must be leaf geometry, not assemblies
+ * @param {object} shape1 - The first geometry to check for intersection
+ * @param {object} shape2 - The second geometry to check for intersection
+ * @returns {boolean} - True if the two geometries intersect, false if they do not
+**/
+function checkIntersection(shape1, shape2) {
+
+  // Extract the coordinates for box1 and box2
+  const [x1, y1, z1] = shape1.boundingBox.bounds[0];
+  const [x2, y2, z2] = shape1.boundingBox.bounds[1];
+  const [x3, y3, z3] = shape2.boundingBox.bounds[0];
+  const [x4, y4, z4] = shape2.boundingBox.bounds[1];
+
+  // Check for overlap along the X-axis
+  if (Math.max(x1, x2) < Math.min(x3, x4) || Math.max(x3, x4) < Math.min(x1, x2)) {
+      return false; // No overlap on X-axis
+  }
+
+  // Check for overlap along the Y-axis
+  if (Math.max(y1, y2) < Math.min(y3, y4) || Math.max(y3, y4) < Math.min(y1, y2)) {
+      return false; // No overlap on Y-axis
+  }
+
+  // Check for overlap along the Z-axis
+  if (Math.max(z1, z2) < Math.min(z3, z4) || Math.max(z3, z4) < Math.min(z1, z2)) {
+      return false; // No overlap on Z-axis
+  }
+
+  // If no axis fails the overlap check, then the boxes intersect
+  return true;
+}
+
 /**
  * A function to generate a unique ID value.
  */
@@ -309,7 +344,7 @@ function difference(targetID, input1ID, input2ID) {
       (is3D(library[input1ID]) && is3D(library[input2ID])) ||
       (!is3D(library[input1ID]) && !is3D(library[input2ID]))
     ) {
-      cutTemplate = digFuse(library[input2ID]);
+      cutTemplate = digFuse(library[input2ID]); //We should not be fusing this, this is going to slow things down because it's making the geometry that we are cutting with more complex. We should do this recurisvely and check bounding boxes
 
       library[targetID] = actOnLeafs(library[input1ID], (leaf) => {
         return {
@@ -1279,10 +1314,16 @@ function recursiveCut(partToCut, cuttingPart) {
       }
       return cutGeometry;
     } else {
+      //If the shapes don't overlap, we don't need to cut them
+      if(!checkIntersection(partToCut, cuttingPart.geometry[0])){
+        return partToCut;
+      }
       // cut and return part
-      let cutPart;
-      cutPart = partToCut.cut(cuttingPart.geometry[0]);
-      return cutPart;
+      else{
+        let cutPart;
+        cutPart = partToCut.cut(cuttingPart.geometry[0]);
+        return cutPart;
+      }
     }
   } catch (e) {
     throw new Error("Recursive Cut failed");
@@ -1592,7 +1633,6 @@ function generateCameraPosition(meshArray) {
 
 function generateDisplayMesh(id) {
   return started.then(() => {
-    console.log("Generating display mesh for " + id);
     if (library[id] == undefined || id == undefined) {
       console.log("ID undefined or not found in library");
       //throw new Error("ID not found in library");
