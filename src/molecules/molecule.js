@@ -102,6 +102,8 @@ export default class Molecule extends Atom {
      */
     this.projectAvailableTags = [];
 
+    this.tagDictionary = {}; //This will hold all of the tags available in the project for easy access
+
     this.setValues(values);
 
     this.color;
@@ -552,12 +554,10 @@ export default class Molecule extends Atom {
       centeredText.style.display = "flex";
 
       GlobalVariables.cad.molecule(this.uniqueID, outputID).then(() => {
-
         //If we're currently inside this molecule, we don't want to pass the update to the next level until we leave
         if (GlobalVariables.currentMolecule !== this) {
           this.basicThreadValueProcessing();
-        }
-        else{
+        } else {
           this.awaitingPropagationFlag = true;
         }
 
@@ -732,6 +732,7 @@ export default class Molecule extends Atom {
     thisAsObject.unitsKey = this.unitsKey;
     thisAsObject.fileTypeVersion = 1;
     thisAsObject.compiledBom = this.compiledBom;
+    thisAsObject.tagDictionary = this.tagDictionary; //This will hold all of the tags available in the project for easy access
 
     return thisAsObject;
   }

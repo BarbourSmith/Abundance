@@ -494,7 +494,7 @@ function bom(targetID, inputID, BOM) {
 
 function extractTag(targetID, inputID, TAG) {
   return started.then(() => {
-    let taggedGeometry = extractTags(library[inputID], TAG);
+    let taggedGeometry = extractTags(library[inputID], TAG[0]);
     if (taggedGeometry != false) {
       library[targetID] = {
         bom: taggedGeometry.bom,

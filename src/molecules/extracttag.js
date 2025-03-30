@@ -81,16 +81,20 @@ export default class ExtractTag extends Atom {
 
   createLevaInputs() {
     let inputParams = {};
-    const tagOptions = GlobalVariables.topLevelMolecule.projectAvailableTags;
+    const tagOptions = GlobalVariables.topLevelMolecule.tagDictionary;
 
+    // Create an array from the values in tagDictionary while keeping track of the key
+    const tagArray = Object.values(tagOptions).map((value) => {
+      return value;
+    });
     inputParams[this.uniqueID + "tag_ops"] = {
-      value: tagOptions[this.tagIndex],
-      options: tagOptions,
+      value: tagArray[this.tagIndex],
+      options: tagArray,
       label: "Extract Tag",
       onChange: (value) => {
-        this.tagIndex = tagOptions.indexOf(value);
-        if (this.tag != tagOptions[this.tagIndex]) {
-          this.tag = tagOptions[this.tagIndex];
+        this.tagIndex = tagArray.indexOf(value);
+        if (this.tag != tagArray[this.tagIndex]) {
+          this.tag = tagArray[this.tagIndex];
           this.updateValue();
           //this.sendToRender();
         }
@@ -109,7 +113,6 @@ export default class ExtractTag extends Atom {
       this.processing = true;
       var inputID = this.findIOValue("geometry");
       var tag = this.tag;
-
       GlobalVariables.cad
         .extractTag(this.uniqueID, inputID, tag)
         .then(() => {

@@ -40,9 +40,6 @@ export default class Tag extends Atom {
     /** Array of tags for this atom */
     this.tags = [""];
 
-    /** Flag for cutlist tag */
-    this.cutTag = false;
-
     this.setValues(values);
   }
 
@@ -93,7 +90,9 @@ export default class Tag extends Atom {
       disabled: false,
       onChange: (value) => {
         this.tags = [];
-        this.tags.push(value);
+        this.tags.push(value); // Add the new tag to the array
+        GlobalVariables.topLevelMolecule.tagDictionary[this.uniqueID] =
+          this.tags; // Update the tag dictionary with the new tag*/
         this.name = this.tags.toString();
         this.updateValue();
       },
@@ -111,7 +110,7 @@ export default class Tag extends Atom {
       this.processing = true;
       var inputID = this.findIOValue("geometry");
       var tags = this.tags;
-      this.addTagsToAvailableTags();
+      //this.addTagsToAvailableTags();
       GlobalVariables.cad
         .tag(this.uniqueID, inputID, tags)
         .then(() => {
@@ -134,8 +133,18 @@ export default class Tag extends Atom {
   serialize(offset = { x: 0, y: 0 }) {
     var superSerialObject = super.serialize(offset);
     superSerialObject.tags = this.tags;
-    superSerialObject.cutTag = this.cutTag;
 
     return superSerialObject;
+  }
+
+  /**
+   * Call super delete node and then delete tag from dictionary.
+   */
+  deleteNode() {
+    super.deleteNode();
+    // Remove the tag from the global tag dictionary if it exists
+    if (GlobalVariables.topLevelMolecule.tagDictionary[this.uniqueID]) {
+      delete GlobalVariables.topLevelMolecule.tagDictionary[this.uniqueID];
+    }
   }
 }
