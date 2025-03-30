@@ -799,7 +799,7 @@ function layout(
  * Lay the input geometry flat and apply the transformations to display it
  */
 function displayLayout(targetID, inputID, positions, layoutConfig) {
-  rotateForLayout(targetID, inputID, TAG, layoutConfig);
+  rotateForLayout(targetID, inputID, layoutConfig);
 
   applyLayout(targetID, inputID, positions, layoutConfig);
 }
