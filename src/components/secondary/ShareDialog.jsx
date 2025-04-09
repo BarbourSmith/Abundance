@@ -75,14 +75,14 @@ function ShareDialog({
               style={{ margin: "16px" }}
               href={
                 window.location.origin +
-                "/Abundance/run/" +
+                "/run/" +
                 GlobalVariables.currentRepo.owner +
                 "/" +
                 GlobalVariables.currentRepo.repoName
               }
               target="_blank"
             >
-              {window.location.origin}/Abundance/run/
+              {window.location.origin}/run/
               {GlobalVariables.currentRepo.owner}/
               {GlobalVariables.currentRepo.repoName}
             </a>
