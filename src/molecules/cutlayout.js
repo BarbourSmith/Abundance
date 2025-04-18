@@ -172,7 +172,6 @@ export default class CutLayout extends Atom {
       var sheetHeight = this.findIOValue("Sheet Height");
       var sheetPadding = 0;//this.findIOValue("Sheet Padding"); //It's easier to just adjust the sheet size than to add padding
       var partPadding = this.findIOValue("Part Padding");
-      var tag = "cutLayout";
 
       if (!inputID) {
         this.setAlert('"geometry" input is missing');
@@ -184,7 +183,6 @@ export default class CutLayout extends Atom {
           this.uniqueID,
           inputID,
           [this.placements],
-          tag,
           {
             thickness: materialThickness,
             width: sheetWidth,
@@ -224,7 +222,6 @@ export default class CutLayout extends Atom {
       var sheetHeight = this.findIOValue("Sheet Height");
       var sheetPadding = 0;//this.findIOValue("Sheet Padding"); //It's easier to just adjust the sheet size than to add padding
       var partPadding = this.findIOValue("Part Padding");
-      var tag = "cutLayout";
 
       if (!inputID) {
         this.setAlert('"geometry" input is missing');
@@ -235,7 +232,6 @@ export default class CutLayout extends Atom {
         .layout(
           this.uniqueID,
           inputID,
-          tag,
           proxy((progress, cancelationHandle) => {
             this.progress = progress;
             this.cancelationHandle = cancelationHandle;
