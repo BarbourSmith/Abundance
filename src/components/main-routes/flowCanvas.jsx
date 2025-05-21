@@ -203,6 +203,8 @@ export default memo(function FlowCanvas({
       event.clientY = event.touches[0].clientY;
     }
 
+    console.log("onMouseDown", event.clientX, event.clientY);
+
     // if it's a right click show the circular menu
     var isRightMB;
     if ("which" in event) {
@@ -266,6 +268,9 @@ export default memo(function FlowCanvas({
       }
     }
   };
+
+  /* Handles click on a molecule - go up level */
+  GlobalVariables.mouseDown = onMouseDown;
 
   /*Handles click on a molecule - go down level*/
   const onDoubleClick = (event) => {

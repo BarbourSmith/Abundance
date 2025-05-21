@@ -104,16 +104,20 @@ const createCMenu = (targetElement, setSearchingGithub) => {
     const containerY = parseInt(cmenu._container.style.top, 10);
     GlobalVariables.currentMolecule.placeAtom(
       {
-        x: GlobalVariables.pixelsToWidth(containerX),
-        y: GlobalVariables.pixelsToHeight(containerY),
+        x:  GlobalVariables.pixelsToWidth(containerX),
+        y:  GlobalVariables.pixelsToHeight(containerY),
         parent: GlobalVariables.currentMolecule,
         atomType: clr,
         uniqueID: GlobalVariables.generateUniqueID(),
       },
       true
-    );
-    //Simulate a click on the new atom
-    var clickHandledByAtom = false;
+    ).then (() => {
+      //Simulate a click event on the new atom...This feels like a hack but I'm not sure how else to get react to play nice
+      console.log("Simulation a click at ", containerX, containerY);
+      const canvas = document.getElementById('flow-canvas');
+      const mouseEvent = new MouseEvent('mousedown', { clientX: GlobalVariables.pixelsToWidth(containerX), clientY: GlobalVariables.pixelsToHeight(containerY), button: 0 });
+      canvas.dispatchEvent(mouseEvent);
+    });
   }
 };
 
