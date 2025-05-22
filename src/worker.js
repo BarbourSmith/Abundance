@@ -2900,6 +2900,95 @@ function deserialize(data, libraryID) {
   });
 }
 
+/**
+ * Tests the serialization and deserialization functionality with various geometry types
+ * @returns {object} Test results including success status and details
+ */
+function testSerializeDeserialize() {
+  return started.then(async () => {
+    try {
+      const results = {
+        success: true,
+        details: []
+      };
+      
+      // Test 1: Simple geometry (circle)
+      const testCircleID = generateUniqueID();
+      const destCircleID = generateUniqueID();
+      
+      await circle(testCircleID, 10);
+      const serializedCircle = await serialize(testCircleID);
+      await deserialize(serializedCircle, destCircleID);
+      
+      // Basic validation - check if objects exist in library
+      if (!library[testCircleID] || !library[destCircleID]) {
+        results.success = false;
+        results.details.push("Failed to serialize/deserialize circle: objects not found in library");
+      } else {
+        results.details.push("Successfully serialized and deserialized a circle");
+      }
+      
+      // Test 2: Rectangle
+      const testRectID = generateUniqueID();
+      const destRectID = generateUniqueID();
+      
+      await rectangle(testRectID, 20, 10);
+      const serializedRect = await serialize(testRectID);
+      await deserialize(serializedRect, destRectID);
+      
+      if (!library[testRectID] || !library[destRectID]) {
+        results.success = false;
+        results.details.push("Failed to serialize/deserialize rectangle: objects not found in library");
+      } else {
+        results.details.push("Successfully serialized and deserialized a rectangle");
+      }
+      
+      // Test 3: Assembly (combination of shapes)
+      const testAssemblyID = generateUniqueID();
+      const destAssemblyID = generateUniqueID();
+      
+      await assembly([testCircleID, testRectID], testAssemblyID);
+      const serializedAssembly = await serialize(testAssemblyID);
+      await deserialize(serializedAssembly, destAssemblyID);
+      
+      if (!library[testAssemblyID] || !library[destAssemblyID]) {
+        results.success = false;
+        results.details.push("Failed to serialize/deserialize assembly: objects not found in library");
+      } else {
+        results.details.push("Successfully serialized and deserialized an assembly");
+      }
+      
+      // Test 4: Extruded shape (3D object)
+      const testExtrudeID = generateUniqueID();
+      const destExtrudeID = generateUniqueID();
+      
+      await rectangle(generateUniqueID(), 30, 15).then(() => {
+        return extrude(testExtrudeID, testRectID, 5);
+      });
+      
+      const serializedExtrude = await serialize(testExtrudeID);
+      await deserialize(serializedExtrude, destExtrudeID);
+      
+      if (!library[testExtrudeID] || !library[destExtrudeID]) {
+        results.success = false;
+        results.details.push("Failed to serialize/deserialize extruded shape: objects not found in library");
+      } else {
+        results.details.push("Successfully serialized and deserialized an extruded shape");
+      }
+      
+      if (results.success) {
+        console.log("All serialization tests completed successfully");
+      } else {
+        console.error("Some serialization tests failed", results.details);
+      }
+      
+      return results;
+    } catch (error) {
+      console.error("Error in serialization test:", error);
+      return { success: false, details: [error.toString()] };
+    }
+  });
+}
 
 if (
   typeof self !== "undefined" &&
@@ -2986,16 +3075,12 @@ export {
   visualizeGcode,
   getBoundingBox,
   getBounds,
-<<<<<<< HEAD
   is3D,
   generateThumbnail,
   visExport,
   downExport,
   shrinkWrapSketches,
-};
-=======
   serialize,
   deserialize,
-  testSerializeDeserialize,
-});
->>>>>>> 68b9f27b (Implement serialize and deserialize functions for geometry)
+  testSerializeDeserialize
+};
