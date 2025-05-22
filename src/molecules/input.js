@@ -131,8 +131,11 @@ export default class Input extends Atom {
       input.draw();
     });
     
-    // Draw the output
+    // Update the output position before drawing
     if (this.output) {
+      // Position the output at the right edge of the input atom
+      this.output.x = this.x + this.width / GlobalVariables.canvas.current.width;
+      this.output.y = this.y;
       this.output.draw();
     }
     
