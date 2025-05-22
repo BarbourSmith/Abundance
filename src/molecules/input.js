@@ -277,8 +277,12 @@ export default class Input extends Atom {
    */
   updateOutputPosition() {
     if (this.output) {
+      // Calculate the correct right edge position (width is already in pixels)
+      // Correction factor needed to align output properly with the visible edge
+      let correctionFactor = 0.75;
+      
       // Set the output position at the right edge of the atom
-      this.output.x = this.x + GlobalVariables.pixelsToWidth(this.width);
+      this.output.x = this.x + GlobalVariables.pixelsToWidth(this.width * correctionFactor);
       this.output.y = this.y;
     }
   }
