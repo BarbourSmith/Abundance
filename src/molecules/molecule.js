@@ -939,8 +939,19 @@ export default class Molecule extends Atom {
 
           //Add the atom to the list to display
           this.nodesOnTheScreen.push(atom);
-          // fakes a click on newly placed atom
-          //atom.selected = false;
+          
+          // Deselect all other atoms when a new one is placed via right-click menu
+          if (newAtomObj.atomType !== "Box") {  // Don't apply to selection boxes
+            // Deselect all other atoms
+            this.nodesOnTheScreen.forEach((otherAtom) => {
+              if (otherAtom !== atom) {
+                otherAtom.selected = false;
+              }
+            });
+            // Select the newly created atom
+            atom.selected = true;
+            this.selected = false; // Deselect the current molecule
+          }
 
           if (unlock) {
             //Make this molecule spawn with all of it's parent's inputs
