@@ -1897,35 +1897,91 @@ function deserialize(data, libraryID) {
 }
 
 /**
- * Tests the serialization and deserialization functionality
- * @returns {boolean} True if the test is successful
+ * Tests the serialization and deserialization functionality with various geometry types
+ * @returns {object} Test results including success status and details
  */
 function testSerializeDeserialize() {
   return started.then(async () => {
     try {
-      // Create a test shape
-      const testID = generateUniqueID();
-      const destID = generateUniqueID();
+      const results = {
+        success: true,
+        details: []
+      };
       
-      // Create a circle as a test shape
-      await circle(testID, 10);
+      // Test 1: Simple geometry (circle)
+      const testCircleID = generateUniqueID();
+      const destCircleID = generateUniqueID();
       
-      // Serialize the shape
-      const serialized = await serialize(testID);
+      await circle(testCircleID, 10);
+      const serializedCircle = await serialize(testCircleID);
+      await deserialize(serializedCircle, destCircleID);
       
-      // Deserialize to a new library ID
-      await deserialize(serialized, destID);
-      
-      // Verify both objects exist in the library
-      if (!library[testID] || !library[destID]) {
-        return false;
+      // Basic validation - check if objects exist in library
+      if (!library[testCircleID] || !library[destCircleID]) {
+        results.success = false;
+        results.details.push("Failed to serialize/deserialize circle: objects not found in library");
+      } else {
+        results.details.push("Successfully serialized and deserialized a circle");
       }
       
-      console.log("Serialization test completed successfully");
-      return true;
+      // Test 2: Rectangle
+      const testRectID = generateUniqueID();
+      const destRectID = generateUniqueID();
+      
+      await rectangle(testRectID, 20, 10);
+      const serializedRect = await serialize(testRectID);
+      await deserialize(serializedRect, destRectID);
+      
+      if (!library[testRectID] || !library[destRectID]) {
+        results.success = false;
+        results.details.push("Failed to serialize/deserialize rectangle: objects not found in library");
+      } else {
+        results.details.push("Successfully serialized and deserialized a rectangle");
+      }
+      
+      // Test 3: Assembly (combination of shapes)
+      const testAssemblyID = generateUniqueID();
+      const destAssemblyID = generateUniqueID();
+      
+      await assembly([testCircleID, testRectID], testAssemblyID);
+      const serializedAssembly = await serialize(testAssemblyID);
+      await deserialize(serializedAssembly, destAssemblyID);
+      
+      if (!library[testAssemblyID] || !library[destAssemblyID]) {
+        results.success = false;
+        results.details.push("Failed to serialize/deserialize assembly: objects not found in library");
+      } else {
+        results.details.push("Successfully serialized and deserialized an assembly");
+      }
+      
+      // Test 4: Extruded shape (3D object)
+      const testExtrudeID = generateUniqueID();
+      const destExtrudeID = generateUniqueID();
+      
+      await rectangle(generateUniqueID(), 30, 15).then(() => {
+        return extrude(testExtrudeID, testRectID, 5);
+      });
+      
+      const serializedExtrude = await serialize(testExtrudeID);
+      await deserialize(serializedExtrude, destExtrudeID);
+      
+      if (!library[testExtrudeID] || !library[destExtrudeID]) {
+        results.success = false;
+        results.details.push("Failed to serialize/deserialize extruded shape: objects not found in library");
+      } else {
+        results.details.push("Successfully serialized and deserialized an extruded shape");
+      }
+      
+      if (results.success) {
+        console.log("All serialization tests completed successfully");
+      } else {
+        console.error("Some serialization tests failed", results.details);
+      }
+      
+      return results;
     } catch (error) {
       console.error("Error in serialization test:", error);
-      return false;
+      return { success: false, details: [error.toString()] };
     }
   });
 }
