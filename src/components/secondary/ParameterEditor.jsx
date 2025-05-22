@@ -36,6 +36,22 @@ export default (function ParamsEditor({
     }, 0);
     return () => clearTimeout(timeoutId);
   }, []);
+  
+  // Effect to focus on the first input field when a new atom is selected
+  useEffect(() => {
+    if (activeAtom) {
+      // Small timeout to ensure the DOM has been updated with the new fields
+      const focusTimeoutId = setTimeout(() => {
+        // Find the first input field in the main panel
+        const firstInput = document.querySelector('.paramEditorDiv .leva__panel input, .paramEditorDivRun .leva__panel input');
+        if (firstInput) {
+          firstInput.focus();
+        }
+      }, 100); // Short delay to ensure DOM is updated
+      
+      return () => clearTimeout(focusTimeoutId);
+    }
+  }, [activeAtom]);
 
   if (activeAtom !== null) {
     /** Creates Leva inputs inside each atom */
