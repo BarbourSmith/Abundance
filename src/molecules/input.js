@@ -98,6 +98,13 @@ export default class Input extends Atom {
      */
     this.height = radiusInPixels;
     this.width = this.height * 2.5;
+    
+    // Position the output attachment point at the right side of the atom
+    if (this.output) {
+      this.output.x = this.x + GlobalVariables.pixelsToWidth(this.width);
+      this.output.y = this.y;
+    }
+    
     //Check if the name has been updated
     if (this.name != this.oldName) {
       this.updateParentName();
