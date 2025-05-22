@@ -40,33 +40,107 @@ export default (function ParamsEditor({
   // Effect to focus on the first input field when a new atom is selected
   useEffect(() => {
     if (activeAtom) {
+      console.log("Auto-focus: Atom changed, attempting to focus first input field");
+      
       // First ensure the panel is not collapsed
+      // Setting collapsed state might take time to reflect in the DOM
       setCollapsed(false);
       
-      // Small timeout to ensure the DOM has been updated with the new fields
+      // Use a longer timeout to ensure the DOM has been updated with the new fields
       const focusTimeoutId = setTimeout(() => {
-        // Try to find the first editable input in the panel
-        // Order of selectors matters - we want to try the most common input types first
+        // Double-check that panel is not collapsed before proceeding
+        const panel = document.querySelector('.paramEditorDiv .leva__panel, .paramEditorDivRun .leva__panel');
+        const isPanelCollapsed = panel && panel.classList.contains('leva__collapsed');
+        
+        if (isPanelCollapsed) {
+          console.log("Auto-focus: Panel is still collapsed, forcing expand");
+          setCollapsed(false);
+          
+          // Try again after ensuring panel is expanded
+          setTimeout(tryFocusing, 300);
+        } else {
+          // Panel is expanded, proceed with focus attempt
+          tryFocusing();
+        }
+      }, 200);
+      
+      // Function to try focusing on the first input
+      function tryFocusing() {
+        console.log("Auto-focus: Looking for input fields to focus");
+        
+        // Check the DOM structure to determine the actual class names used by Leva
+        const levaPanel = document.querySelector('.paramEditorDiv .leva__panel, .paramEditorDivRun .leva__panel');
+        if (levaPanel) {
+          console.log("Auto-focus: Found Leva panel");
+          
+          // Look for any input field directly within the panel first
+          const directInputs = levaPanel.querySelectorAll('input:not([disabled]), textarea:not([disabled]), select:not([disabled])');
+          if (directInputs && directInputs.length > 0) {
+            console.log(`Auto-focus: Found ${directInputs.length} direct input fields in Leva panel`);
+            const firstInput = directInputs[0];
+            
+            // Focus and select with a small delay to ensure the element is ready
+            setTimeout(() => {
+              firstInput.focus();
+              firstInput.click();
+              
+              if (firstInput.type === "text" || firstInput.type === "number") {
+                firstInput.select();
+                console.log("Auto-focus: Text selected in direct input field");
+              }
+            }, 50);
+            return; // Exit early since we found and focused an input
+          }
+        }
+        
+        // If we didn't find inputs directly, try with more specific selectors
         const selectors = [
-          '.paramEditorDiv .leva__panel input:not([disabled]), .paramEditorDivRun .leva__panel input:not([disabled])',
-          '.paramEditorDiv .leva__panel textarea:not([disabled]), .paramEditorDivRun .leva__panel textarea:not([disabled])',
-          '.paramEditorDiv .leva__panel select:not([disabled]), .paramEditorDivRun .leva__panel select:not([disabled])'
+          // Target more specific editable inputs based on their container classes
+          '.paramEditorDiv .leva__panel .leva__row:not(.leva__disabled) input:not([disabled]), .paramEditorDivRun .leva__panel .leva__row:not(.leva__disabled) input:not([disabled])',
+          '.paramEditorDiv .leva__panel .leva__row:not(.leva__disabled) textarea:not([disabled]), .paramEditorDivRun .leva__panel .leva__row:not(.leva__disabled) textarea:not([disabled])',
+          '.paramEditorDiv .leva__panel .leva__row:not(.leva__disabled) select:not([disabled]), .paramEditorDivRun .leva__panel .leva__row:not(.leva__disabled) select:not([disabled])',
+          // Fallback to less specific selectors
+          '.paramEditorDiv input:not([disabled]), .paramEditorDivRun input:not([disabled])',
+          '.paramEditorDiv textarea:not([disabled]), .paramEditorDivRun textarea:not([disabled])',
+          '.paramEditorDiv select:not([disabled]), .paramEditorDivRun select:not([disabled])'
         ];
         
         // Try each selector until we find an element
         let firstInput = null;
         for (const selector of selectors) {
+          // Try both querySelector and querySelectorAll approaches
           firstInput = document.querySelector(selector);
-          if (firstInput) break;
+          if (firstInput) {
+            console.log(`Auto-focus: Found input field with selector: ${selector}`);
+            break;
+          }
+          
+          // If querySelector fails, try getting the first element from querySelectorAll
+          const inputs = document.querySelectorAll(selector);
+          if (inputs && inputs.length > 0) {
+            console.log(`Auto-focus: Found ${inputs.length} input fields with selector: ${selector}`);
+            firstInput = inputs[0];
+            break;
+          }
         }
         
         if (firstInput) {
-          firstInput.focus();
-          if (firstInput.type === "text" || firstInput.type === "number") {
-            firstInput.select(); // Select text for easier editing
-          }
+          // Focus and select with a small delay to ensure the element is ready
+          console.log("Auto-focus: Attempting to focus input field");
+          setTimeout(() => {
+            // Use both focus methods for more reliable focusing
+            firstInput.focus();
+            firstInput.click();
+            
+            if (firstInput.type === "text" || firstInput.type === "number") {
+              firstInput.select(); // Select text for easier editing
+              console.log("Auto-focus: Text selected in input field");
+            }
+          }, 50);
+        } else {
+          console.log("Auto-focus: No suitable input field found to focus");
         }
-      }, 150); // Slightly longer delay to ensure DOM is fully updated
+      }
       
       return () => clearTimeout(focusTimeoutId);
     }
