@@ -1739,6 +1739,197 @@ function generateDisplayMesh(id) {
   });
 }
 
+/**
+ * Serializes a geometry from the library to a transferable format
+ * @param {number} libraryID - ID of the geometry in the library to serialize
+ * @returns {object} Serialized representation of the geometry
+ */
+function serialize(libraryID) {
+  return started.then(async () => {
+    if (!library[libraryID]) {
+      throw new Error(`Geometry with ID ${libraryID} not found in library`);
+    }
+
+    const item = library[libraryID];
+    
+    // Function to serialize a single geometry object
+    async function serializeSingleGeometry(geom) {
+      if (!geom) return null;
+      
+      // Convert geometry to STL blob
+      const stlBlob = await geom.blobSTL();
+      
+      // Convert blob to base64 string
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const base64 = reader.result.split(',')[1];
+          resolve(base64);
+        };
+        reader.readAsDataURL(stlBlob);
+      });
+    }
+
+    // Function to serialize a geometry item (could be an assembly)
+    async function serializeGeometryItem(item) {
+      if (isAssembly(item)) {
+        // Handle assembly - recursively serialize each component
+        const serializedAssembly = [];
+        for (const component of item.geometry) {
+          serializedAssembly.push(await serializeGeometryItem(component));
+        }
+        
+        return {
+          isAssembly: true,
+          geometry: serializedAssembly,
+          tags: item.tags || [],
+          color: item.color || defaultColor,
+          bom: item.bom || [],
+          // We don't serialize the Plane object directly as it contains non-serializable elements
+          // Instead, we'll recreate a default plane during deserialization
+          hasPlane: !!item.plane
+        };
+      } else {
+        // Handle simple geometry
+        const serializedGeometries = [];
+        
+        for (const geom of item.geometry) {
+          if (geom) {
+            serializedGeometries.push(await serializeSingleGeometry(geom));
+          }
+        }
+        
+        return {
+          isAssembly: false,
+          geometry: serializedGeometries,
+          tags: item.tags || [],
+          color: item.color || defaultColor,
+          bom: item.bom || [],
+          // We don't serialize the Plane object directly as it contains non-serializable elements
+          // Instead, we'll recreate a default plane during deserialization
+          hasPlane: !!item.plane
+        };
+      }
+    }
+
+    return serializeGeometryItem(item);
+  });
+}
+
+/**
+ * Deserializes data and stores it in the library
+ * @param {object} data - Serialized geometry data
+ * @param {number} libraryID - ID to store the deserialized geometry in the library
+ * @returns {boolean} True if deserialization was successful
+ */
+function deserialize(data, libraryID) {
+  return started.then(async () => {
+    if (!data) {
+      throw new Error('No data provided for deserialization');
+    }
+
+    // Function to deserialize a single geometry from base64 STL
+    async function deserializeSingleGeometry(base64) {
+      if (!base64) return null;
+      
+      // Convert base64 to blob
+      const byteCharacters = atob(base64);
+      const byteNumbers = new Array(byteCharacters.length);
+      
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: 'application/octet-stream' });
+      
+      // Import STL
+      return await replicad.importSTL(blob);
+    }
+
+    // Function to deserialize a geometry item (could be an assembly)
+    async function deserializeGeometryItem(item) {
+      if (item.isAssembly) {
+        // Handle assembly - recursively deserialize each component
+        const deserializedGeometry = [];
+        
+        for (const component of item.geometry) {
+          deserializedGeometry.push(await deserializeGeometryItem(component));
+        }
+        
+        // Create new plane
+        const plane = new Plane().pivot(0, "Y");
+        
+        return {
+          geometry: deserializedGeometry,
+          tags: item.tags || [],
+          color: item.color || defaultColor,
+          bom: item.bom || [],
+          plane: plane
+        };
+      } else {
+        // Handle simple geometry
+        const deserializedGeometries = [];
+        
+        for (const base64 of item.geometry) {
+          if (base64) {
+            deserializedGeometries.push(await deserializeSingleGeometry(base64));
+          }
+        }
+        
+        // Create new plane
+        const plane = new Plane().pivot(0, "Y");
+        
+        return {
+          geometry: deserializedGeometries,
+          tags: item.tags || [],
+          color: item.color || defaultColor,
+          bom: item.bom || [],
+          plane: plane
+        };
+      }
+    }
+
+    // Deserialize and store in library
+    library[libraryID] = await deserializeGeometryItem(data);
+    return true;
+  });
+}
+
+/**
+ * Tests the serialization and deserialization functionality
+ * @returns {boolean} True if the test is successful
+ */
+function testSerializeDeserialize() {
+  return started.then(async () => {
+    try {
+      // Create a test shape
+      const testID = generateUniqueID();
+      const destID = generateUniqueID();
+      
+      // Create a circle as a test shape
+      await circle(testID, 10);
+      
+      // Serialize the shape
+      const serialized = await serialize(testID);
+      
+      // Deserialize to a new library ID
+      await deserialize(serialized, destID);
+      
+      // Verify both objects exist in the library
+      if (!library[testID] || !library[destID]) {
+        return false;
+      }
+      
+      console.log("Serialization test completed successfully");
+      return true;
+    } catch (error) {
+      console.error("Error in serialization test:", error);
+      return false;
+    }
+  });
+}
+
 // comlink is great to expose your functions within the worker as a simple API
 // to your app.
 expose({
@@ -1776,4 +1967,7 @@ expose({
   loftShapes,
   text,
   resetView,
+  serialize,
+  deserialize,
+  testSerializeDeserialize,
 });
