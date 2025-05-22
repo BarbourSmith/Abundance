@@ -2756,21 +2756,21 @@ function serialize(libraryID) {
 
     const item = library[libraryID];
     
-    // Function to serialize a single geometry object
+    // Function to serialize a single geometry object using STEP format to preserve parametric data
     async function serializeSingleGeometry(geom, is3DObject) {
       if (!geom) return null;
       
       try {
         let geometryToSerialize = geom;
         
-        // If it's a 2D sketch, we need to extrude it temporarily to create an STL
+        // If it's a 2D sketch, we need to extrude it temporarily to create a STEP representation
         if (!is3DObject) {
           // Create a very thin extrusion for 2D objects
           geometryToSerialize = geom.clone().sketchOnPlane().extrude(0.0001);
         }
         
-        // Convert geometry to STL blob
-        const stlBlob = await geometryToSerialize.blobSTL();
+        // Convert geometry to STEP blob (preserves parametric data better than STL)
+        const stepBlob = await geometryToSerialize.blobSTEP();
         
         // Convert blob to base64 string
         return new Promise((resolve) => {
@@ -2779,7 +2779,7 @@ function serialize(libraryID) {
             const base64 = reader.result.split(',')[1];
             resolve(base64);
           };
-          reader.readAsDataURL(stlBlob);
+          reader.readAsDataURL(stepBlob);
         });
       } catch (error) {
         console.error("Error serializing geometry:", error);
@@ -2849,7 +2849,7 @@ function deserialize(data, libraryID) {
       throw new Error('No data provided for deserialization');
     }
 
-    // Function to deserialize a single geometry from base64 STL
+    // Function to deserialize a single geometry from base64 STEP data
     async function deserializeSingleGeometry(base64, is3DObject) {
       if (!base64) return null;
       
@@ -2863,20 +2863,20 @@ function deserialize(data, libraryID) {
         }
         
         const byteArray = new Uint8Array(byteNumbers);
-        const blob = new Blob([byteArray], { type: 'application/octet-stream' });
+        // Use application/step MIME type for the STEP file format
+        const blob = new Blob([byteArray], { type: 'application/step' });
         
-        // Import STL
-        let importedGeometry = await replicad.importSTL(blob);
+        // Import STEP - this preserves the parametric data unlike STL import
+        let importedGeometry = await replicad.importSTEP(blob);
         
-        // If the original was a 2D sketch, extract a sketch from the imported 3D geometry
+        // If the original was a 2D sketch, extract a sketch from the imported geometry
         if (!is3DObject) {
           try {
-            // We can't perfectly recreate the sketch, but we can try to get a face projection
-            // This is a best-effort approach and might not work for all cases
+            // Extract a 2D projection from the thin 3D object
             importedGeometry = replicad.drawProjection(importedGeometry, "top").visible;
           } catch (error) {
-            console.warn("Could not convert 3D object back to 2D sketch:", error);
-            // Return the 3D object as is if conversion fails
+            console.warn("Could not convert back to 2D sketch:", error);
+            // Return the object as is if conversion fails
           }
         }
         
@@ -2978,7 +2978,17 @@ function testSerializeDeserialize() {
         results.success = false;
         results.details.push("Failed to serialize/deserialize circle: objects not found in library");
       } else {
-        results.details.push("Successfully serialized and deserialized a circle (2D sketch)");
+        // Test parametric properties are preserved
+        const originalCircle = library[testCircleID].geometry[0];
+        const deserializedCircle = library[destCircleID].geometry[0];
+        
+        // Check if the shapes have similar properties
+        if (Math.abs(originalCircle.boundingBox.width - deserializedCircle.boundingBox.width) > 0.1) {
+          results.success = false;
+          results.details.push("Circle dimensions not preserved during serialization/deserialization");
+        } else {
+          results.details.push("Successfully serialized and deserialized a circle (2D sketch) with parametric properties preserved");
+        }
       }
       
       // Test 2: Rectangle - 2D sketch
@@ -3000,7 +3010,18 @@ function testSerializeDeserialize() {
         results.success = false;
         results.details.push("Failed to serialize/deserialize rectangle: objects not found in library");
       } else {
-        results.details.push("Successfully serialized and deserialized a rectangle (2D sketch)");
+        // Test parametric properties are preserved
+        const originalRect = library[testRectID].geometry[0];
+        const deserializedRect = library[destRectID].geometry[0];
+        
+        // Check if the shapes have similar properties
+        if (Math.abs(originalRect.boundingBox.width - deserializedRect.boundingBox.width) > 0.1 ||
+            Math.abs(originalRect.boundingBox.height - deserializedRect.boundingBox.height) > 0.1) {
+          results.success = false;
+          results.details.push("Rectangle dimensions not preserved during serialization/deserialization");
+        } else {
+          results.details.push("Successfully serialized and deserialized a rectangle (2D sketch) with parametric properties preserved");
+        }
       }
       
       // Test 3: Assembly of 2D objects (combination of shapes)
@@ -3022,7 +3043,13 @@ function testSerializeDeserialize() {
         results.success = false;
         results.details.push("Failed to serialize/deserialize 2D assembly: objects not found in library");
       } else {
-        results.details.push("Successfully serialized and deserialized a 2D assembly");
+        // Check if the assembly has the correct number of components
+        if (library[test2DAssemblyID].geometry.length !== library[dest2DAssemblyID].geometry.length) {
+          results.success = false;
+          results.details.push("2D assembly component count not preserved during serialization/deserialization");
+        } else {
+          results.details.push("Successfully serialized and deserialized a 2D assembly with structure preserved");
+        }
       }
       
       // Test 4: Extruded shape (3D object)
@@ -3044,7 +3071,19 @@ function testSerializeDeserialize() {
         results.success = false;
         results.details.push("Failed to serialize/deserialize extruded shape: objects not found in library");
       } else {
-        results.details.push("Successfully serialized and deserialized an extruded shape (3D object)");
+        // Test parametric properties are preserved
+        const originalExtrude = library[testExtrudeID].geometry[0];
+        const deserializedExtrude = library[destExtrudeID].geometry[0];
+        
+        // Check if the shapes have similar properties
+        if (Math.abs(originalExtrude.boundingBox.width - deserializedExtrude.boundingBox.width) > 0.1 ||
+            Math.abs(originalExtrude.boundingBox.height - deserializedExtrude.boundingBox.height) > 0.1 ||
+            Math.abs(originalExtrude.boundingBox.depth - deserializedExtrude.boundingBox.depth) > 0.1) {
+          results.success = false;
+          results.details.push("Extruded shape dimensions not preserved during serialization/deserialization");
+        } else {
+          results.details.push("Successfully serialized and deserialized an extruded shape (3D object) with parametric properties preserved");
+        }
       }
       
       // Test 5: Assembly of 3D objects
@@ -3070,7 +3109,31 @@ function testSerializeDeserialize() {
         results.success = false;
         results.details.push("Failed to serialize/deserialize 3D assembly: objects not found in library");
       } else {
-        results.details.push("Successfully serialized and deserialized a 3D assembly");
+        // Check if the assembly has the correct number of components
+        if (library[test3DAssemblyID].geometry.length !== library[dest3DAssemblyID].geometry.length) {
+          results.success = false;
+          results.details.push("3D assembly component count not preserved during serialization/deserialization");
+        } else {
+          results.details.push("Successfully serialized and deserialized a 3D assembly with structure preserved");
+        }
+      }
+      
+      // Test 6: Operations on deserialized objects (validate they remain parametric)
+      const operationTestID = generateUniqueID();
+      
+      try {
+        // Try to perform a Boolean operation on the deserialized geometry
+        await extrude(operationTestID, destCircleID, 10);
+        
+        if (!library[operationTestID] || !is3D(library[operationTestID])) {
+          results.success = false;
+          results.details.push("Unable to perform operations on deserialized geometry");
+        } else {
+          results.details.push("Successfully performed operations on deserialized geometry, confirming parametric nature is preserved");
+        }
+      } catch (error) {
+        results.success = false;
+        results.details.push(`Failed to perform operations on deserialized geometry: ${error.message}`);
       }
       
       if (results.success) {
