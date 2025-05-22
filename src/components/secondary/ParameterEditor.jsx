@@ -46,10 +46,19 @@ export default (function ParamsEditor({
       // Small timeout to ensure the DOM has been updated with the new fields
       const focusTimeoutId = setTimeout(() => {
         // Try to find the first editable input in the panel
-        const firstInput = 
-          document.querySelector('.paramEditorDiv .leva__panel input:not([disabled]), .paramEditorDivRun .leva__panel input:not([disabled])') || 
-          document.querySelector('.paramEditorDiv .leva__panel textarea:not([disabled]), .paramEditorDivRun .leva__panel textarea:not([disabled])') ||
-          document.querySelector('.paramEditorDiv .leva__panel select:not([disabled]), .paramEditorDivRun .leva__panel select:not([disabled])');
+        // Order of selectors matters - we want to try the most common input types first
+        const selectors = [
+          '.paramEditorDiv .leva__panel input:not([disabled]), .paramEditorDivRun .leva__panel input:not([disabled])',
+          '.paramEditorDiv .leva__panel textarea:not([disabled]), .paramEditorDivRun .leva__panel textarea:not([disabled])',
+          '.paramEditorDiv .leva__panel select:not([disabled]), .paramEditorDivRun .leva__panel select:not([disabled])'
+        ];
+        
+        // Try each selector until we find an element
+        let firstInput = null;
+        for (const selector of selectors) {
+          firstInput = document.querySelector(selector);
+          if (firstInput) break;
+        }
         
         if (firstInput) {
           firstInput.focus();
