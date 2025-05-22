@@ -277,12 +277,16 @@ export default class Input extends Atom {
    */
   updateOutputPosition() {
     if (this.output) {
-      // Calculate the correct right edge position (width is already in pixels)
-      // Correction factor needed to align output properly with the visible edge
-      let correctionFactor = 0.75;
+      // Calculate the visually appropriate width for where the attachment point should be
+      // The visual shape doesn't extend to the full width, so we need a correction
+      let radiusInPixels = GlobalVariables.widthToPixels(this.radius);
       
-      // Set the output position at the right edge of the atom
-      this.output.x = this.x + GlobalVariables.pixelsToWidth(this.width * correctionFactor);
+      // Calculate the width based on the visible pentagon shape drawing
+      // This aligns with how the shape is drawn in the draw() method
+      let visibleWidth = this.width * 0.85; // Adjust to match the visible edge
+      
+      // Set the output position at the right edge of the atom's visible shape
+      this.output.x = this.x + GlobalVariables.pixelsToWidth(visibleWidth);
       this.output.y = this.y;
     }
   }
