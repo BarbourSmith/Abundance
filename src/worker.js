@@ -2757,7 +2757,7 @@ function serialize(libraryID) {
     const item = library[libraryID];
     
     // Function to serialize a single geometry object using STEP format to preserve parametric data
-    async function serializeSingleGeometry(geom, is3DObject) {
+    async function serializeSingleGeometry(geom, is3DObject, plane) {
       if (!geom) return null;
       
       try {
@@ -2766,7 +2766,7 @@ function serialize(libraryID) {
         // If it's a 2D sketch, we need to extrude it temporarily to create a STEP representation
         if (!is3DObject) {
           // Create a very thin extrusion for 2D objects
-          geometryToSerialize = geom.clone().sketchOnPlane().extrude(0.0001);
+          geometryToSerialize = geom.clone().sketchOnPlane(plane).extrude(0.0001);
         }
         
         // Convert geometry to STEP blob (preserves parametric data better than STL)
@@ -2787,6 +2787,19 @@ function serialize(libraryID) {
       }
     }
 
+    // Function to serialize a plane
+    function serializePlane(plane) {
+      if (!plane) return null;
+      
+      // Return the necessary information to recreate the plane
+      return {
+        origin: plane.origin,
+        xDir: plane.xDir,
+        yDir: plane.yDir,
+        zDir: plane.zDir
+      };
+    }
+
     // Function to serialize a geometry item (could be an assembly)
     async function serializeGeometryItem(item) {
       try {
@@ -2803,7 +2816,7 @@ function serialize(libraryID) {
             tags: item.tags || [],
             color: item.color || defaultColor,
             bom: item.bom || [],
-            hasPlane: !!item.plane,
+            plane: serializePlane(item.plane),
             is3D: is3D(item)
           };
         } else {
@@ -2813,7 +2826,7 @@ function serialize(libraryID) {
           
           for (const geom of item.geometry) {
             if (geom) {
-              serializedGeometries.push(await serializeSingleGeometry(geom, is3DObject));
+              serializedGeometries.push(await serializeSingleGeometry(geom, is3DObject, item.plane));
             }
           }
           
@@ -2823,7 +2836,7 @@ function serialize(libraryID) {
             tags: item.tags || [],
             color: item.color || defaultColor,
             bom: item.bom || [],
-            hasPlane: !!item.plane,
+            plane: serializePlane(item.plane),
             is3D: is3DObject
           };
         }
@@ -2847,6 +2860,24 @@ function deserialize(data, libraryID) {
   return started.then(async () => {
     if (!data) {
       throw new Error('No data provided for deserialization');
+    }
+
+    // Function to deserialize a plane
+    function deserializePlane(planeData) {
+      if (!planeData) {
+        // Create default plane if none was provided
+        return new Plane().pivot(0, "Y");
+      }
+      
+      // Recreate the plane from the serialized data
+      const plane = new Plane();
+      
+      if (planeData.origin) plane.origin = planeData.origin;
+      if (planeData.xDir) plane.xDir = planeData.xDir;
+      if (planeData.yDir) plane.yDir = planeData.yDir;
+      if (planeData.zDir) plane.zDir = planeData.zDir;
+      
+      return plane;
     }
 
     // Function to deserialize a single geometry from base64 STEP data
@@ -2898,8 +2929,8 @@ function deserialize(data, libraryID) {
             deserializedGeometry.push(await deserializeGeometryItem(component));
           }
           
-          // Create new plane
-          const plane = new Plane().pivot(0, "Y");
+          // Recreate the plane from serialized data
+          const plane = deserializePlane(item.plane);
           
           return {
             geometry: deserializedGeometry,
@@ -2918,8 +2949,8 @@ function deserialize(data, libraryID) {
             }
           }
           
-          // Create new plane
-          const plane = new Plane().pivot(0, "Y");
+          // Recreate the plane from serialized data
+          const plane = deserializePlane(item.plane);
           
           return {
             geometry: deserializedGeometries,
