@@ -81,7 +81,7 @@ export default class Input extends Atom {
    * Draws the atom on the screen.
    */
   draw() {
-    // //Snap the inputs to the far right side
+    // Always lock the inputs to the left side
     /**
      * The x position of the atom
      * @type {number}
@@ -126,12 +126,28 @@ export default class Input extends Atom {
       this.strokeColor = this.selectedColor;
     }
 
+    // Position the output attachment point correctly before drawing
+    if (this.output) {
+      // Set the output position to be on the right side of the atom
+      this.output.x = this.x + this.width / GlobalVariables.canvas.current.width;
+      this.output.y = this.y;
+      // Make sure the attachment point is within canvas boundaries
+      [this.output.x, this.output.y] = GlobalVariables.constrainToCanvasBorders(
+        this.output.x, 
+        this.output.y
+      );
+    }
+    
+    // Draw the inputs
     this.inputs.forEach((input) => {
       input.draw();
     });
+    
+    // Draw the output
     if (this.output) {
       this.output.draw();
     }
+    
     GlobalVariables.c.beginPath();
     GlobalVariables.c.moveTo(0, yInPixels + this.height / 2);
     GlobalVariables.c.lineTo(this.width, yInPixels + this.height / 2);
