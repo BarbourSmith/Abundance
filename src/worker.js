@@ -1753,62 +1753,79 @@ function serialize(libraryID) {
     const item = library[libraryID];
     
     // Function to serialize a single geometry object
-    async function serializeSingleGeometry(geom) {
+    async function serializeSingleGeometry(geom, is3DObject) {
       if (!geom) return null;
       
-      // Convert geometry to STL blob
-      const stlBlob = await geom.blobSTL();
-      
-      // Convert blob to base64 string
-      return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const base64 = reader.result.split(',')[1];
-          resolve(base64);
-        };
-        reader.readAsDataURL(stlBlob);
-      });
+      try {
+        let geometryToSerialize = geom;
+        
+        // If it's a 2D sketch, we need to extrude it temporarily to create an STL
+        if (!is3DObject) {
+          // Create a very thin extrusion for 2D objects
+          geometryToSerialize = geom.clone().sketchOnPlane().extrude(0.0001);
+        }
+        
+        // Convert geometry to STL blob
+        const stlBlob = await geometryToSerialize.blobSTL();
+        
+        // Convert blob to base64 string
+        return new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const base64 = reader.result.split(',')[1];
+            resolve(base64);
+          };
+          reader.readAsDataURL(stlBlob);
+        });
+      } catch (error) {
+        console.error("Error serializing geometry:", error);
+        throw new Error(`Failed to serialize geometry: ${error.message}`);
+      }
     }
 
     // Function to serialize a geometry item (could be an assembly)
     async function serializeGeometryItem(item) {
-      if (isAssembly(item)) {
-        // Handle assembly - recursively serialize each component
-        const serializedAssembly = [];
-        for (const component of item.geometry) {
-          serializedAssembly.push(await serializeGeometryItem(component));
-        }
-        
-        return {
-          isAssembly: true,
-          geometry: serializedAssembly,
-          tags: item.tags || [],
-          color: item.color || defaultColor,
-          bom: item.bom || [],
-          // We don't serialize the Plane object directly as it contains non-serializable elements
-          // Instead, we'll recreate a default plane during deserialization
-          hasPlane: !!item.plane
-        };
-      } else {
-        // Handle simple geometry
-        const serializedGeometries = [];
-        
-        for (const geom of item.geometry) {
-          if (geom) {
-            serializedGeometries.push(await serializeSingleGeometry(geom));
+      try {
+        if (isAssembly(item)) {
+          // Handle assembly - recursively serialize each component
+          const serializedAssembly = [];
+          for (const component of item.geometry) {
+            serializedAssembly.push(await serializeGeometryItem(component));
           }
+          
+          return {
+            isAssembly: true,
+            geometry: serializedAssembly,
+            tags: item.tags || [],
+            color: item.color || defaultColor,
+            bom: item.bom || [],
+            hasPlane: !!item.plane,
+            is3D: is3D(item)
+          };
+        } else {
+          // Handle simple geometry
+          const serializedGeometries = [];
+          const is3DObject = is3D(item);
+          
+          for (const geom of item.geometry) {
+            if (geom) {
+              serializedGeometries.push(await serializeSingleGeometry(geom, is3DObject));
+            }
+          }
+          
+          return {
+            isAssembly: false,
+            geometry: serializedGeometries,
+            tags: item.tags || [],
+            color: item.color || defaultColor,
+            bom: item.bom || [],
+            hasPlane: !!item.plane,
+            is3D: is3DObject
+          };
         }
-        
-        return {
-          isAssembly: false,
-          geometry: serializedGeometries,
-          tags: item.tags || [],
-          color: item.color || defaultColor,
-          bom: item.bom || [],
-          // We don't serialize the Plane object directly as it contains non-serializable elements
-          // Instead, we'll recreate a default plane during deserialization
-          hasPlane: !!item.plane
-        };
+      } catch (error) {
+        console.error("Error in serializeGeometryItem:", error);
+        throw error;
       }
     }
 
@@ -1829,70 +1846,99 @@ function deserialize(data, libraryID) {
     }
 
     // Function to deserialize a single geometry from base64 STL
-    async function deserializeSingleGeometry(base64) {
+    async function deserializeSingleGeometry(base64, is3DObject) {
       if (!base64) return null;
       
-      // Convert base64 to blob
-      const byteCharacters = atob(base64);
-      const byteNumbers = new Array(byteCharacters.length);
-      
-      for (let i = 0; i < byteCharacters.length; i++) {
-        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      try {
+        // Convert base64 to blob
+        const byteCharacters = atob(base64);
+        const byteNumbers = new Array(byteCharacters.length);
+        
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: 'application/octet-stream' });
+        
+        // Import STL
+        let importedGeometry = await replicad.importSTL(blob);
+        
+        // If the original was a 2D sketch, extract a sketch from the imported 3D geometry
+        if (!is3DObject) {
+          try {
+            // We can't perfectly recreate the sketch, but we can try to get a face projection
+            // This is a best-effort approach and might not work for all cases
+            importedGeometry = replicad.drawProjection(importedGeometry, "top").visible;
+          } catch (error) {
+            console.warn("Could not convert 3D object back to 2D sketch:", error);
+            // Return the 3D object as is if conversion fails
+          }
+        }
+        
+        return importedGeometry;
+      } catch (error) {
+        console.error("Error deserializing geometry:", error);
+        throw new Error(`Failed to deserialize geometry: ${error.message}`);
       }
-      
-      const byteArray = new Uint8Array(byteNumbers);
-      const blob = new Blob([byteArray], { type: 'application/octet-stream' });
-      
-      // Import STL
-      return await replicad.importSTL(blob);
     }
 
     // Function to deserialize a geometry item (could be an assembly)
     async function deserializeGeometryItem(item) {
-      if (item.isAssembly) {
-        // Handle assembly - recursively deserialize each component
-        const deserializedGeometry = [];
-        
-        for (const component of item.geometry) {
-          deserializedGeometry.push(await deserializeGeometryItem(component));
-        }
-        
-        // Create new plane
-        const plane = new Plane().pivot(0, "Y");
-        
-        return {
-          geometry: deserializedGeometry,
-          tags: item.tags || [],
-          color: item.color || defaultColor,
-          bom: item.bom || [],
-          plane: plane
-        };
-      } else {
-        // Handle simple geometry
-        const deserializedGeometries = [];
-        
-        for (const base64 of item.geometry) {
-          if (base64) {
-            deserializedGeometries.push(await deserializeSingleGeometry(base64));
+      try {
+        if (item.isAssembly) {
+          // Handle assembly - recursively deserialize each component
+          const deserializedGeometry = [];
+          
+          for (const component of item.geometry) {
+            deserializedGeometry.push(await deserializeGeometryItem(component));
           }
+          
+          // Create new plane
+          const plane = new Plane().pivot(0, "Y");
+          
+          return {
+            geometry: deserializedGeometry,
+            tags: item.tags || [],
+            color: item.color || defaultColor,
+            bom: item.bom || [],
+            plane: plane
+          };
+        } else {
+          // Handle simple geometry
+          const deserializedGeometries = [];
+          
+          for (const base64 of item.geometry) {
+            if (base64) {
+              deserializedGeometries.push(await deserializeSingleGeometry(base64, item.is3D));
+            }
+          }
+          
+          // Create new plane
+          const plane = new Plane().pivot(0, "Y");
+          
+          return {
+            geometry: deserializedGeometries,
+            tags: item.tags || [],
+            color: item.color || defaultColor,
+            bom: item.bom || [],
+            plane: plane
+          };
         }
-        
-        // Create new plane
-        const plane = new Plane().pivot(0, "Y");
-        
-        return {
-          geometry: deserializedGeometries,
-          tags: item.tags || [],
-          color: item.color || defaultColor,
-          bom: item.bom || [],
-          plane: plane
-        };
+      } catch (error) {
+        console.error("Error in deserializeGeometryItem:", error);
+        throw error;
       }
     }
 
-    // Deserialize and store in library
-    library[libraryID] = await deserializeGeometryItem(data);
-    return true;
+    try {
+      // Deserialize and store in library
+      library[libraryID] = await deserializeGeometryItem(data);
+      return true;
+    } catch (error) {
+      console.error("Error deserializing data:", error);
+      throw error;
+    }
   });
 }
 
@@ -1908,11 +1954,18 @@ function testSerializeDeserialize() {
         details: []
       };
       
-      // Test 1: Simple geometry (circle)
+      // Test 1: Simple geometry (circle) - 2D sketch
       const testCircleID = generateUniqueID();
       const destCircleID = generateUniqueID();
       
       await circle(testCircleID, 10);
+      
+      // Verify this is a 2D object
+      if (is3D(library[testCircleID])) {
+        results.success = false;
+        results.details.push("Circle should be a 2D object");
+      }
+      
       const serializedCircle = await serialize(testCircleID);
       await deserialize(serializedCircle, destCircleID);
       
@@ -1921,14 +1974,21 @@ function testSerializeDeserialize() {
         results.success = false;
         results.details.push("Failed to serialize/deserialize circle: objects not found in library");
       } else {
-        results.details.push("Successfully serialized and deserialized a circle");
+        results.details.push("Successfully serialized and deserialized a circle (2D sketch)");
       }
       
-      // Test 2: Rectangle
+      // Test 2: Rectangle - 2D sketch
       const testRectID = generateUniqueID();
       const destRectID = generateUniqueID();
       
       await rectangle(testRectID, 20, 10);
+      
+      // Verify this is a 2D object
+      if (is3D(library[testRectID])) {
+        results.success = false;
+        results.details.push("Rectangle should be a 2D object");
+      }
+      
       const serializedRect = await serialize(testRectID);
       await deserialize(serializedRect, destRectID);
       
@@ -1936,31 +1996,42 @@ function testSerializeDeserialize() {
         results.success = false;
         results.details.push("Failed to serialize/deserialize rectangle: objects not found in library");
       } else {
-        results.details.push("Successfully serialized and deserialized a rectangle");
+        results.details.push("Successfully serialized and deserialized a rectangle (2D sketch)");
       }
       
-      // Test 3: Assembly (combination of shapes)
-      const testAssemblyID = generateUniqueID();
-      const destAssemblyID = generateUniqueID();
+      // Test 3: Assembly of 2D objects (combination of shapes)
+      const test2DAssemblyID = generateUniqueID();
+      const dest2DAssemblyID = generateUniqueID();
       
-      await assembly([testCircleID, testRectID], testAssemblyID);
-      const serializedAssembly = await serialize(testAssemblyID);
-      await deserialize(serializedAssembly, destAssemblyID);
+      await assembly([testCircleID, testRectID], test2DAssemblyID);
       
-      if (!library[testAssemblyID] || !library[destAssemblyID]) {
+      // Verify this is a 2D assembly
+      if (is3D(library[test2DAssemblyID])) {
         results.success = false;
-        results.details.push("Failed to serialize/deserialize assembly: objects not found in library");
+        results.details.push("2D assembly should be identified as 2D");
+      }
+      
+      const serialized2DAssembly = await serialize(test2DAssemblyID);
+      await deserialize(serialized2DAssembly, dest2DAssemblyID);
+      
+      if (!library[test2DAssemblyID] || !library[dest2DAssemblyID]) {
+        results.success = false;
+        results.details.push("Failed to serialize/deserialize 2D assembly: objects not found in library");
       } else {
-        results.details.push("Successfully serialized and deserialized an assembly");
+        results.details.push("Successfully serialized and deserialized a 2D assembly");
       }
       
       // Test 4: Extruded shape (3D object)
       const testExtrudeID = generateUniqueID();
       const destExtrudeID = generateUniqueID();
       
-      await rectangle(generateUniqueID(), 30, 15).then(() => {
-        return extrude(testExtrudeID, testRectID, 5);
-      });
+      await extrude(testExtrudeID, testRectID, 5);
+      
+      // Verify this is a 3D object
+      if (!is3D(library[testExtrudeID])) {
+        results.success = false;
+        results.details.push("Extruded shape should be a 3D object");
+      }
       
       const serializedExtrude = await serialize(testExtrudeID);
       await deserialize(serializedExtrude, destExtrudeID);
@@ -1969,7 +2040,33 @@ function testSerializeDeserialize() {
         results.success = false;
         results.details.push("Failed to serialize/deserialize extruded shape: objects not found in library");
       } else {
-        results.details.push("Successfully serialized and deserialized an extruded shape");
+        results.details.push("Successfully serialized and deserialized an extruded shape (3D object)");
+      }
+      
+      // Test 5: Assembly of 3D objects
+      const test3DAssemblyID = generateUniqueID();
+      const dest3DAssemblyID = generateUniqueID();
+      
+      // Create another 3D object
+      const testExtrude2ID = generateUniqueID();
+      await extrude(testExtrude2ID, testCircleID, 5);
+      
+      await assembly([testExtrudeID, testExtrude2ID], test3DAssemblyID);
+      
+      // Verify this is a 3D assembly
+      if (!is3D(library[test3DAssemblyID])) {
+        results.success = false;
+        results.details.push("3D assembly should be identified as 3D");
+      }
+      
+      const serialized3DAssembly = await serialize(test3DAssemblyID);
+      await deserialize(serialized3DAssembly, dest3DAssemblyID);
+      
+      if (!library[test3DAssemblyID] || !library[dest3DAssemblyID]) {
+        results.success = false;
+        results.details.push("Failed to serialize/deserialize 3D assembly: objects not found in library");
+      } else {
+        results.details.push("Successfully serialized and deserialized a 3D assembly");
       }
       
       if (results.success) {
