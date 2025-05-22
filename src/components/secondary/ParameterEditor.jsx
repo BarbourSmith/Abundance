@@ -40,14 +40,24 @@ export default (function ParamsEditor({
   // Effect to focus on the first input field when a new atom is selected
   useEffect(() => {
     if (activeAtom) {
+      // First ensure the panel is not collapsed
+      setCollapsed(false);
+      
       // Small timeout to ensure the DOM has been updated with the new fields
       const focusTimeoutId = setTimeout(() => {
-        // Find the first input field in the main panel
-        const firstInput = document.querySelector('.paramEditorDiv .leva__panel input, .paramEditorDivRun .leva__panel input');
+        // Try to find the first editable input in the panel
+        const firstInput = 
+          document.querySelector('.paramEditorDiv .leva__panel input:not([disabled]), .paramEditorDivRun .leva__panel input:not([disabled])') || 
+          document.querySelector('.paramEditorDiv .leva__panel textarea:not([disabled]), .paramEditorDivRun .leva__panel textarea:not([disabled])') ||
+          document.querySelector('.paramEditorDiv .leva__panel select:not([disabled]), .paramEditorDivRun .leva__panel select:not([disabled])');
+        
         if (firstInput) {
           firstInput.focus();
+          if (firstInput.type === "text" || firstInput.type === "number") {
+            firstInput.select(); // Select text for easier editing
+          }
         }
-      }, 100); // Short delay to ensure DOM is updated
+      }, 150); // Slightly longer delay to ensure DOM is fully updated
       
       return () => clearTimeout(focusTimeoutId);
     }
