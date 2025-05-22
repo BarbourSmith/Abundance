@@ -58,6 +58,9 @@ export default class Input extends Atom {
     }
 
     this.setValues(values);
+    
+    // Initialize the output position
+    this.updateOutputPosition();
   }
 
   /** Solution to canvas overflow https://stackoverflow.com/questions/10508988/html-canvas-text-overflow-ellipsis*/
