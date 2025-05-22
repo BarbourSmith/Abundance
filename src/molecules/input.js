@@ -100,10 +100,7 @@ export default class Input extends Atom {
     this.width = this.height * 2.5;
     
     // Position the output attachment point at the right side of the atom
-    if (this.output) {
-      this.output.x = this.x + GlobalVariables.pixelsToWidth(this.width);
-      this.output.y = this.y;
-    }
+    this.updateOutputPosition();
     
     //Check if the name has been updated
     if (this.name != this.oldName) {
@@ -190,6 +187,19 @@ export default class Input extends Atom {
     });
     this.oldName = this.name;
   }
+  /**
+   * Handle change in position of the mouse. Overrides parent method to ensure output position stays correct.
+   * @param {number} x - The X coordinate of the click
+   * @param {number} y - The Y coordinate of the click
+   */
+  mouseMove(x, y) {
+    // Call the parent mouseMove method
+    super.mouseMove(x, y);
+    
+    // Update the output position regardless of whether we're moving or not
+    // This ensures the output stays at the right side of the atom even during dragging
+    this.updateOutputPosition();
+  }
 
   /**
    * Grabs the new value from the parent molecule's input, sets this atoms value, then propagates.
@@ -257,6 +267,17 @@ export default class Input extends Atom {
    */
   getOutput() {
     return this.output.getValue();
+  }
+
+  /**
+   * Update the position of the output attachment point to align with the right edge of the input atom
+   */
+  updateOutputPosition() {
+    if (this.output) {
+      // Set the output position at the right edge of the atom
+      this.output.x = this.x + GlobalVariables.pixelsToWidth(this.width);
+      this.output.y = this.y;
+    }
   }
 
   /**
