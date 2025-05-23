@@ -173,14 +173,6 @@ export default class Label extends Atom {
   }
 
   /**
-   * Send the value of this atom to the 3D display.
-   */
-  sendToRender() {
-    // This is handled by extractLabels in App.jsx
-    console.log("Label will be rendered with the object");
-  }
-
-  /**
    * Serialize the label atom for saving
    */
   serialize(offset = { x: 0, y: 0 }) {
