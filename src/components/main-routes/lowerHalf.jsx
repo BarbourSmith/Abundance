@@ -2,6 +2,7 @@ import React, { memo, useEffect, useRef, useState } from "react";
 import ThreeContext from "../render/ThreeContext.jsx";
 import ReplicadMesh from "../render/ReplicadMesh.jsx";
 import WireframeMesh from "../render/WireframeMesh.jsx";
+import LabelRenderer from "../render/LabelRenderer.jsx";
 import globalvariables from "../../js/globalvariables.js";
 
 function useWindowSize() {
@@ -50,6 +51,7 @@ export default memo(function LowerHalf({
 }) {
   const windowSize = useWindowSize();
   const [cameraZoom, setCameraZoom] = useState(1);
+  const [labels, setLabels] = useState([]);
 
   useEffect(() => {
     /*Reset the camera zoom to 1 when a new molecule is loaded*/
@@ -60,6 +62,18 @@ export default memo(function LowerHalf({
     if (cameraZoom == 1 && mesh[0]) {
       setCameraZoom(mesh[0].cameraZoom);
       console.log("cameraZoom", cameraZoom);
+    }
+    
+    // Extract labels from the mesh data
+    if (mesh && mesh.length > 0) {
+      // We need to get the labels from all meshes and combine them
+      const allLabels = [];
+      mesh.forEach(m => {
+        if (m.labels && m.labels.length > 0) {
+          allLabels.push(...m.labels);
+        }
+      });
+      setLabels(allLabels);
     }
   }, [mesh]);
 
@@ -87,6 +101,7 @@ export default memo(function LowerHalf({
               <ReplicadMesh
                 {...{ mesh, isSolid: solidParam, setOutdatedMesh }}
               />
+              <LabelRenderer labels={labels} />
             </ThreeContext>
           ) : (
             <div

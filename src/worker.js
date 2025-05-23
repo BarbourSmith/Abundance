@@ -49,6 +49,7 @@ function toGeometry(input) {
       tags: [],
       color: defaultColor,
       bom: [],
+      labels: [],
     };
   }
 }
@@ -89,6 +90,7 @@ function circle(id, diameter) {
       plane: newPlane,
       color: defaultColor,
       bom: [],
+      labels: [],
     };
     return true;
   });
@@ -103,6 +105,7 @@ function rectangle(id, x, y) {
       plane: newPlane,
       color: defaultColor,
       bom: [],
+      labels: [],
     };
     return true;
   });
@@ -117,6 +120,7 @@ function regularPolygon(id, radius, numberOfSides) {
       plane: newPlane,
       color: defaultColor,
       bom: [],
+      labels: [],
     };
     return true;
   });
@@ -141,6 +145,7 @@ async function text(id, text, fontSize, fontFamily) {
           plane: newPlane,
           color: defaultColor,
           bom: [],
+          labels: [],
         };
         return true;
       });
@@ -191,6 +196,7 @@ function extrude(targetID, inputID, height) {
         plane: leaf.plane,
         color: leaf.color,
         bom: leaf.bom,
+        labels: leaf.labels || [],
       };
     });
     return true;
@@ -388,7 +394,44 @@ function tag(targetID, inputID, TAG) {
       tags: [...TAG, ...library[inputID].tags],
       color: library[inputID].color,
       plane: library[inputID].plane,
+      labels: library[inputID].labels || [],
     };
+    return true;
+  });
+}
+
+/**
+ * Add a label to the geometry
+ * @param {string} targetID - The ID to store the resulting geometry
+ * @param {string} inputID - The ID of the input geometry to label
+ * @param {string} text - The text of the label
+ * @param {number} size - The size of the label
+ * @param {object} position - The position of the label {x, y, z}
+ * @returns {Promise<boolean>} - A promise that resolves to true when complete
+ */
+function label(targetID, inputID, text, size, position) {
+  return started.then(() => {
+    // Ensure the input geometry has a labels array
+    const inputGeometry = library[inputID];
+    const labels = inputGeometry.labels || [];
+    
+    // Add the new label
+    labels.push({
+      text: text,
+      size: size,
+      position: position
+    });
+    
+    // Create a new entry in the library with the label added
+    library[targetID] = {
+      geometry: inputGeometry.geometry,
+      bom: inputGeometry.bom,
+      tags: inputGeometry.tags,
+      color: inputGeometry.color,
+      plane: inputGeometry.plane,
+      labels: labels
+    };
+    
     return true;
   });
 }
@@ -1443,6 +1486,7 @@ function fusion(targetID, inputIDs) {
       bom: bomAssembly,
       plane: newPlane,
       color: defaultColor,
+      labels: [],
     };
     return true;
   });
@@ -1775,5 +1819,6 @@ expose({
   assembly,
   loftShapes,
   text,
+  label,
   resetView,
 });
