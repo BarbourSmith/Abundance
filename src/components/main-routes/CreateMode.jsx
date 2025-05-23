@@ -42,6 +42,7 @@ function CreateMode({
   setWireMesh,
   outdatedMesh,
   setOutdatedMesh,
+  labels,
 }) {
   const navigate = useNavigate();
 
@@ -550,6 +551,7 @@ function CreateMode({
                 wireMesh,
                 outdatedMesh,
                 setOutdatedMesh,
+                labels,
               }}
             />
           </div>

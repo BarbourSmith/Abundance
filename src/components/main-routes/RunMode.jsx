@@ -53,6 +53,7 @@ function runMode({
   wireMesh,
   outdatedMesh,
   setOutdatedMesh,
+  labels,
 }) {
   // canvas to hide
   const canvasRef = useRef(500);
@@ -200,7 +201,7 @@ function runMode({
           >
             {wireMesh ? (
               <ThreeContext
-                {...{ cameraZoom, gridParam, axesParam, outdatedMesh }}
+                {...{ cameraZoom, gridParam, axesParam, outdatedMesh, labels }}
               >
                 {wireParam ? <WireframeMesh mesh={wireMesh} /> : null}
 

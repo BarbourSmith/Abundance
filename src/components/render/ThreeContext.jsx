@@ -7,6 +7,7 @@ import {
 } from "@react-three/drei";
 import * as THREE from "three";
 import Controls from "./ThreeControls.jsx";
+import Labels from "./Labels.jsx";
 import globalvariables from "../../js/globalvariables.js";
 
 // We change the default orientation - threejs tends to use Y are the height,
@@ -89,6 +90,7 @@ export default function ext({ children, ...props }) {
         ) : (
           <ambientLight intensity={0.4} />
         )}
+        {props.labels && <Labels labels={props.labels} />}
         {children}
       </Canvas>
     </Suspense>

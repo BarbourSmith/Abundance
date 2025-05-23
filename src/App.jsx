@@ -39,6 +39,7 @@ export default function ReplicadApp() {
   const [wireMesh, setWireMesh] = useState(null);
   const [outdatedMesh, setOutdatedMesh] = useState(false);
   const [isAuthorized, setIsAuthorized] = useState(false);
+  const [labels, setLabels] = useState([]);
 
   useEffect(() => {
     cad.createMesh(size).then((m) => setMesh(m));
@@ -112,6 +113,15 @@ export default function ReplicadApp() {
             setMesh(m);
             setOutdatedMesh(false);
             loadingDotsNone();
+            
+            // Extract labels for the current geometry
+            cad.extractLabels(id)
+              .then(labelData => {
+                setLabels(labelData);
+              })
+              .catch(e => {
+                console.error("Error extracting labels: " + e);
+              });
           })
           .catch((e) => {
             console.error("Can't display Mesh " + e);
@@ -245,6 +255,7 @@ export default function ReplicadApp() {
                   setWireMesh,
                   outdatedMesh,
                   setOutdatedMesh,
+                  labels,
                 }}
               />
             }
@@ -264,6 +275,7 @@ export default function ReplicadApp() {
                   setWireMesh,
                   outdatedMesh,
                   setOutdatedMesh,
+                  labels,
                 }}
               />
             }

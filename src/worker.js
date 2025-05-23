@@ -388,8 +388,54 @@ function tag(targetID, inputID, TAG) {
       tags: [...TAG, ...library[inputID].tags],
       color: library[inputID].color,
       plane: library[inputID].plane,
+      labels: library[inputID].labels || [],
     };
     return true;
+  });
+}
+
+function addLabel(targetID, inputID, labelObject) {
+  return started.then(() => {
+    // Initialize labels array if it doesn't exist
+    const labels = library[inputID].labels || [];
+    
+    library[targetID] = {
+      geometry: library[inputID].geometry,
+      bom: library[inputID].bom,
+      tags: library[inputID].tags,
+      color: library[inputID].color,
+      plane: library[inputID].plane,
+      labels: [...labels, labelObject],
+    };
+    return true;
+  });
+}
+
+function extractLabels(inputID) {
+  return started.then(() => {
+    // Recursively collect labels from geometry and its subassemblies
+    function collectLabels(geometry) {
+      let labels = geometry.labels || [];
+      
+      // If it's an assembly, collect labels from all subassemblies
+      if (isAssembly(geometry)) {
+        geometry.geometry.forEach((subGeometry) => {
+          const subLabels = collectLabels(subGeometry);
+          if (subLabels.length > 0) {
+            labels = [...labels, ...subLabels];
+          }
+        });
+      }
+      
+      return labels;
+    }
+    
+    const inputGeometry = library[inputID];
+    if (!inputGeometry) {
+      return [];
+    }
+    
+    return collectLabels(inputGeometry);
   });
 }
 
@@ -1776,4 +1822,6 @@ expose({
   loftShapes,
   text,
   resetView,
+  addLabel,
+  extractLabels,
 });
