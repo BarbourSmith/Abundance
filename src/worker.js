@@ -1752,31 +1752,61 @@ function serialize(libraryID) {
 
     const item = library[libraryID];
     
-    // Function to serialize a single geometry object using STEP format to preserve parametric data
-    async function serializeSingleGeometry(geom, is3DObject, plane) {
-      if (!geom) return null;
+    // Helper function to serialize geometry to BREP format using OpenCascade's native format
+    async function serializeToBrep(geom) {
+      if (!geom || !geom.wrapped) return null;
       
       try {
-        let geometryToSerialize = geom;
+        // Create a memory stream to write BREP data
+        const oc = replicad.getOC();
+        // Use BRepTools to write the shape to a string
+        const stringWriter = new oc.StringStream_WCharPtr();
+        // Write the shape to the stream in BREP format
+        oc.BRepTools.Write_1(geom.wrapped, stringWriter, new oc.Message_ProgressRange_1());
+        // Get the BREP data as a string
+        const brepString = stringWriter.str();
         
-        // If it's a 2D sketch, we need to extrude it temporarily to create a STEP representation
-        if (!is3DObject) {
-          // Create a very thin extrusion for 2D objects
-          geometryToSerialize = geom.clone().sketchOnPlane(plane).extrude(0.0001);
-        }
+        // Convert the BREP string to a Blob
+        const blob = new Blob([brepString], { type: 'application/octet-stream' });
         
-        // Convert geometry to STEP blob (preserves parametric data better than STL)
-        const stepBlob = await geometryToSerialize.blobSTEP();
+        // Clean up
+        stringWriter.delete();
         
-        // Convert blob to base64 string
+        // Convert the blob to a base64 string
         return new Promise((resolve) => {
           const reader = new FileReader();
           reader.onload = () => {
             const base64 = reader.result.split(',')[1];
             resolve(base64);
           };
-          reader.readAsDataURL(stepBlob);
+          reader.readAsDataURL(blob);
         });
+      } catch (error) {
+        console.error("Error serializing to BREP:", error);
+        throw new Error(`Failed to serialize to BREP: ${error.message}`);
+      }
+    }
+    
+    // Function to serialize a single geometry object using OpenCascade's native BREP format
+    async function serializeSingleGeometry(geom, is3DObject, plane) {
+      if (!geom) return null;
+      
+      try {
+        let geometryToSerialize = geom;
+        
+        // If it's a 2D sketch, we need to extrude it temporarily to create a 3D representation
+        if (!is3DObject) {
+          // Create a very thin extrusion for 2D objects
+          geometryToSerialize = geom.clone().sketchOnPlane(plane).extrude(0.0001);
+        }
+        
+        // Serialize using OpenCascade's native BREP format
+        const brepBase64 = await serializeToBrep(geometryToSerialize);
+        
+        return {
+          data: brepBase64,
+          is2D: !is3DObject
+        };
       } catch (error) {
         console.error("Error serializing geometry:", error);
         throw new Error(`Failed to serialize geometry: ${error.message}`);
@@ -1876,13 +1906,15 @@ function deserialize(data, libraryID) {
       return plane;
     }
 
-    // Function to deserialize a single geometry from base64 STEP data
-    async function deserializeSingleGeometry(base64, is3DObject) {
-      if (!base64) return null;
+    // Helper function to deserialize from BREP format
+    async function deserializeFromBrep(brepData) {
+      if (!brepData) return null;
       
       try {
-        // Convert base64 to blob
-        const byteCharacters = atob(base64);
+        const oc = replicad.getOC();
+        
+        // Convert base64 to binary data
+        const byteCharacters = atob(brepData);
         const byteNumbers = new Array(byteCharacters.length);
         
         for (let i = 0; i < byteCharacters.length; i++) {
@@ -1890,14 +1922,44 @@ function deserialize(data, libraryID) {
         }
         
         const byteArray = new Uint8Array(byteNumbers);
-        // Use application/step MIME type for the STEP file format
-        const blob = new Blob([byteArray], { type: 'application/step' });
+        const brepString = new TextDecoder().decode(byteArray);
         
-        // Import STEP - this preserves the parametric data unlike STL import
-        let importedGeometry = await replicad.importSTEP(blob);
+        // Create a string stream with the BREP data
+        const stringStream = new oc.StringStream_WCharPtr(brepString);
+        
+        // Create a builder to construct the shape
+        const builder = new oc.BRep_Builder();
+        
+        // Create a shape to store the result
+        const shape = new oc.TopoDS_Shape();
+        
+        // Read from the string stream into the shape
+        oc.BRepTools.Read_1(shape, stringStream, builder, new oc.Message_ProgressRange_1());
+        
+        // Create a Solid from the shape
+        const result = new replicad.Solid(shape);
+        
+        // Clean up
+        stringStream.delete();
+        builder.delete();
+        
+        return result;
+      } catch (error) {
+        console.error("Error deserializing from BREP:", error);
+        throw new Error(`Failed to deserialize from BREP: ${error.message}`);
+      }
+    }
+
+    // Function to deserialize a single geometry from serialized geometry data
+    async function deserializeSingleGeometry(geometryData) {
+      if (!geometryData || !geometryData.data) return null;
+      
+      try {
+        // Deserialize from BREP data
+        let importedGeometry = await deserializeFromBrep(geometryData.data);
         
         // If the original was a 2D sketch, extract a sketch from the imported geometry
-        if (!is3DObject) {
+        if (geometryData.is2D) {
           try {
             // Extract a 2D projection from the thin 3D object
             importedGeometry = replicad.drawProjection(importedGeometry, "top").visible;
@@ -1939,9 +2001,9 @@ function deserialize(data, libraryID) {
           // Handle simple geometry
           const deserializedGeometries = [];
           
-          for (const base64 of item.geometry) {
-            if (base64) {
-              deserializedGeometries.push(await deserializeSingleGeometry(base64, item.is3D));
+          for (const geometryData of item.geometry) {
+            if (geometryData) {
+              deserializedGeometries.push(await deserializeSingleGeometry(geometryData));
             }
           }
           
@@ -2014,7 +2076,7 @@ function testSerializeDeserialize() {
           results.success = false;
           results.details.push("Circle dimensions not preserved during serialization/deserialization");
         } else {
-          results.details.push("Successfully serialized and deserialized a circle (2D sketch) with parametric properties preserved");
+          results.details.push("Successfully serialized and deserialized a circle (2D sketch) with parametric properties preserved using BREP format");
         }
       }
       
@@ -2047,7 +2109,7 @@ function testSerializeDeserialize() {
           results.success = false;
           results.details.push("Rectangle dimensions not preserved during serialization/deserialization");
         } else {
-          results.details.push("Successfully serialized and deserialized a rectangle (2D sketch) with parametric properties preserved");
+          results.details.push("Successfully serialized and deserialized a rectangle (2D sketch) with parametric properties preserved using BREP format");
         }
       }
       
@@ -2075,7 +2137,7 @@ function testSerializeDeserialize() {
           results.success = false;
           results.details.push("2D assembly component count not preserved during serialization/deserialization");
         } else {
-          results.details.push("Successfully serialized and deserialized a 2D assembly with structure preserved");
+          results.details.push("Successfully serialized and deserialized a 2D assembly with structure preserved using BREP format");
         }
       }
       
@@ -2109,7 +2171,7 @@ function testSerializeDeserialize() {
           results.success = false;
           results.details.push("Extruded shape dimensions not preserved during serialization/deserialization");
         } else {
-          results.details.push("Successfully serialized and deserialized an extruded shape (3D object) with parametric properties preserved");
+          results.details.push("Successfully serialized and deserialized an extruded shape (3D object) with parametric properties preserved using BREP format");
         }
       }
       
@@ -2141,7 +2203,7 @@ function testSerializeDeserialize() {
           results.success = false;
           results.details.push("3D assembly component count not preserved during serialization/deserialization");
         } else {
-          results.details.push("Successfully serialized and deserialized a 3D assembly with structure preserved");
+          results.details.push("Successfully serialized and deserialized a 3D assembly with structure preserved using BREP format");
         }
       }
       
@@ -2156,7 +2218,7 @@ function testSerializeDeserialize() {
           results.success = false;
           results.details.push("Unable to perform operations on deserialized geometry");
         } else {
-          results.details.push("Successfully performed operations on deserialized geometry, confirming parametric nature is preserved");
+          results.details.push("Successfully performed operations on deserialized geometry, confirming parametric nature is preserved using BREP format");
         }
       } catch (error) {
         results.success = false;
@@ -2164,7 +2226,7 @@ function testSerializeDeserialize() {
       }
       
       if (results.success) {
-        console.log("All serialization tests completed successfully");
+        console.log("All serialization tests completed successfully using OpenCascade's native BREP format");
       } else {
         console.error("Some serialization tests failed", results.details);
       }
