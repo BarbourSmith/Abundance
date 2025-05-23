@@ -172,7 +172,7 @@ function RunNavigation({ authorizedUserOcto, activeAtom }) {
         } else {
           console.log("not starred");
           document.getElementById("Star-button").style.backgroundColor =
-            "var(--abundance-color-hightlightOffWhite)";
+            "var(--abundance-color-highlightOffWhite)";
           starred = false;
         }
       });
@@ -318,7 +318,7 @@ function RunNavigation({ authorizedUserOcto, activeAtom }) {
       document.getElementById("Star-button").disabled = false;
 
       document.getElementById("Star-button").style.backgroundColor =
-        "var(--abundance-color-hightlightOffWhite)";
+        "var(--abundance-color-highlightOffWhite)";
     });
   };
 

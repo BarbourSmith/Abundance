@@ -1,116 +1,144 @@
 /* Set global color styles  */
 
 :root {
+  /* Primary brand colors */
   --abundance-color-mainPurple: rgb(196, 163, 213);
   --abundance-color-brightPurple: #be3fe5;
   --abundance-color-transparentHighlight: #c4a3d565;
   --abundance-color-lightPurple: #c4a3d5;
+  
+  /* Neutrals and grays with improved contrast */
   --abundance-color-fontLightGrey: rgba(117, 116, 116, 0.98);
   --abundance-color-fontGrey: #333;
   --abundance-color-fontTransparentGrey: rgba(255, 255, 255, 0.289);
   --abundance-color-fontWhite: #f2f0f0;
   --abundance-color-darkGrey: #3f4243;
-  --abundance-color-veryLightPurple: rgb(248 243 251);
-  --abundance-color-veryLightPurpleHighlight: rgba(233, 221, 242, 0.961);
-  --abundance-color-hightlightOffWhite: #fffffff6;
   --abundance-color-mediumGrey: #545252;
+  
+  /* Lighter shades with better contrast */
+  --abundance-color-veryLightPurple: rgb(248, 243, 251);
   --abundance-color-veryLightPurpleHighlight: #f9e9fd;
+  --abundance-color-highlightOffWhite: #fffffff6;
 }
 
 .dark-theme {
+  /* Background and text colors with improved contrast */
   --flowCanvas-background: var(--abundance-color-darkGrey);
   --flowCanvas-text-hover: var(--abundance-color-fontWhite);
 
-  --settingsPopup-text: var(--abundance-color-hightlightOffWhite);
+  /* Settings popup with better visibility */
+  --settingsPopup-text: var(--abundance-color-highlightOffWhite);
   --settingsPopup-closeButton: var(--abundance-color-darkGrey);
   --settingsPopup-background: var(--abundance-color-mediumGrey);
 
+  /* Login popup with improved contrast */
   --loginPopup-background: var(--abundance-color-veryLightPurple);
-  --loginPopup-text: var(--abundance-color-fontGrey);
+  --loginPopup-text: #222222; /* Darker text for better contrast on light background */
   --loginPopup-border: var(--abundance-color-darkGrey);
   --loginPopup-input: var(--abundance-color-darkGrey);
   --loginPopup-button: var(--abundance-color-darkGrey);
-  --loginPopup-projectColor: var(--abundance-color-hightlightOffWhite);
+  --loginPopup-projectColor: var(--abundance-color-highlightOffWhite);
   --loginPopup-projectColorHover: var(
     --abundance-color-veryLightPurpleHighlight
   );
 
+  /* Button styling with better contrast */
   --submit-button-background: var(--abundance-color-fontWhite);
   --submit-button-text: var(--abundance-color-darkGrey);
-  --newProject-form-input: var(--abundance-color-hightlightOffWhite);
+  --newProject-form-input: var(--abundance-color-highlightOffWhite);
 
-  --newProject-form-input-text: var(--abundance-color-fontGrey);
+  --newProject-form-input-text: #222222; /* Darker text for better contrast */
 
+  /* Menu elements with improved visibility */
   --lowerCanvas-menu-background: var(--abundance-color-darkGrey);
   --lowerCanvas-menu-text: var(--abundance-color-fontWhite);
   --lowerCanvas-menu-inputs: var(--abundance-color-mainPurple);
 
+  /* Status bar with improved contrast */
   --saveBar-background: var(--abundance-color-fontLightGrey);
-  --saveBar-text: var(--abundance-color-hightlightOffWhite);
+  --saveBar-text: var(--abundance-color-highlightOffWhite);
   --saveBar-progressColor: var(--abundance-color-brightPurple);
 
+  /* Search elements with better visibility */
   --gitSearch-border: var(--abundance-color-brightPurple);
   --gitSearch-background: var(--abundance-color-darkGrey);
   --gitSearch-text: var(--abundance-color-fontWhite);
-  --gitsearch-Panel-background: var(--abundance-color-hightlightOffWhite);
-  --gitsearch-Panel-text: var(--abundance-color-darkGrey);
+  --gitsearch-Panel-background: var(--abundance-color-highlightOffWhite);
+  --gitsearch-Panel-text: #222222; /* Darker text for better contrast */
 
-  --run-navigation-button: var(--abundance-color-hightlightOffWhite);
+  /* Navigation elements with better visibility */
+  --run-navigation-button: var(--abundance-color-highlightOffWhite);
   --run-navigation-button-hover: var(--abundance-color-transparentHighlight);
 
-  --dialog-background: var(--abundance-color-hightlightOffWhite);
-  --dialog-text: var(--abundance-color-darkGrey);
+  /* Dialog elements with improved contrast */
+  --dialog-background: var(--abundance-color-highlightOffWhite);
+  --dialog-text: #222222; /* Darker text for better contrast */
   --dialog-border: var(--abundance-color-brightPurple);
 
+  /* Project info with better visibility */
   --run-project-info: var(--abundance-color-lightPurple);
   --loginPopup-project-border: var(--abundance-color-lightPurple);
-  --repo-name-path: var(--abundance-color-hightlightOffWhite);
+  --repo-name-path: var(--abundance-color-highlightOffWhite);
 }
 
 .light-theme {
-  --flowCanvas-background: var(--abundance-color-fontLightGrey);
-  --flowCanvas-text-hover: var(--abundance-color-darkGrey);
-  --settingsPopup-text: var(--abundance-color-darkGrey);
-  --settingsPopup-closeButton: var(--abundance-color-hightlightOffWhite);
+  /* Background and text colors with improved contrast */
+  --flowCanvas-background: #e0e0e0; /* Lighter gray for better visibility */
+  --flowCanvas-text-hover: #222222; /* Darker text for better contrast */
+  
+  /* Settings popup with better visibility */
+  --settingsPopup-text: #222222; /* Darker text for better contrast */
+  --settingsPopup-closeButton: var(--abundance-color-highlightOffWhite);
   --settingsPopup-background: var(--abundance-color-fontWhite);
   --settingsPopup-hover-text: var(--abundance-color-fontWhite);
+  
+  /* Form elements with better contrast */
   --newProject-form-input: var(--abundance-color-mediumGrey);
   --newProject-form-input-text: var(--abundance-color-fontWhite);
-  --repo-name-path: var(--abundance-color-darkGrey);
+  --repo-name-path: #222222; /* Darker text for better contrast */
 
+  /* Login popup with improved visibility */
   --loginPopup-background: var(--abundance-color-veryLightPurple);
-  --loginPopup-text: var(--abundance-color-fontGrey);
+  --loginPopup-text: #222222; /* Darker text for better contrast */
   --loginPopup-border: var(--abundance-color-darkGrey);
   --loginPopup-input: var(--abundance-color-darkGrey);
   --loginPopup-button: var(--abundance-color-darkGrey);
-  --loginPopup-projectColor: var(--abundance-color-hightlightOffWhite);
+  --loginPopup-projectColor: var(--abundance-color-highlightOffWhite);
   --loginPopup-projectColorHover: var(
     --abundance-color-veryLightPurpleHighlight
   );
+  
+  /* Button styling with better contrast */
   --submit-button-text: var(--abundance-color-fontWhite);
-  --submit-button-background: var(--abundance-color-darkGrey);
+  --submit-button-background: #222222; /* Darker background for better contrast */
 
+  /* Menu elements with improved visibility */
   --lowerCanvas-menu-background: var(--abundance-color-darkGrey);
   --lowerCanvas-menu-text: var(--abundance-color-fontWhite);
   --lowerCanvas-menu-inputs: var(--abundance-color-mainPurple);
 
+  /* Status bar with improved contrast */
   --saveBar-background: var(--abundance-color-fontLightGrey);
-  --saveBar-text: var(--abundance-color-hightlightOffWhite);
+  --saveBar-text: var(--abundance-color-highlightOffWhite);
   --saveBar-progressColor: var(--abundance-color-brightPurple);
 
+  /* Search elements with better visibility */
   --gitSearch-border: var(--abundance-color-brightPurple);
   --gitSearch-background: var(--abundance-color-darkGrey);
   --gitSearch-text: var(--abundance-color-fontWhite);
-  --gitsearch-Panel-background: var(--abundance-color-hightlightOffWhite);
-  --gitsearch-Panel-text: var(--abundance-color-darkGrey);
+  --gitsearch-Panel-background: var(--abundance-color-highlightOffWhite);
+  --gitsearch-Panel-text: #222222; /* Darker text for better contrast */
 
-  --run-navigation-button: var(--abundance-color-hightlightOffWhite);
+  /* Navigation elements with better visibility */
+  --run-navigation-button: var(--abundance-color-highlightOffWhite);
   --run-navigation-button-hover: var(--abundance-color-transparentHighlight);
 
-  --dialog-background: var(--abundance-color-hightlightOffWhite);
-  --dialog-text: var(--abundance-color-darkGrey);
+  /* Dialog elements with improved contrast */
+  --dialog-background: var(--abundance-color-highlightOffWhite);
+  --dialog-text: #222222; /* Darker text for better contrast */
   --dialog-border: var(--abundance-color-brightPurple);
 
+  /* Project info with better visibility */
   --run-project-info: var(--abundance-color-lightPurple);
   --loginPopup-project-border: var(--abundance-color-lightPurple);
 }
@@ -654,7 +682,7 @@ Sidebar navigation
 .share-dialog button {
   margin: 10px;
   padding: 5px;
-  background-color: var(--abundance-color-hightlightOffWhite);
+  background-color: var(--abundance-color-highlightOffWhite);
   width: 50px;
   border-radius: 1px;
 }
