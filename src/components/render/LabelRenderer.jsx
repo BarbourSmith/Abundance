@@ -1,8 +1,8 @@
 import React from 'react';
-import { Text } from '@react-three/drei';
+import FloatingLabel from './FloatingLabel.jsx';
 
 /**
- * Component to render labels in 3D space
+ * Component to render labels in 3D space using FloatingLabel components
  */
 export default React.memo(function LabelRenderer({ labels }) {
   if (!labels || labels.length === 0) {
@@ -12,18 +12,12 @@ export default React.memo(function LabelRenderer({ labels }) {
   return (
     <>
       {labels.map((label, index) => (
-        <Text
+        <FloatingLabel
           key={`label-${index}`}
+          text={label.text}
           position={[label.position.x, label.position.y, label.position.z]}
-          fontSize={label.size}
-          color="#000000"
-          anchorX="center"
-          anchorY="middle"
-          outlineWidth={0.05}
-          outlineColor="#ffffff"
-        >
-          {label.text}
-        </Text>
+          size={label.size}
+        />
       ))}
     </>
   );

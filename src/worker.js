@@ -1734,6 +1734,7 @@ function generateDisplayMesh(id) {
       meshArray.push({
         color: displayObject.color,
         geometry: cleanedGeometry,
+        labels: displayObject.labels || [], // Include labels in the mesh array
       });
     });
     let cameraZoom;
@@ -1753,13 +1754,16 @@ function generateDisplayMesh(id) {
             .sketchOnPlane(sketchPlane)
             .clone()
             .extrude(0.0001);
-          return {
+          finalMeshes.push({
+            cameraZoom: cameraZoom,
             faces: threeDShape.mesh({ tolerance: 0.1, angularTolerance: 0.5 }),
             edges: threeDShape.meshEdges({
               tolerance: 0.1,
               angularTolerance: 0.5,
             }),
-          };
+            color: meshgeometry.color,
+            labels: meshgeometry.labels || [], // Include labels for 2D extruded geometry
+          });
         } else {
           finalMeshes.push({
             cameraZoom: cameraZoom,
@@ -1772,6 +1776,7 @@ function generateDisplayMesh(id) {
               angularTolerance: 0.5,
             }),
             color: meshgeometry.color,
+            labels: meshgeometry.labels || [], // Include labels in final mesh data
           });
         }
       } catch (e) {
