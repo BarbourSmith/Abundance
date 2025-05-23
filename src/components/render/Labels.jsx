@@ -21,11 +21,14 @@ export default function Labels({ labels = [] }) {
         // By default, extend in the X direction
         const endPoint = [position[0] + length, position[1], position[2]];
         
+        // Convert rotation from degrees to radians
+        const rotationRadians = rotation.map(angle => angle * (Math.PI / 180));
+        
         // Create a unique key for each label
         const key = `label-${index}-${text}`;
         
         return (
-          <group key={key} position={position} rotation={rotation}>
+          <group key={key} position={position} rotation={rotationRadians}>
             {/* The line */}
             <Line
               points={[[0, 0, 0], [length, 0, 0]]}
@@ -42,6 +45,7 @@ export default function Labels({ labels = [] }) {
               anchorY="middle"
               outlineWidth={0.1}
               outlineColor="white"
+              material-toneMapped={false}
             >
               {text}
             </Text>

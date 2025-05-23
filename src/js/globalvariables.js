@@ -8,6 +8,7 @@ import Rectangle from "../molecules/rectangle.js";
 import Loft from "../molecules/loft.js";
 import Move from "../molecules/move.js";
 import Tag from "../molecules/tag.js";
+import Label from "../molecules/label.js";
 import RegularPolygon from "../molecules/regularPolygon.js";
 import Extrude from "../molecules/extrude.js";
 import Fusion from "../molecules/fusion.js";
@@ -97,6 +98,7 @@ class GlobalVariables {
       },
       color: { creator: Color, atomType: "Color", atomCategory: "Actions" },
       tag: { creator: Tag, atomType: "Tag", atomCategory: "Tags" },
+      label: { creator: Label, atomType: "Label", atomCategory: "Tags" },
       extracttag: {
         creator: ExtractTag,
         atomType: "ExtractTag",
