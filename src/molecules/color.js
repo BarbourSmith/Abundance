@@ -40,29 +40,29 @@ export default class Color extends Atom {
      * @type {array}
      */
     this.colorOptions = {
-      Default: "#aad7f2",
-      Red: "#FF9065",
-      Orange: "#FFB458",
-      Yellow: "#FFD600",
-      Olive: "#C7DF66",
-      Teal: "#71D1C2",
-      "Light Blue": "#75DBF2",
-      Green: "#A3CE5B",
-      "Lavender ": "#CCABED",
-      Brown: "#CFAB7C",
-      Pink: "#FFB09D",
-      Sand: "#E2C66C",
-      Clay: "#C4D3AC",
-      Blue: "#91C8D5",
-      "Light Green": "#96E1BB",
-      Purple: "#ACAFDD",
-      "Light Purple": "#DFB1E8",
-      Tan: "#F5D3B6",
-      "Mauve ": "#DBADA9",
-      Grey: "#BABABA",
-      Black: "#3C3C3C",
-      White: "#FFFCF7",
-      "Keep Out": "#D9544D",
+      Default: "#89CFF0", // Sky blue - improved from previous light blue
+      Red: "#E63946", // Brighter, more vivid red
+      Orange: "#F4A261", // Softer orange with better contrast
+      Yellow: "#FFD60A", // More visible yellow
+      Olive: "#606C38", // Darker olive green for better contrast
+      Teal: "#2A9D8F", // Deeper teal for better visibility
+      "Light Blue": "#48CAE4", // Brighter light blue
+      Green: "#38B000", // More vibrant green
+      "Lavender": "#9F86C0", // Cleaner lavender (removed trailing space)
+      Brown: "#A47148", // Richer brown
+      Pink: "#FF758F", // More vibrant pink
+      Sand: "#E9C46A", // Sand with better contrast
+      Clay: "#A98467", // Deeper clay color
+      Blue: "#1A759F", // Deeper blue for contrast
+      "Light Green": "#80ED99", // Brighter light green
+      Purple: "#7B2CBF", // More vibrant purple
+      "Light Purple": "#C77DFF", // Brighter light purple
+      Tan: "#D4A373", // Warmer tan
+      "Mauve": "#B5838D", // Cleaner mauve (removed trailing space)
+      Grey: "#6C757D", // Darker grey for better contrast
+      Black: "#212529", // Richer black
+      White: "#F8F9FA", // Clean white
+      "Keep Out": "#D00000", // Brighter red for warnings
     };
 
     this.addIO("input", "geometry", this, "geometry", null, false, true);

@@ -131,22 +131,22 @@ export default (function ParamsEditor({
   // color theme for Leva
   const abundanceTheme = {
     colors: {
-      elevation1: "#3F4243",
+      elevation1: "#2D3033", // Darker background for better contrast
       elevation2: "var(--bg-color)",
-      elevation3: "#C4A3D5", // bg color of the root panel (main title bar)
-
-      highlight1: "#f9e9fd",
-      highlight2: "#ededed",
-      highlight3: "#ededed",
-
-      accent1: "#C4A3D5",
-      accent2: "#88748F", //apply button
-      accent3: "#88748F",
-
-      vivid1: "red",
+      elevation3: "#9F86C0", // Updated to match new purple shade
+      
+      highlight1: "#8F5EC3", // More saturated highlight color
+      highlight2: "#F8F9FA", // Lighter color for better contrast
+      highlight3: "#F8F9FA", // Consistent with highlight2
+      
+      accent1: "#9F86C0", // Updated to match new purple shade
+      accent2: "#624C82", // Deeper accent for buttons
+      accent3: "#624C82", // Consistent with accent2
+      
+      vivid1: "#D00000", // Matching the new "Keep Out" color
     },
     fontSizes: {
-      root: "13px",
+      root: "14px", // Slightly larger for better readability
     },
   };
 
