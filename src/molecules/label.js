@@ -93,6 +93,12 @@ export default class Label extends Atom {
       onChange: (value) => {
         if (this.text !== value) {
           this.text = value;
+          // Update the corresponding input's value
+          const textInput = this.inputs.find(input => input.name === "text");
+          if (textInput) {
+            textInput.value = value;
+            textInput.ready = true;
+          }
           this.updateValue();
         }
       },
@@ -106,6 +112,12 @@ export default class Label extends Atom {
       onChange: (value) => {
         if (this.length !== value) {
           this.length = value;
+          // Update the corresponding input's value
+          const lengthInput = this.inputs.find(input => input.name === "length");
+          if (lengthInput) {
+            lengthInput.value = value;
+            lengthInput.ready = true;
+          }
           this.updateValue();
         }
       },
@@ -123,8 +135,27 @@ export default class Label extends Atom {
     if (this.inputs.every((x) => x.ready)) {
       this.processing = true;
       var inputID = this.findIOValue("geometry");
-      var text = this.findIOValue("text") || this.text;
-      var length = this.findIOValue("length") || this.length;
+      
+      // Get the text input and update it if needed
+      const textInput = this.inputs.find(input => input.name === "text");
+      if (textInput) {
+        if (!textInput.connectors.length) {  // If not connected to another atom
+          textInput.value = this.text;  // Update the input with our latest text value
+        }
+      }
+      
+      // Get the length input and update it if needed
+      const lengthInput = this.inputs.find(input => input.name === "length");
+      if (lengthInput) {
+        if (!lengthInput.connectors.length) {  // If not connected to another atom
+          lengthInput.value = this.length;  // Update the input with our latest length value
+        }
+      }
+      
+      // Now use findIOValue to get the current values
+      var text = this.findIOValue("text");
+      var length = this.findIOValue("length");
+      
       var labelObject = {
         text: text,
         length: length,
