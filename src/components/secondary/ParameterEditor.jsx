@@ -131,19 +131,19 @@ export default (function ParamsEditor({
   // color theme for Leva
   const abundanceTheme = {
     colors: {
-      elevation1: "#2D3033", // Darker background for better contrast
+      elevation1: "var(--abundance-color-darkGrey)", // Panel background
       elevation2: "var(--bg-color)",
-      elevation3: "#9F86C0", // Updated to match new purple shade
+      elevation3: "var(--abundance-color-lightPurple)", // Title bar background
       
-      highlight1: "#8F5EC3", // More saturated highlight color
-      highlight2: "#F8F9FA", // Lighter color for better contrast
-      highlight3: "#F8F9FA", // Consistent with highlight2
+      highlight1: "var(--abundance-color-brightPurple)", // Highlight color
+      highlight2: "var(--abundance-color-highlightOffWhite)", // Lighter color for better contrast
+      highlight3: "var(--abundance-color-highlightOffWhite)", // Consistent with highlight2
       
-      accent1: "#9F86C0", // Updated to match new purple shade
-      accent2: "#624C82", // Deeper accent for buttons
-      accent3: "#624C82", // Consistent with accent2
+      accent1: "var(--abundance-color-lightPurple)", // Button and control color
+      accent2: "var(--abundance-color-mainPurple)", // Apply button color
+      accent3: "var(--abundance-color-mainPurple)", // Consistent with accent2
       
-      vivid1: "#D00000", // Matching the new "Keep Out" color
+      vivid1: "var(--dialog-border)", // Warning color
     },
     fontSizes: {
       root: "14px", // Slightly larger for better readability
