@@ -191,6 +191,7 @@ function extrude(targetID, inputID, height) {
         plane: leaf.plane,
         color: leaf.color,
         bom: leaf.bom,
+        labels: leaf.labels || [],
       };
     });
     return true;
@@ -215,12 +216,29 @@ function move(inputID, x, y, z, targetID = null) {
       let result = actOnLeafs(
         library[inputID],
         (leaf) => {
+          // Update label positions if they exist
+          let labels = leaf.labels || [];
+          let updatedLabels = labels.map(label => {
+            // Create a deep copy of the label
+            let newLabel = {...label};
+            // Update the position by adding the translation
+            if (newLabel.position) {
+              newLabel.position = [
+                newLabel.position[0] + x,
+                newLabel.position[1] + y,
+                newLabel.position[2] + z
+              ];
+            }
+            return newLabel;
+          });
+
           return {
             geometry: [leaf.geometry[0].clone().translate(x, y, z)],
             plane: leaf.plane,
             tags: leaf.tags,
             color: leaf.color,
             bom: leaf.bom,
+            labels: updatedLabels,
           };
         },
         library[inputID].plane
@@ -234,12 +252,29 @@ function move(inputID, x, y, z, targetID = null) {
       let result = actOnLeafs(
         library[inputID],
         (leaf) => {
+          // Update label positions if they exist
+          let labels = leaf.labels || [];
+          let updatedLabels = labels.map(label => {
+            // Create a deep copy of the label
+            let newLabel = {...label};
+            // Update the position by adding the translation
+            if (newLabel.position) {
+              newLabel.position = [
+                newLabel.position[0] + x,
+                newLabel.position[1] + y,
+                newLabel.position[2] + z
+              ];
+            }
+            return newLabel;
+          });
+
           return {
             geometry: [leaf.geometry[0].clone().translate([x, y])],
             tags: leaf.tags,
             plane: leaf.plane.translate([0, 0, z]),
             color: leaf.color,
             bom: leaf.bom,
+            labels: updatedLabels,
           };
         },
         library[inputID].plane.translate([0, 0, z])
@@ -268,6 +303,64 @@ function rotate(inputGeometry, x, y, z, targetID = null) {
   return started.then(() => {
     if (is3D(input)) {
       let result = actOnLeafs(input, (leaf) => {
+        // Update label rotations and positions if they exist
+        let labels = leaf.labels || [];
+        let updatedLabels = labels.map(label => {
+          // Create a deep copy of the label
+          let newLabel = {...label};
+          
+          // Update the position by applying the rotation
+          if (newLabel.position) {
+            // Apply same rotation sequence as the geometry: X then Y then Z
+            let pos = newLabel.position;
+            // Rotate around X axis
+            if (x !== 0) {
+              const radX = x * (Math.PI / 180);
+              const cosX = Math.cos(radX);
+              const sinX = Math.sin(radX);
+              pos = [
+                pos[0],
+                pos[1] * cosX - pos[2] * sinX,
+                pos[1] * sinX + pos[2] * cosX
+              ];
+            }
+            // Rotate around Y axis
+            if (y !== 0) {
+              const radY = y * (Math.PI / 180);
+              const cosY = Math.cos(radY);
+              const sinY = Math.sin(radY);
+              pos = [
+                pos[0] * cosY + pos[2] * sinY,
+                pos[1],
+                -pos[0] * sinY + pos[2] * cosY
+              ];
+            }
+            // Rotate around Z axis
+            if (z !== 0) {
+              const radZ = z * (Math.PI / 180);
+              const cosZ = Math.cos(radZ);
+              const sinZ = Math.sin(radZ);
+              pos = [
+                pos[0] * cosZ - pos[1] * sinZ,
+                pos[0] * sinZ + pos[1] * cosZ,
+                pos[2]
+              ];
+            }
+            newLabel.position = pos;
+          }
+          
+          // Update the rotation by adding the rotation angles
+          if (newLabel.rotation) {
+            newLabel.rotation = [
+              newLabel.rotation[0] + x,
+              newLabel.rotation[1] + y,
+              newLabel.rotation[2] + z
+            ];
+          }
+          
+          return newLabel;
+        });
+
         return {
           geometry: [
             leaf.geometry[0]
@@ -280,6 +373,7 @@ function rotate(inputGeometry, x, y, z, targetID = null) {
           plane: leaf.plane,
           color: leaf.color,
           bom: leaf.bom,
+          labels: updatedLabels,
         };
       });
       if (targetID) {
@@ -289,12 +383,43 @@ function rotate(inputGeometry, x, y, z, targetID = null) {
       }
     } else {
       let result = actOnLeafs(toGeometry(inputGeometry), (leaf) => {
+        // Update label rotations and positions if they exist
+        let labels = leaf.labels || [];
+        let updatedLabels = labels.map(label => {
+          // Create a deep copy of the label
+          let newLabel = {...label};
+          
+          // For 2D objects, we primarily rotate around Z axis for the shape
+          if (newLabel.position && z !== 0) {
+            const radZ = z * (Math.PI / 180);
+            const cosZ = Math.cos(radZ);
+            const sinZ = Math.sin(radZ);
+            newLabel.position = [
+              newLabel.position[0] * cosZ - newLabel.position[1] * sinZ,
+              newLabel.position[0] * sinZ + newLabel.position[1] * cosZ,
+              newLabel.position[2]
+            ];
+          }
+          
+          // Update the rotation by adding the rotation angles
+          if (newLabel.rotation) {
+            newLabel.rotation = [
+              newLabel.rotation[0] + x,
+              newLabel.rotation[1] + y,
+              newLabel.rotation[2] + z
+            ];
+          }
+          
+          return newLabel;
+        });
+        
         return {
           geometry: [leaf.geometry[0].clone().rotate(z, [0, 0, 0], [0, 0, 1])],
           tags: leaf.tags,
           plane: leaf.plane.pivot(x, "X").pivot(y, "Y"),
           color: leaf.color,
           bom: leaf.bom,
+          labels: updatedLabels,
         };
       });
       if (targetID) {
@@ -324,6 +449,7 @@ function difference(targetID, input1ID, input2ID) {
           color: leaf.color,
           plane: leaf.plane,
           bom: leaf.bom,
+          labels: leaf.labels || [],
         };
       });
     } else {
@@ -374,6 +500,7 @@ function intersect(targetID, input1ID, input2ID) {
         color: leaf.color,
         plane: leaf.plane,
         bom: leaf.bom,
+        labels: leaf.labels || [],
       };
     });
     return true;
@@ -1328,6 +1455,7 @@ function cutAssembly(partToCut, cuttingParts, assemblyID) {
         geometry: assemblyCut,
         tags: partToCut.tags,
         bom: partToCut.bom,
+        labels: partToCut.labels || [],
       };
       return library[subID];
     } else {
@@ -1355,6 +1483,7 @@ function cutAssembly(partToCut, cuttingParts, assemblyID) {
               color: partToCut.color,
               bom: partToCut.bom,
               plane: partToCut.plane,
+              labels: partToCut.labels || [],
             });
           });
           // return new cut part
@@ -1365,6 +1494,7 @@ function cutAssembly(partToCut, cuttingParts, assemblyID) {
             color: partToCut.color,
             bom: partToCut.bom,
             plane: partToCut.plane,
+            labels: partToCut.labels || [],
           };
 
           return library[newID];
@@ -1378,6 +1508,7 @@ function cutAssembly(partToCut, cuttingParts, assemblyID) {
         color: partToCut.color,
         bom: partToCut.bom,
         plane: partToCut.plane,
+        labels: partToCut.labels || [],
       };
 
       return library[newID];
@@ -1421,6 +1552,7 @@ async function assembly(inputIDs, targetID = null) {
 
   let assembly = [];
   let bomAssembly = [];
+  let allLabels = [];
 
   if (inputIDs.length > 1) {
     const all3D = inputIDs.every((inputID) => is3D(toGeometry(inputID)));
@@ -1432,6 +1564,10 @@ async function assembly(inputIDs, targetID = null) {
         assembly.push(cutAssembly(geometry, inputIDs.slice(i + 1), targetID));
         if (geometry.bom.length > 0) {
           bomAssembly.push(...geometry.bom);
+        }
+        // Collect labels from each input
+        if (geometry.labels && geometry.labels.length > 0) {
+          allLabels.push(...geometry.labels);
         }
       }
     } else {
@@ -1445,6 +1581,10 @@ async function assembly(inputIDs, targetID = null) {
     if (geometry.bom.length > 0) {
       bomAssembly.push(...geometry.bom);
     }
+    // Collect labels from single input
+    if (geometry.labels && geometry.labels.length > 0) {
+      allLabels.push(...geometry.labels);
+    }
   }
 
   const newPlane = new Plane().pivot(0, "Y");
@@ -1453,6 +1593,7 @@ async function assembly(inputIDs, targetID = null) {
     plane: newPlane,
     tags: [],
     bom: bomAssembly,
+    labels: allLabels,
   };
 
   if (targetID != null) {
@@ -1468,6 +1609,8 @@ function fusion(targetID, inputIDs) {
   return started.then(() => {
     let fusedGeometry = [];
     let bomAssembly = [];
+    let allLabels = [];
+    
     inputIDs.forEach((inputID) => {
       if (inputIDs.every((inputID) => is3D(library[inputID]))) {
         fusedGeometry.push(digFuse(library[inputID]));
@@ -1481,6 +1624,10 @@ function fusion(targetID, inputIDs) {
       if (library[inputID].bom.length > 0) {
         bomAssembly.push(...library[inputID].bom);
       }
+      // Collect labels from each input
+      if (library[inputID].labels && library[inputID].labels.length > 0) {
+        allLabels.push(...library[inputID].labels);
+      }
     });
     const newPlane = new Plane().pivot(0, "Y");
     library[targetID] = {
@@ -1489,6 +1636,7 @@ function fusion(targetID, inputIDs) {
       bom: bomAssembly,
       plane: newPlane,
       color: defaultColor,
+      labels: allLabels,
     };
     return true;
   });
@@ -1519,6 +1667,7 @@ function actOnLeafs(assembly, action, plane) {
       tags: assembly.tags,
       bom: assembly.bom,
       plane: plane,
+      labels: assembly.labels || [],
     };
   }
 }
