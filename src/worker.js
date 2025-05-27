@@ -531,28 +531,20 @@ function addLabel(targetID, inputID, labelObject) {
     
     let updatedLabels;
     if (existingLabelIndex >= 0) {
-      // Debug log for diagnosis
-      console.log('Updating existing label:', labels[existingLabelIndex]);
-      
-      // Update existing label but preserve position and rotation
+      // Update existing label but preserve position and rotation from transformations
       const existingLabel = labels[existingLabelIndex];
       const updatedLabel = {
         ...labelObject,
         atomID: targetID,
+        // Always preserve existing position and rotation to maintain transformations
         position: existingLabel.position,
         rotation: existingLabel.rotation
       };
       
-      // Debug log for diagnosis
-      console.log('Updated to:', updatedLabel);
-      
       updatedLabels = [...labels];
       updatedLabels[existingLabelIndex] = updatedLabel;
     } else {
-      // Debug log for diagnosis
-      console.log('Adding new label:', labelObject);
-      
-      // Add new label with atomID
+      // Add new label with atomID and provided position/rotation
       labelObject.atomID = targetID;
       updatedLabels = [...labels, labelObject];
     }
