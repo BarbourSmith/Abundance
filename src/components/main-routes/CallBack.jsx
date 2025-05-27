@@ -9,10 +9,10 @@ const Callback = ({
   setIsAuthorized,
   setIsLoggedIn,
   setAuthorizedUserOcto,
+  setRedirectType,
 }) => {
   const location = useLocation();
   const navigate = useNavigate();
-  console.log("isAuthorized", isAuthorized);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -42,7 +42,6 @@ const Callback = ({
         const authorizedUser = new Octokit({
           auth: access_token,
         });
-
         const { data } = await authorizedUser.request("/user");
         GlobalVariables.currentUser = data.login;
         if (GlobalVariables.currentUser) {
@@ -52,7 +51,6 @@ const Callback = ({
           return authorizedUser;
         }
       } catch (error) {
-        console.error(error);
         setIsAuthorized(false);
       }
     };
@@ -65,6 +63,10 @@ const Callback = ({
         console.log("state", state);
         if (state.forking && state.currentRepo && authorizedUser) {
           navigate(`/run/${state.currentRepo}`);
+          setRedirectType("fork");
+        } else if (state.liking && state.currentRepo && authorizedUser) {
+          navigate(`/run/${state.currentRepo}`);
+          setRedirectType("like");
         } else {
           navigate("/");
         }
@@ -75,7 +77,48 @@ const Callback = ({
     });
   }, [location, setIsAuthorized]);
 
-  return <div>Redirecting...</div>;
+  return (
+    <div
+      className="login-popup"
+      id="projects-popup"
+      style={{
+        padding: "0",
+        border: "10px solid #3e3d3d",
+      }}
+    >
+      <div className="login-page">
+        <div className="form animate fadeInUp one">
+          <div id="gitSide" className="logindiv">
+            <img
+              className="logo"
+              src={
+                import.meta.env.VITE_APP_PATH_FOR_PICS +
+                "/imgs/abundance_logo.png"
+              }
+              alt="logo"
+            />
+            <div id="welcome">
+              <img
+                src={
+                  import.meta.env.VITE_APP_PATH_FOR_PICS +
+                  "/imgs/abundance_lettering.png"
+                }
+                alt="logo"
+                className="login-logo"
+              />
+            </div>
+            {isAuthorized ? (
+              <p style={{ padding: "0 20px" }}>
+                Welcome. Redirecting you to your projects...
+              </p>
+            ) : (
+              <p style={{ padding: "0 20px" }}>Logging you in ...</p>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 export default Callback;

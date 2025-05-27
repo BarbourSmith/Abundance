@@ -39,6 +39,14 @@ export default memo(function FlowCanvas({
   const circleMenu = useRef(null);
   const navigate = useNavigate();
   let lastTouchMove = null;
+  let longPressTimer = useRef(null);
+  let touchStartPos = useRef({ x: 0, y: 0 });
+  
+  // Double tap detection
+  let lastTapTime = useRef(0);
+  let lastTapPosition = useRef({ x: 0, y: 0 });
+  let doubleTapDelay = 300; // milliseconds
+  let doubleTapRadius = 20; // pixel radius for considering taps to be at the same position
 
   // On component mount create a new top level molecule before project load
   useEffect(() => {
@@ -88,11 +96,33 @@ export default memo(function FlowCanvas({
   };
 
   const mouseMove = (e) => {
-    if (e.touches) {
+    if (e.touches && e.touches.length > 0) {
+      // Set touchInterface flag to true when touch is detected
+      GlobalVariables.touchInterface = true;
+      
       lastTouchMove = e;
       e.clientX = e.touches[0].clientX;
       e.clientY = e.touches[0].clientY;
+      
+      // Cancel long press if finger moved significantly (more than 10 pixels)
+      if (longPressTimer.current && touchStartPos.current) {
+        const moveDistance = Math.sqrt(
+          Math.pow(e.clientX - touchStartPos.current.x, 2) +
+          Math.pow(e.clientY - touchStartPos.current.y, 2)
+        );
+        
+        if (moveDistance > 10) {
+          clearTimeout(longPressTimer.current);
+          longPressTimer.current = null;
+        }
+      }
     }
+    
+    // Skip if clientX/Y are not defined (can happen when touchend fires with no coordinates)
+    if (e.clientX === undefined || e.clientY === undefined) {
+      return;
+    }
+    
     GlobalVariables.currentMolecule.nodesOnTheScreen.forEach((molecule) => {
       molecule.mouseMove(e.clientX, e.clientY);
     });
@@ -198,9 +228,60 @@ export default memo(function FlowCanvas({
    * Called by mouse down
    */
   const onMouseDown = (event) => {
+    // Clear any existing long press timer
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+
     if (event.touches) {
+      // Set touchInterface flag to true when touch is detected
+      GlobalVariables.touchInterface = true;
+      
+      // Store the initial touch position
+      touchStartPos.current = {
+        x: event.touches[0].clientX,
+        y: event.touches[0].clientY
+      };
+      
+      // Set clientX/Y for event handling
       event.clientX = event.touches[0].clientX;
       event.clientY = event.touches[0].clientY;
+      
+      // Double tap detection
+      const currentTime = new Date().getTime();
+      const tapTimeDiff = currentTime - lastTapTime.current;
+      
+      // Check if this tap is within time and distance thresholds of last tap
+      if (tapTimeDiff < doubleTapDelay) {
+        // Calculate distance between current tap and last tap
+        const tapDistance = Math.sqrt(
+          Math.pow(event.clientX - lastTapPosition.current.x, 2) +
+          Math.pow(event.clientY - lastTapPosition.current.y, 2)
+        );
+        
+        // If within radius, consider it a double tap
+        if (tapDistance < doubleTapRadius) {
+          // This is a double tap
+          onDoubleClick(event);
+          lastTapTime.current = 0; // Reset the timer
+          return;
+        }
+      }
+      
+      // Save this tap's time and position for potential double tap detection
+      lastTapTime.current = currentTime;
+      lastTapPosition.current = { x: event.clientX, y: event.clientY };
+      
+      // Start a long press timer for touch events (700ms is a common duration for long press)
+      longPressTimer.current = setTimeout(() => {
+        // When timer completes, show the circular menu at touch position
+        cmenu.show([touchStartPos.current.x, touchStartPos.current.y], false);
+        longPressTimer.current = null;
+      }, 700);
+    } else {
+      // For mouse events, don't start a long press timer
+      longPressTimer.current = null;
     }
 
     // if it's a right click show the circular menu
@@ -269,6 +350,21 @@ export default memo(function FlowCanvas({
 
   /*Handles click on a molecule - go down level*/
   const onDoubleClick = (event) => {
+    // Cancel long press timer on double click
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+    
+    // Handle touch events
+    if (event.touches && event.touches.length > 0) {
+      event.clientX = event.touches[0].clientX;
+      event.clientY = event.touches[0].clientY;
+    } else if (event.changedTouches && event.changedTouches.length > 0) {
+      event.clientX = event.changedTouches[0].clientX;
+      event.clientY = event.changedTouches[0].clientY;
+    }
+    
     GlobalVariables.currentMolecule.nodesOnTheScreen.forEach((molecule) => {
       molecule.doubleClick(event.clientX, event.clientY);
     });
@@ -279,10 +375,26 @@ export default memo(function FlowCanvas({
    * Called by mouse up
    */
   const onMouseUp = (event) => {
-    if (lastTouchMove) {
+    // Clear long press timer when touch ends
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+
+    if (lastTouchMove && lastTouchMove.touches && lastTouchMove.touches.length > 0) {
       event.clientX = lastTouchMove.touches[0].clientX;
       event.clientY = lastTouchMove.touches[0].clientY;
+    } else if (event.changedTouches && event.changedTouches.length > 0) {
+      // For touchend events, touches array is empty, but changedTouches contains the touch that ended
+      event.clientX = event.changedTouches[0].clientX;
+      event.clientY = event.changedTouches[0].clientY;
     }
+    
+    // If no coordinates were set, skip further processing
+    if (event.clientX === undefined || event.clientY === undefined) {
+      return;
+    }
+    
     //every time the mouse button goes up
     GlobalVariables.currentMolecule.nodesOnTheScreen.forEach((molecule) => {
       molecule.clickUp(event.clientX, event.clientY);

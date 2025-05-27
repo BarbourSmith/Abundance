@@ -3,6 +3,7 @@ import ShareDialog from "./ShareDialog.jsx";
 import { useNavigate } from "react-router-dom";
 import GlobalVariables from "../../js/globalvariables.js";
 import { useAuth0 } from "@auth0/auth0-react";
+import { use } from "react";
 
 //navigation svg icons - turn into key pairs later
 let shareSvg = (
@@ -130,13 +131,17 @@ let exportSvg = (
   </svg>
 );
 
-function RunNavigation({ authorizedUserOcto, activeAtom }) {
+function RunNavigation({
+  authorizedUserOcto,
+  activeAtom,
+  redirectType,
+  setRedirectType,
+}) {
   let [shareDialog, setShareDialog] = useState(false);
   let starred = false;
   let [dialogContent, setDialog] = useState("");
 
   var navigate = useNavigate();
-  const { loginWithRedirect } = useAuth0();
 
   useEffect(() => {
     // check if the current user has starred the project
@@ -181,6 +186,16 @@ function RunNavigation({ authorizedUserOcto, activeAtom }) {
       }
     }
   });
+
+  useEffect(() => {
+    if (redirectType == "fork") {
+      forkProject(authorizedUserOcto);
+    }
+    if (redirectType == "like") {
+      likeProject();
+    }
+  }, []);
+
   /**
    * Like a project on github by unique ID.
    */
@@ -261,6 +276,7 @@ function RunNavigation({ authorizedUserOcto, activeAtom }) {
         //reenable button after api call so user can unlike
         console.log("added to liked projects");
         document.getElementById("Star-button").disabled = false;
+        setRedirectType(null);
       });
     });
 
@@ -413,6 +429,7 @@ function RunNavigation({ authorizedUserOcto, activeAtom }) {
             }).then((response) => {
               console.log(response.json());
               GlobalVariables.currentRepo = forkedNodeBody;
+              setRedirectType(null);
               navigate(
                 `/${GlobalVariables.currentRepo.owner}/${GlobalVariables.currentRepo.repoName}`
               ),
@@ -436,22 +453,28 @@ function RunNavigation({ authorizedUserOcto, activeAtom }) {
   };
 
   /** Runs if fork is clicked but there's no logged in user */
-  const loginFork = function () {
+  const loginRedirect = function (redirect) {
     console.log("no user logged in, needs new trylogin");
     const loginConfirm = confirm(
       "You are not logged in. Would you like to log in?"
     );
     if (loginConfirm) {
       console.log("login with redirect");
-      loginHandler();
+      loginHandler(redirect);
     } else {
       // user clicked cancel and is redirected to the run mode
     }
-    /*tryLogin().then((result) => {
-      forkProject(result);
-    });*/
   };
-  const loginHandler = () => {
+  const loginHandler = (redirect) => {
+    let forking = false;
+    let liking = false;
+    if (redirect == "fork") {
+      forking = true;
+    }
+    if (redirect == "like") {
+      liking = true;
+    }
+
     // the client id from github
     const client_id = import.meta.env.VITE_GH_OAUTH_CLIENT_ID;
 
@@ -468,7 +491,8 @@ function RunNavigation({ authorizedUserOcto, activeAtom }) {
     const state = JSON.stringify({
       csrfToken: csrfToken,
       currentRepo: repo,
-      forking: true,
+      forking: forking,
+      liking: liking,
     });
 
     // redirect the user to github
@@ -500,7 +524,9 @@ function RunNavigation({ authorizedUserOcto, activeAtom }) {
           className=" run-navigation-button"
           id="Fork-button"
           onClick={() => {
-            authorizedUserOcto ? forkProject(authorizedUserOcto) : loginFork();
+            authorizedUserOcto
+              ? forkProject(authorizedUserOcto)
+              : loginRedirect("fork");
           }}
         >
           {forkSvg}
@@ -514,7 +540,7 @@ function RunNavigation({ authorizedUserOcto, activeAtom }) {
               ? likeProject(authorizedUserOcto)
               : authorizedUserOcto && starred
               ? unlikeProject(authorizedUserOcto)
-              : loginFork();
+              : loginRedirect("like");
           }}
         >
           {starSvg}

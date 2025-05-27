@@ -904,8 +904,12 @@ function LoginMode({
   const pageDict = { 0: null };
 
   const [noUserBrowsing, setNoUserBrowsing] = useState(false);
-
   const [projectToShow, setProjectsToShow] = useState("all");
+
+  const logoutHandler = () => {
+    localStorage.removeItem("latestCSRFToken");
+    window.location.assign("/");
+  };
 
   let popUpContent;
   if (exportPopUp && authorizedUserOcto) {
@@ -926,40 +930,6 @@ function LoginMode({
           pageDict,
         }}
       />
-    );
-  } else if (isAuthorized) {
-    popUpContent = (
-      <div className="login-page">
-        <div className="form animate fadeInUp one">
-          <div id="gitSide" className="logindiv">
-            <img
-              className="logo"
-              src={
-                import.meta.env.VITE_APP_PATH_FOR_PICS +
-                "/imgs/abundance_logo.png"
-              }
-              alt="logo"
-            />
-            <div id="welcome">
-              <img
-                src={
-                  import.meta.env.VITE_APP_PATH_FOR_PICS +
-                  "/imgs/abundance_lettering.png"
-                }
-                alt="logo"
-                className="login-logo"
-              />
-            </div>
-            {isAuthorized ? (
-              <p style={{ padding: "0 20px" }}>
-                Welcome. Redirecting you to your projects...
-              </p>
-            ) : (
-              <p style={{ padding: "0 20px" }}>Logging you in ...</p>
-            )}
-          </div>
-        </div>
-      </div>
     );
   } else if (noUserBrowsing) {
     popUpContent = (
@@ -1006,15 +976,12 @@ function LoginMode({
               <span> Return to project</span>
             </button>
           </Link>
-        ) : isAuthorized ? (
+        ) : null}
+        {isAuthorized ? (
           <button
             className="closeButton"
             onClick={() => {
-              logout({
-                returnTo: import.meta.env.VITE_APP_DEV
-                  ? window.location.origin
-                  : "https://abundance.maslowcnc.com", // Redirect to home page or specified URL
-              });
+              logoutHandler();
             }}
           >
             <span> Log out </span>
@@ -1051,11 +1018,7 @@ function LoginMode({
             <button
               className="closeButtonmobile"
               onClick={() => {
-                logout({
-                  returnTo: import.meta.env.VITE_APP_DEV
-                    ? window.location.origin
-                    : "https://abundance.maslowcnc.com", // Redirect to home page or specified URL
-                });
+                logoutHandler();
               }}
             >
               <span> Log out </span>

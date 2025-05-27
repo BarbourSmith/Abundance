@@ -54,6 +54,8 @@ function runMode({
   outdatedMesh,
   setOutdatedMesh,
   labels,
+  redirectType,
+  setRedirectType,
 }) {
   // canvas to hide
   const canvasRef = useRef(500);
@@ -175,7 +177,9 @@ function runMode({
         />
       ) : null}
       {GlobalVariables.currentRepo ? (
-        <RunNavigation {...{ authorizedUserOcto, activeAtom }} />
+        <RunNavigation
+          {...{ authorizedUserOcto, activeAtom, redirectType, setRedirectType }}
+        />
       ) : null}
       <KiriMotoIntegration {...{ activeAtom }} />
       {globalvariables.currentRepo ? (
