@@ -526,14 +526,52 @@ function addLabel(targetID, inputID, labelObject) {
     // Initialize labels array if it doesn't exist
     const labels = library[inputID].labels || [];
     
+    // Check if this label already exists for this atom
+    const existingLabelIndex = labels.findIndex(label => label.atomID === targetID);
+    
+    let updatedLabels;
+    if (existingLabelIndex >= 0) {
+      // Debug log for diagnosis
+      console.log('Updating existing label:', labels[existingLabelIndex]);
+      
+      // Update existing label but preserve position and rotation
+      const existingLabel = labels[existingLabelIndex];
+      const updatedLabel = {
+        ...labelObject,
+        atomID: targetID,
+        position: existingLabel.position,
+        rotation: existingLabel.rotation
+      };
+      
+      // Debug log for diagnosis
+      console.log('Updated to:', updatedLabel);
+      
+      updatedLabels = [...labels];
+      updatedLabels[existingLabelIndex] = updatedLabel;
+    } else {
+      // Debug log for diagnosis
+      console.log('Adding new label:', labelObject);
+      
+      // Add new label with atomID
+      labelObject.atomID = targetID;
+      updatedLabels = [...labels, labelObject];
+    }
+    
+    // Store the updated labels both on the input geometry and on the label atom
+    library[inputID] = {
+      ...library[inputID],
+      labels: updatedLabels,
+    };
+    
     library[targetID] = {
       geometry: library[inputID].geometry,
       bom: library[inputID].bom,
       tags: library[inputID].tags,
       color: library[inputID].color,
       plane: library[inputID].plane,
-      labels: [...labels, labelObject],
+      labels: updatedLabels,
     };
+    
     return true;
   });
 }
@@ -563,6 +601,53 @@ function extractLabels(inputID) {
     }
     
     return collectLabels(inputGeometry);
+  });
+}
+
+/**
+ * Find a label by its atomID
+ * @param {string} inputID - ID of the geometry containing the labels
+ * @param {string} atomID - ID of the atom that created the label
+ * @returns {object} The label object or null if not found
+ */
+function findLabelByAtomID(inputID, atomID) {
+  return started.then(() => {
+    // First try to find the label in the top-level geometry
+    if (library[inputID] && library[inputID].labels) {
+      const foundLabel = library[inputID].labels.find(label => label.atomID === atomID);
+      if (foundLabel) {
+        return foundLabel;
+      }
+    }
+    
+    // If not found and this is an assembly, search recursively
+    if (library[inputID] && isAssembly(library[inputID])) {
+      // Recursive helper function to find a label
+      function findLabelInGeometry(geometry) {
+        if (geometry.labels) {
+          const foundLabel = geometry.labels.find(label => label.atomID === atomID);
+          if (foundLabel) {
+            return foundLabel;
+          }
+        }
+        
+        // If it's an assembly, search in subassemblies
+        if (isAssembly(geometry)) {
+          for (const subGeometry of geometry.geometry) {
+            const foundLabel = findLabelInGeometry(subGeometry);
+            if (foundLabel) {
+              return foundLabel;
+            }
+          }
+        }
+        
+        return null;
+      }
+      
+      return findLabelInGeometry(library[inputID]);
+    }
+    
+    return null;
   });
 }
 
@@ -1973,4 +2058,5 @@ expose({
   resetView,
   addLabel,
   extractLabels,
+  findLabelByAtomID,
 });

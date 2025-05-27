@@ -163,6 +163,7 @@ export default class Label extends Atom {
         rotation: this.rotation
       };
 
+      // The worker will preserve existing position and rotation for non-zero values
       GlobalVariables.cad
         .addLabel(this.uniqueID, inputID, labelObject)
         .then(() => {
