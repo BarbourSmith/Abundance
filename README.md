@@ -235,7 +235,7 @@ The constant atom defines a constant number that can be used to control multiple
 
 ### Equation
 
-The equation Atom lets you perform basic math operations on numbers produced by constants.
+The equation Atom lets you perform math operations on numbers produced by constants. It supports standard mathematical operators (+, -, *, /) as well as all JavaScript Math functions (sin, cos, tan, sqrt, etc.). For example, you can use `Math.sin(x)`, `Math.pow(x, 2)`, or `Math.sqrt(y)` in your equations.
 
 <img width="872" alt="equation-example" src="https://github.com/user-attachments/assets/82a8915c-4085-42c9-915d-1f1b217bb34b" />
 
