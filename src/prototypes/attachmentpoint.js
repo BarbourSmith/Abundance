@@ -254,13 +254,16 @@ export default class AttachmentPoint {
 
     let parentXInPixels = GlobalVariables.widthToPixels(this.parentMolecule.x);
     let parentYInPixels = GlobalVariables.heightToPixels(this.parentMolecule.y);
+    
+    // Check if the mouse is close to the parent molecule OR if the parent molecule is selected
     if (
       GlobalVariables.distBetweenPoints(
         parentXInPixels,
         x,
         parentYInPixels,
         y
-      ) <= GlobalVariables.widthToPixels(activationBoundary)
+      ) <= GlobalVariables.widthToPixels(activationBoundary) ||
+      this.parentMolecule.selected
     ) {
       this.isVisible = true;
       [this.x, this.y] = this.computePosition(activationBoundary);
@@ -535,6 +538,16 @@ export default class AttachmentPoint {
    * Computes the curent position and then draws the ap on the screen.
    */
   update() {
+    // Check if parent molecule is selected and make attachment point visible
+    if (this.parentMolecule.selected) {
+      this.isVisible = true;
+      
+      // Compute position when selected
+      let activationBoundary = AttachmentPoint.DIST_FROM_PARENT * this.parentMolecule.radius;
+      [this.x, this.y] = this.computePosition(activationBoundary);
+      [this.x, this.y] = GlobalVariables.constrainToCanvasBorders(this.x, this.y);
+    }
+    
     this.draw();
 
     this.connectors.forEach((connector) => {
