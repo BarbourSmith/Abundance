@@ -307,6 +307,10 @@ class GlobalVariables {
      */
     this.limitedEvaluate = math.evaluate;
     this.lastClick;
+    
+    // Import JavaScript Math functions to make them available in equations
+    math.import({ Math: Math }, { override: false });
+    
     math.import(
       {
         import: function () {
