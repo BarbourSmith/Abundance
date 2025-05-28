@@ -146,7 +146,9 @@ export default function (parent, data, index) {
 
     // Mouse and Touch Leave
     const hideSubMenu = (e) => {
-      if (!subMenu._container.contains(e.toElement)) {
+      // For touch events, use e.target; for mouse events, use e.toElement
+      const targetElement = e.toElement || e.target;
+      if (!subMenu._container.contains(targetElement)) {
         hovered = false;
         delayHide = setTimeout(function () {
           subMenu.hide();
@@ -187,7 +189,9 @@ export default function (parent, data, index) {
         tooltip.remove();
       }
 
-      if (!a.contains(e.toElement) || e.toElement.children[0] === a) {
+      // For touch events, use e.target; for mouse events, use e.toElement
+      const targetElement = e.toElement || e.target;
+      if (!a.contains(targetElement) || targetElement.children[0] === a) {
         subMenu.hide();
       }
     };
