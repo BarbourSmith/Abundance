@@ -216,19 +216,46 @@ function move(inputID, x, y, z, targetID = null) {
       let result = actOnLeafs(
         library[inputID],
         (leaf) => {
-          // Update label positions if they exist
+          // Update label positions using transformation matrices
           let labels = leaf.labels || [];
           let updatedLabels = labels.map(label => {
             // Create a deep copy of the label
             let newLabel = {...label};
-            // Update the position by adding the translation
+            
+            // Create translation matrix
+            const translationMatrix = [
+              1, 0, 0, x,
+              0, 1, 0, y,
+              0, 0, 1, z,
+              0, 0, 0, 1
+            ];
+            
+            // Use the existing matrix or create identity if none exists
+            const currentMatrix = newLabel.transformMatrix || [
+              1, 0, 0, 0,
+              0, 1, 0, 0,
+              0, 0, 1, 0,
+              0, 0, 0, 1
+            ];
+            
+            // Apply translation: result = currentMatrix * translationMatrix
+            const resultMatrix = multiplyMatrices(currentMatrix, translationMatrix);
+            
+            // Update the matrix
+            newLabel.transformMatrix = resultMatrix;
+            
+            // Update position for backward compatibility
+            // Extract position from the matrix (last column of first 3 rows)
             if (newLabel.position) {
               newLabel.position = [
                 newLabel.position[0] + x,
                 newLabel.position[1] + y,
                 newLabel.position[2] + z
               ];
+            } else {
+              newLabel.position = [x, y, z];
             }
+            
             return newLabel;
           });
 
@@ -252,19 +279,45 @@ function move(inputID, x, y, z, targetID = null) {
       let result = actOnLeafs(
         library[inputID],
         (leaf) => {
-          // Update label positions if they exist
+          // Update label positions using transformation matrices
           let labels = leaf.labels || [];
           let updatedLabels = labels.map(label => {
             // Create a deep copy of the label
             let newLabel = {...label};
-            // Update the position by adding the translation
+            
+            // Create translation matrix
+            const translationMatrix = [
+              1, 0, 0, x,
+              0, 1, 0, y,
+              0, 0, 1, z,
+              0, 0, 0, 1
+            ];
+            
+            // Use the existing matrix or create identity if none exists
+            const currentMatrix = newLabel.transformMatrix || [
+              1, 0, 0, 0,
+              0, 1, 0, 0,
+              0, 0, 1, 0,
+              0, 0, 0, 1
+            ];
+            
+            // Apply translation: result = currentMatrix * translationMatrix
+            const resultMatrix = multiplyMatrices(currentMatrix, translationMatrix);
+            
+            // Update the matrix
+            newLabel.transformMatrix = resultMatrix;
+            
+            // Update position for backward compatibility
             if (newLabel.position) {
               newLabel.position = [
                 newLabel.position[0] + x,
                 newLabel.position[1] + y,
                 newLabel.position[2] + z
               ];
+            } else {
+              newLabel.position = [x, y, z];
             }
+            
             return newLabel;
           });
 
@@ -303,51 +356,70 @@ function rotate(inputGeometry, x, y, z, targetID = null) {
   return started.then(() => {
     if (is3D(input)) {
       let result = actOnLeafs(input, (leaf) => {
-        // Update label rotations and positions if they exist
+        // Update label transformations using matrices
         let labels = leaf.labels || [];
         let updatedLabels = labels.map(label => {
           // Create a deep copy of the label
           let newLabel = {...label};
           
-          // Update the position by applying the rotation
-          if (newLabel.position) {
-            // Apply same rotation sequence as the geometry: X then Y then Z
-            let pos = newLabel.position;
-            // Rotate around X axis
-            if (x !== 0) {
-              const radX = x * (Math.PI / 180);
-              const cosX = Math.cos(radX);
-              const sinX = Math.sin(radX);
-              pos = [
-                pos[0],
-                pos[1] * cosX - pos[2] * sinX,
-                pos[1] * sinX + pos[2] * cosX
-              ];
-            }
-            // Rotate around Y axis
-            if (y !== 0) {
-              const radY = y * (Math.PI / 180);
-              const cosY = Math.cos(radY);
-              const sinY = Math.sin(radY);
-              pos = [
-                pos[0] * cosY + pos[2] * sinY,
-                pos[1],
-                -pos[0] * sinY + pos[2] * cosY
-              ];
-            }
-            // Rotate around Z axis
-            if (z !== 0) {
-              const radZ = z * (Math.PI / 180);
-              const cosZ = Math.cos(radZ);
-              const sinZ = Math.sin(radZ);
-              pos = [
-                pos[0] * cosZ - pos[1] * sinZ,
-                pos[0] * sinZ + pos[1] * cosZ,
-                pos[2]
-              ];
-            }
-            newLabel.position = pos;
-          }
+          // Convert rotation angles from degrees to radians
+          const radX = x * (Math.PI / 180);
+          const radY = y * (Math.PI / 180);
+          const radZ = z * (Math.PI / 180);
+          
+          // Create rotation matrices for X, Y, and Z rotations
+          // X rotation matrix
+          const rotX = [
+            1, 0, 0, 0,
+            0, Math.cos(radX), -Math.sin(radX), 0,
+            0, Math.sin(radX), Math.cos(radX), 0,
+            0, 0, 0, 1
+          ];
+          
+          // Y rotation matrix
+          const rotY = [
+            Math.cos(radY), 0, Math.sin(radY), 0,
+            0, 1, 0, 0,
+            -Math.sin(radY), 0, Math.cos(radY), 0,
+            0, 0, 0, 1
+          ];
+          
+          // Z rotation matrix
+          const rotZ = [
+            Math.cos(radZ), -Math.sin(radZ), 0, 0,
+            Math.sin(radZ), Math.cos(radZ), 0, 0,
+            0, 0, 1, 0,
+            0, 0, 0, 1
+          ];
+          
+          // Use the existing matrix or create identity if none exists
+          const currentMatrix = newLabel.transformMatrix || [
+            1, 0, 0, 0,
+            0, 1, 0, 0,
+            0, 0, 1, 0,
+            0, 0, 0, 1
+          ];
+          
+          // Apply rotations in order: X, Y, then Z
+          // Matrix multiplication: result = currentMatrix * rotX * rotY * rotZ
+          const resultMatrix = multiplyMatrices(
+            currentMatrix,
+            multiplyMatrices(
+              rotX,
+              multiplyMatrices(rotY, rotZ)
+            )
+          );
+          
+          // Update the matrix
+          newLabel.transformMatrix = resultMatrix;
+          
+          // Update position and rotation for backward compatibility
+          // Extract position from the matrix (last column of first 3 rows)
+          newLabel.position = [
+            resultMatrix[3],  // m[0,3]
+            resultMatrix[7],  // m[1,3]
+            resultMatrix[11]  // m[2,3]
+          ];
           
           // Update the rotation by adding the rotation angles
           if (newLabel.rotation) {
@@ -356,6 +428,8 @@ function rotate(inputGeometry, x, y, z, targetID = null) {
               newLabel.rotation[1] + y,
               newLabel.rotation[2] + z
             ];
+          } else {
+            newLabel.rotation = [x, y, z];
           }
           
           return newLabel;
@@ -383,23 +457,44 @@ function rotate(inputGeometry, x, y, z, targetID = null) {
       }
     } else {
       let result = actOnLeafs(toGeometry(inputGeometry), (leaf) => {
-        // Update label rotations and positions if they exist
+        // Update label transformations using matrices for 2D objects
         let labels = leaf.labels || [];
         let updatedLabels = labels.map(label => {
           // Create a deep copy of the label
           let newLabel = {...label};
           
           // For 2D objects, we primarily rotate around Z axis for the shape
-          if (newLabel.position && z !== 0) {
-            const radZ = z * (Math.PI / 180);
-            const cosZ = Math.cos(radZ);
-            const sinZ = Math.sin(radZ);
-            newLabel.position = [
-              newLabel.position[0] * cosZ - newLabel.position[1] * sinZ,
-              newLabel.position[0] * sinZ + newLabel.position[1] * cosZ,
-              newLabel.position[2]
-            ];
-          }
+          const radZ = z * (Math.PI / 180);
+          
+          // Z rotation matrix
+          const rotZ = [
+            Math.cos(radZ), -Math.sin(radZ), 0, 0,
+            Math.sin(radZ), Math.cos(radZ), 0, 0,
+            0, 0, 1, 0,
+            0, 0, 0, 1
+          ];
+          
+          // Use the existing matrix or create identity if none exists
+          const currentMatrix = newLabel.transformMatrix || [
+            1, 0, 0, 0,
+            0, 1, 0, 0,
+            0, 0, 1, 0,
+            0, 0, 0, 1
+          ];
+          
+          // Apply Z rotation: result = currentMatrix * rotZ
+          const resultMatrix = multiplyMatrices(currentMatrix, rotZ);
+          
+          // Update the matrix
+          newLabel.transformMatrix = resultMatrix;
+          
+          // Update position and rotation for backward compatibility
+          // Extract position from the matrix (last column of first 3 rows)
+          newLabel.position = [
+            resultMatrix[3],  // m[0,3]
+            resultMatrix[7],  // m[1,3]
+            resultMatrix[11]  // m[2,3]
+          ];
           
           // Update the rotation by adding the rotation angles
           if (newLabel.rotation) {
@@ -408,6 +503,8 @@ function rotate(inputGeometry, x, y, z, targetID = null) {
               newLabel.rotation[1] + y,
               newLabel.rotation[2] + z
             ];
+          } else {
+            newLabel.rotation = [x, y, z];
           }
           
           return newLabel;
@@ -430,6 +527,30 @@ function rotate(inputGeometry, x, y, z, targetID = null) {
       }
     }
   });
+}
+
+/**
+ * Multiply two 4x4 matrices represented as flat arrays
+ * @param {Array} a - First matrix as a flat array [a11, a12, a13, a14, a21, ...] (column-major)
+ * @param {Array} b - Second matrix as a flat array [b11, b12, b13, b14, b21, ...] (column-major)
+ * @returns {Array} - Resulting matrix as a flat array
+ */
+function multiplyMatrices(a, b) {
+  // Resulting matrix
+  const result = new Array(16).fill(0);
+  
+  // Matrix multiplication
+  for (let i = 0; i < 4; i++) {
+    for (let j = 0; j < 4; j++) {
+      for (let k = 0; k < 4; k++) {
+        // a[i,k] * b[k,j]
+        // In column-major format: a[i + k*4] * b[k + j*4]
+        result[i + j*4] += a[i + k*4] * b[k + j*4];
+      }
+    }
+  }
+  
+  return result;
 }
 
 function difference(targetID, input1ID, input2ID) {
@@ -531,12 +652,14 @@ function addLabel(targetID, inputID, labelObject) {
     
     let updatedLabels;
     if (existingLabelIndex >= 0) {
-      // Update existing label but preserve position and rotation from transformations
+      // Update existing label but preserve transformation matrix from previous transformations
       const existingLabel = labels[existingLabelIndex];
       const updatedLabel = {
         ...labelObject,
         atomID: targetID,
-        // Always preserve existing position and rotation to maintain transformations
+        // Always preserve existing transformation matrix to maintain transformations
+        transformMatrix: existingLabel.transformMatrix || labelObject.transformMatrix,
+        // Keep position and rotation for backward compatibility
         position: existingLabel.position,
         rotation: existingLabel.rotation
       };
@@ -544,8 +667,18 @@ function addLabel(targetID, inputID, labelObject) {
       updatedLabels = [...labels];
       updatedLabels[existingLabelIndex] = updatedLabel;
     } else {
-      // Add new label with atomID and provided position/rotation
+      // Add new label with atomID and provided transformMatrix/position/rotation
       labelObject.atomID = targetID;
+      // Ensure we have a transformation matrix, even for new labels
+      if (!labelObject.transformMatrix) {
+        // Default identity matrix
+        labelObject.transformMatrix = [
+          1, 0, 0, 0,
+          0, 1, 0, 0,
+          0, 0, 1, 0,
+          0, 0, 0, 1
+        ];
+      }
       updatedLabels = [...labels, labelObject];
     }
     

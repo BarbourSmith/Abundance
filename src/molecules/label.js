@@ -40,8 +40,19 @@ export default class Label extends Atom {
     /** Label properties */
     this.text = "Label";
     this.length = 10;
+    
+    // Keep position and rotation for backward compatibility
     this.position = [0, 0, 0];
     this.rotation = [0, 0, 0];
+    
+    // Add transformation matrix (stored as a flattened array)
+    // Identity matrix by default: [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]
+    this.transformMatrix = [
+      1, 0, 0, 0,
+      0, 1, 0, 0,
+      0, 0, 1, 0,
+      0, 0, 0, 1
+    ];
 
     this.setValues(values);
   }
@@ -160,10 +171,11 @@ export default class Label extends Atom {
         text: text,
         length: length,
         position: this.position,
-        rotation: this.rotation
+        rotation: this.rotation,
+        transformMatrix: this.transformMatrix
       };
 
-      // The worker will preserve existing position and rotation for transformed labels
+      // The worker will preserve existing position, rotation and transformation matrix for transformed labels
       GlobalVariables.cad
         .addLabel(this.uniqueID, inputID, labelObject)
         .then(() => {
@@ -182,6 +194,7 @@ export default class Label extends Atom {
     superSerialObject.length = this.length;
     superSerialObject.position = this.position;
     superSerialObject.rotation = this.rotation;
+    superSerialObject.transformMatrix = this.transformMatrix;
 
     return superSerialObject;
   }
