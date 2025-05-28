@@ -112,6 +112,7 @@ export default function (parent, data, index) {
   });
 
   on(a, "click", clickCallBack, data);
+  on(a, "touchend", clickCallBack, data);
   on(a, "mouseleave", function () {
     document.getElementById(data.icon + "text").remove();
   });
