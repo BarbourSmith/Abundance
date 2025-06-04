@@ -1741,6 +1741,66 @@ function getLargestBoundingBox(meshArray) {
   //return newBoundingBox;
 }
 
+/**
+ * Get stock dimensions for Kirimoto based on part geometry
+ * @param {string} inputID - The ID of the geometry to get dimensions for
+ * @returns {object} Stock dimensions with x, y, z and center properties
+ */
+function getStockDimensions(inputID) {
+  return started.then(() => {
+    try {
+      if (!library[inputID]) {
+        throw new Error(`Geometry with ID ${inputID} not found`);
+      }
+      
+      const geometry = library[inputID];
+      let meshArray = [];
+      
+      // Extract mesh data based on geometry structure
+      if (isAssembly(geometry)) {
+        meshArray = geometry.geometry.map(part => part);
+      } else if (geometry.geometry && geometry.geometry[0] && geometry.geometry[0].mesh) {
+        meshArray = [{ geometry: geometry.geometry[0] }];
+      } else {
+        throw new Error("No mesh data found in geometry");
+      }
+      
+      const boundingBox = getLargestBoundingBox(meshArray);
+      console.log("Calculated bounding box:", boundingBox);
+      
+      // Add padding to stock dimensions (20% padding, minimum 5mm)
+      const padding = 5; // mm
+      const stockX = Math.max(boundingBox.width + padding * 2, 10);
+      const stockY = Math.max(boundingBox.height + padding * 2, 10);  
+      const stockZ = Math.max(boundingBox.depth + padding * 2, 5);
+      
+      return {
+        x: stockX,
+        y: stockY,
+        z: stockZ,
+        center: {
+          x: 0,
+          y: 0,
+          z: stockZ / 2,
+        },
+      };
+    } catch (error) {
+      console.error("Error calculating stock dimensions:", error);
+      // Return default dimensions if calculation fails
+      return {
+        x: 30,
+        y: 30,
+        z: 15,
+        center: {
+          x: 0,
+          y: 0,
+          z: 7.5,
+        },
+      };
+    }
+  });
+}
+
 function calculateZoom(boundingBox) {
   try {
     // Given example bounding box and zoom level
@@ -1870,6 +1930,7 @@ expose({
   importingSTL,
   importingSVG,
   createMesh,
+  getStockDimensions,
   circle,
   color,
   code,

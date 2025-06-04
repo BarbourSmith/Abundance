@@ -39,6 +39,19 @@ const KiriMotoIntegration = ({ activeAtom }) => {
       // Convert blob to a temporary file URL
       const url = URL.createObjectURL(blob);
       setStlUrl(url);
+      
+      // Try to get bounding box information from the active atom's geometry
+      if (activeAtom && activeAtom.findIOValue) {
+        try {
+          const geometryID = activeAtom.findIOValue("geometry");
+          console.log("Geometry ID:", geometryID);
+          
+          // Set the geometry ID for later use in stock calculation
+          window.currentGeometryID = geometryID;
+        } catch (error) {
+          console.log("Could not get geometry ID:", error);
+        }
+      }
     };
 
     window.addEventListener("kirimotoBlobUpdated", handleBlobUpdate);
@@ -46,7 +59,7 @@ const KiriMotoIntegration = ({ activeAtom }) => {
     return () => {
       window.removeEventListener("kirimotoBlobUpdated", handleBlobUpdate);
     };
-  }, []);
+  }, [activeAtom]);
 
   const runKirimoto = () => {
     console.log("kiriEngine");
@@ -68,20 +81,61 @@ const KiriMotoIntegration = ({ activeAtom }) => {
       .load(stlUrl)
       .then((eng) => {
         console.log("Kiri:Moto STL loaded successfully");
+        console.log("Engine methods and properties:", Object.getOwnPropertyNames(eng));
+        console.log("Engine prototype methods:", Object.getOwnPropertyNames(Object.getPrototypeOf(eng)));
         return eng.setMode("CAM");
       })
-      .then((eng) =>
-        eng.setStock({
-          x: 30,
-          y: 30,
-          z: 15,
-          center: {
-            x: 0,
-            y: 0,
-            z: 7.5,
-          },
-        })
-      )
+      .then((eng) => {
+        // Try to get part dimensions
+        console.log("Getting part dimensions...");
+        
+        // Check if there are methods to get bounds or dimensions
+        if (typeof eng.getBounds === 'function') {
+          console.log("Part bounds:", eng.getBounds());
+        }
+        if (typeof eng.getPartBounds === 'function') {
+          console.log("Part bounds:", eng.getPartBounds());
+        }
+        if (typeof eng.getParts === 'function') {
+          console.log("Parts:", eng.getParts());
+        }
+        
+        // Calculate dynamic stock size using our worker function
+        if (window.currentGeometryID) {
+          return GlobalVariables.cad.getStockDimensions(window.currentGeometryID)
+            .then((stockDimensions) => {
+              console.log("Calculated stock dimensions:", stockDimensions);
+              return eng.setStock(stockDimensions);
+            })
+            .catch((error) => {
+              console.error("Error calculating stock dimensions:", error);
+              // Fallback to default dimensions
+              return eng.setStock({
+                x: 30,
+                y: 30,
+                z: 15,
+                center: {
+                  x: 0,
+                  y: 0,
+                  z: 7.5,
+                },
+              });
+            });
+        } else {
+          // Fallback to default dimensions if no geometry ID available
+          console.log("No geometry ID available, using default stock dimensions");
+          return eng.setStock({
+            x: 30,
+            y: 30,
+            z: 15,
+            center: {
+              x: 0,
+              y: 0,
+              z: 7.5,
+            },
+          });
+        }
+      })
       .then((eng) =>
         eng.setTools([
           {
