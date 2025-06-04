@@ -34,19 +34,17 @@ const KiriMotoIntegration = ({ activeAtom }) => {
   useEffect(() => {
     const handleBlobUpdate = (event) => {
       const { uniqueID, blob } = event.detail;
-      console.log("Blob updated:", uniqueID, blob);
+      console.log("Blob updated for Kirimoto processing");
 
       // Convert blob to a temporary file URL
       const url = URL.createObjectURL(blob);
       setStlUrl(url);
       
-      // Try to get bounding box information from the active atom's geometry
+      // Get geometry ID for stock calculation
       if (activeAtom && activeAtom.findIOValue) {
         try {
           const geometryID = activeAtom.findIOValue("geometry");
-          console.log("Geometry ID:", geometryID);
-          
-          // Set the geometry ID for later use in stock calculation
+          // Store geometry ID for use in stock calculation
           window.currentGeometryID = geometryID;
         } catch (error) {
           console.log("Could not get geometry ID:", error);
@@ -81,35 +79,22 @@ const KiriMotoIntegration = ({ activeAtom }) => {
       .load(stlUrl)
       .then((eng) => {
         console.log("Kiri:Moto STL loaded successfully");
-        console.log("Engine methods and properties:", Object.getOwnPropertyNames(eng));
-        console.log("Engine prototype methods:", Object.getOwnPropertyNames(Object.getPrototypeOf(eng)));
         return eng.setMode("CAM");
       })
       .then((eng) => {
-        // Try to get part dimensions
-        console.log("Getting part dimensions...");
-        
-        // Check if there are methods to get bounds or dimensions
-        if (typeof eng.getBounds === 'function') {
-          console.log("Part bounds:", eng.getBounds());
-        }
-        if (typeof eng.getPartBounds === 'function') {
-          console.log("Part bounds:", eng.getPartBounds());
-        }
-        if (typeof eng.getParts === 'function') {
-          console.log("Parts:", eng.getParts());
-        }
+        console.log("Calculating dynamic stock dimensions...");
         
         // Calculate dynamic stock size using our worker function
         if (window.currentGeometryID) {
           return GlobalVariables.cad.getStockDimensions(window.currentGeometryID)
             .then((stockDimensions) => {
-              console.log("Calculated stock dimensions:", stockDimensions);
+              console.log("Using calculated stock dimensions:", stockDimensions);
               return eng.setStock(stockDimensions);
             })
             .catch((error) => {
               console.error("Error calculating stock dimensions:", error);
               // Fallback to default dimensions
+              console.log("Using default stock dimensions");
               return eng.setStock({
                 x: 30,
                 y: 30,

@@ -1756,19 +1756,28 @@ function getStockDimensions(inputID) {
       const geometry = library[inputID];
       let meshArray = [];
       
-      // Extract mesh data based on geometry structure
-      if (isAssembly(geometry)) {
-        meshArray = geometry.geometry.map(part => part);
-      } else if (geometry.geometry && geometry.geometry[0] && geometry.geometry[0].mesh) {
-        meshArray = [{ geometry: geometry.geometry[0] }];
-      } else {
-        throw new Error("No mesh data found in geometry");
-      }
+      // Flatten the assembly to remove hierarchy (similar to generateDisplayMesh)
+      const flattened = flattenAssembly(geometry);
+      
+      flattened.forEach((displayObject) => {
+        var cleanedGeometry = [];
+        if (displayObject.geometry.mesh == undefined) {
+          let sketchPlane = geometry.plane;
+          let sketches = displayObject.geometry.clone();
+          cleanedGeometry = sketches.sketchOnPlane(sketchPlane).extrude(0.0001);
+        } else {
+          cleanedGeometry = displayObject.geometry;
+        }
+        meshArray.push({
+          color: displayObject.color,
+          geometry: cleanedGeometry,
+        });
+      });
       
       const boundingBox = getLargestBoundingBox(meshArray);
       console.log("Calculated bounding box:", boundingBox);
       
-      // Add padding to stock dimensions (20% padding, minimum 5mm)
+      // Add padding to stock dimensions (5mm padding)
       const padding = 5; // mm
       const stockX = Math.max(boundingBox.width + padding * 2, 10);
       const stockY = Math.max(boundingBox.height + padding * 2, 10);  
