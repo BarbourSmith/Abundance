@@ -89,12 +89,15 @@ const KiriMotoIntegration = ({ activeAtom }) => {
           return GlobalVariables.cad.getStockDimensions(window.currentGeometryID)
             .then((stockDimensions) => {
               console.log("Using calculated stock dimensions:", stockDimensions);
+              // Store part thickness for use in process configuration
+              window.currentPartThickness = stockDimensions.partThickness;
               return eng.setStock(stockDimensions);
             })
             .catch((error) => {
               console.error("Error calculating stock dimensions:", error);
               // Fallback to default dimensions
               console.log("Using default stock dimensions");
+              window.currentPartThickness = 5; // Default thickness for fallback
               return eng.setStock({
                 x: 30,
                 y: 30,
@@ -109,6 +112,7 @@ const KiriMotoIntegration = ({ activeAtom }) => {
         } else {
           // Fallback to default dimensions if no geometry ID available
           console.log("No geometry ID available, using default stock dimensions");
+          window.currentPartThickness = 5; // Default thickness for fallback
           return eng.setStock({
             x: 30,
             y: 30,
@@ -310,7 +314,7 @@ const KiriMotoIntegration = ({ activeAtom }) => {
           camZAnchor: "middle",
           camZOffset: 0,
           camZTop: 0,
-          camZBottom: 0,
+          camZBottom: -(window.currentPartThickness || 5), // Set to negative of part thickness
           camZClearance: 1,
           camZThru: 0,
           camFastFeed: 6000,

@@ -1792,6 +1792,7 @@ function getStockDimensions(inputID) {
           y: 0,
           z: stockZ / 2,
         },
+        partThickness: boundingBox.depth,
       };
     } catch (error) {
       console.error("Error calculating stock dimensions:", error);
@@ -1805,6 +1806,7 @@ function getStockDimensions(inputID) {
           y: 0,
           z: 7.5,
         },
+        partThickness: 5, // Default part thickness for fallback
       };
     }
   });
