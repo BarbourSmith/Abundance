@@ -68,6 +68,14 @@ const KiriMotoIntegration = ({ activeAtom }) => {
       .load(stlUrl)
       .then((eng) => {
         console.log("Kiri:Moto STL loaded successfully");
+        console.log("Engine:")
+        console.log(eng);
+        console.log(eng.widget.getBoundingBox());
+        const bounds = eng.widget.getBoundingBox();
+        const x = bounds.max.x - bounds.min.x;
+        const y = bounds.max.y - bounds.min.y;
+        const z = bounds.max.z - bounds.min.z;
+        console.log("Bounding Box:", { x, y, z });
         return eng.setMode("CAM");
       })
       .then((eng) =>
@@ -271,7 +279,7 @@ const KiriMotoIntegration = ({ activeAtom }) => {
           camZAnchor: "middle",
           camZOffset: 0,
           camZTop: 0,
-          camZBottom: 0,
+          camZBottom: -15,
           camZClearance: 1,
           camZThru: 0,
           camFastFeed: 6000,
