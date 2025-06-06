@@ -113,23 +113,18 @@ const KiriMotoIntegration = ({ activeAtom }) => {
           };
           
           console.log("Using calculated stock dimensions from bounding box:", stockDimensions);
-          // Store part thickness for use in process configuration
-          window.currentPartThickness = boundingBox.partThickness || boundingBox.depth;
           return eng.setStock(stockDimensions);
         } else if (window.currentGeometryID) {
           // Fallback: Calculate dynamic stock size using worker function if bounding box not available
           return GlobalVariables.cad.getStockDimensions(window.currentGeometryID)
             .then((stockDimensions) => {
               console.log("Using calculated stock dimensions from worker:", stockDimensions);
-              // Store part thickness for use in process configuration
-              window.currentPartThickness = stockDimensions.partThickness;
               return eng.setStock(stockDimensions);
             })
             .catch((error) => {
               console.error("Error calculating stock dimensions:", error);
               // Fallback to default dimensions
               console.log("Using default stock dimensions");
-              window.currentPartThickness = 5; // Default thickness for fallback
               return eng.setStock({
                 x: 30,
                 y: 30,
@@ -144,7 +139,6 @@ const KiriMotoIntegration = ({ activeAtom }) => {
         } else {
           // Fallback to default dimensions if no bounding box or geometry ID available
           console.log("No bounding box or geometry ID available, using default stock dimensions");
-          window.currentPartThickness = 5; // Default thickness for fallback
           return eng.setStock({
             x: 30,
             y: 30,
@@ -346,7 +340,7 @@ const KiriMotoIntegration = ({ activeAtom }) => {
           camZAnchor: "middle",
           camZOffset: 0,
           camZTop: 0,
-          camZBottom: -(window.currentPartThickness || 5), // Set to negative of part thickness
+          camZBottom: -(boundingBox?.partThickness || boundingBox?.depth || 5), // Set to negative of part thickness from current bounding box
           camZClearance: 1,
           camZThru: 0,
           camFastFeed: 6000,
