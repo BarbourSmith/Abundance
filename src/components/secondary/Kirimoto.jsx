@@ -5,6 +5,7 @@ import { saveAs } from "file-saver";
 const KiriMotoIntegration = ({ activeAtom }) => {
   const [kiriEngine, setKiriEngine] = useState(null);
   const [stlUrl, setStlUrl] = useState(null);
+  const [boundingBox, setBoundingBox] = useState(null); // State to store bounding box from event
 
   useEffect(() => {
     // Dynamically load the Kiri:Moto script
@@ -33,21 +34,27 @@ const KiriMotoIntegration = ({ activeAtom }) => {
 
   useEffect(() => {
     const handleBlobUpdate = (event) => {
-      const { uniqueID, blob } = event.detail;
+      const { uniqueID, blob, boundingBox } = event.detail; // Extract bounding box from event detail
       console.log("Blob updated for Kirimoto processing");
 
       // Convert blob to a temporary file URL
       const url = URL.createObjectURL(blob);
       setStlUrl(url);
       
-      // Get geometry ID for stock calculation
-      if (activeAtom && activeAtom.findIOValue) {
-        try {
-          const geometryID = activeAtom.findIOValue("geometry");
-          // Store geometry ID for use in stock calculation
-          window.currentGeometryID = geometryID;
-        } catch (error) {
-          console.log("Could not get geometry ID:", error);
+      // Store bounding box in React state if available
+      if (boundingBox) {
+        setBoundingBox(boundingBox);
+        console.log("Bounding box received from event:", boundingBox);
+      } else {
+        // Fallback: Get geometry ID for stock calculation if bounding box not available
+        if (activeAtom && activeAtom.findIOValue) {
+          try {
+            const geometryID = activeAtom.findIOValue("geometry");
+            // Store geometry ID for use in stock calculation
+            window.currentGeometryID = geometryID;
+          } catch (error) {
+            console.log("Could not get geometry ID:", error);
+          }
         }
       }
     };
@@ -82,13 +89,38 @@ const KiriMotoIntegration = ({ activeAtom }) => {
         return eng.setMode("CAM");
       })
       .then((eng) => {
-        console.log("Calculating dynamic stock dimensions...");
+        console.log("Configuring stock dimensions...");
         
-        // Calculate dynamic stock size using our worker function
-        if (window.currentGeometryID) {
+        // Use bounding box from state to configure stock size in Kiri:Moto engine
+        if (boundingBox) {
+          console.log("Using bounding box from event:", boundingBox);
+          
+          // Calculate stock dimensions with padding (5mm padding on all sides)
+          const padding = 5; // mm
+          const stockX = Math.max(boundingBox.width + padding * 2, 10);
+          const stockY = Math.max(boundingBox.height + padding * 2, 10);  
+          const stockZ = Math.max(boundingBox.depth + padding * 2, 5);
+          
+          const stockDimensions = {
+            x: stockX,
+            y: stockY,
+            z: stockZ,
+            center: {
+              x: 0,
+              y: 0,
+              z: stockZ / 2,
+            }
+          };
+          
+          console.log("Using calculated stock dimensions from bounding box:", stockDimensions);
+          // Store part thickness for use in process configuration
+          window.currentPartThickness = boundingBox.partThickness || boundingBox.depth;
+          return eng.setStock(stockDimensions);
+        } else if (window.currentGeometryID) {
+          // Fallback: Calculate dynamic stock size using worker function if bounding box not available
           return GlobalVariables.cad.getStockDimensions(window.currentGeometryID)
             .then((stockDimensions) => {
-              console.log("Using calculated stock dimensions:", stockDimensions);
+              console.log("Using calculated stock dimensions from worker:", stockDimensions);
               // Store part thickness for use in process configuration
               window.currentPartThickness = stockDimensions.partThickness;
               return eng.setStock(stockDimensions);
@@ -110,8 +142,8 @@ const KiriMotoIntegration = ({ activeAtom }) => {
               });
             });
         } else {
-          // Fallback to default dimensions if no geometry ID available
-          console.log("No geometry ID available, using default stock dimensions");
+          // Fallback to default dimensions if no bounding box or geometry ID available
+          console.log("No bounding box or geometry ID available, using default stock dimensions");
           window.currentPartThickness = 5; // Default thickness for fallback
           return eng.setStock({
             x: 30,

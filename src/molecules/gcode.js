@@ -94,15 +94,48 @@ export default class Gcode extends Atom {
       GlobalVariables.cad
         .visExport(this.uniqueID, inputID, "STL")
         .then((result) => {
+          // Calculate bounding box dimensions for the geometry
           GlobalVariables.cad
-            .downExport(this.uniqueID, "STL")
-            .then((result) => {
-              this.kirimotoBlobs[this.uniqueID] = result; // Store the blob with a unique ID to avoid overriding
-              // Dispatch a custom event to notify React components
-              const event = new CustomEvent("kirimotoBlobUpdated", {
-                detail: { uniqueID: this.uniqueID, blob: result },
-              });
-              window.dispatchEvent(event);
+            .getStockDimensions(inputID)
+            .then((stockDimensions) => {
+              // Extract bounding box information from stock dimensions
+              const boundingBox = {
+                width: stockDimensions.x - 10, // Remove padding (5mm * 2)
+                height: stockDimensions.y - 10, // Remove padding (5mm * 2)  
+                depth: stockDimensions.z - 10, // Remove padding (5mm * 2)
+                partThickness: stockDimensions.partThickness
+              };
+              
+              GlobalVariables.cad
+                .downExport(this.uniqueID, "STL")
+                .then((result) => {
+                  this.kirimotoBlobs[this.uniqueID] = result; // Store the blob with a unique ID to avoid overriding
+                  // Dispatch a custom event to notify React components with bounding box included
+                  const event = new CustomEvent("kirimotoBlobUpdated", {
+                    detail: { 
+                      uniqueID: this.uniqueID, 
+                      blob: result,
+                      boundingBox: boundingBox // Include bounding box in event detail
+                    },
+                  });
+                  window.dispatchEvent(event);
+                })
+                .catch((err) => {
+                  console.error("Error creating STL blob:", err);
+                });
+            })
+            .catch((err) => {
+              console.error("Error calculating bounding box:", err);
+              // Fallback: dispatch event without bounding box if calculation fails
+              GlobalVariables.cad
+                .downExport(this.uniqueID, "STL")
+                .then((result) => {
+                  this.kirimotoBlobs[this.uniqueID] = result;
+                  const event = new CustomEvent("kirimotoBlobUpdated", {
+                    detail: { uniqueID: this.uniqueID, blob: result },
+                  });
+                  window.dispatchEvent(event);
+                });
             });
         })
         .catch((err) => {
