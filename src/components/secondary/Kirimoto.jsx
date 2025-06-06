@@ -95,11 +95,11 @@ const KiriMotoIntegration = ({ activeAtom }) => {
         if (boundingBox) {
           console.log("Using bounding box from event:", boundingBox);
           
-          // Calculate stock dimensions with padding (5mm padding on all sides)
+          // Calculate stock dimensions with padding (5mm padding on X and Y, no padding on Z)
           const padding = 5; // mm
           const stockX = Math.max(boundingBox.width + padding * 2, 10);
           const stockY = Math.max(boundingBox.height + padding * 2, 10);  
-          const stockZ = Math.max(boundingBox.depth + padding * 2, 5);
+          const stockZ = Math.max(boundingBox.depth, 5);
           
           const stockDimensions = {
             x: stockX,
