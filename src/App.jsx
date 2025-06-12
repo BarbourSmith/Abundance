@@ -149,6 +149,7 @@ export default function ReplicadApp() {
     };
 
     GlobalVariables.cad = cad;
+    GlobalVariables.setActiveAtom = setActiveAtom;
   }, [activeAtom]);
 
   // Loads project

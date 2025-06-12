@@ -674,7 +674,9 @@ export default class Atom {
    * This updates the 3D view and leva side panel with any changes to the atom's state.
    */
   refresh() {
+    this.selected = true;
     this.sendToRender();
+    GlobalVariables.setActiveAtom(this);
   }
   
   /**

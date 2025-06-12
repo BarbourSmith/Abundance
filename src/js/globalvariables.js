@@ -435,6 +435,14 @@ class GlobalVariables {
   }
 
   /**
+   * A function which sets the active atom for the React UI
+   * @param {object} The atom to set as active
+   */
+  setActiveAtom(atom) {
+    console.log("Set active atom not set"); //This is a placeholder. It is created in App.jsx
+  }
+
+  /**
    * A function to generate a unique ID value.
    */
   generateUniqueID() {
