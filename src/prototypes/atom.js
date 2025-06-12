@@ -668,6 +668,15 @@ export default class Atom {
       this.setAlert(err);
     }
   }
+  
+  /**
+   * Refreshes the atom's display by re-triggering the same behavior as when the atom is clicked.
+   * This updates the 3D view and leva side panel with any changes to the atom's state.
+   */
+  refresh() {
+    this.sendToRender();
+  }
+  
   /**
    * Create Leva Menu Inputs - returns to ParameterEditor
    */
