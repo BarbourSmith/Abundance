@@ -1486,7 +1486,7 @@ function cutAssembly(partToCut, cuttingParts, assemblyID) {
       let assemblyCut = [];
       assemblyToCut.forEach((part) => {
         // make new assembly from cut parts
-        assemblyCut.push(cutAssembly(part, cuttingParts, assemblyID));
+        assemblyCut.push(cutAssembly(toGeometry(part), cuttingParts, assemblyID));
       });
 
       let subID = generateUniqueID();
@@ -1584,11 +1584,7 @@ function recursiveCut(partToCut, cuttingPart) {
       return cutGeometry;
     } else {
       //If the shapes don't overlap, we don't need to cut them
-      if(partToCut.boundingBox && 
-         cuttingPart.geometry[0].boundingBox &&
-         partToCut.boundingBox.isOut &&
-         typeof partToCut.boundingBox.isOut === 'function' &&
-         partToCut.boundingBox.isOut(cuttingPart.geometry[0].boundingBox)){
+      if(partToCut.boundingBox.isOut(cuttingPart.geometry[0].boundingBox)){
         return partToCut;
       }
       // cut and return part
