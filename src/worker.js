@@ -1584,7 +1584,11 @@ function recursiveCut(partToCut, cuttingPart) {
       return cutGeometry;
     } else {
       //If the shapes don't overlap, we don't need to cut them
-      if(partToCut.boundingBox.isOut(cuttingPart.geometry[0].boundingBox)){
+      if(partToCut.boundingBox && 
+         cuttingPart.geometry[0].boundingBox &&
+         partToCut.boundingBox.isOut &&
+         typeof partToCut.boundingBox.isOut === 'function' &&
+         partToCut.boundingBox.isOut(cuttingPart.geometry[0].boundingBox)){
         return partToCut;
       }
       // cut and return part
