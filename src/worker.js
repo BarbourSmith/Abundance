@@ -71,6 +71,11 @@ function deleteFromLibrary(inputID) {
   });
 }
 
+/**
+ * Creates a mesh with the specified thickness.
+ * @param {number} thickness - The thickness value for the mesh
+ * @returns {Promise<Array>} A promise that resolves to an empty array representing mesh data structure
+ */
 function createMesh(thickness) {
   return started.then(() => {
     // This is how you get the data structure that the replica-three-helper
@@ -79,6 +84,12 @@ function createMesh(thickness) {
   });
 }
 
+/**
+ * Creates a circle geometry with the specified diameter and stores it in the library.
+ * @param {string} id - The unique identifier to store the circle geometry in the library
+ * @param {number} diameter - The diameter of the circle
+ * @returns {Promise<boolean>} A promise that resolves to true when the circle is created successfully
+ */
 function circle(id, diameter) {
   return started.then(() => {
     const newPlane = new Plane().pivot(0, "Y");
@@ -93,6 +104,13 @@ function circle(id, diameter) {
   });
 }
 
+/**
+ * Creates a rectangle geometry with the specified dimensions and stores it in the library.
+ * @param {string} id - The unique identifier to store the rectangle geometry in the library
+ * @param {number} x - The width of the rectangle
+ * @param {number} y - The height of the rectangle
+ * @returns {Promise<boolean>} A promise that resolves to true when the rectangle is created successfully
+ */
 function rectangle(id, x, y) {
   return started.then(() => {
     const newPlane = new Plane().pivot(0, "Y");
@@ -107,6 +125,13 @@ function rectangle(id, x, y) {
   });
 }
 
+/**
+ * Creates a regular polygon geometry with the specified radius and number of sides, and stores it in the library.
+ * @param {string} id - The unique identifier to store the polygon geometry in the library
+ * @param {number} radius - The radius of the polygon (distance from center to vertex)
+ * @param {number} numberOfSides - The number of sides of the polygon
+ * @returns {Promise<boolean>} A promise that resolves to true when the polygon is created successfully
+ */
 function regularPolygon(id, radius, numberOfSides) {
   return started.then(() => {
     const newPlane = new Plane().pivot(0, "Y");
@@ -120,6 +145,15 @@ function regularPolygon(id, radius, numberOfSides) {
     return true;
   });
 }
+/**
+ * Creates text geometry with the specified text, font size, and font family, and stores it in the library.
+ * @param {string} id - The unique identifier to store the text geometry in the library
+ * @param {string} text - The text content to be rendered
+ * @param {number} fontSize - The size of the font
+ * @param {string} fontFamily - The font family to use for rendering the text
+ * @returns {Promise<boolean>} A promise that resolves to true when the text is created successfully
+ * @throws {Error} Throws an error if the font fails to load
+ */
 async function text(id, text, fontSize, fontFamily) {
   await replicad
     .loadFont(Fonts[fontFamily])
@@ -149,6 +183,13 @@ async function text(id, text, fontSize, fontFamily) {
     });
 }
 
+/**
+ * Creates a loft shape by blending between multiple 2D sketches and stores it in the library.
+ * @param {string} targetID - The unique identifier to store the lofted geometry in the library
+ * @param {string[]} inputsIDs - Array of library IDs containing 2D sketches to be lofted
+ * @returns {Promise<boolean>} A promise that resolves to true when the loft is created successfully
+ * @throws {Error} Throws an error if input parts are not sketches or contain interior geometries
+ */
 function loftShapes(targetID, inputsIDs) {
   return started.then(() => {
     let arrayOfSketchedGeometry = [];
@@ -179,6 +220,13 @@ function loftShapes(targetID, inputsIDs) {
   });
 }
 
+/**
+ * Extrudes a 2D sketch to create a 3D geometry with the specified height and stores it in the library.
+ * @param {string} targetID - The unique identifier to store the extruded geometry in the library
+ * @param {string} inputID - The library ID of the 2D sketch to be extruded
+ * @param {number} height - The height to extrude the sketch
+ * @returns {Promise<boolean>} A promise that resolves to true when the extrusion is completed successfully
+ */
 function extrude(targetID, inputID, height) {
   return started.then(() => {
     library[targetID] = actOnLeafs(library[inputID], (leaf) => {
@@ -196,7 +244,11 @@ function extrude(targetID, inputID, height) {
   });
 }
 
-/* function to check if shape has mesh*/
+/**
+ * Checks if the input geometry is 3D (has a mesh) or 2D (sketch).
+ * @param {Object} inputs - The geometry object to check
+ * @returns {boolean} True if the geometry is 3D, false if it's a 2D sketch
+ */
 function is3D(inputs) {
   // if it's an assembly assume it's 3d since our assemblies don't work for drawings right now
   if (isAssembly(inputs)) {
@@ -208,6 +260,15 @@ function is3D(inputs) {
   }
 }
 
+/**
+ * Moves a geometry by the specified x, y, and z distances.
+ * @param {string} inputID - The library ID of the geometry to move
+ * @param {number} x - The distance to move along the x-axis
+ * @param {number} y - The distance to move along the y-axis
+ * @param {number} z - The distance to move along the z-axis
+ * @param {string|null} targetID - The ID to store the result in the library. If null, the result is returned
+ * @returns {Promise<boolean|Object>} A promise that resolves to true if targetID is provided, or the moved geometry if targetID is null
+ */
 function move(inputID, x, y, z, targetID = null) {
   return started.then(() => {
     if (is3D(library[inputID])) {
@@ -349,6 +410,13 @@ function difference(targetID, input1ID, input2ID) {
   });
 }
 
+/**
+ * Creates a shrink-wrapped boundary around multiple 2D sketches and stores it in the library.
+ * @param {string} targetID - The unique identifier to store the shrink-wrapped geometry in the library
+ * @param {string[]} inputIDs - Array of library IDs containing 2D sketches to be shrink-wrapped
+ * @returns {Promise<boolean>} A promise that resolves to true when the shrink wrapping is completed successfully
+ * @throws {Error} Throws an error if inputs are not all sketches or if sketches have interior geometries
+ */
 function shrinkWrapSketches(targetID, inputIDs) {
   return started.then(() => {
     let BOM = [];
@@ -380,6 +448,13 @@ function shrinkWrapSketches(targetID, inputIDs) {
   });
 }
 
+/**
+ * Performs a boolean intersection operation between two geometries.
+ * @param {string} input1ID - The ID of the first geometry or the geometry object itself
+ * @param {string} input2ID - The ID of the second geometry or the geometry object itself
+ * @param {string|null} targetID - The ID to store the result in the library. If null, the result is returned
+ * @returns {Promise<boolean|Object>} A promise that resolves to true if targetID is provided, or the intersected geometry if targetID is null
+ */
 function intersect(input1ID, input2ID, targetID = null) {
   let inputGeometry1 = toGeometry(input1ID);
   let inputGeometry2 = toGeometry(input2ID);
@@ -403,6 +478,13 @@ function intersect(input1ID, input2ID, targetID = null) {
   });
 }
 
+/**
+ * Adds tags to a geometry and stores the tagged geometry in the library.
+ * @param {string} targetID - The unique identifier to store the tagged geometry in the library
+ * @param {string} inputID - The library ID of the geometry to tag
+ * @param {string[]} TAG - Array of tags to add to the geometry
+ * @returns {Promise<boolean>} A promise that resolves to true when the tagging is completed successfully
+ */
 function tag(targetID, inputID, TAG) {
   return started.then(() => {
     library[targetID] = {
@@ -416,6 +498,13 @@ function tag(targetID, inputID, TAG) {
   });
 }
 
+/**
+ * Extracts and returns all tags from a geometry and its subassemblies.
+ * @param {string} inputID - The library ID of the geometry to extract tags from
+ * @param {string} tag - Currently unused parameter (kept for compatibility)
+ * @returns {Promise<string[]>} A promise that resolves to an array of all unique tags, with "Select Tag" as the first element
+ * @throws {Error} Throws an error if the geometry with the specified ID is not found in the library
+ */
 function extractAllTags(inputID, tag) {
   return started.then(() => {
     // Recursive helper function to collect tags
@@ -504,7 +593,14 @@ async function Intersect(input1, input2) {
   }
 }
 
-// Runs the user entered code in the worker thread and returns the result.
+/**
+ * Executes user-provided code in the worker thread with access to predefined geometry functions.
+ * @param {string} targetID - The unique identifier to store the code execution result in the library
+ * @param {string} code - The JavaScript code string to execute
+ * @param {Object} argumentsArray - Object containing key-value pairs of additional variables to make available to the code
+ * @returns {Promise<boolean|number>} A promise that resolves to the result value if it's a number, or true otherwise
+ * @note Uses eval() for code execution - consider security implications in production environments
+ */
 async function code(targetID, code, argumentsArray) {
   await started;
   let keys1 = ["Rotate", "Move", "Assembly", "Intersect"];
@@ -534,6 +630,14 @@ async function code(targetID, code, argumentsArray) {
   }
 }
 
+/**
+ * Applies a color to a geometry and stores the colored geometry in the library.
+ * @param {string} targetID - The unique identifier to store the colored geometry in the library
+ * @param {string} inputID - The library ID of the geometry to color
+ * @param {string} color - The color to apply to the geometry (hex color code)
+ * @returns {Promise} A promise that resolves when the coloring operation is completed
+ * @note If the color is "#D9544D", a "keepout" tag is automatically added to the geometry
+ */
 function color(targetID, inputID, color) {
   return started.then(() => {
     library[targetID] = actOnLeafs(library[inputID], (leaf) => {
@@ -552,6 +656,13 @@ function color(targetID, inputID, color) {
   });
 }
 
+/**
+ * Adds a Bill of Materials (BOM) entry to a geometry and stores it in the library.
+ * @param {string} targetID - The unique identifier to store the geometry with BOM in the library
+ * @param {string} inputID - The library ID of the geometry to add BOM entry to
+ * @param {Object} BOM - The BOM entry to add to the geometry
+ * @returns {Promise<boolean>} A promise that resolves to true when the BOM addition is completed successfully
+ */
 function bom(targetID, inputID, BOM) {
   return started.then(() => {
     if (library[inputID].bom != []) {
@@ -567,6 +678,14 @@ function bom(targetID, inputID, BOM) {
   });
 }
 
+/**
+ * Extracts geometry with a specific tag and stores it in the library.
+ * @param {string} targetID - The unique identifier to store the extracted geometry in the library
+ * @param {string} inputID - The library ID of the geometry to extract from
+ * @param {string} TAG - The specific tag to search for and extract
+ * @returns {Promise<boolean>} A promise that resolves to true when the extraction is completed successfully
+ * @throws {Error} Throws an error if the specified tag is not found in the geometry
+ */
 function extractTag(targetID, inputID, TAG) {
   return started.then(() => {
     let taggedGeometry = extractTags(library[inputID], TAG);
@@ -584,6 +703,13 @@ function extractTag(targetID, inputID, TAG) {
   });
 }
 
+/**
+ * Copies a geometry from one library location to another, typically used for output connections.
+ * @param {string} targetID - The unique identifier to store the output geometry in the library
+ * @param {string} inputID - The library ID of the geometry to output
+ * @returns {Promise<boolean>} A promise that resolves to true when the output operation is completed successfully
+ * @throws {Error} Throws an error if nothing is connected to the output (inputID is undefined)
+ */
 function output(targetID, inputID) {
   return started.then(() => {
     if (library[inputID] != undefined) {
@@ -596,6 +722,13 @@ function output(targetID, inputID) {
   });
 }
 
+/**
+ * Copies a geometry from one library location to another, typically used for molecule connections.
+ * @param {string} targetID - The unique identifier to store the molecule geometry in the library
+ * @param {string} inputID - The library ID of the geometry to copy for the molecule
+ * @returns {Promise<boolean>} A promise that resolves to true when the molecule operation is completed successfully
+ * @throws {Error} Throws an error if the output ID is undefined
+ */
 function molecule(targetID, inputID) {
   return started.then(() => {
     if (library[inputID] != undefined) {
@@ -607,7 +740,11 @@ function molecule(targetID, inputID) {
   });
 }
 
-/** Function that extracts geometry with BOM tags and returns bomItems*/
+/**
+ * Extracts the Bill of Materials (BOM) list from a geometry.
+ * @param {string} inputID - The library ID of the geometry to extract BOM from
+ * @returns {Array|boolean} The BOM array if it exists, or false if BOM is undefined
+ */
 function extractBomList(inputID) {
   if (library[inputID].bom !== undefined) {
     return library[inputID].bom;
@@ -616,7 +753,13 @@ function extractBomList(inputID) {
   }
 }
 
-/** Visualize STL or STEP*/
+/**
+ * Prepares geometry for visualization export in various file formats (STL, STEP, SVG).
+ * @param {string} targetID - The unique identifier to store the prepared export geometry in the library
+ * @param {string} inputID - The library ID of the geometry to prepare for export
+ * @param {string} fileType - The file type for export ("STL", "STEP", or "SVG")
+ * @returns {Promise<boolean>} A promise that resolves to true when the export preparation is completed successfully
+ */
 function visExport(targetID, inputID, fileType) {
   return started.then(() => {
     let geometryToExport = extractKeepOut(library[inputID]);
@@ -649,7 +792,14 @@ function visExport(targetID, inputID, fileType) {
   });
 }
 
-/** down STL*/
+/**
+ * Exports geometry to downloadable file formats (STL, STEP, SVG).
+ * @param {string} ID - The library ID of the geometry to export
+ * @param {string} fileType - The file type for export ("STL", "STEP", or "SVG")
+ * @param {number} svgResolution - The resolution for SVG export
+ * @param {string} units - The units for scaling ("Inches", "MM", or other)
+ * @returns {Promise<Blob>} A promise that resolves to a Blob containing the exported file data
+ */
 function downExport(ID, fileType, svgResolution, units) {
   return started.then(() => {
     let scaleUnit = units == "Inches" ? 1 : units == "MM" ? 25.4 : 1;
@@ -667,6 +817,12 @@ function downExport(ID, fileType, svgResolution, units) {
   });
 }
 
+/**
+ * Imports a STEP file and stores the resulting geometry in the library.
+ * @param {string} targetID - The unique identifier to store the imported geometry in the library
+ * @param {File} file - The STEP file to import
+ * @returns {Promise<boolean>} A promise that resolves to true when the import is completed successfully
+ */
 async function importingSTEP(targetID, file) {
   let STEPresult = await replicad.importSTEP(file);
 
@@ -679,6 +835,12 @@ async function importingSTEP(targetID, file) {
   return true;
 }
 
+/**
+ * Imports an STL file and stores the resulting geometry in the library.
+ * @param {string} targetID - The unique identifier to store the imported geometry in the library
+ * @param {File} file - The STL file to import
+ * @returns {Promise<boolean>} A promise that resolves to true when the import is completed successfully
+ */
 async function importingSTL(targetID, file) {
   let STLresult = await replicad.importSTL(file);
 
@@ -691,6 +853,14 @@ async function importingSTL(targetID, file) {
   return true;
 }
 
+/**
+ * Imports an SVG file and creates 2D geometry, then stores it in the library.
+ * @param {string} targetID - The unique identifier to store the imported SVG geometry in the library
+ * @param {string} svg - The SVG content as a string
+ * @param {number} width - The width to scale the SVG to
+ * @returns {Promise<boolean>} A promise that resolves to true when the import is completed successfully
+ * @throws {Error} Throws an error if the SVG import fails
+ */
 async function importingSVG(targetID, svg, width) {
   const baseWidth = width + width * 0.05;
   const baseShape = replicad
@@ -728,7 +898,12 @@ async function importingSVG(targetID, svg, width) {
   }
 }
 
-//Visualize Gcode
+/**
+ * Visualizes G-code by parsing movement commands and creating 3D wire geometry.
+ * @param {string} targetID - The unique identifier to store the visualized G-code geometry in the library
+ * @param {string} gcode - The G-code string to visualize
+ * @returns {void} This function does not return a value, it directly stores the result in the library
+ */
 function visualizeGcode(targetID, gcode) {
   let currentPosition = [0, 0, 0];
   let edges = [];
@@ -764,6 +939,11 @@ function visualizeGcode(targetID, gcode) {
   };
 }
 
+/**
+ * Creates a pretty projection of a 3D shape for thumbnail generation.
+ * @param {Object} shape - The 3D shape to create a projection from
+ * @returns {Object} An object containing visible and hidden projection lines
+ */
 const prettyProjection = (shape) => {
   const bbox = shape.boundingBox;
   const center = bbox.center;
@@ -778,6 +958,12 @@ const prettyProjection = (shape) => {
   return { visible, hidden };
 };
 
+/**
+ * Generates an SVG thumbnail representation of a geometry.
+ * @param {string} inputID - The library ID of the geometry to generate a thumbnail for
+ * @returns {Promise<string>} A promise that resolves to an SVG string representing the thumbnail
+ * @throws {Error} Throws an error if the geometry is undefined or thumbnail generation fails
+ */
 function generateThumbnail(inputID) {
   return started.then(() => {
     if (library[inputID] != undefined) {
@@ -803,6 +989,12 @@ function generateThumbnail(inputID) {
   });
 }
 
+/**
+ * Recursively extracts geometry with a specific tag from an assembly or single geometry.
+ * @param {Object} inputGeometry - The geometry object to search for the tag
+ * @param {string} TAG - The tag to search for and extract
+ * @returns {Object|boolean} The geometry containing the tag, or false if the tag is not found
+ */
 function extractTags(inputGeometry, TAG) {
   if (inputGeometry.tags.includes(TAG)) {
     return inputGeometry;
@@ -831,6 +1023,11 @@ function extractTags(inputGeometry, TAG) {
   }
 }
 
+/**
+ * Recursively extracts geometry that does NOT have "keepout" tags from an assembly or single geometry.
+ * @param {Object} inputGeometry - The geometry object to filter keepout tags from
+ * @returns {Object|boolean} The geometry without keepout tags, or false if all geometry has keepout tags
+ */
 function extractKeepOut(inputGeometry) {
   if (inputGeometry.tags.includes("keepout")) {
     return false;
@@ -1191,8 +1388,12 @@ function applyLayout(targetID, inputID, positions, layoutConfig) {
   });
 }
 
-// where shape is a list of {x: x, y: y} points
-// returns a Float64Array of the points as [x1, y1, x2, y2, ...]
+/**
+ * Converts a shape array of {x, y} points to a Float64Array format for polygon packing.
+ * @param {Array} shape - Array of point objects with x and y properties
+ * @returns {Float64Array} Float64Array containing points as [x1, y1, x2, y2, ...] with the polygon closed
+ * @throws {Error} Throws an error if any points contain NaN values
+ */
 function asFloat64(shape) {
   const points = new Float64Array(shape.length * 2 + 2);
   let i = 0;
@@ -1338,8 +1539,13 @@ function translatePlacements(placement, placedParts, partCount) {
   return result;
 }
 
-// from the mesh format of [x1, y1, z1, x2, y2, z2, ...] to FloatPolygon friendly format of
-// [{x: x1, y: y1}, {x: x2, y: y2}...]
+/**
+ * Converts mesh edge data to a polygon-friendly format with proper winding order.
+ * @param {Object} mesh - The mesh object containing edge groups and line data
+ * @param {number} tolerance - The tolerance for determining if points are equal
+ * @returns {Array} Array of {x, y} points in proper winding order
+ * @throws {Error} Throws an error if geometry has inconsistent edge continuations
+ */
 function preparePoints(mesh, tolerance) {
   // Unfortunately the "edges" of this mesh aren't always in sequential order. Here we re-sort them so we can
   // provide them in a winding order, ie, starting at one point and winding around the perimeter of the shape.
@@ -1411,6 +1617,12 @@ function preparePoints(mesh, tolerance) {
   return result;
 }
 
+/**
+ * Moves a face to the cutting plane by rotating and translating the geometry.
+ * @param {Object} geom - The geometry to transform
+ * @param {Object} face - The face to align with the cutting plane
+ * @returns {Object} The transformed geometry with the face aligned to the XY cutting plane
+ */
 function moveFaceToCuttingPlane(geom, face) {
   let pointOnSurface = face.pointOnSurface(0, 0);
   let faceNormal = face.normalAt();
@@ -1446,11 +1658,20 @@ function moveFaceToCuttingPlane(geom, face) {
     .translate(0, 0, -1 * pointOnSurface.z);
 }
 
+/**
+ * Calculates an approximate area from UV bounds.
+ * @param {Object} bounds - The bounds object containing uMin, uMax, vMin, vMax properties
+ * @returns {number} The approximate area calculated from the bounds
+ */
 function areaApprox(bounds) {
   return (bounds.uMax - bounds.uMin) * (bounds.vMax - bounds.vMin);
 }
 
-// Checks if part is an assembly)
+/**
+ * Checks if a part is an assembly (contains sub-geometries) or a single part.
+ * @param {Object} part - The part object to check
+ * @returns {boolean} True if the part is an assembly, false if it's a single part
+ */
 function isAssembly(part) {
   if (part.geometry.length > 0) {
     if (part.geometry[0].geometry) {
@@ -1656,6 +1877,13 @@ async function assembly(inputIDs, targetID = null) {
   return true;
 }
 
+/**
+ * Performs a boolean fusion (union) operation on multiple geometries and stores the result in the library.
+ * @param {string} targetID - The unique identifier to store the fused geometry in the library
+ * @param {string[]} inputIDs - Array of library IDs containing geometries to be fused together
+ * @returns {Promise<boolean>} A promise that resolves to true when the fusion is completed successfully
+ * @throws {Error} Throws an error if inputs are mixed between 2D and 3D geometries
+ */
 function fusion(targetID, inputIDs) {
   return started.then(() => {
     let fusedGeometry = [];
@@ -1686,8 +1914,13 @@ function fusion(targetID, inputIDs) {
   });
 }
 
-//Action is a function which takes in a leaf and returns a new leaf which has had the action applied to it
-// The action may return 'undefined' to cause the leaf to be removed from the result.
+/**
+ * Recursively applies an action function to all leaf geometries in an assembly tree.
+ * @param {Object} assembly - The assembly or leaf geometry to process
+ * @param {Function} action - The function to apply to each leaf geometry. Should return the transformed leaf or undefined to remove it
+ * @param {Object} plane - Optional plane to use for the resulting assembly
+ * @returns {Object} The transformed assembly with the action applied to all leaves
+ */
 function actOnLeafs(assembly, action, plane) {
   plane = plane || assembly.plane;
   //This is a leaf
@@ -1715,6 +1948,11 @@ function actOnLeafs(assembly, action, plane) {
   }
 }
 
+/**
+ * Recursively flattens an assembly tree into a flat array of geometry objects with colors.
+ * @param {Object} assembly - The assembly to flatten
+ * @returns {Array} An array of objects containing geometry and color properties
+ */
 function flattenAssembly(assembly) {
   var flattened = [];
   //This is a leaf
@@ -1734,6 +1972,12 @@ function flattenAssembly(assembly) {
   }
 }
 
+/**
+ * Performs a chain fusion operation on an array of geometries.
+ * @param {Array} chain - Array of geometry objects to fuse together sequentially
+ * @returns {Object} The resulting fused geometry
+ * @throws {Error} Throws an error if the fusion operation fails
+ */
 function chainFuse(chain) {
   try {
     let fused = chain[0].clone();
@@ -1746,6 +1990,11 @@ function chainFuse(chain) {
   }
 }
 
+/**
+ * Recursively digs through an assembly and fuses all leaf geometries into a single geometry.
+ * @param {Object} assembly - The assembly or leaf geometry to process
+ * @returns {Object} A single fused geometry combining all leaves in the assembly
+ */
 function digFuse(assembly) {
   var flattened = [];
 
@@ -1791,11 +2040,20 @@ let colorOptions = {
   White: "#FFFCF7",
   "Keep Out": "#E0E0E0",
 };
+/**
+ * Generates a default mesh for display when no output is available.
+ * @param {string} id - The unique identifier to store the default mesh in the library
+ * @returns {Promise} A promise that resolves to the default text mesh
+ */
 async function generateDefaultMesh(id) {
   let defaultMesh = await text(id, "No output to display", 28, "ROBOTO");
   return defaultMesh;
 }
 
+/**
+ * Resets the view by returning an empty array.
+ * @returns {Promise<Array>} A promise that resolves to an empty array
+ */
 function resetView() {
   return started.then(() => {
     return [];
