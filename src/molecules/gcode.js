@@ -93,6 +93,23 @@ export default class Gcode extends Atom {
   }
 
   /**
+   * Generate Gcode manually (used by button in create mode)
+   */
+  generateGcodeManually() {
+    generateKirimoto(this.stlURL, this.center, this.findIOValue("Tool Size"), this.findIOValue("Passes"), this.findIOValue("Speed"), this.findIOValue("Cut Through"), this.gcodeCallback);
+  }
+
+  /**
+   * Generate Gcode automatically (used in run mode)
+   */
+  generateGcodeAutomatically() {
+    // Only generate if we have the necessary data
+    if (this.stlURL && this.center && this.gcodeCallback) {
+      generateKirimoto(this.stlURL, this.center, this.findIOValue("Tool Size"), this.findIOValue("Passes"), this.findIOValue("Speed"), this.findIOValue("Cut Through"), this.gcodeCallback);
+    }
+  }
+
+  /**
    * Generate a layered outline of the part where the tool will cut
    */
   updateValue() {
@@ -114,6 +131,11 @@ export default class Gcode extends Atom {
                   (bounds.max[1] + bounds.min[1]) / 2,
                   (bounds.max[2] + bounds.min[2]) / 2,
                 ];
+                
+                // Automatically generate Gcode in run mode
+                if (this.isInRunMode) {
+                  this.generateGcodeAutomatically();
+                }
               });
             });
         })
@@ -126,8 +148,11 @@ export default class Gcode extends Atom {
 
   }
 
-  createLevaInputs() {
+  createLevaInputs(setInputChanged, inputChanged, run) {
     let inputParams = {};
+
+    // Store run mode state for use in updateValue
+    this.isInRunMode = run;
 
     /** Runs through active atom inputs and adds IO parameters to default param*/
     if (this.inputs) {
@@ -160,7 +185,13 @@ export default class Gcode extends Atom {
       this.sendToRender();
     };
 
-    inputParams["Generate Gcode"] = button(() => generateKirimoto(this.stlURL, this.center, this.findIOValue("Tool Size"), this.findIOValue("Passes"), this.findIOValue("Speed"), this.findIOValue("Cut Through"), gcodeCallback), {});
+    // Store callback for use in updateValue when in run mode
+    this.gcodeCallback = gcodeCallback;
+
+    // Only show the Generate Gcode button in create mode (not in run mode)
+    if (!run) {
+      inputParams["Generate Gcode"] = button(() => this.generateGcodeManually(), {});
+    }
 
     inputParams["Download Gcode"] = button(() => {
       if (this.gcodeGenerated && this.gcodeString) {

@@ -129,7 +129,7 @@ export default class Color extends Atom {
   /**
    * Create Leva Menu Inputs - returns to ParameterEditor
    */
-  createLevaInputs() {
+  createLevaInputs(setInputChanged, inputChanged, run) {
     let inputParams = {};
     /** Runs through active atom inputs and adds IO parameters to default param*/
     if (this.inputs) {

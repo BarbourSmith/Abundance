@@ -146,7 +146,7 @@ export default class Equation extends Atom {
   /**
    * Create Leva Menu Inputs - returns to ParameterEditor
    */
-  createLevaInputs(setInputChanged) {
+  createLevaInputs(setInputChanged, inputChanged, run) {
     // recreate inputs
     let inputParams = {};
     /** Runs through active atom inputs and adds IO parameters to default param*/

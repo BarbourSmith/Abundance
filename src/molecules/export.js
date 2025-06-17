@@ -98,7 +98,7 @@ export default class Export extends Atom {
     }
   }
 
-  createLevaInputs() {
+  createLevaInputs(setInputChanged, inputChanged, run) {
     let inputParams = {};
     const exportOptions = ["STL", "SVG", "STEP"];
 

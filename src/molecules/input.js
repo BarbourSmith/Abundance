@@ -209,7 +209,7 @@ export default class Input extends Atom {
   /**
    * Create Leva Menu Inputs for Editable Input Names - returns to ParameterEditor
    */
-  createLevaInputs() {
+  createLevaInputs(setInputChanged, inputChanged, run) {
     let inputNames = {};
     inputNames[this.uniqueID] = {
       value: this.name,

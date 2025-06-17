@@ -167,7 +167,7 @@ export default class Molecule extends Atom {
   /**
    * Create Leva Menu Input - returns to ParameterEditor
    */
-  createLevaInputs() {
+  createLevaInputs(setInputChanged, inputChanged, run) {
     let inputParams = {};
     inputParams["molecule name" + this.uniqueID] = {
       value: this.topLevel ? GlobalVariables.currentRepoName : this.name,

@@ -90,7 +90,7 @@ export default class Readme extends Atom {
   /**
    * Creates the Leva input for this atom
    */
-  createLevaInputs() {
+  createLevaInputs(setInputChanged, inputChanged, run) {
     let inputParams = {};
 
     inputParams[this.name + this.uniqueID] = {

@@ -164,7 +164,8 @@ export default class CutLayout extends Atom {
     this.placements = placements;
     this.basicThreadValueProcessing();
     this.updateValue();
-    this.createLevaInputs();
+    // Note: createLevaInputs is called elsewhere in the UI update cycle
+    // this.createLevaInputs();
   }
 
   /**
@@ -268,13 +269,13 @@ export default class CutLayout extends Atom {
   /**
    * Add the "Compute Layout" button to the leva inputs.
    */
-  createLevaInputs() {
+  createLevaInputs(setInputChanged, inputChanged, run) {
       // if positions isn't a list of lists, nest it so that it is. Required for back-compatibility
       if (this.placements != undefined && this.placements.length > 0 && !Array.isArray(this.placements[0])) {
         this.placements = [this.placements];
       }
 
-      let inputParams = super.createLevaInputs();
+      let inputParams = super.createLevaInputs(setInputChanged, inputChanged, run);
   
       inputParams["Compute Layout"] = button(() => {
           this.updateValueButton();
