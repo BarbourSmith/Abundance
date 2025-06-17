@@ -217,6 +217,11 @@ class GlobalVariables {
      */
     this.cad = null; //Set in flowCanvas
     /**
+     * A flag to indicate if the program is currently in run mode (true) or create mode (false).
+     * @type {boolean}
+     */
+    this.runmode = false;
+    /**
      * A total of the number of atoms in this project
      * @type {integer}
      */

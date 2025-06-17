@@ -62,7 +62,7 @@ export default class Rotate extends Atom {
   /**
    * Create Leva Menu Inputs - returns to ParameterEditor
    */
-  createLevaInputs(setInputChanged, inputChanged, run) {
+  createLevaInputs() {
     let inputParams = {};
 
     /** Runs through active atom inputs and adds IO parameters to default param*/

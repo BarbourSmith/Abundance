@@ -95,7 +95,7 @@ export default class Constant extends Atom {
   /**
    * Create Leva Menu Input - returns to ParameterEditor
    */
-  createLevaInputs(setInputChanged, inputChanged, run) {
+  createLevaInputs() {
     // Create the Leva input for the constant name
     let outputParams = {};
     outputParams["constant number"] = {

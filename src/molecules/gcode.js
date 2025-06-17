@@ -133,7 +133,7 @@ export default class Gcode extends Atom {
                 ];
                 
                 // Automatically generate Gcode in run mode
-                if (this.isInRunMode) {
+                if (GlobalVariables.runmode) {
                   this.generateGcodeAutomatically();
                 }
               });
@@ -148,11 +148,8 @@ export default class Gcode extends Atom {
 
   }
 
-  createLevaInputs(setInputChanged, inputChanged, run) {
+  createLevaInputs(setInputChanged, inputChanged) {
     let inputParams = {};
-
-    // Store run mode state for use in updateValue
-    this.isInRunMode = run;
 
     /** Runs through active atom inputs and adds IO parameters to default param*/
     if (this.inputs) {
@@ -189,7 +186,7 @@ export default class Gcode extends Atom {
     this.gcodeCallback = gcodeCallback;
 
     // Only show the Generate Gcode button in create mode (not in run mode)
-    if (!run) {
+    if (!GlobalVariables.runmode) {
       inputParams["Generate Gcode"] = button(() => this.generateGcodeManually(), {});
     }
 

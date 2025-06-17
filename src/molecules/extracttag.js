@@ -90,7 +90,7 @@ export default class ExtractTag extends Atom {
     return true;
   }
 
-  createLevaInputs(setInputChanged, inputChanged, run) {
+  createLevaInputs() {
     var inputID = this.findIOValue("geometry");
     this.processing = true;
     GlobalVariables.cad.extractAllTags(inputID, this.tag).then((result) => {

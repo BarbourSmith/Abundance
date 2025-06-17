@@ -160,7 +160,7 @@ export default class Code extends Atom {
     }
   }
 
-  createLevaInputs(setInputChanged, inputChanged, run) {
+  createLevaInputs() {
     let inputParams = {};
     /** Runs through active atom inputs and adds IO parameters to default param*/
     if (this.inputs) {

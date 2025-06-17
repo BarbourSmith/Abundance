@@ -269,13 +269,13 @@ export default class CutLayout extends Atom {
   /**
    * Add the "Compute Layout" button to the leva inputs.
    */
-  createLevaInputs(setInputChanged, inputChanged, run) {
+  createLevaInputs() {
       // if positions isn't a list of lists, nest it so that it is. Required for back-compatibility
       if (this.placements != undefined && this.placements.length > 0 && !Array.isArray(this.placements[0])) {
         this.placements = [this.placements];
       }
 
-      let inputParams = super.createLevaInputs(setInputChanged, inputChanged, run);
+      let inputParams = super.createLevaInputs();
   
       inputParams["Compute Layout"] = button(() => {
           this.updateValueButton();

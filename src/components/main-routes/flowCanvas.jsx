@@ -52,6 +52,7 @@ export default memo(function FlowCanvas({
   useEffect(() => {
     GlobalVariables.canvas = canvasRef;
     GlobalVariables.c = canvasRef.current.getContext("2d");
+    GlobalVariables.runmode = false;
     /** Only run loadproject() if the project is different from what is already loaded  */
     if (
       !GlobalVariables.loadedRepo ||

@@ -76,7 +76,7 @@ export default class Text extends Atom {
     GlobalVariables.c.closePath();
   }
 
-  createLevaInputs(setInputChanged, inputChanged, run) {
+  createLevaInputs() {
     let inputParams = {};
 
     /** Runs through active atom inputs and adds IO parameters to default param*/

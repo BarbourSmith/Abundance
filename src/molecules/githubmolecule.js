@@ -64,7 +64,7 @@ export default class GitHubMolecule extends Molecule {
   /**
    * Create Leva Menu Input - returns to ParameterEditor
    */
-  createLevaInputs(setInputChanged, inputChanged, run) {
+  createLevaInputs() {
     let inputParams = {};
 
     /** Runs through active atom inputs and adds IO parameters to default param*/
