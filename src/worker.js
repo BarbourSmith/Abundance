@@ -654,8 +654,8 @@ async function code(targetID, code, argumentsArray) {
     // Validate code for dangerous patterns
     validateUserCode(code);
     
-    let keys1 = ["Rotate", "Move", "Assembly", "Intersect", "Library"];
-    let inputValues = [Rotate, Move, Assembly, Intersect, library];
+    let keys1 = ["Rotate", "Move", "Assembly", "Intersect", "Library", "library"];
+    let inputValues = [Rotate, Move, Assembly, Intersect, library, library];
     for (const [key, value] of Object.entries(argumentsArray)) {
       // Sanitize parameter names to prevent injection
       if (!/^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(key)) {
