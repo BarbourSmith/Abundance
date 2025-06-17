@@ -38,19 +38,50 @@ const app = express();
 
 app.use(express.json());
 
+/**
+ * Helper function to set secure CORS headers
+ */
+function setSecureCorsHeaders(req, res) {
+  const allowedOrigins = process.env.ALLOWED_ORIGINS ? 
+    process.env.ALLOWED_ORIGINS.split(',') : 
+    ['http://localhost:4444', 'https://abundance.maslowcnc.com'];
+  
+  const origin = req.headers.origin;
+  if (allowedOrigins.includes(origin)) {
+    res.set('Access-Control-Allow-Origin', origin);
+  }
+  
+  res.set({
+    "Content-Type": "application/json",
+    "Allow": "GET, OPTIONS, POST",
+    "Access-Control-Allow-Methods": "GET, OPTIONS, POST",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Access-Control-Allow-Credentials": "true",
+  });
+}
+
+/**
+ * Helper function to set security headers
+ */
+function setSecurityHeaders(res) {
+  res.set({
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "X-XSS-Protection": "1; mode=block",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:",
+  });
+}
+
 app.get("/api/greet", checkJwt, async (req, res) => {
   try {
     const userID = req.user.sub;
     const token = await fetchManagementApi();
     const gitToken = await forwardRequest(token, userID);
     // Set multiple headers
-   res.set({
-    "Content-Type" : "application/json",
-      "Access-Control-Allow-Origin" : "*",
-      "Allow" : "GET, OPTIONS, POST",
-      "Access-Control-Allow-Methods" : "GET, OPTIONS, POST",
-      "Access-Control-Allow-Headers" : "*"
-  });
+    // Set CORS headers with environment-based origins for security
+    setSecureCorsHeaders(req, res);
+    setSecurityHeaders(res);
     res.status(200).send({ success: true, message: gitToken });
   } catch (error) {
     res.status(500).send({ success: false, message: error.message });
@@ -61,20 +92,15 @@ app.get("/api/ourAutho", async (req, res) => {
     const code = req.query.code; // Retrieve 'code' from query parameters
   console.log("Code received:", code);
 
-    // Set multiple headers
-    res.set({
-      "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*",
-      "Allow": "GET, OPTIONS, POST",
-      "Access-Control-Allow-Methods": "GET, OPTIONS, POST",
-      "Access-Control-Allow-Headers": "*",
-    });
+    // Set secure CORS headers
+    setSecureCorsHeaders(req, res);
+    setSecurityHeaders(res);
 
     const response = await axios.get(
       "https://github.com/login/oauth/access_token",
       {
         params: {
-          client_id: "Ov23liN8Q3iGPXSUHUsH",
+          client_id: process.env.CLIENT_ID_GIT_DEV || "Ov23liN8Q3iGPXSUHUsH",
           client_secret: process.env.CLIENT_SECRET_GIT,
           code: code,
           redirect_uri: `http://localhost:4444/callback`,
@@ -97,20 +123,15 @@ app.get("/api/deployAutho", async (req, res) => {
     const code = req.query.code; // Retrieve 'code' from query parameters
   console.log("Code received:", code);
 
-    // Set multiple headers
-    res.set({
-      "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*",
-      "Allow": "GET, OPTIONS, POST",
-      "Access-Control-Allow-Methods": "GET, OPTIONS, POST",
-      "Access-Control-Allow-Headers": "*",
-    });
+    // Set secure CORS headers
+    setSecureCorsHeaders(req, res);
+    setSecurityHeaders(res);
 
     const response = await axios.get(
       "https://github.com/login/oauth/access_token",
       {
         params: {
-          client_id: "Ov23liogKqBPbZwB4H5C",
+          client_id: process.env.CLIENT_ID_GIT_DEPLOY || "Ov23liogKqBPbZwB4H5C",
           client_secret: process.env.CLIENT_SECRET_GIT_DEPLOY,
           code: code,
           redirect_uri: `https://abundance.maslowcnc.com/callback`,
@@ -133,14 +154,9 @@ app.get("/api/test", (req, res) => {
   const code = req.query.code; // Retrieve 'code' from query parameters
   console.log("Code received:", code);
 
-  // Set multiple headers
-  res.set({
-    "Content-Type": "application/json",
-    "Access-Control-Allow-Origin": "*",
-    "Allow": "GET, OPTIONS, POST",
-    "Access-Control-Allow-Methods": "GET, OPTIONS, POST",
-    "Access-Control-Allow-Headers": "*",
-  });
+  // Set secure CORS headers
+  setSecureCorsHeaders(req, res);
+  setSecurityHeaders(res);
 
   res.status(200).send({ success: true, message: code });
 });
@@ -168,9 +184,8 @@ const fetchManagementApi = async () => {
   };
 
   const body = JSON.stringify({
-    client_id: "XWdAtXHXzzoIzbAj39I9ffebVfJWxpx4",
-    client_secret:process.env.CLIENT_SECRET
-      ,
+    client_id: process.env.AUTH0_CLIENT_ID || "XWdAtXHXzzoIzbAj39I9ffebVfJWxpx4",
+    client_secret: process.env.CLIENT_SECRET,
     audience: "https://dev-ln37eaqfk7dp2480.us.auth0.com/api/v2/",
     grant_type: "client_credentials",
   });
