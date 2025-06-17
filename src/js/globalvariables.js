@@ -207,6 +207,10 @@ class GlobalVariables {
     this.topLevelMolecule;
 
     /**
+     * A flag to indicate of the project is currently in run mode
+     */
+    this.runMode = false;
+    /**
      * A flag to indicate if the program is running with a touch interface. Set in flowDraw.js.
      * @type {boolean}
      */
