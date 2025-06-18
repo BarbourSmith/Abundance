@@ -126,6 +126,21 @@ export default class Gcode extends Atom {
   }
 
   /**
+   * Starts propagation and triggers G-code generation if in run mode
+   */
+  beginPropagation() {
+    super.beginPropagation();
+    
+    // If we're in run mode, trigger G-code generation after atoms are fully loaded
+    if (GlobalVariables.runMode) {
+      // Use setTimeout to ensure all atoms and connections are fully established
+      setTimeout(() => {
+        this.updateValue();
+      }, 500);
+    }
+  }
+
+  /**
    * Generate a layered outline of the part where the tool will cut
    */
   updateValue() {
