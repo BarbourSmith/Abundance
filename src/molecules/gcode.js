@@ -70,6 +70,7 @@ export default class Gcode extends Atom {
     }
 
     this.stlURL = null; // Store the STL URL
+    this._gcodeGenerationTimeout = null; // Track debounced gcode generation
  
     this.center = [0, 0, 0]; //Used to correctly position the gcode
   }
@@ -106,6 +107,22 @@ export default class Gcode extends Atom {
       this.basicThreadValueProcessing();
       this.sendToRender();
     };
+  }
+
+  /**
+   * Generates gcode using Kirimoto with the current parameters (debounced)
+   */
+  _generateGcodeDebounced() {
+    // Clear any existing timeout
+    if (this._gcodeGenerationTimeout) {
+      clearTimeout(this._gcodeGenerationTimeout);
+    }
+    
+    // Set a new timeout to debounce rapid calls
+    this._gcodeGenerationTimeout = setTimeout(() => {
+      this._generateGcode();
+      this._gcodeGenerationTimeout = null;
+    }, 300); // 300ms debounce delay
   }
 
   /**
@@ -146,6 +163,10 @@ export default class Gcode extends Atom {
           GlobalVariables.cad
             .downExport(this.uniqueID+1, "STL")
             .then((result) => {
+              // Revoke the previous object URL to prevent memory leak
+              if (this.stlURL) {
+                URL.revokeObjectURL(this.stlURL);
+              }
               this.stlURL = URL.createObjectURL(result); // Store the STL URL
               GlobalVariables.cad.getBoundingBox(this.uniqueID+1).then((bounds) => {
                 this.center = [
@@ -154,7 +175,7 @@ export default class Gcode extends Atom {
                   (bounds.max[2] + bounds.min[2]) / 2,
                 ];
                 if(window.location.pathname.includes('/run/')) {
-                  this._generateGcode();
+                  this._generateGcodeDebounced();
                 }
               });
             });
