@@ -50,14 +50,14 @@ export default class Input extends Atom {
 
     this.radius = 1 / 75;
 
+    this.setValues(values); //Load values before creating IO points so the correct value is used
+
     this.addIO("output", "number or geometry", this, this.type, this.value);
 
     //Add a new input to the current molecule
     if (typeof this.parent !== "undefined") {
       this.parent.addIO("input", this.name, this.parent, this.type, this.value);
     }
-
-    this.setValues(values);
   }
 
   /** Solution to canvas overflow https://stackoverflow.com/questions/10508988/html-canvas-text-overflow-ellipsis*/
