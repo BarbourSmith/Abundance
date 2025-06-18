@@ -86,18 +86,19 @@ export default class Input extends Atom {
      * The x position of the atom
      * @type {number}
      */
-    this.x = 0.04;
+    this.x = GlobalVariables.atomSize * 1.65;
     this.radius = GlobalVariables.atomSize * 1.3;
 
     let xInPixels = GlobalVariables.widthToPixels(this.x);
     let yInPixels = GlobalVariables.heightToPixels(this.y);
     let radiusInPixels = GlobalVariables.widthToPixels(this.radius);
+
     /**
      * Relates height to radius
      * @type {number}
      */
     this.height = radiusInPixels;
-    this.width = this.height * 2.5;
+    this.width = radiusInPixels * 2.5;
     //Check if the name has been updated
     if (this.name != this.oldName) {
       this.updateParentName();
@@ -125,17 +126,17 @@ export default class Input extends Atom {
       this.color = this.defaultColor;
       this.strokeColor = this.selectedColor;
     }
-    
+
     // Draw the inputs
     this.inputs.forEach((input) => {
       input.draw();
     });
-    
+
     // Draw the output
     if (this.output) {
       this.output.draw();
     }
-    
+
     GlobalVariables.c.beginPath();
     GlobalVariables.c.moveTo(0, yInPixels + this.height / 2);
     GlobalVariables.c.lineTo(this.width, yInPixels + this.height / 2);

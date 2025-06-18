@@ -41,7 +41,7 @@ export default memo(function FlowCanvas({
   let lastTouchMove = null;
   let longPressTimer = useRef(null);
   let touchStartPos = useRef({ x: 0, y: 0 });
-  
+
   // Double tap detection
   let lastTapTime = useRef(0);
   let lastTapPosition = useRef({ x: 0, y: 0 });
@@ -99,30 +99,30 @@ export default memo(function FlowCanvas({
     if (e.touches && e.touches.length > 0) {
       // Set touchInterface flag to true when touch is detected
       GlobalVariables.touchInterface = true;
-      
+
       lastTouchMove = e;
       e.clientX = e.touches[0].clientX;
       e.clientY = e.touches[0].clientY;
-      
+
       // Cancel long press if finger moved significantly (more than 10 pixels)
       if (longPressTimer.current && touchStartPos.current) {
         const moveDistance = Math.sqrt(
           Math.pow(e.clientX - touchStartPos.current.x, 2) +
-          Math.pow(e.clientY - touchStartPos.current.y, 2)
+            Math.pow(e.clientY - touchStartPos.current.y, 2)
         );
-        
+
         if (moveDistance > 10) {
           clearTimeout(longPressTimer.current);
           longPressTimer.current = null;
         }
       }
     }
-    
+
     // Skip if clientX/Y are not defined (can happen when touchend fires with no coordinates)
     if (e.clientX === undefined || e.clientY === undefined) {
       return;
     }
-    
+
     GlobalVariables.currentMolecule.nodesOnTheScreen.forEach((molecule) => {
       molecule.mouseMove(e.clientX, e.clientY);
     });
@@ -198,6 +198,7 @@ export default memo(function FlowCanvas({
       //Opens menu to search for github molecule
       if (e.key == "g") {
         setSearchingGitHub(true);
+        GlobalVariables.ctrlDown = false;
       } else {
         GlobalVariables.currentMolecule.placeAtom(
           {
@@ -237,29 +238,29 @@ export default memo(function FlowCanvas({
     if (event.touches) {
       // Set touchInterface flag to true when touch is detected
       GlobalVariables.touchInterface = true;
-      
+
       // Store the initial touch position
       touchStartPos.current = {
         x: event.touches[0].clientX,
-        y: event.touches[0].clientY
+        y: event.touches[0].clientY,
       };
-      
+
       // Set clientX/Y for event handling
       event.clientX = event.touches[0].clientX;
       event.clientY = event.touches[0].clientY;
-      
+
       // Double tap detection
       const currentTime = new Date().getTime();
       const tapTimeDiff = currentTime - lastTapTime.current;
-      
+
       // Check if this tap is within time and distance thresholds of last tap
       if (tapTimeDiff < doubleTapDelay) {
         // Calculate distance between current tap and last tap
         const tapDistance = Math.sqrt(
           Math.pow(event.clientX - lastTapPosition.current.x, 2) +
-          Math.pow(event.clientY - lastTapPosition.current.y, 2)
+            Math.pow(event.clientY - lastTapPosition.current.y, 2)
         );
-        
+
         // If within radius, consider it a double tap
         if (tapDistance < doubleTapRadius) {
           // This is a double tap
@@ -268,11 +269,11 @@ export default memo(function FlowCanvas({
           return;
         }
       }
-      
+
       // Save this tap's time and position for potential double tap detection
       lastTapTime.current = currentTime;
       lastTapPosition.current = { x: event.clientX, y: event.clientY };
-      
+
       // Start a long press timer for touch events (700ms is a common duration for long press)
       longPressTimer.current = setTimeout(() => {
         // When timer completes, show the circular menu at touch position
@@ -355,7 +356,7 @@ export default memo(function FlowCanvas({
       clearTimeout(longPressTimer.current);
       longPressTimer.current = null;
     }
-    
+
     // Handle touch events
     if (event.touches && event.touches.length > 0) {
       event.clientX = event.touches[0].clientX;
@@ -364,7 +365,7 @@ export default memo(function FlowCanvas({
       event.clientX = event.changedTouches[0].clientX;
       event.clientY = event.changedTouches[0].clientY;
     }
-    
+
     GlobalVariables.currentMolecule.nodesOnTheScreen.forEach((molecule) => {
       molecule.doubleClick(event.clientX, event.clientY);
     });
@@ -381,7 +382,11 @@ export default memo(function FlowCanvas({
       longPressTimer.current = null;
     }
 
-    if (lastTouchMove && lastTouchMove.touches && lastTouchMove.touches.length > 0) {
+    if (
+      lastTouchMove &&
+      lastTouchMove.touches &&
+      lastTouchMove.touches.length > 0
+    ) {
       event.clientX = lastTouchMove.touches[0].clientX;
       event.clientY = lastTouchMove.touches[0].clientY;
     } else if (event.changedTouches && event.changedTouches.length > 0) {
@@ -389,12 +394,12 @@ export default memo(function FlowCanvas({
       event.clientX = event.changedTouches[0].clientX;
       event.clientY = event.changedTouches[0].clientY;
     }
-    
+
     // If no coordinates were set, skip further processing
     if (event.clientX === undefined || event.clientY === undefined) {
       return;
     }
-    
+
     //every time the mouse button goes up
     GlobalVariables.currentMolecule.nodesOnTheScreen.forEach((molecule) => {
       molecule.clickUp(event.clientX, event.clientY);

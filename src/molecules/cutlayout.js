@@ -63,14 +63,14 @@ export default class CutLayout extends Atom {
       "Sheet Width",
       this,
       "number",
-      GlobalVariables.topLevelMolecule.unitsKey == "MM" ? 2438 : 96
+      GlobalVariables.topLevelMolecule.unitsKey == "MM" ? 1219 : 48
     );
     this.addIO(
       "input",
       "Sheet Height",
       this,
       "number",
-      GlobalVariables.topLevelMolecule.unitsKey == "MM" ? 1219 : 48
+      GlobalVariables.topLevelMolecule.unitsKey == "MM" ? 2438 : 96
     );
     this.addIO(
       "input",
@@ -159,6 +159,14 @@ export default class CutLayout extends Atom {
       GlobalVariables.c.fill();
     }
   }
+
+  handleNewPlacements(placements) {
+    this.placements = placements;
+    this.basicThreadValueProcessing();
+    this.updateValue();
+    this.createLevaInputs();
+  }
+
   /**
    * We only want the layout to update when the button is pressed not when the inputs update so we block the regular update value behavior
    */
@@ -177,12 +185,16 @@ export default class CutLayout extends Atom {
         this.setAlert('"geometry" input is missing');
         return;
       }
+      // if positions isn't a list of lists, nest it so that it is
+      if (this.placements != undefined && this.placements.length > 0 && !Array.isArray(this.placements[0])) {
+        this.placements = [this.placements];
+      }
       
       GlobalVariables.cad
         .displayLayout(
           this.uniqueID,
           inputID,
-          [this.placements],
+          this.placements,
           {
             width: sheetWidth,
             height: sheetHeight,
@@ -199,6 +211,7 @@ export default class CutLayout extends Atom {
           this.processing = false;
         })
         .catch(this.alertingErrorHandler());
+      
     }
   }
 
@@ -233,25 +246,22 @@ export default class CutLayout extends Atom {
             this.progress = progress;
             this.cancelationHandle = cancelationHandle;
           }),
-          proxy((placements) => {
-            this.placements = placements[0];
-          }),
+          proxy((placements) => {this.handleNewPlacements(placements)}),
           {
             width: sheetWidth,
             height: sheetHeight,
             partPadding: partPadding,
             units: GlobalVariables.topLevelMolecule.units[GlobalVariables.topLevelMolecule.unitsKey],
           })
-        .then((warning) => {
-          this.basicThreadValueProcessing();
-          if (warning != undefined) {
-            this.setAlert(warning);
-          }
+        .then((positions) => {
+          this.handleNewPlacements(positions);
+        })
+        .catch(this.alertingErrorHandler())
+        .finally(() => {
           this.progress = 1.0;
           this.cancelationHandle = undefined;
           this.processing = false;
-        })
-        .catch(this.alertingErrorHandler());
+        });
     }
   }
 
@@ -259,23 +269,42 @@ export default class CutLayout extends Atom {
    * Add the "Compute Layout" button to the leva inputs.
    */
   createLevaInputs() {
+      // if positions isn't a list of lists, nest it so that it is. Required for back-compatibility
+      if (this.placements != undefined && this.placements.length > 0 && !Array.isArray(this.placements[0])) {
+        this.placements = [this.placements];
+      }
+
       let inputParams = super.createLevaInputs();
   
       inputParams["Compute Layout"] = button(() => {
           this.updateValueButton();
       });
 
+      let prepareLabel = (sheet, index, totalsheets) => {
+        if (totalsheets > 1) {
+          return "sheet " + sheet + " p" + index;
+        }
+        else {
+          return " " + index
+        }
+      };
+
+      
       //Expose the stored positions
-      this.placements.forEach((placement, index) => {
-        inputParams[this.uniqueID + "position" + index] = {
-          value: { x: placement.translate.x, y: placement.translate.y, z: placement.rotate },
-          label: " " + index,
-          onChange: (value, index) => {
-              const match = index.match(/position(\d+)/);
-              const indexNumber = match ? parseInt(match[1], 10) : null;
-          
-              if (indexNumber !== null) {
-                  const placement = this.placements[indexNumber];
+      let part_counter = 0;
+      const totalSheets = this.placements.length;
+      this.placements.forEach((sheet, index) => {
+        sheet.forEach((placement, part_num) => {
+          inputParams[this.uniqueID + "position" + part_counter] = {
+            value: { x: placement.translate.x, y: placement.translate.y, z: placement.rotate },
+            label: prepareLabel(index, part_num, totalSheets),
+            onChange: (value, index) => {
+                const match = index.match(/position(\d+)/);
+                const indexNumber = match ? parseInt(match[1], 10) : null;
+
+                if (indexNumber != null) {
+                  const placement = this.placements.flat()[indexNumber];
+                  //Update the placement with the new value];
                   //If anything has changed we need to update the value and recompute
                   if (placement.translate.x !== value.x || placement.translate.y !== value.y || placement.rotate !== value.z) {
                       placement.translate.x = value.x;
@@ -284,9 +313,11 @@ export default class CutLayout extends Atom {
           
                       this.updateValue();
                   }
-              }
-          },
-        };
+                }
+            },
+          }
+          part_counter++;
+        });
       });
 
 

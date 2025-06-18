@@ -64,7 +64,7 @@ def lambda_handler(event: any, context: any):
                 print(query)
                 # Define the key condition expression
                 scan_args = {
-                    'FilterExpression': Attr(searchAttribute).contains(query) & Attr('owner').eq(user),
+                    'FilterExpression': Attr(searchAttribute).contains(query) & Attr('owner').eq(user)
                 }
                 response = table.scan(**scan_args)
 
@@ -75,10 +75,11 @@ def lambda_handler(event: any, context: any):
                     KeyConditionExpression=key_condition_expression)
 
             item_array.extend(response.get('Items', []))
+            print(item_array)
 
         elif (searchAttribute and query):
             scan_args = {
-                'FilterExpression': Attr(searchAttribute).contains(query) & ~(Attr('privateRepo').eq(True)),
+                'FilterExpression': Attr(searchAttribute).contains(query) & ~(Attr('privateRepo').eq(True)) & ~(Attr('parentRepo').eq('alzatin/my-first-project')),
             }
             response = table.scan(**scan_args)
             item_array.extend(response.get('Items', []))
@@ -87,7 +88,7 @@ def lambda_handler(event: any, context: any):
             query_args = {
                 'IndexName': 'yyyy-dateCreated-index',
                 'KeyConditionExpression': Key('yyyy').eq(year),
-                'FilterExpression': ~(Attr('privateRepo').eq(True))
+                'FilterExpression': ~(Attr('privateRepo').eq(True)) & ~(Attr('parentRepo').eq('alzatin/my-first-project'))
             }
             if exclusiveKey:
                 query_args['ExclusiveStartKey'] = exclusiveKey

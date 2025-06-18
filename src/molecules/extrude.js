@@ -42,9 +42,10 @@ export default class Extrude extends Atom {
 
     GlobalVariables.c.beginPath();
     GlobalVariables.c.fillStyle = "#949294";
+    // Draw the bottom rectangle (extrusion indicator)
     GlobalVariables.c.rect(
       GlobalVariables.widthToPixels(this.x - this.radius / 2),
-      GlobalVariables.heightToPixels(this.y + this.radius),
+      GlobalVariables.heightToPixels(this.y + this.radius / 4),
       GlobalVariables.widthToPixels(this.radius),
       GlobalVariables.widthToPixels(this.radius / 3)
     );
@@ -54,11 +55,12 @@ export default class Extrude extends Atom {
 
     GlobalVariables.c.beginPath();
     GlobalVariables.c.fillStyle = "#949294";
+    // Draw the main rectangle centered within the atom circle
     GlobalVariables.c.rect(
       GlobalVariables.widthToPixels(this.x - this.radius / 2),
-      GlobalVariables.heightToPixels(this.y - this.radius * 2),
+      GlobalVariables.heightToPixels(this.y - this.radius / 4),
       GlobalVariables.widthToPixels(this.radius),
-      GlobalVariables.widthToPixels(this.radius)
+      GlobalVariables.widthToPixels(this.radius / 2)
     );
     //GlobalVariables.c.fill()
     GlobalVariables.c.stroke();

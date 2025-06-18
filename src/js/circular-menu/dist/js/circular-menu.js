@@ -378,6 +378,8 @@
         }
 
         on(a, 'click', clickCallBack, data);
+        on(a, 'touchstart', clickCallBack, data);
+        on(a, 'touchend', clickCallBack, data);
 
         parent.appendChild(a);
 

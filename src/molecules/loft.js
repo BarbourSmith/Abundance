@@ -3,9 +3,9 @@ import { addOrDeletePorts } from "../js/alwaysOneFreeInput.js";
 import GlobalVariables from "../js/globalvariables.js";
 
 /**
- * This class creates the shrinkwrap atom. This behavior can also be called 'hull'
+ * This class creates the loft atom. 
  */
-export default class ShrinkWrap extends Atom {
+export default class Loft extends Atom {
   /**
    * The constructor function.
    * @param {object} values An array of values passed in which will be assigned to the class as this.x
@@ -35,7 +35,7 @@ export default class ShrinkWrap extends Atom {
      * @type {string}
      */
     this.description =
-      "Joins two or more shapes into a single solid by filling in the space between them. Also called 'hull'";
+      "Joins two or more shapes into a single solid by filling in the space between them.";
 
     /**
      * This was used when there was a drop down to select closed...may be deleted
@@ -105,7 +105,7 @@ export default class ShrinkWrap extends Atom {
   }
 
   /**
-   * Generates a list of all of the input shapes, then passees them to a worker thread to compute the hull
+   * Generates a list of all of the input shapes, then passes them to a worker thread to compute the loft
    */
   updateValue() {
     super.updateValue();

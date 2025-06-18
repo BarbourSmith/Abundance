@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig, optimizeDeps } from "vite";
 import reactPlugin from "@vitejs/plugin-react";
 import Pages from "vite-plugin-pages";
 
@@ -12,5 +12,9 @@ export default defineConfig({
   },
   server: {
     port: 4444,
+  },
+
+  optimizeDeps: {
+    exclude: ["polygon-packer", "geometry-utils"],
   },
 });

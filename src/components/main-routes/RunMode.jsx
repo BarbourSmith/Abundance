@@ -4,14 +4,12 @@ import ReplicadMesh from "../render/ReplicadMesh.jsx";
 
 import WireframeMesh from "../render/WireframeMesh.jsx";
 import GlobalVariables from "../../js/globalvariables.js";
-import globalvariables from "../../js/globalvariables.js";
 import { Octokit } from "https://esm.sh/octokit@2.0.19";
 
 import ToggleRunCreate from "../secondary/ToggleRunCreate.jsx";
 import ParamsEditor from "../secondary/ParameterEditor.jsx";
 import RunNavigation from "../secondary/RunNavigation.jsx";
 import Molecule from "../../molecules/molecule.js";
-import KiriMotoIntegration from "../secondary/Kirimoto.jsx";
 import {
   BrowserRouter as Router,
   useParams,
@@ -101,17 +99,17 @@ function runMode({
         repo: repoName,
       })
       .then((result) => {
-        globalvariables.currentRepo = result.data;
-        console.log("globalvariables.currentRepo", globalvariables.currentRepo);
+        GlobalVariables.currentRepo = result.data;
+        console.log("GlobalVariables.currentRepo", GlobalVariables.currentRepo);
         /*temp variables while we change to aws*/
-        globalvariables.currentRepo.repoName = globalvariables.currentRepo.name;
-        globalvariables.currentRepo.owner =
-          globalvariables.currentRepo.owner.login;
+        GlobalVariables.currentRepo.repoName = GlobalVariables.currentRepo.name;
+        GlobalVariables.currentRepo.owner =
+          GlobalVariables.currentRepo.owner.login;
         //make an aws call to get the project data before loading the project?
         /** Only run loadproject() if the project is different from what is already loaded  */
         if (
           !GlobalVariables.loadedRepo ||
-          globalvariables.currentRepo.repoName !==
+          GlobalVariables.currentRepo.repoName !==
             GlobalVariables.loadedRepo.repoName
         ) {
           //Load a blank project
@@ -128,7 +126,7 @@ function runMode({
 
     if (
       GlobalVariables.currentRepo &&
-      GlobalVariables.currentRepo.owner == globalvariables.currentUser
+      GlobalVariables.currentRepo.owner == GlobalVariables.currentUser
     ) {
       setOwned(true);
     }
@@ -180,11 +178,10 @@ function runMode({
           {...{ authorizedUserOcto, activeAtom, redirectType, setRedirectType }}
         />
       ) : null}
-      <KiriMotoIntegration {...{ activeAtom }} />
-      {globalvariables.currentRepo ? (
+      {GlobalVariables.currentRepo ? (
         <div className="info_run_div">
-          <p>{"Project Name: " + globalvariables.currentRepo.repoName}</p>
-          <p>{"Repo Owner: " + globalvariables.currentRepo.owner}</p>
+          <p>{"Project Name: " + GlobalVariables.currentRepo.repoName}</p>
+          <p>{"Repo Owner: " + GlobalVariables.currentRepo.owner}</p>
         </div>
       ) : null}
       <div className="runContainer">

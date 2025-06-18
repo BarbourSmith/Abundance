@@ -357,11 +357,14 @@ const NewProjectPopUp = ({ setExportPopUp, authorizedUserOcto, exporting }) => {
             </select>
             <label htmlFor="measure-units">Units</label>
             <select id="measure-units" ref={projectUnitsRef}>
+              <option key={"millop"} value={"MM"}>
+                MM
+              </option>
               <option key={"inchesop"} value={"Inches"}>
                 Inches
               </option>
-              <option key={"millop"} value={"MM"}>
-                MM
+              <option key={"unitlessop"} value={"Unitless"}>
+                Unitless
               </option>
             </select>
             <label htmlFor="project-description">Project Description</label>

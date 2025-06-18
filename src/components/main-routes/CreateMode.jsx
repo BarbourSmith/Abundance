@@ -8,7 +8,6 @@ import LowerHalf from "./lowerHalf.jsx";
 import ParamsEditor from "../secondary/ParameterEditor.jsx";
 import CodeWindow from "../secondary/codeWindow.jsx";
 import { useAuth0 } from "@auth0/auth0-react";
-import KiriMotoIntegration from "../secondary/Kirimoto.jsx";
 import {
   BrowserRouter as Router,
   useParams,
@@ -394,11 +393,14 @@ function CreateMode({
         }
       });
     }
-    filesObject["project.svg"] = finalSVG
-      ? finalSVG
-      : backupProjectSVG
-      ? backupProjectSVG
-      : "";
+    
+    // Only update project thumbnail if a new one has been generated successfully
+    const thumbnailToUse = finalSVG || backupProjectSVG;
+    if (thumbnailToUse) {
+      filesObject["project.svg"] = thumbnailToUse;
+    }
+    // If no thumbnail was generated, don't include project.svg in the commit
+    // This preserves the existing thumbnail in the repository
 
     setState(30);
 
@@ -492,7 +494,6 @@ function CreateMode({
           />
 
           <CodeWindow {...{ activeAtom }} />
-          <KiriMotoIntegration {...{ activeAtom }} />
           <input
             type="file"
             id="fileLoaderInput"

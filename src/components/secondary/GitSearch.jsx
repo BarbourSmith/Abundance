@@ -122,6 +122,7 @@ function GitSearch({
               onChange={handleChange}
               placeholder="Search for atom.."
               className="menu_search_canvas"
+              autoComplete="off"
             ></input>
 
             <GitList />

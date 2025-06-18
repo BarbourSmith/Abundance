@@ -140,18 +140,6 @@ export default class Text extends Atom {
   serialize(offset = { x: 0, y: 0 }) {
     var thisAsObject = super.serialize(offset);
 
-    var ioValues = [];
-    this.inputs.forEach((io) => {
-      if (io.connectors.length > 0) {
-        var saveIO = {
-          name: io.name,
-          ioValue: io.getValue(),
-        };
-        ioValues.push(saveIO);
-      }
-    });
-
-    thisAsObject.ioValues = ioValues;
     thisAsObject.fontFamily = this.fontFamily;
     thisAsObject.selectedFontIndex = this.selectedFontIndex;
 

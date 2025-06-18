@@ -593,8 +593,16 @@ export default class Atom {
 
   /**
    * Token update value function to give each atom one by default
+   * @param {string} inputName - The name of the input that changed (optional)
    */
-  updateValue() {
+  updateValue(inputName) {
+    // If called with an input name parameter (from AttachmentPoint), 
+    // just call the main updateValue logic
+    if (inputName !== undefined) {
+      this.updateValue();
+      return;
+    }
+    
     this.waitOnComingInformation();
   }
 

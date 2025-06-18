@@ -89,7 +89,7 @@ export default class Intersection extends Atom {
       const input2ID = this.findIOValue("geometry2");
 
       GlobalVariables.cad
-        .intersect(this.uniqueID, input1ID, input2ID)
+        .intersect(input1ID, input2ID, this.uniqueID)
         .then(() => {
           this.basicThreadValueProcessing();
         })

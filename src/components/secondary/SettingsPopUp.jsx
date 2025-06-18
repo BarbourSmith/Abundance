@@ -285,6 +285,7 @@ const SettingsPopUp = ({ setSettingsPopUp, shortCutsOn, setShortCuts }) => {
               >
                 <MenuItem value={"MM"}>MM</MenuItem>
                 <MenuItem value={"Inches"}>Inches</MenuItem>
+                <MenuItem value={"Unitless"}>Unitless</MenuItem>
               </Select>
             </FormControl>
           </CustomTabPanel>

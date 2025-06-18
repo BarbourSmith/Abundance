@@ -557,10 +557,11 @@
 #project_search {
   width: 30%;
   margin-right: 10px;
-  border: 3px solid var(--loginPopup-input);
+  border: 1px solid var(--loginPopup-input);
   border-radius: 5px 5px;
-  color: var(--loginPopup-projectColor);
+  color: var(--newProject-form-input-text);
   outline: none;
+  background-color: var(--newProject-form-input);
 }
 
 #sorting-button-div {
@@ -569,9 +570,9 @@
 
 .order_dropdown {
   align-self: center;
-  border: 3px solid var(--loginPopup-input);
+  border: 1px solid var(--loginPopup-input);
   color: var(--newProject-form-input-text);
-  background-color: var(--loginPopup-input);
+  background-color: var(--newProject-form-input);
   border-radius: 5px 5px;
   outline: none;
 }
@@ -588,12 +589,12 @@
   flex-direction: column;
 }
 .project_name {
-  font-size: "1.2em";
+  font-size: 1.2em;
   font-family: "Roboto", sans-serif;
   color: var(--loginPopup-text);
-  text-overflow: "ellipsis";
-  display: "block";
-  overflow: "hidden";
+  text-overflow: ellipsis;
+  display: block;
+  overflow: hidden;
   width: 80%;
 }
 
