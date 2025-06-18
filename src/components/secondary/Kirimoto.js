@@ -102,12 +102,12 @@ export const generateKirimoto = (stlUrl, centerPos, toolSize, passes, speed, ext
         camRoughPlunge: 250,
         camRoughStock: 0,
         camRoughStockZ: 0,
-        camRoughAll: true,
-        camRoughVoid: false,
-        camRoughFlat: true,
-        camRoughTop: true,
-        camRoughIn: true,
-        camRoughOn: true,
+        camRoughAll: false,
+        camRoughVoid: true,
+        camRoughFlat: false,
+        camRoughTop: false,
+        camRoughIn: false,
+        camRoughOn: false,
         camRoughOmitVoid: false,
         camOutlineTool: 1000,
         camOutlineSpindle: 1000,
@@ -239,26 +239,43 @@ export const generateKirimoto = (stlUrl, centerPos, toolSize, passes, speed, ext
         camToolInit: true,
         camFullEngage: 0.8,
         ops: [
-          {
-            type: "outline",
-            tool: 1000,
-            spindle: 1000,
-            step: (z+extra) / passes,
-            steps: 1,
-            down: (z+extra) / passes,
-            rate: speed,
-            plunge: 250,
-            dogbones: true,
-            omitvoid: false,
-            omitthru: false,
-            outside: true,
-            inside: false,
-            wide: false,
-            top: true,
-            ov_topz: 0,
-            ov_botz: 0,
-            ov_conv: false,
-          },
+            {
+              type: "rough",
+              tool: 1000,           // Tool number/id
+              spindle: 1000,        // Spindle speed (RPM)
+              step: 0.4,            // Stepover as a percentage of tool diameter (0.4 = 40%)
+              down: 3,              // Step-down per pass (depth in mm)
+              rate: 800,            // Feed rate (mm/min)
+              plunge: 250,          // Plunge rate (mm/min)
+              leave: 0.2,           // Stock to leave on walls (in mm, optional)
+              leavez: 0.1,          // Stock to leave on floor (in mm, optional)
+              flats: true,          // Clear detected flat faces
+              top: true,            // Clear the top surface
+              inside: true,         // Cut inside boundaries
+              all: false,           // Rough entire stock (for indexed/rotary, optional)
+              ov_conv: false,       // Conventional cut direction (optional)
+              voids: false,         // Clear voids/pockets (optional)
+            },  
+          // {
+          //   type: "outline",
+          //   tool: 1000,
+          //   spindle: 1000,
+          //   step: (z+extra) / passes,
+          //   steps: 1,
+          //   down: (z+extra) / passes,
+          //   rate: speed,
+          //   plunge: 250,
+          //   dogbones: true,
+          //   omitvoid: false,
+          //   omitthru: false,
+          //   outside: true,
+          //   inside: false,
+          //   wide: false,
+          //   top: true,
+          //   ov_topz: 0,
+          //   ov_botz: 0,
+          //   ov_conv: false,
+          // },
           {
             type: "|",
           },
