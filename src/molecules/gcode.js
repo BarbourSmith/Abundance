@@ -54,12 +54,15 @@ export default class Gcode extends Atom {
     this.addIO("input", "Passes", this, "number", 6);
     this.addIO("input", "Speed", this, "number", 500);
     this.addIO("input", "Cut Through", this, "number", 1);
+    this.addIO("input", "Part Name", this, "string", this.parent.name);
     //this.addIO("input", "tabs", this, "string", "true");
     //this.addIO("input", "safe height", this, "number", 6);
 
     this.addIO("output", "Gcode", this, "geometry", "");
 
     this.setValues(values);
+
+    this.partName = this.parent.name;
 
     // Initialize Kiri:Moto if not already initialized
     if (!GlobalVariables.kirimotoInitialized) {
@@ -162,23 +165,38 @@ export default class Gcode extends Atom {
 
         /* Makes inputs for Io's other than geometry */
         if (input.valueType !== "geometry") {
-          inputParams[input.name] = {
-            value: input.value,
-            disabled: checkConnector(),
-            onChange: (value) => {
-              input.setValue(value);
-            },
-            order: -2,
-          };
+          if (input.name == "Part Name") {
+            inputParams[this.uniqueID + input.name] = {
+              value: this.partName,
+              label: input.name,
+              disabled: checkConnector(),
+              onChange: (value) => {
+                if (input.value !== value) {
+                  input.setValue(value);
+                  this.partName = value;
+                }
+              },
+            };
+          } else {
+            inputParams[input.name] = {
+              value: input.value,
+              disabled: checkConnector(),
+              onChange: (value) => {
+                input.setValue(value);
+              },
+              order: -2,
+            };
+          }
         }
       });
     }
 
     inputParams["Generate Gcode"] = button(() => this.generateGcode(), {});
 
-    inputParams["Download Gcode"] = button(() => {
+    const partName = this.findIOValue("Part Name") || this.partName || "output";
+    inputParams[`Download Gcode - ${partName}`] = button(() => {
       if (this.gcodeGenerated && this.gcodeString) {
-        downloadGcode(this.gcodeString);
+        downloadGcode(this.gcodeString, `${partName}.gcode`);
       } else {
         console.warn("No G-code available. Please generate G-code first.");
         // You could also show an alert or notification to the user here
@@ -187,6 +205,16 @@ export default class Gcode extends Atom {
     }, {});
 
     return inputParams;
+  }
+
+  /**
+   * Add the part name to the object which is saved for this molecule
+   */
+  serialize(offset = { x: 0, y: 0 }) {
+    var superSerialObject = super.serialize(offset);
+    superSerialObject.partName = this.partName;
+
+    return superSerialObject;
   }
 
 }

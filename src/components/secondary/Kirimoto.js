@@ -311,13 +311,12 @@ export const generateKirimoto = (stlUrl, centerPos, toolSize, passes, speed, ext
 };
 
 //Function to download G-code from a G-code string
-export const downloadGcode = (gcode) => {
+export const downloadGcode = (gcode, filename = "output.gcode") => {
   if (!gcode) {
     console.error("No G-code available to download.");
     return;
   }
   
   const blob = new Blob([gcode], { type: "text/plain" });
-  const fileName = "output.gcode";
-  saveAs(blob, fileName);
+  saveAs(blob, filename);
 };
