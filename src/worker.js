@@ -2,7 +2,7 @@ import opencascade from "replicad-opencascadejs/src/replicad_single.js";
 import opencascadeWasm from "replicad-opencascadejs/src/replicad_single.wasm?url";
 import * as replicad from "replicad";
 import { expose, proxy } from "comlink";
-import { Plane, Solid } from "replicad";
+import { Plane, Solid, Wire } from "replicad";
 import shrinkWrap from "replicad-shrink-wrap";
 import { addSVG, drawSVG } from "replicad-decorate";
 import { v4 as uuidv4 } from "uuid";
@@ -253,7 +253,22 @@ function is3D(inputs) {
   // if it's an assembly assume it's 3d since our assemblies don't work for drawings right now
   if (isAssembly(inputs)) {
     return inputs.geometry.some((input) => is3D(input));
-  } else if (inputs.geometry[0].mesh !== undefined) {
+  } else if (inputs.geometry[0].mesh !== undefined || inputs.geometry[0] instanceof Wire) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+/**
+ * Checks if the input geometry is wire geometry (like from G-code).
+ * @param {Object} inputs - The geometry object to check
+ * @returns {boolean} True if the geometry is wire geometry, false otherwise
+ */
+function isWireGeometry(inputs) {
+  if (isAssembly(inputs)) {
+    return inputs.geometry.some((input) => isWireGeometry(input));
+  } else if (inputs.geometry && inputs.geometry[0] instanceof Wire) {
     return true;
   } else {
     return false;
@@ -1742,6 +1757,11 @@ function cutAssembly(partToCut, cuttingParts, assemblyID) {
       };
       return library[subID];
     } else {
+      // if part to cut is wire geometry, return it unchanged (wires should pass through assemblies)
+      if (isWireGeometry(partToCut)) {
+        return partToCut;
+      }
+      
       // if part to cut is a single part send to cutting function with cutting parts
       var partCutCopy = partToCut.geometry[0];
       cuttingParts.forEach((cuttingPart) => {
@@ -1818,13 +1838,27 @@ function cutAssembly(partToCut, cuttingParts, assemblyID) {
 function recursiveCut(partToCut, cuttingPart) {
   try {
     let cutGeometry = partToCut;
+    
+    // Wire geometry should not participate in cutting operations
+    if (isWireGeometry({ geometry: [partToCut] })) {
+      return partToCut; // Wire parts should pass through unchanged
+    }
+    
     // if cutting part is an assembly pass back into the function to be cut by each part in that assembly
     if (isAssembly(cuttingPart)) {
       for (let i = 0; i < cuttingPart.geometry.length; i++) {
-        cutGeometry = recursiveCut(cutGeometry, cuttingPart.geometry[i]);
+        // Skip cutting with wire geometry
+        if (!isWireGeometry(cuttingPart.geometry[i])) {
+          cutGeometry = recursiveCut(cutGeometry, cuttingPart.geometry[i]);
+        }
       }
       return cutGeometry;
     } else {
+      // Skip cutting if the cutting part is wire geometry
+      if (isWireGeometry(cuttingPart)) {
+        return partToCut;
+      }
+      
       //If the shapes don't overlap, we don't need to cut them
       if (partToCut.boundingBox.isOut(cuttingPart.geometry[0].boundingBox)) {
         return partToCut;
