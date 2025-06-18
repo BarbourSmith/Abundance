@@ -76,6 +76,7 @@ export default class Gcode extends Atom {
       this.gcodeString = gcode;
       this.gcodeGenerated = true;
       GlobalVariables.cad.visualizeGcode(this.uniqueID, gcode);
+      URL.revokeObjectURL(this.stlURL); // Clean up the temporary URL after generation
       this.sendToRender();
     };
   }
@@ -131,12 +132,11 @@ export default class Gcode extends Atom {
                   (bounds.max[1] + bounds.min[1]) / 2,
                   (bounds.max[2] + bounds.min[2]) / 2,
                 ];
+                
+                if(GlobalVariables.runMode) {
+                  this.generateGcode();
+                }
               });
-            })
-            .then(() => {
-              if(GlobalVariables.runMode) {
-                this.generateGcode();
-              }
             });
         })
         .catch((err) => {
@@ -145,7 +145,6 @@ export default class Gcode extends Atom {
     } catch (err) {
       this.setAlert(err);
     }
-
   }
 
   createLevaInputs() {
