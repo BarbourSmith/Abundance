@@ -167,7 +167,7 @@ function RunNavigation({
       fetchUserData().then((awsUserJson) => {
         console.log(awsUserJson);
         const isLiked = awsUserJson.repos.some(
-          (project) => project.owner == owner && project.repoName == repoName
+          (project) => project.owner === owner && project.repoName === repoName
         );
         if (isLiked) {
           starred = true;
@@ -188,10 +188,10 @@ function RunNavigation({
   });
 
   useEffect(() => {
-    if (redirectType == "fork") {
+    if (redirectType === "fork") {
       forkProject(authorizedUserOcto);
     }
-    if (redirectType == "like") {
+    if (redirectType === "like") {
       likeProject();
     }
   }, []);
@@ -468,10 +468,10 @@ function RunNavigation({
   const loginHandler = (redirect) => {
     let forking = false;
     let liking = false;
-    if (redirect == "fork") {
+    if (redirect === "fork") {
       forking = true;
     }
-    if (redirect == "like") {
+    if (redirect === "like") {
       liking = true;
     }
 

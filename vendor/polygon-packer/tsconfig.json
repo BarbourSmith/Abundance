@@ -1,0 +1,18 @@
+{
+    "include": ["src/**/*"],
+    "compilerOptions": {
+        "outDir": "../../dist/",
+        "noImplicitAny": true,
+        "resolveJsonModule": true,
+        "module": "esnext",
+        "target": "es6",
+        "jsx": "react",
+        "allowJs": true,
+        "typeRoots": ["../../node_modules/@types"],
+        "allowSyntheticDefaultImports": true,
+        "moduleResolution": "node",
+        "skipLibCheck": true,
+        "lib": ["dom", "es2016", "esnext.bigint"]
+    },
+    "exclude": []
+}

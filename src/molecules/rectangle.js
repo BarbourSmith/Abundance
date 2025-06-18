@@ -55,11 +55,12 @@ export default class Rectangle extends Atom {
 
     GlobalVariables.c.beginPath();
     GlobalVariables.c.fillStyle = "#949294";
+    // Draw the rectangle centered within the atom circle
     GlobalVariables.c.rect(
       GlobalVariables.widthToPixels(this.x - this.radius / 2),
-      GlobalVariables.heightToPixels(this.y - this.radius * 2),
+      GlobalVariables.heightToPixels(this.y - this.radius / 4),
       GlobalVariables.widthToPixels(this.radius),
-      GlobalVariables.widthToPixels(this.radius)
+      GlobalVariables.widthToPixels(this.radius / 2)
     );
     //GlobalVariables.c.fill()
     GlobalVariables.c.stroke();

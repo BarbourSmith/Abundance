@@ -112,6 +112,8 @@ export default function (parent, data, index) {
   });
 
   on(a, "click", clickCallBack, data);
+  on(a, "touchstart", clickCallBack, data);
+  on(a, "touchend", clickCallBack, data);
   on(a, "mouseleave", function () {
     document.getElementById(data.icon + "text").remove();
   });
@@ -124,7 +126,9 @@ export default function (parent, data, index) {
   if (hasSubMenus(data.menus)) {
     var subMenu = this._createSubMenu(self, data.menus, index);
     let hovered = false;
-    on(a, "mouseenter", function () {
+
+    // Mouse and Touch Enter
+    const showSubMenu = () => {
       hovered = true;
       delayShow = setTimeout(function () {
         if (hovered) {
@@ -136,18 +140,26 @@ export default function (parent, data, index) {
             .show();
         }
       }, 100);
-    });
+    };
 
-    on(a, "mouseleave", function (e) {
+    on(a, "mouseenter", showSubMenu);
+    on(a, "touchstart", showSubMenu);
+
+    // Mouse and Touch Leave
+    const hideSubMenu = (e) => {
       if (!subMenu._container.contains(e.toElement)) {
         hovered = false;
         delayHide = setTimeout(function () {
           subMenu.hide();
         }, 100);
       }
-    });
+    };
 
-    on(subMenu._container, "mouseenter", function () {
+    on(a, "mouseleave", hideSubMenu);
+    on(a, "touchend", hideSubMenu);
+
+    // Submenu Mouse and Touch Enter
+    const subMenuMouseEnter = () => {
       clearTimeout(delayShow);
       clearTimeout(delayHide);
       var div = document.createElement("div");
@@ -162,15 +174,26 @@ export default function (parent, data, index) {
         "left",
         self._container.offsetLeft + self._calc.radius - length + 100 + "px"
       );
-    });
+    };
 
-    on(subMenu._container, "mouseleave", function (e) {
+    on(subMenu._container, "mouseenter", subMenuMouseEnter);
+    on(subMenu._container, "touchstart", subMenuMouseEnter);
+
+    // Submenu Mouse and Touch Leave
+    const subMenuMouseLeave = (e) => {
       hovered = false;
 
-      document.getElementById(data.icon + "text2").remove();
+      const tooltip = document.getElementById(data.icon + "text2");
+      if (tooltip) {
+        tooltip.remove();
+      }
+
       if (!a.contains(e.toElement) || e.toElement.children[0] === a) {
         subMenu.hide();
       }
-    });
+    };
+
+    on(subMenu._container, "mouseleave", subMenuMouseLeave);
+    on(subMenu._container, "touchend", subMenuMouseLeave);
   }
 }

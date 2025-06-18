@@ -80,7 +80,7 @@ export default class Molecule extends Atom {
      * A list of available units with corresponding scaling numbers.
      * @type {object}
      */
-    this.units = { MM: "MM", Inches: "Inches" };
+    this.units = { MM: "MM", Inches: "Inches", Unitless: "Unitless" };
     /**
      * The key of the currently selected unit.
      * @type {string}
@@ -937,10 +937,8 @@ export default class Molecule extends Atom {
             });
           }
 
-          //Add the atom to the list to display
+          // Add the atom to the list to display
           this.nodesOnTheScreen.push(atom);
-          // fakes a click on newly placed atom
-          //atom.selected = false;
 
           if (unlock) {
             //Make this molecule spawn with all of it's parent's inputs
@@ -959,6 +957,26 @@ export default class Molecule extends Atom {
             }
 
             atom.updateValue();
+            const flowCanvas = document.querySelector("#flow-canvas");
+            if (!flowCanvas) {
+              console.warn("Flow canvas element not found");
+              return;
+            }
+            const mouseDownEvent = new MouseEvent("mousedown", {
+              bubbles: true,
+              cancelable: true,
+              clientX: GlobalVariables.widthToPixels(atom.x),
+              clientY: GlobalVariables.heightToPixels(atom.y),
+            });
+            flowCanvas.dispatchEvent(mouseDownEvent);
+
+            const mouseUpEvent = new MouseEvent("mouseup", {
+              bubbles: true,
+              cancelable: true,
+              clientX: GlobalVariables.widthToPixels(atom.x),
+              clientY: GlobalVariables.heightToPixels(atom.y),
+            });
+            flowCanvas.dispatchEvent(mouseUpEvent);
           }
         }
       }

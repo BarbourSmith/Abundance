@@ -94,7 +94,7 @@ export default class shrinkWrap extends Atom {
   }
 
   /**
-   * Generates a list of all of the input shapes, then passees them to a worker thread to compute the hull
+   * Generates a list of all of the input shapes, then passes them to a worker thread to compute the hull
    */
   updateValue() {
     super.updateValue();

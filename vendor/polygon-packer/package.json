@@ -1,0 +1,24 @@
+{
+    "name": "polygon-packer",
+    "version": "1.0.0",
+    "main": "src/index.ts",
+    "scripts": {
+        "build": "webpack",
+        "watch": "webpack --watch --config webpack.config.mjs",
+        "test": "jest",
+        "lint": "eslint src/**/*.ts",
+        "lint:fix": "eslint src/**/*.ts --fix"
+    },
+    "description": "Polygon packing algorythm",
+    "dependencies": {
+        "geometry-utils": "^1.0.0"
+    },
+    "keywords": [
+        "polygons",
+        "genetic",
+        "algorythm",
+        "nesting"
+    ],
+    "author": "yurii.lychak",
+    "license": "MIT"
+}

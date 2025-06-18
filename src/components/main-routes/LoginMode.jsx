@@ -116,7 +116,8 @@ const InitialLog = ({ setNoUserBrowsing }) => {
 // adds individual projects after API call
 const AddProject = ({ projectsLoaded, authorizedUserOcto, projectToShow }) => {
   const [browseType, setBrowseType] = useState("thumb");
-  const nodes = projectsLoaded ? projectsLoaded["repos"] : [];
+  let nodes = projectsLoaded ? projectsLoaded["repos"] : [];
+  const [showForks, setShowForks] = useState(true);
   let initialOrder =
     projectToShow == "featured"
       ? "byStars"
@@ -127,6 +128,7 @@ const AddProject = ({ projectsLoaded, authorizedUserOcto, projectToShow }) => {
       : "byName";
 
   const [orderType, setOrderType] = useState(initialOrder);
+
   //looking for highest ranking project and tool
   let highestRankingNode = null;
   let highestRankingToolNode = null;
@@ -144,10 +146,17 @@ const AddProject = ({ projectsLoaded, authorizedUserOcto, projectToShow }) => {
     const sortedToolNodes = toolNodes.sort((a, b) => b.ranking - a.ranking);
     highestRankingToolNode = sortedToolNodes[0];
   }
+  if (!showForks) {
+    // filter out forks
+    nodes = nodes.filter((node) => node.parentRepo === null);
+  }
 
   return (
     <>
-      <div id="sorting-button-div">
+      <div
+        id="sorting-button-div"
+        style={{ display: "flex", alignItems: "center" }}
+      >
         <button
           className="list_thumb_button"
           key="list-filter-button"
@@ -178,7 +187,10 @@ const AddProject = ({ projectsLoaded, authorizedUserOcto, projectToShow }) => {
             }}
           />
         </button>
-        <label htmlFor="order-by">
+        <label
+          htmlFor="order-by"
+          style={{ display: "flex", alignItems: "center" }}
+        >
           <select
             className="order_dropdown"
             id="order-by"
@@ -204,6 +216,29 @@ const AddProject = ({ projectsLoaded, authorizedUserOcto, projectToShow }) => {
               Date Modified
             </option>
           </select>
+        </label>
+        <label
+          style={{ display: "flex", alignItems: "center", marginLeft: "10px" }}
+        >
+          <img
+            src={import.meta.env.VITE_APP_PATH_FOR_PICS + "/imgs/fork.svg"}
+            alt="Show/Hide Forks"
+            style={{
+              width: "25px",
+              opacity: "0.8",
+              marginRight: "0px",
+            }}
+          />
+          <input
+            type="checkbox"
+            id="show-hide-forks"
+            defaultChecked={true}
+            onChange={(e) => {
+              const showForks = e.target.checked;
+              setShowForks(showForks);
+            }}
+            style={{ marginLeft: "-3px" }}
+          />
         </label>
       </div>
       <div className="project-items-div">
@@ -575,7 +610,7 @@ const ShowProjects = ({
   });
 
   useEffect(() => {
-    setProjectsToShow(user ? "owned" : "featured");
+    setProjectsToShow(user ? "recents" : "featured");
   }, [GlobalVariables.currentUser]);
 
   const forkProject = async function (authorizedUserOcto, owner, repo) {

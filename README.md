@@ -289,7 +289,7 @@ You can read the complete documentation at ----(Documentation pending)
 
 2.  Install dependencies:
 
-        npm install —legacy-peer-deps
+        npm install --legacy-peer-deps
 
 3. Edit files for local development:
 

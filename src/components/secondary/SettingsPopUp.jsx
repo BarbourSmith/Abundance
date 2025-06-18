@@ -234,7 +234,7 @@ const SettingsPopUp = ({ setSettingsPopUp, shortCutsOn, setShortCuts }) => {
                 name="atomSize"
                 className="settings-sliders"
                 min={10}
-                max={30}
+                max={60}
                 color="white"
                 defaultValue={Globalvariables.atomSize * 1000}
               />
@@ -285,6 +285,7 @@ const SettingsPopUp = ({ setSettingsPopUp, shortCutsOn, setShortCuts }) => {
               >
                 <MenuItem value={"MM"}>MM</MenuItem>
                 <MenuItem value={"Inches"}>Inches</MenuItem>
+                <MenuItem value={"Unitless"}>Unitless</MenuItem>
               </Select>
             </FormControl>
           </CustomTabPanel>
