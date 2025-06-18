@@ -241,20 +241,18 @@ export const generateKirimoto = (stlUrl, centerPos, toolSize, passes, speed, ext
         ops: [
             {
               type: "rough",
-              tool: 1000,           // Tool number/id
-              spindle: 1000,        // Spindle speed (RPM)
-              step: 0.4,            // Stepover as a percentage of tool diameter (0.4 = 40%)
-              down: 3,              // Step-down per pass (depth in mm)
-              rate: 800,            // Feed rate (mm/min)
-              plunge: 250,          // Plunge rate (mm/min)
-              leave: 0.2,           // Stock to leave on walls (in mm, optional)
-              leavez: 0.1,          // Stock to leave on floor (in mm, optional)
-              flats: true,          // Clear detected flat faces
-              top: true,            // Clear the top surface
-              inside: true,         // Cut inside boundaries
-              all: false,           // Rough entire stock (for indexed/rotary, optional)
-              ov_conv: false,       // Conventional cut direction (optional)
-              voids: false,         // Clear voids/pockets (optional)
+              tool: 1000,
+              spindle: 1000,
+              step: 0.4,
+              down: 3,
+              rate: 1000,
+              plunge: 250,
+              leave: 0,
+              leavez: 0,
+              top: false,
+              inside: true,
+              voids: true,
+              outside: false,
             },  
           // {
           //   type: "outline",
