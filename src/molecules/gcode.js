@@ -131,8 +131,11 @@ export default class Gcode extends Atom {
   beginPropagation() {
     super.beginPropagation();
     
+    // Check if we're in run mode by URL path (more reliable than global variable)
+    const isRunMode = window.location.pathname.includes('/run/');
+    
     // If we're in run mode, trigger G-code generation after atoms are fully loaded
-    if (GlobalVariables.runMode) {
+    if (isRunMode) {
       // Use setTimeout to ensure all atoms and connections are fully established
       setTimeout(() => {
         this.updateValue();
@@ -162,7 +165,11 @@ export default class Gcode extends Atom {
                   (bounds.max[1] + bounds.min[1]) / 2,
                   (bounds.max[2] + bounds.min[2]) / 2,
                 ];
-                if(GlobalVariables.runMode) {
+                
+                // Check if we're in run mode by URL path (more reliable than global variable)
+                const isRunMode = window.location.pathname.includes('/run/');
+                
+                if(isRunMode) {
                   this._generateGcode();
                 }
               });
