@@ -261,6 +261,8 @@ export default class Input extends Atom {
 
     //Write the current color selection to the serialized object
     superSerialObject.type = this.type;
+    //Save the current value so it can be restored when loading
+    superSerialObject.value = this.value;
 
     return superSerialObject;
   }
