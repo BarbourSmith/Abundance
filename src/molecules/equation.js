@@ -164,8 +164,25 @@ export default class Equation extends Atom {
             value: input.value,
             disabled: checkConnector(),
             onChange: (value) => {
-              input.setValue(value);
-              setInputChanged(value);
+              // Handle expression evaluation for inputs that support basic math
+              // This fixes the issue where expressions with negative numbers like "10*-2" 
+              // were not being evaluated correctly
+              let processedValue = value;
+              
+              // Check if the value looks like a simple math expression
+              if (typeof value === 'string' && /^-?\d+\.?\d*\s*[\+\-\*/]\s*-?\d+\.?\d*$/.test(value.trim())) {
+                try {
+                  // Use math.js to evaluate the expression, which properly handles negative numbers
+                  processedValue = GlobalVariables.limitedEvaluate(value.trim());
+                } catch (error) {
+                  // If evaluation fails, use the original value
+                  console.warn('Expression evaluation failed for:', value, error);
+                  processedValue = value;
+                }
+              }
+              
+              input.setValue(processedValue);
+              setInputChanged(processedValue);
               //this.sendToRender();
             },
             order: -2,
