@@ -206,15 +206,9 @@ export default class Code extends Atom {
     this.parseInputs();
 
     if (this.inputs.every((x) => x.ready)) {
-      var inputValues = [];
-      this.inputs.forEach((io) => {
-        if (io.connectors.length > 0 && io.type == "input") {
-          inputValues.push(io.getValue());
-        }
-      });
       var argumentsArray = {};
       this.inputs.forEach((input) => {
-        argumentsArray[input.name] = input.value;
+        argumentsArray[input.name] = input.getValue();
       });
 
       console.log("reevaluating code atom with inputs: ", argumentsArray);
