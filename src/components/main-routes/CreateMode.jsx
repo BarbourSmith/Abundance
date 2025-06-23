@@ -78,7 +78,7 @@ function CreateMode({
     r: "Rotate",
     u: "Rectangle",
     l: "Circle",
-    m: "Molecule",
+    m: "Molecule / Move to Group", // Creates new molecule, or moves selected atoms to new molecule
     s: "Save",
     v: "Paste",
     x: "Equation",
@@ -474,6 +474,9 @@ function CreateMode({
                   </li>
                 );
               })}
+              <li style={{ fontSize: "12px", fontStyle: "italic", marginTop: "8px" }}>
+                Enhanced Copy: CTRL+SHIFT+C copies with connectors
+              </li>
             </div>
           ) : null}
           <TopMenu
