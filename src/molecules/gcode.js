@@ -217,7 +217,9 @@ export default class Gcode extends Atom {
     const partName = this.findIOValue("Part Name") || this.partName || "output";
     inputParams[`Download Gcode - ${partName}`] = button(() => {
       if (this.gcodeGenerated && this.gcodeString) {
-        downloadGcode(this.gcodeString, `${partName}.gcode`);
+        // Get the current part name dynamically when button is clicked
+        const currentPartName = this.findIOValue("Part Name") || this.partName || "output";
+        downloadGcode(this.gcodeString, `${currentPartName}.gcode`);
       } else {
         console.warn("No G-code available. Please generate G-code first.");
         // You could also show an alert or notification to the user here

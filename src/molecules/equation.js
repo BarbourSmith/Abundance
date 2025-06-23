@@ -88,14 +88,26 @@ export default class Equation extends Atom {
    * Add and remove inputs as needed from the atom
    */
   addAndRemoveInputs() {
-    //Find all the letters in this equation
-    var re = /[a-zA-Z]/g;
-    const variables = this.currentEquation.match(re);
+    //Find all the variables in this equation using word boundaries to avoid function names
+    var re = /\b[a-zA-Z]+\b/g;
+    const allMatches = this.currentEquation.match(re);
+    
+    // Filter out common math function names to avoid treating them as variables
+    const mathFunctions = new Set([
+      'sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'atan2',
+      'sinh', 'cosh', 'tanh', 'asinh', 'acosh', 'atanh',
+      'sqrt', 'cbrt', 'exp', 'log', 'log10', 'log2',
+      'abs', 'sign', 'ceil', 'floor', 'round', 'trunc',
+      'min', 'max', 'mean', 'median', 'mode', 'std', 'var',
+      'pi', 'e', 'i', 'true', 'false', 'null', 'undefined'
+    ]);
+    
+    const variables = allMatches ? allMatches.filter(match => !mathFunctions.has(match.toLowerCase())) : null;
 
     //Remove any inputs which are not needed
     const deleteExtraInputs = () => {
       this.inputs.forEach((input) => {
-        if (!variables.includes(input.name)) {
+        if (!variables || !variables.includes(input.name)) {
           this.removeIO("input", input.name, this);
           deleteExtraInputs(); //This needs to be called recursively to make sure all the inputs are deleted
         }
@@ -104,9 +116,11 @@ export default class Equation extends Atom {
     deleteExtraInputs();
 
     //Add any inputs which are needed
-    for (var variable in variables) {
-      if (!this.inputs.some((input) => input.Name === variables[variable])) {
-        this.addIO("input", variables[variable], this, "number", 1);
+    if (variables) {
+      for (var variable in variables) {
+        if (!this.inputs.some((input) => input.name === variables[variable])) {
+          this.addIO("input", variables[variable], this, "number", 1);
+        }
       }
     }
   }
@@ -120,16 +134,33 @@ export default class Equation extends Atom {
       var substitutedEquation = this.currentEquation;
       this.name = this.currentEquation;
 
-      // Find all the letters in this equation
-      var re = /[a-zA-Z]/g;
-      const variables = this.currentEquation.match(re);
-      for (var variable in variables) {
-        for (var i = 0; i < this.inputs.length; i++) {
-          if (this.inputs[i].name == variables[variable]) {
-            substitutedEquation = substitutedEquation.replace(
-              this.inputs[i].name,
-              this.findIOValue(this.inputs[i].name)
-            );
+      // Find all the variables in this equation using word boundaries to avoid function names
+      var re = /\b[a-zA-Z]+\b/g;
+      const allMatches = this.currentEquation.match(re);
+      
+      // Filter out common math function names to avoid treating them as variables
+      const mathFunctions = new Set([
+        'sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'atan2',
+        'sinh', 'cosh', 'tanh', 'asinh', 'acosh', 'atanh',
+        'sqrt', 'cbrt', 'exp', 'log', 'log10', 'log2',
+        'abs', 'sign', 'ceil', 'floor', 'round', 'trunc',
+        'min', 'max', 'mean', 'median', 'mode', 'std', 'var',
+        'pi', 'e', 'i', 'true', 'false', 'null', 'undefined'
+      ]);
+      
+      const variables = allMatches ? allMatches.filter(match => !mathFunctions.has(match.toLowerCase())) : null;
+      
+      if (variables) {
+        for (var variable in variables) {
+          for (var i = 0; i < this.inputs.length; i++) {
+            if (this.inputs[i].name == variables[variable]) {
+              // Use word boundaries in replacement to avoid partial matches
+              const variablePattern = new RegExp(`\\b${this.inputs[i].name}\\b`, 'g');
+              substitutedEquation = substitutedEquation.replace(
+                variablePattern,
+                this.findIOValue(this.inputs[i].name)
+              );
+            }
           }
         }
       }

@@ -609,6 +609,46 @@ async function Intersect(input1, input2) {
 }
 
 /**
+ * Validates that user-provided code doesn't contain dangerous patterns
+ * @param {string} code - The JavaScript code string to validate
+ * @returns {boolean} True if code appears safe, throws error if dangerous patterns detected
+ */
+function validateUserCode(code) {
+  const dangerousPatterns = [
+    // TODO(tristan): we may not actually want to ban all of these.
+    // but leaving them for now, until we have a way to warn and override
+    /eval\s*\(/,
+    /import\s*\(/,
+    /require\s*\(/,
+    /process\s*\./,
+    /global\s*\./,
+    /window\s*\./,
+    /document\s*\./,
+    /XMLHttpRequest/,
+    /fetch\s*\(/,
+    /localStorage/,
+    /sessionStorage/,
+    /IndexedDB/,
+    /WebSocket/,
+    /Worker\s*\(/,
+    /setTimeout\s*\(/,
+    /setInterval\s*\(/,
+    /__proto__/,
+    /constructor/,
+    /prototype/,
+  ];
+
+  for (const pattern of dangerousPatterns) {
+    if (pattern.test(code)) {
+      throw new Error(`Code contains potentially dangerous pattern: ${pattern.source}`);
+    }
+  }
+
+  return true;
+}
+
+
+/**
  * Executes user-provided code in the worker thread with access to predefined geometry functions.
  * @param {string} targetID - The unique identifier to store the code execution result in the library
  * @param {string} code - The JavaScript code string to execute
@@ -618,30 +658,54 @@ async function Intersect(input1, input2) {
  */
 async function code(targetID, code, argumentsArray) {
   await started;
-  let keys1 = ["Rotate", "Move", "Assembly", "Intersect"];
-  let inputValues = [Rotate, Move, Assembly, Intersect];
-  for (const [key, value] of Object.entries(argumentsArray)) {
-    keys1.push(`${key}`);
-    inputValues.push(value);
-  }
+  try {
+    // Validate input parameters
+    if (typeof code !== 'string') {
+      throw new Error('Code must be a string');
+    }
+    if (code.length > 50000) {
+      throw new Error('Code too long (maximum 50,000 characters)');
+    }
 
-  // revisit this eval/ Is this the right/safest way to do this?
-  var result = await eval(
-    "(async (" +
-      keys1.join(",") +
-      ") => {" +
-      code +
-      "})(" +
-      inputValues.join(",") +
-      ")"
-  );
+    // Validate code for dangerous patterns
+    // TODO: we probably want to allow some of these but still need to warn about them before executing
+    // the code molecule.
+    validateUserCode(code);
 
-  library[targetID] = result;
-  // If the type of the result is a number return the number so it can be passed to the next atom
-  if (typeof result === "number") {
-    return result;
-  } else {
-    return true;
+    let keys1 = ["Rotate", "Move", "Assembly", "Intersect", "library", "replicad"];
+    let inputValues = [Rotate, Move, Assembly, Intersect, library, replicad];  
+    for (const [key, value] of Object.entries(argumentsArray)) {
+      // Sanitize parameter names to prevent injection
+      if (!/^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(key)) {
+        throw new Error(`Invalid parameter name: ${key}`);
+      }
+      keys1.push(key);
+      inputValues.push(value);
+    }
+
+    // Use Function constructor instead of eval - still allows code execution but safer than eval
+    const userFunction = new Function(...keys1, `return (async () => { ${code} })();`);
+
+    // Execute with timeout protection
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Code execution timed out')), 60000); // 1 min timeout
+    });
+
+    const result = await Promise.race([
+      userFunction(...inputValues),
+      timeoutPromise
+    ]);
+
+    library[targetID] = result;
+    // If the type of the result is a number return the number so it can be passed to the next atom
+    if (typeof result === "number") {
+      return result;
+    } else {
+      return true;
+    }
+  } catch (error) {
+    console.error('Code execution error:', error);
+    throw new Error(`Code execution failed: ${error.message}`);
   }
 }
 

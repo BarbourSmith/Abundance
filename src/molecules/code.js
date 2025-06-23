@@ -63,7 +63,7 @@ export default class Code extends Atom {
       //We can also create a new shape from scratch\n\
       let createdRectangle = replicad.drawRectangle(5,7)\n\
       //This is the plane we are going to put our new shape on\n\
-      const newPlane = new Plane().pivot(0, 'Y');\n\
+      const newPlane = new replicad.Plane().pivot(0, 'Y');\n\
       //And we extrude the shape to make it 3D\n\
       let createdShape = createdRectangle.sketchOnPlane(newPlane).extrude(height)\n\
       \n\
@@ -326,6 +326,13 @@ export default class Code extends Atom {
   saveCode() {
     const saveCodeButton = document.getElementById("save-code-button");
     saveCodeButton.click();
+  }
+
+  loadFile(type) {
+    var f = document.getElementById("fileLoaderInput");
+    f.accept = "." + type.toLowerCase();
+    f.click();
+    this.type = type;
   }
 
   /**
