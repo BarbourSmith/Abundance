@@ -41,6 +41,7 @@ function CreateMode({
   setWireMesh,
   outdatedMesh,
   setOutdatedMesh,
+  setSaveProjectRef,
 }) {
   const navigate = useNavigate();
 
@@ -92,6 +93,13 @@ function CreateMode({
       setTop(!activeAtom.topLevel);
     }
   }, [activeAtom]);
+
+  /** Register save function for crash detection */
+  useEffect(() => {
+    if (setSaveProjectRef && authorizedUserOcto) {
+      setSaveProjectRef(() => saveProject);
+    }
+  }, [setSaveProjectRef, authorizedUserOcto]);
 
   useEffect(() => {
     window.addEventListener("keydown", handleBodyClick);
