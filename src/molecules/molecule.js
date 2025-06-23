@@ -965,6 +965,7 @@ export default class Molecule extends Atom {
               console.warn("Flow canvas element not found");
               return;
             }
+            
             const mouseDownEvent = new MouseEvent("mousedown", {
               bubbles: true,
               cancelable: true,
@@ -978,6 +979,12 @@ export default class Molecule extends Atom {
               cancelable: true,
               clientX: GlobalVariables.widthToPixels(atom.x),
               clientY: GlobalVariables.heightToPixels(atom.y),
+            });
+            flowCanvas.dispatchEvent(mouseUpEvent);
+            
+            // Ensure the atom remains selected after the synthetic mouse events
+            // The events may cause the atom to be deselected, so we re-select it
+            atom.selected = true;
             });
             flowCanvas.dispatchEvent(mouseUpEvent);
           }
