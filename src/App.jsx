@@ -246,6 +246,12 @@ export default function ReplicadApp() {
           window.location.reload();
         }
       );
+      
+      // Expose crash detection for testing in development
+      if (process.env.NODE_ENV === 'development' || window.location.hostname === 'localhost') {
+        window.crashDetection = crashDetection;
+        console.log('Worker crash detection initialized and available for testing at window.crashDetection');
+      }
     }
   }, [activeAtom, saveProjectRef]);
 

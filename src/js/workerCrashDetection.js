@@ -69,6 +69,12 @@ class WorkerCrashDetection {
     if (this.isRecovering) return;
 
     try {
+      // Clear any existing timeout
+      if (this.heartbeatTimeout) {
+        clearTimeout(this.heartbeatTimeout);
+        this.heartbeatTimeout = null;
+      }
+
       this.heartbeatTimeout = setTimeout(() => {
         console.error('Worker heartbeat timeout');
         this.initiateRecovery('Worker heartbeat timeout');
@@ -85,6 +91,10 @@ class WorkerCrashDetection {
       }
     } catch (error) {
       console.error('Heartbeat failed:', error);
+      if (this.heartbeatTimeout) {
+        clearTimeout(this.heartbeatTimeout);
+        this.heartbeatTimeout = null;
+      }
       this.initiateRecovery('Heartbeat failed: ' + error.message);
     }
   }
@@ -142,11 +152,26 @@ class WorkerCrashDetection {
       // Show user notification
       this.showRecoveryNotification();
 
-      // Attempt to save the project
+      // Attempt to save the project if we have required data
       if (this.saveCallback) {
-        console.log('Attempting to save project before recovery...');
-        await this.saveCallback();
-        console.log('Project saved successfully');
+        // Check if we have the required global variables for saving
+        const hasRequiredData = (
+          typeof window !== 'undefined' &&
+          window.GlobalVariables &&
+          window.GlobalVariables.topLevelMolecule &&
+          window.GlobalVariables.currentUser &&
+          window.GlobalVariables.currentRepo
+        );
+        
+        if (hasRequiredData) {
+          console.log('Attempting to save project before recovery...');
+          await this.saveCallback();
+          console.log('Project saved successfully');
+        } else {
+          console.warn('Save skipped - required project data not available or user not authenticated');
+        }
+      } else {
+        console.warn('Save skipped - no save callback available');
       }
 
       // Wait a moment for save to complete
