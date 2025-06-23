@@ -212,6 +212,9 @@ export default class Equation extends Atom {
    */
   updateValue() {
     // super.updateValue();
+    // Clear any existing alerts at the beginning of processing
+    this.clearAlert();
+    
     try {
       this.addAndRemoveInputs();
 
@@ -223,7 +226,6 @@ export default class Equation extends Atom {
 
         this.output.setValue(this.value);
         this.output.ready = true;
-        this.clearAlert();
       }
     } catch (err) {
       console.warn(err);

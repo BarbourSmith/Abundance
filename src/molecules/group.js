@@ -103,6 +103,9 @@ export default class Group extends Atom{
     * Super class the default update value function. This function computes creates an array of all of the input values and then passes that array to a worker thread to create the group.
     */ 
     updateValue(){
+        // Clear any existing alerts at the beginning of processing
+        this.clearAlert();
+        
         if(this.inputs.every(x => x.ready)){
             try{
                 var inputValues = []
@@ -115,7 +118,6 @@ export default class Group extends Atom{
                 const values = { op: "group",paths: inputValues, writePath: this.path }
                 
                 this.basicThreadValueProcessing(values, "group")
-                this.clearAlert()
             }catch(err){this.setAlert(err)}
             
             //Delete or add ports as needed
