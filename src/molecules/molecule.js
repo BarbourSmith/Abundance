@@ -944,6 +944,13 @@ export default class Molecule extends Atom {
           this.nodesOnTheScreen.push(atom);
 
           if (unlock) {
+            // Deselect all other atoms to ensure only the newly placed atom is selected
+            this.nodesOnTheScreen.forEach((existingAtom) => {
+              if (existingAtom !== atom) {
+                existingAtom.selected = false;
+              }
+            });
+
             //Make this molecule spawn with all of it's parent's inputs
             if (atom.atomType == "Molecule") {
               //Not GitHubMolecule
@@ -962,10 +969,10 @@ export default class Molecule extends Atom {
             atom.updateValue();
             
             // Ensure the newly placed atom is selected so it can be deleted immediately
-            // Defer this to the next event loop to avoid conflicts with UI event propagation
+            // Use a longer delay to ensure all UI events have finished processing
             setTimeout(() => {
               atom.selected = true;
-            }, 0);
+            }, 100);
           }
         }
       }
