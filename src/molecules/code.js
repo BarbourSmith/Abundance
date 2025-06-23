@@ -217,6 +217,7 @@ export default class Code extends Atom {
         argumentsArray[input.name] = input.getValue();
       });
 
+      console.log("reevaluating code atom with inputs: ", argumentsArray);
       GlobalVariables.cad
         .code(this.uniqueID, this.code, argumentsArray)
         .then((result) => {
@@ -228,9 +229,29 @@ export default class Code extends Atom {
             this.customThreadValueProcessing(result);
           }
         })
-        .catch(this.alertingErrorHandler());
+        .catch((err) => {
+          this.processing = false;
+          console.log(err);
+          // try to extract line number trace from the evaluated code
+          let logged = false;
+          if (err.stack && err.stack.includes("eval")) {
+            // If the error stack contains "eval", we can try to extract the line number
+            const lineMatch = err.stack.match(/<anonymous>:(\d+):(\d+)/);
+            if (lineMatch) {
+              const lineNumber = lineMatch[1];
+              this.setAlert(
+                `User code error at line ${lineNumber}: ${err.name} - ${err.message}`
+              );
+              logged = true;
+            }
+          }
+          if (!logged) {
+            this.setAlert(err.name + ": " + err.message);
+          }
+        });
     }
   }
+
 
   /**
    * Override the standard basic thread processing function to allow passing of numbers or geometry depending on what we have
@@ -325,14 +346,7 @@ export default class Code extends Atom {
    */
   saveCode() {
     const saveCodeButton = document.getElementById("save-code-button");
-    saveCodeButton.click();
-  }
-
-  loadFile(type) {
-    var f = document.getElementById("fileLoaderInput");
-    f.accept = "." + type.toLowerCase();
-    f.click();
-    this.type = type;
+    saveCodeButton.click();  
   }
 
   /**

@@ -58,6 +58,12 @@ function GitSearch({
     setSearchingGitHub(false);
     setSearch("");
     setIsHovering(false);
+    
+    // Ensure canvas regains focus after placing molecule
+    const flowCanvas = document.getElementById("flow-canvas");
+    if (flowCanvas) {
+      flowCanvas.focus();
+    }
   }
 
   const handleChange = function (e) {

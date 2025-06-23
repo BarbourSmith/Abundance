@@ -114,6 +114,12 @@ const createCMenu = (targetElement, setSearchingGithub) => {
     );
     //Simulate a click on the new atom
     var clickHandledByAtom = false;
+    
+    // Ensure canvas regains focus after placing atom
+    const flowCanvas = document.getElementById("flow-canvas");
+    if (flowCanvas) {
+      flowCanvas.focus();
+    }
   }
 };
 

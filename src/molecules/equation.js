@@ -102,12 +102,12 @@ export default class Equation extends Atom {
       'pi', 'e', 'i', 'true', 'false', 'null', 'undefined'
     ]);
     
-    const variables = allMatches ? allMatches.filter(match => !mathFunctions.has(match.toLowerCase())) : null;
+    const variables = allMatches ? allMatches.filter(match => !mathFunctions.has(match.toLowerCase())) : [];
 
     //Remove any inputs which are not needed
     const deleteExtraInputs = () => {
       this.inputs.forEach((input) => {
-        if (!variables || !variables.includes(input.name)) {
+        if (!variables.includes(input.name)) {
           this.removeIO("input", input.name, this);
           deleteExtraInputs(); //This needs to be called recursively to make sure all the inputs are deleted
         }
@@ -116,7 +116,7 @@ export default class Equation extends Atom {
     deleteExtraInputs();
 
     //Add any inputs which are needed
-    if (variables) {
+    if (variables.length > 0) {
       for (var variable in variables) {
         if (!this.inputs.some((input) => input.name === variables[variable])) {
           this.addIO("input", variables[variable], this, "number", 1);
@@ -148,9 +148,9 @@ export default class Equation extends Atom {
         'pi', 'e', 'i', 'true', 'false', 'null', 'undefined'
       ]);
       
-      const variables = allMatches ? allMatches.filter(match => !mathFunctions.has(match.toLowerCase())) : null;
+      const variables = allMatches ? allMatches.filter(match => !mathFunctions.has(match.toLowerCase())) : [];
       
-      if (variables) {
+      if (variables.length > 0) {
         for (var variable in variables) {
           for (var i = 0; i < this.inputs.length; i++) {
             if (this.inputs[i].name == variables[variable]) {
@@ -247,7 +247,7 @@ export default class Equation extends Atom {
    * Set the current equation to be a new value.
    */
   setEquation(newEquation) {
-    this.currentEquation = newEquation.trim(); //remove leading and trailing whitespace
+    this.currentEquation = String(newEquation).trim(); //convert to string first, then remove leading and trailing whitespace
     this.updateValue();
   }
 

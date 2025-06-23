@@ -74,24 +74,17 @@ export default class GitHubMolecule extends Molecule {
           return input.connectors.length > 0;
         };
 
-        /* Makes inputs for Io's other than geometry */
-        if (input.valueType !== "geometry") {
-          inputParams[this.uniqueID + input.name] = {
-            value: input.value,
-            label: input.name,
-            disabled: checkConnector(),
-            onChange: (value) => {
-              if (input.value !== value) {
-                input.setValue(value);
-                //this.sendToRender();
-              }
-            },
-          };
-          if (input.type && input.valueType) {
-            inputParams[this.uniqueID + input.name].type =
-              LevaInputs[input.valueType.toUpperCase()];
-          }
-        }
+        inputParams[this.uniqueID + input.name] = {
+          value: input.value,
+          label: input.name,
+          disabled: checkConnector(),
+          onChange: (value) => {
+            if (input.value !== value) {
+              input.setValue(value);
+              //this.sendToRender();
+            }
+          },
+        };
         if (input.type && input.valueType) {
           inputParams[this.uniqueID + input.name].type =
             LevaInputs[input.valueType.toUpperCase()];
