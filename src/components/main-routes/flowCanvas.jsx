@@ -182,6 +182,11 @@ export default memo(function FlowCanvas({
         GlobalVariables.currentMolecule.copy();
       }
       if (e.key == "v") {
+        // Deselect all currently selected atoms before pasting
+        GlobalVariables.currentMolecule.nodesOnTheScreen.forEach((atom) => {
+          atom.selected = false;
+        });
+        
         GlobalVariables.atomsSelected.forEach((item) => {
           let newAtomID = GlobalVariables.generateUniqueID();
           item.uniqueID = newAtomID;
