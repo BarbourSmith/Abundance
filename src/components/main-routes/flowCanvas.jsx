@@ -179,7 +179,14 @@ export default memo(function FlowCanvas({
       //Copy & Paste
       if (e.key == "c") {
         GlobalVariables.atomsSelected = [];
-        GlobalVariables.currentMolecule.copy();
+        GlobalVariables.connectorsSelected = [];
+        if (e.shiftKey) {
+          // Ctrl+Shift+C: Enhanced copy with connectors
+          GlobalVariables.currentMolecule.copyWithConnectors();
+        } else {
+          // Ctrl+C: Regular copy
+          GlobalVariables.currentMolecule.copy();
+        }
       }
       if (e.key == "v") {
         // Deselect all currently selected atoms before pasting
@@ -187,17 +194,54 @@ export default memo(function FlowCanvas({
           atom.selected = false;
         });
         
-        GlobalVariables.atomsSelected.forEach((item) => {
-          let newAtomID = GlobalVariables.generateUniqueID();
-          item.uniqueID = newAtomID;
-          if (
-            item.atomType == "Molecule" ||
-            item.atomType == "GitHubMolecule"
-          ) {
-            item = GlobalVariables.currentMolecule.remapIDs(item);
+        // If we have connectors to paste, handle the full molecule structure
+        if (GlobalVariables.connectorsSelected && GlobalVariables.connectorsSelected.length > 0) {
+          // Create a temporary molecule data structure
+          const moleculeData = {
+            allAtoms: GlobalVariables.atomsSelected,
+            allConnectors: GlobalVariables.connectorsSelected,
+            fileTypeVersion: 1
+          };
+          
+          // Remap IDs to avoid conflicts
+          const remappedData = GlobalVariables.currentMolecule.remapIDs(moleculeData);
+          
+          // Place atoms first
+          const atomPromises = [];
+          if (remappedData && remappedData.allAtoms) {
+            remappedData.allAtoms.forEach((atomData) => {
+              const promise = GlobalVariables.currentMolecule.placeAtom(atomData, true);
+              atomPromises.push(promise);
+            });
           }
-          GlobalVariables.currentMolecule.placeAtom(item, true);
-        });
+          
+          // Wait for all atoms to be placed, then place connectors
+          Promise.all(atomPromises).then(() => {
+            if (remappedData && remappedData.allConnectors) {
+              remappedData.allConnectors.forEach((connectorData) => {
+                GlobalVariables.currentMolecule.placeConnector(connectorData);
+              });
+            }
+          });
+        } else {
+          // Regular paste without connectors
+          GlobalVariables.atomsSelected.forEach((item) => {
+            let newAtomID = GlobalVariables.generateUniqueID();
+            item.uniqueID = newAtomID;
+            if (
+              item.atomType == "Molecule" ||
+              item.atomType == "GitHubMolecule"
+            ) {
+              item = GlobalVariables.currentMolecule.remapIDs(item);
+            }
+            GlobalVariables.currentMolecule.placeAtom(item, true);
+          });
+        }
+      }
+      
+      // Move selected atoms to new molecule with connectors
+      if (e.key == "m") {
+        GlobalVariables.currentMolecule.moveSelectedAtomsToMolecule();
       }
 
       //Opens menu to search for github molecule

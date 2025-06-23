@@ -242,6 +242,11 @@ class GlobalVariables {
      */
     this.atomsSelected = [];
     /**
+     * A variable to save array of connectors to be copied with atoms
+     * @type {array}
+     */
+    this.connectorsSelected = [];
+    /**
      * The size (in mm) of segments to use for circles.
      * @type {number}
      */

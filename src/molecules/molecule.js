@@ -369,6 +369,148 @@ export default class Molecule extends Atom {
       }
     });
   }
+
+  /**
+   * Enhanced copy that includes internal connectors between selected atoms
+   */
+  copyWithConnectors() {
+    const selectedAtoms = [];
+    const selectedAtomIDs = new Set();
+    const internalConnectors = [];
+
+    // First pass: collect selected atoms and their IDs
+    this.nodesOnTheScreen.forEach((atom) => {
+      if (atom.selected) {
+        selectedAtoms.push(atom.serialize({ x: 0.05, y: 0.05 }));
+        selectedAtomIDs.add(atom.uniqueID);
+      }
+    });
+
+    // Second pass: collect connectors that connect only selected atoms
+    this.nodesOnTheScreen.forEach((atom) => {
+      if (atom.selected && atom.output) {
+        atom.output.connectors.forEach((connector) => {
+          // Only include connectors where both ends are in selected atoms
+          if (connector.attachmentPoint2 && 
+              selectedAtomIDs.has(connector.attachmentPoint1.parentMolecule.uniqueID) &&
+              selectedAtomIDs.has(connector.attachmentPoint2.parentMolecule.uniqueID)) {
+            internalConnectors.push(connector.serialize());
+          }
+        });
+      }
+    });
+
+    // Store in a structured format that includes both atoms and connectors
+    GlobalVariables.atomsSelected = selectedAtoms;
+    GlobalVariables.connectorsSelected = internalConnectors;
+  }
+
+  /**
+   * Move selected atoms with their internal connectors into a new or existing molecule
+   * @param {object} targetMolecule - The molecule to move atoms into (optional, creates new if not provided)
+   */
+  moveSelectedAtomsToMolecule(targetMolecule = null) {
+    // Copy atoms and connectors
+    this.copyWithConnectors();
+
+    if (GlobalVariables.atomsSelected.length === 0) {
+      console.warn("No atoms selected to move");
+      return null;
+    }
+
+    // Create new molecule if not provided
+    if (!targetMolecule) {
+      // Calculate center position of selected atoms
+      let avgX = 0, avgY = 0;
+      GlobalVariables.atomsSelected.forEach(atom => {
+        avgX += atom.x;
+        avgY += atom.y;
+      });
+      avgX /= GlobalVariables.atomsSelected.length;
+      avgY /= GlobalVariables.atomsSelected.length;
+
+      // Create new molecule
+      const newMoleculeObj = {
+        parentMolecule: this,
+        x: avgX,
+        y: avgY,
+        parent: this,
+        atomType: "Molecule",
+        uniqueID: GlobalVariables.generateUniqueID(),
+        name: "Group"
+      };
+
+      // Place the new molecule
+      this.placeAtom(newMoleculeObj, true).then(() => {
+        // Find the newly created molecule
+        targetMolecule = this.nodesOnTheScreen.find(atom => 
+          atom.uniqueID === newMoleculeObj.uniqueID
+        );
+        
+        if (targetMolecule) {
+          this.completeAtomMove(targetMolecule);
+        }
+      });
+    } else {
+      this.completeAtomMove(targetMolecule);
+    }
+
+    return targetMolecule;
+  }
+
+  /**
+   * Complete the atom move operation by placing atoms and connectors in target molecule
+   * @param {object} targetMolecule - The target molecule to place atoms into
+   */
+  completeAtomMove(targetMolecule) {
+    // Remove selected atoms from current molecule
+    const atomsToRemove = [];
+    this.nodesOnTheScreen.forEach((atom) => {
+      if (atom.selected) {
+        atomsToRemove.push(atom);
+      }
+    });
+
+    // Delete atoms from current molecule (this also removes their connectors)
+    atomsToRemove.forEach((atom) => {
+      atom.deleteNode();
+    });
+
+    // Create structured data for the target molecule
+    const moleculeData = {
+      allAtoms: GlobalVariables.atomsSelected,
+      allConnectors: GlobalVariables.connectorsSelected || [],
+      fileTypeVersion: 1
+    };
+
+    // Remap IDs to avoid conflicts
+    const remappedData = targetMolecule.remapIDs(moleculeData);
+
+    // Place atoms in target molecule
+    if (remappedData && remappedData.allAtoms) {
+      const atomPromises = [];
+      remappedData.allAtoms.forEach((atomData) => {
+        const promise = targetMolecule.placeAtom(atomData, true);
+        atomPromises.push(promise);
+      });
+
+      // Place connectors after atoms are placed
+      Promise.all(atomPromises).then(() => {
+        if (remappedData.allConnectors) {
+          remappedData.allConnectors.forEach((connectorData) => {
+            targetMolecule.placeConnector(connectorData);
+          });
+        }
+      }).catch((error) => {
+        console.warn("Error placing atoms or connectors:", error);
+      });
+    }
+
+    // Clear selection
+    GlobalVariables.atomsSelected = [];
+    GlobalVariables.connectorsSelected = [];
+  }
+
   /**
    * Takes an array of recently deleted atoms
    */
