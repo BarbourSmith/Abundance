@@ -214,7 +214,7 @@ export default class Code extends Atom {
       });
       var argumentsArray = {};
       this.inputs.forEach((input) => {
-        argumentsArray[input.name] = input.value;
+        argumentsArray[input.name] = input.getValue();
       });
 
       GlobalVariables.cad
