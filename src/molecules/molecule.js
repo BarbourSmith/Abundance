@@ -962,8 +962,10 @@ export default class Molecule extends Atom {
             atom.updateValue();
             
             // Ensure the newly placed atom is selected so it can be deleted immediately
-            // This must be done after updateValue() to ensure the atom is fully initialized
-            atom.selected = true;
+            // Defer this to the next event loop to avoid conflicts with UI event propagation
+            setTimeout(() => {
+              atom.selected = true;
+            }, 0);
           }
         }
       }
