@@ -941,6 +941,9 @@ export default class Molecule extends Atom {
           this.nodesOnTheScreen.push(atom);
 
           if (unlock) {
+            // Ensure the newly placed atom is selected so it can be deleted immediately
+            atom.selected = true;
+            
             //Make this molecule spawn with all of it's parent's inputs
             if (atom.atomType == "Molecule") {
               //Not GitHubMolecule
