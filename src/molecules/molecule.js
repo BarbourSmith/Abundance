@@ -944,9 +944,6 @@ export default class Molecule extends Atom {
           this.nodesOnTheScreen.push(atom);
 
           if (unlock) {
-            // Ensure the newly placed atom is selected so it can be deleted immediately
-            atom.selected = true;
-            
             //Make this molecule spawn with all of it's parent's inputs
             if (atom.atomType == "Molecule") {
               //Not GitHubMolecule
@@ -963,30 +960,9 @@ export default class Molecule extends Atom {
             }
 
             atom.updateValue();
-            const flowCanvas = document.querySelector("#flow-canvas");
-            if (!flowCanvas) {
-              console.warn("Flow canvas element not found");
-              return;
-            }
             
-            const mouseDownEvent = new MouseEvent("mousedown", {
-              bubbles: true,
-              cancelable: true,
-              clientX: GlobalVariables.widthToPixels(atom.x),
-              clientY: GlobalVariables.heightToPixels(atom.y),
-            });
-            flowCanvas.dispatchEvent(mouseDownEvent);
-
-            const mouseUpEvent = new MouseEvent("mouseup", {
-              bubbles: true,
-              cancelable: true,
-              clientX: GlobalVariables.widthToPixels(atom.x),
-              clientY: GlobalVariables.heightToPixels(atom.y),
-            });
-            flowCanvas.dispatchEvent(mouseUpEvent);
-            
-            // Ensure the atom remains selected after the synthetic mouse events
-            // The events may cause the atom to be deselected, so we re-select it
+            // Ensure the newly placed atom is selected so it can be deleted immediately
+            // This must be done after updateValue() to ensure the atom is fully initialized
             atom.selected = true;
           }
         }
