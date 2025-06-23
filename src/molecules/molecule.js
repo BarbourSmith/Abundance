@@ -386,6 +386,12 @@ export default class Molecule extends Atom {
       }
     });
 
+    // Early return if no atoms selected
+    if (selectedAtoms.length === 0) {
+      console.log("No atoms selected for copy with connectors");
+      return;
+    }
+
     // Second pass: collect connectors that connect only selected atoms
     this.nodesOnTheScreen.forEach((atom) => {
       if (atom.selected && atom.output) {
@@ -403,6 +409,8 @@ export default class Molecule extends Atom {
     // Store in a structured format that includes both atoms and connectors
     GlobalVariables.atomsSelected = selectedAtoms;
     GlobalVariables.connectorsSelected = internalConnectors;
+    
+    console.log(`Copied ${selectedAtoms.length} atoms with ${internalConnectors.length} internal connectors`);
   }
 
   /**
@@ -410,13 +418,22 @@ export default class Molecule extends Atom {
    * @param {object} targetMolecule - The molecule to move atoms into (optional, creates new if not provided)
    */
   moveSelectedAtomsToMolecule(targetMolecule = null) {
+    // Check if any atoms are selected
+    const selectedCount = this.nodesOnTheScreen.filter(atom => atom.selected).length;
+    if (selectedCount === 0) {
+      console.log("No atoms selected to move. Please select atoms first.");
+      return null;
+    }
+
     // Copy atoms and connectors
     this.copyWithConnectors();
 
     if (GlobalVariables.atomsSelected.length === 0) {
-      console.warn("No atoms selected to move");
+      console.warn("No atoms could be copied for moving");
       return null;
     }
+
+    console.log(`Moving ${selectedCount} selected atoms to ${targetMolecule ? 'existing' : 'new'} molecule`);
 
     // Create new molecule if not provided
     if (!targetMolecule) {
@@ -449,7 +466,11 @@ export default class Molecule extends Atom {
         
         if (targetMolecule) {
           this.completeAtomMove(targetMolecule);
+        } else {
+          console.error("Failed to create target molecule");
         }
+      }).catch((error) => {
+        console.error("Error creating target molecule:", error);
       });
     } else {
       this.completeAtomMove(targetMolecule);
