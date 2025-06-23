@@ -985,8 +985,6 @@ export default class Molecule extends Atom {
             // Ensure the atom remains selected after the synthetic mouse events
             // The events may cause the atom to be deselected, so we re-select it
             atom.selected = true;
-            });
-            flowCanvas.dispatchEvent(mouseUpEvent);
           }
         }
       }
