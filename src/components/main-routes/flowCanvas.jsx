@@ -307,7 +307,9 @@ export default memo(function FlowCanvas({
 
       var clickHandledByMolecule = false;
       /*Run through all the atoms on the screen and decide if one was clicked*/
-      GlobalVariables.currentMolecule.nodesOnTheScreen.forEach((molecule) => {
+      // Iterate in reverse order to give priority to newer atoms
+      for (let i = GlobalVariables.currentMolecule.nodesOnTheScreen.length - 1; i >= 0; i--) {
+        const molecule = GlobalVariables.currentMolecule.nodesOnTheScreen[i];
         let atomClicked;
 
         atomClicked = molecule.clickDown(
@@ -321,8 +323,9 @@ export default memo(function FlowCanvas({
           setActiveAtom(idi);
           GlobalVariables.currentMolecule.selected = false;
           clickHandledByMolecule = true;
+          break; // Stop processing once an atom handles the click
         }
-      });
+      }
 
       //Draw the selection box
       if (!clickHandledByMolecule && GlobalVariables.ctrlDown) {
@@ -366,9 +369,14 @@ export default memo(function FlowCanvas({
       event.clientY = event.changedTouches[0].clientY;
     }
 
-    GlobalVariables.currentMolecule.nodesOnTheScreen.forEach((molecule) => {
-      molecule.doubleClick(event.clientX, event.clientY);
-    });
+    // Iterate in reverse order to give priority to newer atoms
+    for (let i = GlobalVariables.currentMolecule.nodesOnTheScreen.length - 1; i >= 0; i--) {
+      const molecule = GlobalVariables.currentMolecule.nodesOnTheScreen[i];
+      const handled = molecule.doubleClick(event.clientX, event.clientY);
+      if (handled) {
+        break; // Stop processing once an atom handles the double click
+      }
+    }
     setActiveAtom(GlobalVariables.currentMolecule);
   };
 

@@ -664,7 +664,7 @@ const ShowProjects = ({
                 result.data.name +
                 "/master/project.svg?sanitize=true",
               dateCreated: result.data.created_at,
-              html_url: result.data.html_url,
+              html_url: "https://github.com/" + GlobalVariables.currentUser + "/" + result.data.name,
             };
             fetch(apiUrl, {
               method: "POST",

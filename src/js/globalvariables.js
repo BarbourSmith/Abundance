@@ -450,18 +450,21 @@ class GlobalVariables {
    */
   incrementVariableName(varName, molecule) {
     if (molecule.inputs.find((o) => o.name === varName)) {
-      // Find the last number in the variable name
-      let lastNumber = varName.match(/\d+(?=\D*$)/);
+      // Look for the pattern " (number)" at the end of the variable name
+      let suffixMatch = varName.match(/^(.+) \((\d+)\)$/);
 
-      // Increment the number by 1
-      const incrementedNumber = parseInt(lastNumber[0]) + 1;
-
-      // Replace the last occurrence of the number in the variable name with the incremented number
-      const incrementedVarName = varName.replace(
-        new RegExp(lastNumber[0] + "(?=\\D*$)"),
-        incrementedNumber
-      );
-      return this.incrementVariableName(incrementedVarName, molecule);
+      if (suffixMatch) {
+        // Extract base name and current number
+        const baseName = suffixMatch[1];
+        const currentNumber = parseInt(suffixMatch[2]);
+        
+        // Increment the number and try again
+        const incrementedVarName = `${baseName} (${currentNumber + 1})`;
+        return this.incrementVariableName(incrementedVarName, molecule);
+      } else {
+        // No " (number)" suffix found, add " (1)"
+        return this.incrementVariableName(varName + " (1)", molecule);
+      }
     } else {
       return varName;
     }
