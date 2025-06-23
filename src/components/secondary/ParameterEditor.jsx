@@ -64,6 +64,7 @@ export default (function ParamsEditor({
       value: activeAtom.currentEquation,
       label: "Current Equation",
       disabled: false,
+      type: "string",
       onChange: (value) => {
         if (activeAtom.currentEquation !== value) {
           activeAtom.setEquation(value);
