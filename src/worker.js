@@ -1564,13 +1564,18 @@ function computePositions(
   };
   // from the mesh format of [x1, y1, z1, x2, y2, z2, ...] to FloatPolygon friendly format of
   // [{x: x1, y: y1}, {x: x2, y: y2}...]
-  const polygons = shapesForLayout.map((shape) => {
-    let face = shape.shape;
-    const mesh = face
-      .clone()
-      .outerWire()
-      .meshEdges({ tolerance: tolerance, angularTolerance: 1 }); //Use consistent tolerance values to prevent polygon boundary imprecision
-    return asFloat64(preparePoints(mesh, tolerance));
+  const polygons = shapesForLayout.map((shape, index) => {
+    try {
+      let face = shape.shape;
+      const mesh = face
+        .clone()
+        .outerWire()
+        .meshEdges({ tolerance: tolerance, angularTolerance: 1 }); //Use consistent tolerance values to prevent polygon boundary imprecision
+      return asFloat64(preparePoints(mesh, tolerance));
+    } catch (error) {
+      console.error(`Failed to generate polygon for shape ${index}:`, error);
+      throw new Error(`Polygon generation failed for shape ${index}: ${error.message}`);
+    }
   });
 
   // Clockwise winding direction appears to matter here for the current packing algo.
