@@ -1755,8 +1755,23 @@ function preparePoints(mesh, tolerance) {
           " continuations"
       );
     }
-    currentEdge = nextEgdes[0];
+    
+    // Only continue if we found exactly one matching edge
+    if (nextEgdes.length === 1) {
+      currentEdge = nextEgdes[0];
+    } else {
+      // This should not happen if the condition above works correctly, but add safety
+      break;
+    }
   }
+  
+  // Validate that we have a valid polygon with at least 3 points
+  if (result.length < 3) {
+    throw new Error(
+      "Invalid polygon: insufficient points (" + result.length + " points). Part perimeter reconstruction failed."
+    );
+  }
+  
   return result;
 }
 
