@@ -1569,7 +1569,7 @@ function computePositions(
     const mesh = face
       .clone()
       .outerWire()
-      .meshEdges({ tolerance: 0.5, angularTolerance: 5 }); //The tolerance here is described in the conversation here https://github.com/BarbourSmith/Abundance/pull/173
+      .meshEdges({ tolerance: tolerance, angularTolerance: 1 }); //Use consistent tolerance values to prevent polygon boundary imprecision
     return asFloat64(preparePoints(mesh, tolerance));
   });
 
