@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minimal Kirimoto Example</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .section {
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .section h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        .form-group {
+            margin-bottom: 10px;
+        }
+        label {
+            display: inline-block;
+            width: 120px;
+            font-weight: bold;
+        }
+        input, button {
+            padding: 8px 12px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .status.info {
+            background-color: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+        }
+        .status.success {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .status.error {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        #gcodeOutput {
+            width: 100%;
+            height: 200px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Minimal Kirimoto Engine Example</h1>
+        <p>This is a minimal example demonstrating the integration with the Kirimoto engine for STL to G-code conversion.</p>
+        
+        <div class="section">
+            <h3>1. Kirimoto Engine Status</h3>
+            <div id="engineStatus" class="status info">Loading Kirimoto engine...</div>
+            <button id="initEngineBtn" onclick="initializeEngine()" disabled>Initialize Engine</button>
+        </div>
+
+        <div class="section">
+            <h3>2. STL File Input</h3>
+            <div class="form-group">
+                <label for="stlFile">STL File:</label>
+                <input type="file" id="stlFile" accept=".stl" onchange="handleFileSelect(event)">
+            </div>
+            <div id="fileStatus" class="status info hidden">No file selected</div>
+        </div>
+
+        <div class="section">
+            <h3>3. CAM Parameters</h3>
+            <div class="form-group">
+                <label for="toolSize">Tool Size (mm):</label>
+                <input type="number" id="toolSize" value="6.35" step="0.01" min="0.1">
+            </div>
+            <div class="form-group">
+                <label for="passes">Passes:</label>
+                <input type="number" id="passes" value="6" min="1">
+            </div>
+            <div class="form-group">
+                <label for="speed">Speed (mm/min):</label>
+                <input type="number" id="speed" value="500" min="1">
+            </div>
+            <div class="form-group">
+                <label for="cutThrough">Cut Through (mm):</label>
+                <input type="number" id="cutThrough" value="1" step="0.1" min="0">
+            </div>
+        </div>
+
+        <div class="section">
+            <h3>4. G-code Generation</h3>
+            <button id="generateBtn" onclick="generateGcode()" disabled>Generate G-code</button>
+            <button id="downloadBtn" onclick="downloadGcode()" disabled>Download G-code</button>
+            <div id="generationStatus" class="status info hidden">Ready to generate G-code</div>
+        </div>
+
+        <div class="section">
+            <h3>5. G-code Output</h3>
+            <textarea id="gcodeOutput" readonly placeholder="Generated G-code will appear here..."></textarea>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let kiriEngine = null;
+        let kirimotoInitialized = false;
+        let selectedFile = null;
+        let stlUrl = null;
+        let generatedGcode = null;
+
+        // Initialize Kirimoto engine
+        function initializeEngine() {
+            updateStatus('engineStatus', 'Loading Kirimoto engine from grid.space...', 'info');
+            
+            // Dynamically load the Kiri:Moto script
+            const script = document.createElement('script');
+            script.src = 'https://grid.space/code/engine.js';
+            script.async = true;
+            
+            script.onload = () => {
+                if (window.kiri) {
+                    kiriEngine = window.kiri.newEngine();
+                    kirimotoInitialized = true;
+                    updateStatus('engineStatus', 'Kirimoto engine loaded successfully!', 'success');
+                    document.getElementById('initEngineBtn').disabled = true;
+                    checkReadyToGenerate();
+                    console.log('Kiri:Moto script loaded successfully');
+                } else {
+                    updateStatus('engineStatus', 'Failed to initialize Kirimoto engine', 'error');
+                }
+            };
+
+            script.onerror = () => {
+                updateStatus('engineStatus', 'Failed to load Kirimoto script from grid.space', 'error');
+                console.error('Failed to load Kiri:Moto script');
+            };
+
+            document.head.appendChild(script);
+        }
+
+        // Handle file selection
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file && file.name.toLowerCase().endsWith('.stl')) {
+                selectedFile = file;
+                
+                // Clean up previous URL
+                if (stlUrl) {
+                    URL.revokeObjectURL(stlUrl);
+                }
+                
+                // Create object URL for the STL file
+                stlUrl = URL.createObjectURL(file);
+                
+                updateStatus('fileStatus', `STL file selected: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`, 'success');
+                document.getElementById('fileStatus').classList.remove('hidden');
+                checkReadyToGenerate();
+            } else {
+                updateStatus('fileStatus', 'Please select a valid STL file', 'error');
+                document.getElementById('fileStatus').classList.remove('hidden');
+                selectedFile = null;
+                stlUrl = null;
+            }
+        }
+
+        // Generate G-code using Kirimoto
+        function generateGcode() {
+            if (!kirimotoInitialized || !stlUrl) {
+                updateStatus('generationStatus', 'Engine not ready or no STL file selected', 'error');
+                document.getElementById('generationStatus').classList.remove('hidden');
+                return;
+            }
+
+            updateStatus('generationStatus', 'Generating G-code...', 'info');
+            document.getElementById('generationStatus').classList.remove('hidden');
+            document.getElementById('generateBtn').disabled = true;
+
+            // Get parameters
+            const toolSize = parseFloat(document.getElementById('toolSize').value);
+            const passes = parseInt(document.getElementById('passes').value);
+            const speed = parseInt(document.getElementById('speed').value);
+            const cutThrough = parseFloat(document.getElementById('cutThrough').value);
+
+            // Create a new engine instance for clean state
+            kiriEngine = window.kiri.newEngine();
+
+            kiriEngine
+                .setListener((message) => {
+                    console.log('Kiri:Moto Message:', message);
+                })
+                .load(stlUrl)
+                .then((eng) => {
+                    return eng.move(0, 0, 0); // Center position
+                })
+                .then((eng) => {
+                    return eng.setMode('CAM');
+                })
+                .then((eng) => {
+                    const bounds = eng.widget.getBoundingBox();
+                    const x = bounds.max.x - bounds.min.x;
+                    const y = bounds.max.y - bounds.min.y;
+                    const z = bounds.max.z - bounds.min.z;
+                    
+                    eng.setStock({
+                        x: x + 10,
+                        y: y + 10,
+                        z: z,
+                        center: {
+                            x: x/2,
+                            y: y/2,
+                            z: z/2,
+                        },
+                    });
+                    return eng;
+                })
+                .then((eng) =>
+                    eng.setTools([
+                        {
+                            id: 1000,
+                            number: 1,
+                            type: 'endmill',
+                            name: 'end mill',
+                            metric: true,
+                            shaft_diam: toolSize,
+                            shaft_len: 20,
+                            flute_diam: toolSize,
+                            flute_len: 15,
+                            taper_tip: 0,
+                        },
+                    ])
+                )
+                .then((eng) => {
+                    const bounds = eng.widget.getBoundingBox();
+                    const z = bounds.max.z - bounds.min.z;
+                    
+                    eng.setProcess({
+                        processName: 'outline',
+                        ops: [
+                            {
+                                type: 'outline',
+                                tool: 1000,
+                                spindle: 1000,
+                                step: (z + cutThrough) / passes,
+                                steps: 1,
+                                down: (z + cutThrough) / passes,
+                                rate: speed,
+                                plunge: 250,
+                                dogbones: true,
+                                omitvoid: false,
+                                omitthru: false,
+                                outside: true,
+                                inside: false,
+                                wide: false,
+                                top: true,
+                                ov_topz: 0,
+                                ov_botz: 0,
+                                ov_conv: false,
+                            }
+                        ],
+                        camZBottom: -1 * cutThrough,
+                        camConventional: false,
+                    });
+                    return eng;
+                })
+                .then((eng) =>
+                    eng.setDevice({
+                        mode: 'CAM',
+                        internal: 0,
+                        bedHeight: 2.5,
+                        bedWidth: 1000,
+                        bedDepth: 1000,
+                        maxHeight: 150,
+                        originCenter: false,
+                        spindleMax: 0,
+                        gcodePre: [
+                            'G21 ; set units to MM (required)',
+                            'G90 ; absolute position mode (required)',
+                        ],
+                        gcodePost: ['M30 ; program end'],
+                        gcodeDwell: ['G4 P{time} ; dwell for {time}ms'],
+                        gcodeSpindle: [],
+                        gcodeChange: ['M6 T{tool} ; change tool to \'{tool_name}\''],
+                        gcodeFExt: 'nc',
+                        gcodeSpace: true,
+                        gcodeStrip: true,
+                        new: false,
+                        deviceName: 'Any.Generic.Grbl',
+                        imageURL: '',
+                        useLaser: false,
+                    })
+                )
+                .then((eng) => eng.slice())
+                .then((eng) => eng.prepare())
+                .then((eng) => eng.export())
+                .then((gcode) => {
+                    generatedGcode = gcode;
+                    document.getElementById('gcodeOutput').value = gcode;
+                    updateStatus('generationStatus', 'G-code generated successfully!', 'success');
+                    document.getElementById('downloadBtn').disabled = false;
+                })
+                .catch((error) => {
+                    console.error('Kiri:Moto Error:', error);
+                    updateStatus('generationStatus', `Error generating G-code: ${error.message}`, 'error');
+                })
+                .finally(() => {
+                    document.getElementById('generateBtn').disabled = false;
+                    // Clean up the temporary URL after a delay
+                    setTimeout(() => {
+                        if (stlUrl) {
+                            URL.revokeObjectURL(stlUrl);
+                        }
+                    }, 1000);
+                });
+        }
+
+        // Download generated G-code
+        function downloadGcode() {
+            if (!generatedGcode) {
+                alert('No G-code available to download. Please generate G-code first.');
+                return;
+            }
+
+            const blob = new Blob([generatedGcode], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'output.gcode';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // Helper function to update status messages
+        function updateStatus(elementId, message, type) {
+            const element = document.getElementById(elementId);
+            element.textContent = message;
+            element.className = `status ${type}`;
+        }
+
+        // Check if ready to generate G-code
+        function checkReadyToGenerate() {
+            const ready = kirimotoInitialized && selectedFile && stlUrl;
+            document.getElementById('generateBtn').disabled = !ready;
+            
+            if (ready) {
+                updateStatus('generationStatus', 'Ready to generate G-code', 'info');
+                document.getElementById('generationStatus').classList.remove('hidden');
+            }
+        }
+
+        // Initialize the engine when page loads
+        window.addEventListener('load', () => {
+            document.getElementById('initEngineBtn').disabled = false;
+            initializeEngine();
+        });
+    </script>
+</body>
+</html>
