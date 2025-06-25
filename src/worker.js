@@ -2365,6 +2365,8 @@ function generateDisplayMesh(id) {
       generateDefaultMesh(id).then((result) => {
         console.log(result);
       });
+      // Return empty array for wireframe when no valid geometry exists
+      return [];
     }
     let meshArray = [];
 
