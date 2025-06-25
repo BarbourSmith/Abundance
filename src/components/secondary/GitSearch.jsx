@@ -417,6 +417,8 @@ function GitSearch({
               position: "absolute",
               ...calculateSearchPosition(isShortcut),
             }}
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
           >
             <input
               type="text"
@@ -438,6 +440,8 @@ function GitSearch({
                 position: "absolute",
                 ...calculatePanelPosition(),
               }}
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
             >
               <div className="GitInfoLeft">
                 <img src={panelItem.svgURL}></img>
