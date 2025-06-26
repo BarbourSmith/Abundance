@@ -948,7 +948,7 @@ export default class Molecule extends Atom {
             //Make this molecule spawn with all of it's parent's inputs
             if (atom.atomType == "Molecule") {
               //Not GitHubMolecule
-              atom.copyInputsFromParent();
+              // Removed: atom.copyInputsFromParent(); - no longer create inputs by default
 
               //Make begin propagation from an atom when it is placed. This is used when copy and pasting molecules.
               if (promise != null) {
