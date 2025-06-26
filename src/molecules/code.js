@@ -34,85 +34,71 @@ export default class Code extends Atom {
      * @type {string}
      */
     this.code = " \n\
-      //Inputs:[inputShape, dist, height]\n\
-      //This defines the molecules inputs and creates variables with the same names which can be referenced in the code\n\
-      \n\
-      //Takes the address and gets the shape from the library\n\
-      let importedShape = library[inputShape]\n\
-      \n\
-      //This makes a new copy of of the shape (to prevent garbage collection issues),\n\
-      //and moves it in the X direction. Note that this will not work if the input is an assembly\n\
-      let movedShape = importedShape.geometry[0].clone().translate([dist,0,0])\n\
-      \n\
-      //Console.log works for debugging to better see what is happening under the hood\n\
-      console.log(\"Shape:\")\n\
-      console.log(importedShape);\n\
-      \n\
-      //Shapes stored in the library have tags, a color, a plane, and a bill of materials like this. We don't modify them here\n\
-      let shape1 = {\n\
-        geometry: [movedShape],\n\
-        tags: importedShape.tags,\n\
-        color: importedShape.color,\n\
-        plane: importedShape.plane,\n\
-        bom: importedShape.bom\n\
-      }\n\
-      \n\
-      //We could at this point return shape1 as a complete shape and it will be automatically written to the library for us\n\
-      //return shape1\n\
-      \n\
-      //We can also create a new shape from scratch\n\
-      let createdRectangle = replicad.drawRectangle(5,7)\n\
-      //This is the plane we are going to put our new shape on\n\
-      const newPlane = new replicad.Plane().pivot(0, 'Y');\n\
-      //And we extrude the shape to make it 3D\n\
-      let createdShape = createdRectangle.sketchOnPlane(newPlane).extrude(height)\n\
-      \n\
-      //For our new geometry we need to define the tags, color, plane, etc\n\
-      let shape2 = {\n\
-          geometry: [createdShape], \n\
-          tags: [\"aTag\"],\n\
-          color: '#A3CE5B',\n\
-          plane: newPlane,\n\
-          bom: []\n\
-      }\n\
-      \n\
-      //Then we can return our created shape in just the same way\n\
-      //return shape2\n\
-      \n\
-      //If we want to return both shapes at once, we can create an assembly with them\n\
-      let anAssembly = {\n\
-        geometry: [shape1, shape2], \n\
-        tags: [\"aNewTag\"],\n\
-        color: '#A3CF5B',\n\
-        plane: newPlane,\n\
-        bom: []\n\
-      }\n\
-      \n\
-      //And we can return that in the same way\n\
-      return anAssembly\n\
-      \n\
-      \n\
-          /**\n\
-          To Use the Code Atom, enter your inputs to the input list a.e Inputs:[shape, height]\n\
-          If your input is connected to another atom with a replicad geometry you can access its geometry by looking up its ID in your library. a.e library[Input1].geometry[0] \n\
-          Use any replicad available methods to modify your geometry. Learn more about all of the available methods at \n\
-          https://replicad.xyz/docs/introapp/UserGuide.html \n\
-          Return a replicad object that includes geometry, color, tags and plane. \n\
-      \n\
-      \n\
-          Example Code Atom:\n\
-      \n\
-            Inputs:[shape, x];\n\
-      \n\
-            let finalShape = library[shape].geometry[0].clone.translate[x,0,0]\n\
-      \n\
-            return {geometry: finalShape, color: library[shape].color, plane: library[shape].plane, tags: library[shape].tags }\n\
-      \n\
-            - See more examples at _______ \n\
-      \n\
-      \n\
-          */\n\
-      ";
+// Define inputs: [width, height, thickness]\n\
+// This creates input parameters that can be connected to other atoms or set manually\n\
+Inputs:[width=20, height=10, thickness=5]\n\
+\n\
+/**\n\
+ * BASIC EXAMPLE: Create a simple rectangular box\n\
+ * This demonstrates the fundamental structure of a Code atom:\n\
+ * 1. Use input parameters\n\
+ * 2. Create geometry with replicad\n\
+ * 3. Return a properly formatted shape object\n\
+ */\n\
+\n\
+// Step 1: Create a 2D rectangle using the width and height inputs\n\
+let rectangle = replicad.drawRectangle(width, height)\n\
+\n\
+// Step 2: Define the plane where our shape will be created\n\
+// The XY plane is the default, positioned at Z=0\n\
+let plane = new replicad.Plane()\n\
+\n\
+// Step 3: Extrude the rectangle to make it 3D using the thickness input\n\
+let box = rectangle.sketchOnPlane(plane).extrude(thickness)\n\
+\n\
+// Step 4: Create the shape object with all required properties\n\
+let finalShape = {\n\
+  geometry: [box],              // Array of 3D geometries\n\
+  tags: [\"custom-box\"],         // Tags for identification and export\n\
+  color: '#4A90E2',            // Hex color code\n\
+  plane: plane,                // Reference plane\n\
+  bom: []                      // Bill of materials (empty for basic shapes)\n\
+}\n\
+\n\
+// Step 5: Return the shape (this makes it available to other atoms)\n\
+return finalShape\n\
+\n\
+/**\n\
+ * WORKING WITH INPUT SHAPES:\n\
+ * If you connect another atom to this code atom, you can access its geometry:\n\
+ * \n\
+ * Inputs:[inputShape, offsetX=5]\n\
+ * \n\
+ * // Get the connected shape from the library\n\
+ * let connectedShape = library[inputShape]\n\
+ * \n\
+ * // Clone and modify the geometry (always clone to avoid issues)\n\
+ * let modifiedGeometry = connectedShape.geometry[0].clone().translate([offsetX, 0, 0])\n\
+ * \n\
+ * // Return the modified shape, preserving original properties\n\
+ * return {\n\
+ *   geometry: [modifiedGeometry],\n\
+ *   tags: connectedShape.tags,\n\
+ *   color: connectedShape.color,\n\
+ *   plane: connectedShape.plane,\n\
+ *   bom: connectedShape.bom\n\
+ * }\n\
+ */\n\
+\n\
+/**\n\
+ * TIPS:\n\
+ * - Use console.log() for debugging: console.log('Debug info:', variable)\n\
+ * - Input names become variables you can use in your code\n\
+ * - Default values: Inputs:[width=10, height=5] sets defaults\n\
+ * - Learn more at: https://replicad.xyz/docs/api\n\
+ * - Always return an object with geometry, tags, color, plane, and bom\n\
+ */\n\
+";
 
     this.addIO("output", "geometry", this, "geometry", "");
 
