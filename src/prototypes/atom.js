@@ -290,7 +290,7 @@ export default class Atom {
         defaultValue: defaultValue,
         uniqueID: GlobalVariables.generateUniqueID(),
         atomType: "AttachmentPoint",
-        ready: ready !== undefined ? ready : true,
+        ready: true,
       });
 
       if (type == "input") {

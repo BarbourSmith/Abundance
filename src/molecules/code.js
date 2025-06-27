@@ -204,7 +204,7 @@ export default class Code extends Atom {
   updateValue(value) {
     super.updateValue();
     //Parse the inputs
-    this.parseInputs(false);
+    this.parseInputs();
 
     if (this.inputs.every((x) => x.ready)) {
       var inputValues = [];
@@ -287,7 +287,7 @@ export default class Code extends Atom {
         variableNames.push(variableName);
         let defaultVal = variables[variable][1] ? variables[variable][1] : 10;
 
-        if (!this.inputs.some((input) => input.name === variableName)) {
+        if (!this.inputs.some((input) => input.Name === variableName)) {
           this.addIO(
             "input",
             variableName,

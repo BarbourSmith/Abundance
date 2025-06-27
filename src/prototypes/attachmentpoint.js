@@ -484,7 +484,7 @@ export default class AttachmentPoint {
    */
   beginPropagation() {
     //If nothing is connected it is a starting point
-    if (this.connectors.length == 0 && this.ready) {
+    if (this.connectors.length == 0) {
       this.setValue(this.value);
     }
   }
