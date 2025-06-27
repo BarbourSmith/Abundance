@@ -81,14 +81,44 @@ export default class Import extends Atom {
   }
 
   /**
-   * Get a file from github. Calback is called after the retrieved.
+   * Find the GitHub molecule ancestor that contains this import atom, if any.
+   * @returns {object|null} The GitHub molecule ancestor or null if not found
+   */
+  findGitHubMoleculeAncestor() {
+    let currentParent = this.parent;
+    while (currentParent) {
+      if (currentParent.atomType === "GitHubMolecule" && currentParent.parentRepo) {
+        return currentParent;
+      }
+      currentParent = currentParent.parent;
+    }
+    return null;
+  }
+
+  /**
+   * Get a file from github. Callback is called after the retrieved.
    */
   getAFile = async function () {
     const octokit = new Octokit();
     const filePath = this.fileName;
+    
+    // Check if this import is inside a GitHub molecule
+    const githubMolecule = this.findGitHubMoleculeAncestor();
+    
+    let owner, repo;
+    if (githubMolecule && githubMolecule.parentRepo) {
+      // Use the GitHub molecule's parent repository
+      owner = githubMolecule.parentRepo.owner;
+      repo = githubMolecule.parentRepo.repoName;
+    } else {
+      // Use the current repository (original behavior)
+      owner = GlobalVariables.currentRepo.owner;
+      repo = GlobalVariables.currentRepoName;
+    }
+    
     const result = await octokit.rest.repos.getContent({
-      owner: GlobalVariables.currentRepo.owner,
-      repo: GlobalVariables.currentRepoName,
+      owner: owner,
+      repo: repo,
       path: filePath,
     });
 
