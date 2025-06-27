@@ -106,7 +106,8 @@ export default class Import extends Atom {
     const githubMolecule = this.findGitHubMoleculeAncestor();
     
     let owner, repo;
-    if (githubMolecule && githubMolecule.parentRepo) {
+    if (githubMolecule && githubMolecule.parentRepo && 
+        githubMolecule.parentRepo.owner && githubMolecule.parentRepo.repoName) {
       // Use the GitHub molecule's parent repository
       owner = githubMolecule.parentRepo.owner;
       repo = githubMolecule.parentRepo.repoName;
