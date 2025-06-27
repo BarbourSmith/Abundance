@@ -87,8 +87,8 @@ export default class Import extends Atom {
     const octokit = new Octokit();
     const filePath = this.fileName;
     const result = await octokit.rest.repos.getContent({
-      owner: GlobalVariables.currentRepo.owner,
-      repo: GlobalVariables.currentRepoName,
+      owner: this.owner,
+      repo: this.repo,
       path: filePath,
     });
 
@@ -228,6 +228,8 @@ export default class Import extends Atom {
    */
   updateFile(file, sha) {
     this.fileName = file.name;
+    this.owner = GlobalVariables.currentRepo.owner;
+    this.repo = GlobalVariables.currentRepoName;
     this.sha = sha;
     this.updateValue();
   }
@@ -239,6 +241,9 @@ export default class Import extends Atom {
 
     //Write the current equation to the serialized object
     superSerialObject.fileName = this.fileName; // might delete, maybe we just save as library object
+    superSerialObject.owner = this.owner;
+    superSerialObject.repo = this.repo;
+    superSerialObject.sha = this.sha;
     superSerialObject.name = this.name;
     superSerialObject.type = this.type;
     superSerialObject.SVGwidth = this.SVGwidth;
