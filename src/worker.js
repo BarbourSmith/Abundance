@@ -232,6 +232,16 @@ function loftShapes(targetID, inputsIDs) {
  * @returns {Promise<boolean>} A promise that resolves to true when the extrusion is completed successfully
  */
 function extrude(targetID, inputID, height) {
+  serialize(library[inputID]).then((serialized) => {
+    console.log(serialized);
+    console.log("serialized finished");
+  })
+
+  testSerializeDeserialize().then( (result) => {
+    console.log("finished test serialize deserialize");
+    console.log(result);
+  });
+
   return started.then(() => {
     library[targetID] = actOnLeafs(library[inputID], (leaf) => {
       return {
@@ -2764,11 +2774,11 @@ function serialize(libraryID) {
         // Create a memory stream to write BREP data
         const oc = replicad.getOC();
         // Use BRepTools to write the shape to a string
-        const stringWriter = new oc.StringStream_WCharPtr();
+        //const stringWriter = new oc.StringStream_WCharPtr();
         // Write the shape to the stream in BREP format
-        oc.BRepTools.Write_1(geom.wrapped, stringWriter, new oc.Message_ProgressRange_1());
+        const res = oc.BRepTools.Write_1(geom.wrapped, "filename.txt", new oc.Message_ProgressRange_1());
         // Get the BREP data as a string
-        const brepString = stringWriter.str();
+        //const brepString = stringWriter.str();
         
         // Convert the BREP string to a Blob
         const blob = new Blob([brepString], { type: 'application/octet-stream' });
