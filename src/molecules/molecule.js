@@ -1044,6 +1044,9 @@ export default class Molecule extends Atom {
       if (inputAttachmentPoint.connectors.length > 0) {
         // Check type compatibility before replacement
         if (AttachmentPoint.areTypesCompatible(outputAttachmentPoint, inputAttachmentPoint)) {
+          // Save undo state before replacing connection during project loading
+          GlobalVariables.saveUndoState("MODIFY", `Connection replacement during load: ${outputAttachmentPoint.parentMolecule.name} → ${inputAttachmentPoint.parentMolecule.name}.${inputAttachmentPoint.name}`);
+          
           // Remove existing connections
           const connectorsToRemove = [...inputAttachmentPoint.connectors];
           connectorsToRemove.forEach((existingConnector) => {

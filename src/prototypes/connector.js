@@ -121,6 +121,9 @@ export default class Connector {
             ) {
               // If there are existing connections, remove them first
               if (attachmentPoint.connectors.length > 0) {
+                // Save undo state before replacing connection
+                GlobalVariables.saveUndoState("MODIFY", `Connection replacement: ${this.attachmentPoint1.parentMolecule.name} → ${attachmentPoint.parentMolecule.name}.${attachmentPoint.name}`);
+                
                 // Make a copy of the connectors array to avoid modification during iteration
                 const connectorsToRemove = [...attachmentPoint.connectors];
                 connectorsToRemove.forEach((existingConnector) => {
@@ -169,6 +172,9 @@ export default class Connector {
                   } else {
                     // Input has existing connections - check if we can replace them
                     if (AttachmentPoint.areTypesCompatible(this.attachmentPoint1, input)) {
+                      // Save undo state before replacing connection
+                      GlobalVariables.saveUndoState("MODIFY", `Connection replacement: ${this.attachmentPoint1.parentMolecule.name} → ${atom.name}.${input.name}`);
+                      
                       // Remove existing connections
                       const connectorsToRemove = [...input.connectors];
                       connectorsToRemove.forEach((existingConnector) => {
