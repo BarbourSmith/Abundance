@@ -733,7 +733,9 @@ export default class Molecule extends Atom {
         GlobalVariables.totalAtomCount = GlobalVariables.numberOfAtomsToLoad;
 
         this.census();
+      }
 
+      if (this.topLevel || forceBeginPropagation) {
         this.beginPropagation(forceBeginPropagation);
       }
 
