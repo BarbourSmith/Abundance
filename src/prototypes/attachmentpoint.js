@@ -463,12 +463,54 @@ export default class AttachmentPoint {
   }
 
   /**
+   * Checks if two attachment points have compatible value types for connection
+   * @param {AttachmentPoint} outputAP - The output attachment point
+   * @param {AttachmentPoint} inputAP - The input attachment point
+   * @returns {boolean} True if the types are compatible for connection
+   */
+  static areTypesCompatible(outputAP, inputAP) {
+    // If either attachment point doesn't have a defined valueType, allow the connection
+    if (!outputAP.valueType || !inputAP.valueType) {
+      return true;
+    }
+    
+    // Same types are always compatible
+    if (outputAP.valueType === inputAP.valueType) {
+      return true;
+    }
+    
+    // Special compatibility rules:
+    // - geometry can connect to geometry
+    // - number can connect to number
+    // - array can connect to array
+    // - Other combinations are not compatible by default
+    return false;
+  }
+
+  /**
    * Can be called to see if the target coordinates are within this ap. Returns true/false.
+   * Now supports replacing existing connections if types are compatible.
    * @param {number} x - The x coordinate of the target
    * @param {number} y - The y coordinate of the target
+   * @param {AttachmentPoint} outputAP - The output attachment point trying to connect (optional)
    */
-  wasConnectionMade(x, y) {
-    return this.isCloseEnoughToTarget(x, y) && this.connectors.length == 0;
+  wasConnectionMade(x, y, outputAP) {
+    if (!this.isCloseEnoughToTarget(x, y)) {
+      return false;
+    }
+    
+    // If no existing connections, allow the connection
+    if (this.connectors.length === 0) {
+      return true;
+    }
+    
+    // If there are existing connections and no output AP provided, don't allow replacement
+    if (!outputAP) {
+      return false;
+    }
+    
+    // Check if the new connection type is compatible with this input
+    return AttachmentPoint.areTypesCompatible(outputAP, this);
   }
 
   /**

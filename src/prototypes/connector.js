@@ -1,4 +1,5 @@
 import GlobalVariables from "../js/globalvariables.js";
+import AttachmentPoint from "./attachmentpoint.js";
 
 /**
  * The connector class defines how an output can be connected to an input. It appears on the screen as a black line extending from an output to an input.
@@ -112,12 +113,21 @@ export default class Connector {
         //For every molecule on the screen
         molecule.inputs.forEach((attachmentPoint) => {
           //For each of their attachment points
-          if (attachmentPoint.wasConnectionMade(x, y) && !attachmentMade) {
+          if (attachmentPoint.wasConnectionMade(x, y, this.attachmentPoint1) && !attachmentMade) {
             /** Prevent it from connecting to itself  */
             if (
               this.attachmentPoint1.parentMolecule !==
               attachmentPoint.parentMolecule
             ) {
+              // If there are existing connections, remove them first
+              if (attachmentPoint.connectors.length > 0) {
+                // Make a copy of the connectors array to avoid modification during iteration
+                const connectorsToRemove = [...attachmentPoint.connectors];
+                connectorsToRemove.forEach((existingConnector) => {
+                  existingConnector.deleteSelf(true); // silent deletion to avoid value reset
+                });
+              }
+              
               //Check to make sure we haven't already attached somewhere else
               attachmentMade = true;
               this.attachmentPoint2 = attachmentPoint;
@@ -141,16 +151,37 @@ export default class Connector {
           if (dist <= radiusInPixels && !attachmentMade) {
             // Ensure we're not trying to connect to the same atom
             if (this.attachmentPoint1.parentMolecule !== atom) {
-              // Find the first available input attachment point
+              // Find the first compatible input attachment point
               for (let i = 0; i < atom.inputs.length; i++) {
                 const input = atom.inputs[i];
-                // Check if this input has no connectors and is an input type
-                if (input.type === "input" && input.connectors.length === 0) {
-                  attachmentMade = true;
-                  this.attachmentPoint2 = input;
-                  input.attach(this);
-                  this.propogate();
-                  break; // Stop after finding the first available input
+                // Check if this input is compatible with our output
+                if (input.type === "input") {
+                  // Check if this input is available or can be replaced
+                  if (input.connectors.length === 0) {
+                    // Available input - check compatibility
+                    if (AttachmentPoint.areTypesCompatible(this.attachmentPoint1, input)) {
+                      attachmentMade = true;
+                      this.attachmentPoint2 = input;
+                      input.attach(this);
+                      this.propogate();
+                      break; // Stop after finding the first compatible input
+                    }
+                  } else {
+                    // Input has existing connections - check if we can replace them
+                    if (AttachmentPoint.areTypesCompatible(this.attachmentPoint1, input)) {
+                      // Remove existing connections
+                      const connectorsToRemove = [...input.connectors];
+                      connectorsToRemove.forEach((existingConnector) => {
+                        existingConnector.deleteSelf(true); // silent deletion
+                      });
+                      
+                      attachmentMade = true;
+                      this.attachmentPoint2 = input;
+                      input.attach(this);
+                      this.propogate();
+                      break; // Stop after making the replacement
+                    }
+                  }
                 }
               }
               
