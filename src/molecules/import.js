@@ -53,11 +53,31 @@ export default class Import extends Atom {
      */
     this.sha = null;
 
+    /**
+     * The owner of the repository where this file is stored
+     * @type {string}
+     */
+    this.sourceOwner = null;
+
+    /**
+     * The name of the repository where this file is stored
+     * @type {string}
+     */
+    this.sourceRepoName = null;
+
     this.SVGwidth = 10;
 
     this.addIO("output", "geometry", this, "geometry", "");
 
     this.setValues(values);
+    
+    // If source repo info is not already set and we have current repo info, use it as default
+    if (!this.sourceOwner && GlobalVariables.currentRepo && GlobalVariables.currentRepo.owner) {
+      this.sourceOwner = GlobalVariables.currentRepo.owner;
+    }
+    if (!this.sourceRepoName && GlobalVariables.currentRepoName) {
+      this.sourceRepoName = GlobalVariables.currentRepoName;
+    }
   }
 
   /**
@@ -81,14 +101,19 @@ export default class Import extends Atom {
   }
 
   /**
-   * Get a file from github. Calback is called after the retrieved.
+   * Get a file from github. Callback is called after the retrieved.
    */
   getAFile = async function () {
     const octokit = new Octokit();
     const filePath = this.fileName;
+    
+    // Use stored source repo info if available, otherwise fall back to current repo
+    const owner = this.sourceOwner || GlobalVariables.currentRepo.owner;
+    const repo = this.sourceRepoName || GlobalVariables.currentRepoName;
+    
     const result = await octokit.rest.repos.getContent({
-      owner: GlobalVariables.currentRepo.owner,
-      repo: GlobalVariables.currentRepoName,
+      owner: owner,
+      repo: repo,
       path: filePath,
     });
 
@@ -224,6 +249,16 @@ export default class Import extends Atom {
   }
 
   /**
+   * Set the source repository information for this import atom
+   * @param {string} owner - The owner of the source repository
+   * @param {string} repoName - The name of the source repository  
+   */
+  setSourceRepo(owner, repoName) {
+    this.sourceOwner = owner;
+    this.sourceRepoName = repoName;
+  }
+
+  /**
    * Update the file, filename and sha of the atom
    */
   updateFile(file, sha) {
@@ -237,11 +272,13 @@ export default class Import extends Atom {
   serialize(offset = { x: 0, y: 0 }) {
     var superSerialObject = super.serialize(offset);
 
-    //Write the current equation to the serialized object
+    //Write the current properties to the serialized object
     superSerialObject.fileName = this.fileName; // might delete, maybe we just save as library object
     superSerialObject.name = this.name;
     superSerialObject.type = this.type;
     superSerialObject.SVGwidth = this.SVGwidth;
+    superSerialObject.sourceOwner = this.sourceOwner;
+    superSerialObject.sourceRepoName = this.sourceRepoName;
 
     return superSerialObject;
   }

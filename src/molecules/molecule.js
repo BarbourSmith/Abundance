@@ -744,7 +744,8 @@ export default class Molecule extends Atom {
         atomType: "Output",
         uniqueID: GlobalVariables.generateUniqueID(),
       },
-      false
+      false,
+      values
     );
 
     this.setValues(json); //Grab the values of everything from the passed object
@@ -752,8 +753,8 @@ export default class Molecule extends Atom {
 
     if (json.allAtoms) {
       json.allAtoms.forEach((atom) => {
-        //Place the atoms
-        const promise = this.placeAtom(atom, false);
+        //Place the atoms - pass values down so Import atoms can get parentRepo info
+        const promise = this.placeAtom(atom, false, values);
         promiseArray.push(promise);
 
         this.setValues([]); //Call set values again with an empty list to trigger loading of IO values from memory
@@ -920,11 +921,19 @@ export default class Molecule extends Atom {
           var atom = new GlobalVariables.availableTypes[key].creator(
             newAtomObj
           );
+          
+          // If this is an Import atom and we have parentRepo info (from GitHub molecule loading), 
+          // set the source repo information
+          if (atom.atomType == "Import" && values && values.parentRepo) {
+            atom.setSourceRepo(values.parentRepo.owner, values.parentRepo.repoName);
+          }
+          
           //If this is a molecule, de-serialize it
           if (
             atom.atomType == "Molecule" ||
             atom.atomType == "GitHubMolecule"
           ) {
+            // Pass values down to nested molecules so Import atoms inside get parentRepo info
             promise = atom.deserialize(newAtomObj, values, true);
 
             if (unlock) {
