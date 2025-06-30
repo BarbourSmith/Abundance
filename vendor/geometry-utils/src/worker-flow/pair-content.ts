@@ -1,6 +1,7 @@
-import { NFP_INFO_START_INDEX, NFP_KEY_INDICES } from '../constants';
-import { getBits, getUint16, joinUint16 } from '../helpers';
+import { get_bits_u32 } from 'wasm-nesting';
+import { NFP_KEY_INDICES } from '../constants';
 import { PolygonNode } from '../types';
+import NFPWrapper from './nfp-wrapper';
 import WorkerContent from './worker-content';
 
 export default class PairContent extends WorkerContent {
@@ -11,14 +12,14 @@ export default class PairContent extends WorkerContent {
     private _useHoles: boolean = false;
 
     public init(buffer: ArrayBuffer): this {
-        this.initNodes(buffer, Float64Array.BYTES_PER_ELEMENT * 3);
+        this.initNodes(buffer, Uint32Array.BYTES_PER_ELEMENT * 3);
         const view: DataView = new DataView(buffer);
 
-        const nestConfig: number = view.getFloat64(Float64Array.BYTES_PER_ELEMENT * 2);
+        const nestConfig: number = view.getUint32(Uint32Array.BYTES_PER_ELEMENT);
 
-        this._key = view.getFloat64(Float64Array.BYTES_PER_ELEMENT);
+        this._key = view.getUint32(Uint32Array.BYTES_PER_ELEMENT * 2);
         this._isInside = PairContent.getInside(this._key);
-        this._useHoles = Boolean(getBits(nestConfig, 28, 1));
+        this._useHoles = Boolean(get_bits_u32(nestConfig, 28, 1));
 
         return this;
     }
@@ -30,37 +31,14 @@ export default class PairContent extends WorkerContent {
         this._isInside = false;
     }
 
-    public getResult(nfpArrays: Float64Array[]): Float64Array {
-        const nfpCount: number = nfpArrays.length;
-        const info = new Float64Array(nfpCount);
-        let totalSize: number = NFP_INFO_START_INDEX + nfpCount;
-        let size: number = 0;
-        let i: number = 0;
-
-        for (i = 0; i < nfpCount; ++i) {
-            size = nfpArrays[i].length;
-            info[i] = joinUint16(size, totalSize);
-            totalSize += size;
-        }
-
-        const result = new Float64Array(totalSize);
-
-        result[0] = this._key;
-        result[1] = nfpCount;
-
-        result.set(info, NFP_INFO_START_INDEX);
-
-        for (i = 0; i < nfpCount; ++i) {
-            result.set(nfpArrays[i], getUint16(info[i], 1));
-        }
-
-        return result;
+    public getResult(nfpArrays: Float32Array[]): ArrayBuffer {
+        return NFPWrapper.serialize(this._key, nfpArrays);
     }
 
     public logError(message: string): void {
         console.log(`${message}: `, this._key);
-        console.log('A: ', this.firstNode);
-        console.log('B: ', this.secondNode);
+        console.log('A: ', this.firstNode.source, this.firstNode.rotation, this.firstNode.memSeg.join(', '));
+        console.log('B: ', this.secondNode.source, this.secondNode.rotation, this.secondNode.memSeg.join(', '));
     }
 
     public get firstNode(): PolygonNode {
@@ -81,7 +59,7 @@ export default class PairContent extends WorkerContent {
 
     private static getInside(numKey: number): boolean {
         const insideBitIndex = NFP_KEY_INDICES[4];
-        const insideValue = getBits(numKey, insideBitIndex, 1);
+        const insideValue = get_bits_u32(numKey, insideBitIndex, 1);
 
         return Boolean(insideValue);
     }
