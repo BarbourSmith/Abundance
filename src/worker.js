@@ -2765,40 +2765,19 @@ function serialize(libraryID) {
     }
 
     const item = library[libraryID];
+    // Helper which serialized to a file in BREP format and returns the file handle
+    if (!geom || !geom.wrapped) return null;
     
-    // Helper function to serialize geometry to BREP format using OpenCascade's native format
-    async function serializeToBrep(geom) {
-      if (!geom || !geom.wrapped) return null;
-      
-      try {
-        // Create a memory stream to write BREP data
-        const oc = replicad.getOC();
-        // Use BRepTools to write the shape to a string
-        //const stringWriter = new oc.StringStream_WCharPtr();
-        // Write the shape to the stream in BREP format
-        const res = oc.BRepTools.Write_1(geom.wrapped, "filename.txt", new oc.Message_ProgressRange_1());
-        // Get the BREP data as a string
-        //const brepString = stringWriter.str();
-        
-        // Convert the BREP string to a Blob
-        const blob = new Blob([brepString], { type: 'application/octet-stream' });
-        
-        // Clean up
-        stringWriter.delete();
-        
-        // Convert the blob to a base64 string
-        return new Promise((resolve) => {
-          const reader = new FileReader();
-          reader.onload = () => {
-            const base64 = reader.result.split(',')[1];
-            resolve(base64);
-          };
-          reader.readAsDataURL(blob);
-        });
-      } catch (error) {
-        console.error("Error serializing to BREP:", error);
-        throw new Error(`Failed to serialize to BREP: ${error.message}`);
-      }
+    try {
+      // Create a memory stream to write BREP data
+      const fname = `${libraryID}.brep`;
+      const oc = replicad.getOC();
+      // Write to a file in the virtual file system (TODO: what fs is emscripten using?)
+      oc.BRepTools.Write_3(geom.wrapped, fname, new oc.Message_ProgressRange_1());
+      return fname;
+    } catch (error) {
+      console.error("Error serializing to BREP:", error);
+      throw new Error(`Failed to serialize to BREP: ${error.message}`);
     }
     
     // Function to serialize a single geometry object using OpenCascade's native BREP format
@@ -2948,7 +2927,7 @@ function deserialize(data, libraryID) {
         const shape = new oc.TopoDS_Shape();
         
         // Read from the string stream into the shape
-        oc.BRepTools.Read_1(shape, stringStream, builder, new oc.Message_ProgressRange_1());
+        oc.BRepTools.Read_2(shape, fname, builder, new oc.Message_ProgressRange_1());
         
         // Create a Solid from the shape
         const result = new replicad.Solid(shape);
