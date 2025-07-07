@@ -788,6 +788,131 @@
     margin: 30px 10px;
     padding: 30px 10px;
   }
+  
+  /* Settings popup mobile responsive styling */
+  .settingsDiv {
+    width: 95%;
+    left: 2.5%;
+    top: 5%;
+    height: 90%;
+    overflow-y: auto;
+  }
+  
+  #settingsPopUp {
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+    padding: 20px 15px;
+  }
+  
+  /* Make tabs responsive */
+  .MuiTabs-flexContainer {
+    justify-content: center;
+  }
+  
+  .MuiTab-root {
+    font-size: 12px;
+    min-width: 80px;
+    padding: 8px 12px;
+  }
+  
+  /* Form elements mobile styling */
+  .form input {
+    font-size: 16px; /* Prevents iOS zoom on input focus */
+    padding: 12px;
+    margin: 0 0 15px;
+  }
+  
+  .form label {
+    font-size: 16px;
+    margin-bottom: 8px;
+  }
+  
+  .form h2 {
+    font-size: 20px;
+    margin-bottom: 15px;
+  }
+  
+  /* Make sliders more touch-friendly */
+  .settings-sliders .MuiSlider-thumb {
+    width: 24px;
+    height: 24px;
+  }
+  
+  .settings-sliders .MuiSlider-track {
+    height: 6px;
+  }
+  
+  .settings-sliders .MuiSlider-rail {
+    height: 6px;
+  }
+  
+  /* Make switches more touch-friendly */
+  .MuiSwitch-root {
+    width: 58px;
+    height: 38px;
+  }
+  
+  .MuiSwitch-switchBase {
+    padding: 8px;
+  }
+  
+  .MuiSwitch-thumb {
+    width: 22px;
+    height: 22px;
+  }
+  
+  /* Close button mobile styling */
+  .closeButton2 {
+    width: 30px;
+    height: 30px;
+    font-size: 18px;
+    top: 10px;
+    right: 10px;
+  }
+  
+  /* Submit button mobile styling */
+  .submit-button {
+    height: 50px;
+    font-size: 16px;
+    margin-top: 20px;
+  }
+  
+  /* Project info mobile styling */
+  #project-info div {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 5px;
+  }
+  
+  /* Select dropdown mobile styling */
+  .basic-multi-select {
+    font-size: 16px;
+  }
+  
+  .MuiSelect-select {
+    font-size: 16px;
+    padding: 12px;
+  }
+  
+  /* Code window mobile responsive styling */
+  .code-window-div {
+    height: 60%;
+    width: 100%;
+    top: 20%;
+    left: 0;
+  }
+  
+  /* Export div mobile responsive styling */
+  .export-div {
+    width: 95%;
+    left: 2.5%;
+    top: 10%;
+  }
+  
+  .export-div label {
+    font-size: 16px;
+  }
 }
 
 @media (min-width: 768px) {

@@ -808,6 +808,158 @@ Sidebar navigation
   }
 }
 
+/* Mobile responsive styles */
+@media (max-width: 768px) {
+  /* Share Dialog mobile responsive styling */
+  .share-dialog {
+    width: 90%;
+    left: 5%;
+    top: 20%;
+    padding: 20px;
+    font-size: 14px;
+  }
+  
+  .share-dialog button {
+    margin: 8px 5px;
+    width: 80px;
+    height: 40px;
+    font-size: 14px;
+  }
+  
+  .share-dialog p {
+    font-size: 14px;
+    margin-bottom: 15px;
+  }
+  
+  .share-dialog div {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .share-dialog a {
+    word-break: break-all;
+    font-size: 12px;
+    margin: 10px 0;
+  }
+  
+  /* GitSearch mobile responsive styling */
+  #git_search {
+    width: 80%;
+    left: 10%;
+    top: 10%;
+    max-height: 50%;
+    font-size: 14px;
+  }
+  
+  #git_search input {
+    width: 90%;
+    height: 35px;
+    font-size: 16px;
+    padding: 8px;
+  }
+  
+  #git_search li {
+    padding: 10px;
+    margin: 5px 0;
+    font-size: 14px;
+  }
+  
+  /* Git molecule info panel mobile styling */
+  .git-molecule-info-panel {
+    width: 90%;
+    left: 5%;
+    top: 20%;
+    font-size: 14px;
+    padding: 15px;
+  }
+  
+  /* Parameter editor mobile responsive styling */
+  .paramEditorDiv {
+    width: 90%;
+    left: 5%;
+    top: 20%;
+    max-height: 60%;
+    font-size: 14px;
+  }
+  
+  .paramEditorDivRun {
+    width: 90%;
+    right: 5%;
+    top: 80px;
+    font-size: 14px;
+  }
+  
+  .exportEditorDivRun {
+    width: 90%;
+    right: 5%;
+    top: 50px;
+    font-size: 14px;
+  }
+  
+  .gridEditorDiv {
+    width: 90%;
+    left: 5%;
+    top: 20%;
+    font-size: 14px;
+  }
+  
+  .gridEditorDivRun {
+    width: 90%;
+    right: 5%;
+    top: 10px;
+    font-size: 14px;
+  }
+  
+  .bomEditorDiv {
+    width: 90%;
+    left: 5%;
+    top: 20%;
+    font-size: 14px;
+  }
+  
+  .bomEditorDivRun {
+    width: 90%;
+    right: 5%;
+    top: 140px;
+    font-size: 14px;
+  }
+  
+  /* Toggle switches mobile styling */
+  .switch {
+    right: 10px;
+    width: 50px;
+    height: 28px;
+    font-size: 12px;
+  }
+  
+  .switch_run {
+    top: 15px;
+    left: 15px;
+    width: 50px;
+    height: 28px;
+    font-size: 12px;
+  }
+  
+  /* Info div mobile styling */
+  .info_run_div {
+    left: 10px;
+    bottom: 10px;
+    font-size: 14px;
+    line-height: 18px;
+    max-width: 80%;
+  }
+  
+  /* Undo and import notifications mobile styling */
+  .undo-notification,
+  .import-notification {
+    top: 20px;
+    right: 10px;
+    left: 10px;
+    max-width: calc(100% - 20px);
+    font-size: 12px;
+  }
+}
+
 @media (min-width: 768px) {
   .menu-nav {
     position: absolute;
