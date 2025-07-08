@@ -14,12 +14,17 @@ let defaultColor = "#aad7f2";
 
 // This is the logic to load the web assembly code into replicad
 let loaded = false;
+let indexeddb = undefined;
 const init = async () => {
   if (loaded) return Promise.resolve(true);
 
-  const OC = await opencascade({
+  ocPromise = opencascade({
     locateFile: () => opencascadeWasm,
   });
+
+  const DBOpenRequest = window.indexedDB.open("worker", 4);
+
+  const OC = await ocPromise;
 
   loaded = true;
   replicad.setOC(OC);
@@ -2758,478 +2763,128 @@ function generateDisplayMesh(id) {
  * @param {number} libraryID - ID of the geometry in the library to serialize
  * @returns {object} Serialized representation of the geometry
  */
-function serialize(libraryID) {
-  return started.then(async () => {
-    if (!library[libraryID]) {
-      throw new Error(`Geometry with ID ${libraryID} not found in library`);
-    }
+async function serialize(libraryID) {
+  await started;
 
-    const item = library[libraryID];
-    // Helper which serialized to a file in BREP format and returns the file handle
-    if (!geom || !geom.wrapped) return null;
-    
-    try {
-      // Create a memory stream to write BREP data
-      const fname = `${libraryID}.brep`;
+  if (!library[libraryID]) {
+    throw new Error(`Geometry with ID ${libraryID} not found in library`);
+  }
+
+  const item = library[libraryID];
+  
+  // Item is a structured object, which contains geometry, tags, color, bom, and plane
+  // There are one of 2 cases, either it's a leaf (geometry is length 1 and references a
+  // wrapped replicad geom), or it's an assembly in which case geometry is an array
+  // of other items each with their own geometry, tags, color, bom, and plane.
+
+  // Serialized format:
+  // Geoms and metadata are written directly to the virtual wasm file system. We don't use
+  // a folder heirarchy, rather filenames are treated as simple keys for looking up
+  // serialized blobs.
+  // Each object is serialized into multiple files:
+  // - a single metadata file at {libraryId}.json which contains the full structure of this
+  //   item including tags, color, bom, plane. In leaf geom fields this file contains filenames
+  //   where the geoms can be looked up.
+  // - one or more geometries at {libraryId}_{index}.brep which contain the serialized geometry
+  //   of one of the leafs of this item.
+  //   - TODO: there's got to be a smarter convention that allows cache colisions between assembly
+  //     components and other elements in the cache.
+
+  const writtenFiles = [];
+  let index = 0;
+
+  const serializeHelper = (item) => {
+    if (
+      item.geometry.length == 1 &&
+      item.geometry[0].geometry == undefined
+    ) {
+      // This is a stand-in id. See https://github.com/BarbourSmith/Abundance/issues/598 for long-term plan.
+      const fname = `${libraryID}_${index}.brep`;
       const oc = replicad.getOC();
-      // Write to a file in the virtual file system (TODO: what fs is emscripten using?)
-      oc.BRepTools.Write_3(geom.wrapped, fname, new oc.Message_ProgressRange_1());
-      return fname;
-    } catch (error) {
-      console.error("Error serializing to BREP:", error);
-      throw new Error(`Failed to serialize to BREP: ${error.message}`);
-    }
-    
-    // Function to serialize a single geometry object using OpenCascade's native BREP format
-    async function serializeSingleGeometry(geom, is3DObject, plane) {
-      if (!geom) return null;
-      
-      try {
-        let geometryToSerialize = geom;
-        
-        // If it's a 2D sketch, we need to extrude it temporarily to create a 3D representation
-        if (!is3DObject) {
-          // Create a very thin extrusion for 2D objects
-          geometryToSerialize = geom.clone().sketchOnPlane(plane).extrude(0.0001);
-        }
-        
-        // Serialize using OpenCascade's native BREP format
-        const brepBase64 = await serializeToBrep(geometryToSerialize);
-        
-        return {
-          data: brepBase64,
-          is2D: !is3DObject
-        };
-      } catch (error) {
-        console.error("Error serializing geometry:", error);
-        throw new Error(`Failed to serialize geometry: ${error.message}`);
-      }
-    }
+      oc.BRepTools.Write_3(item.geometry[0].wrapped, fname, new oc.Message_ProgressRange_1());
+      writtenFiles.push(fname);
 
-    // Function to serialize a plane
-    function serializePlane(plane) {
-      if (!plane) return null;
-      
-      // Return the necessary information to recreate the plane
+      let planeFname = undefined;
+      if (item.plane) {
+        planeFname = `${libraryID}_${index}_plane.brep`;
+        oc.BRepTools.Write_3(item.plane.wrapped, planeFname, new oc.Message_ProgressRange_1());
+        writtenFiles.push(planeFname);
+      }
+
+      const serializedItem = {
+        ...item,
+        geometry: fname, // replace geometry with the filename
+      }
+      if (planeFname) {
+        serializedItem.plane = planeFname; // replace plane with the filename
+      }
+      index++;
+      return serializedItem;
+    } else {
+      // It's an assembly, serialize each sub-assembly
+      const serializedGeometry = item.geometry.map((subItem) => serializeHelper(subItem));
       return {
-        origin: plane.origin,
-        xDir: plane.xDir,
-        yDir: plane.yDir,
-        zDir: plane.zDir
+        ...item,
+        geometry: serializedGeometry, // keep the structure but serialize sub-items
       };
     }
+  }
 
-    // Function to serialize a geometry item (could be an assembly)
-    async function serializeGeometryItem(item) {
-      try {
-        if (isAssembly(item)) {
-          // Handle assembly - recursively serialize each component
-          const serializedAssembly = [];
-          for (const component of item.geometry) {
-            serializedAssembly.push(await serializeGeometryItem(component));
-          }
-          
-          return {
-            isAssembly: true,
-            geometry: serializedAssembly,
-            tags: item.tags || [],
-            color: item.color || defaultColor,
-            bom: item.bom || [],
-            plane: serializePlane(item.plane),
-            is3D: is3D(item)
-          };
-        } else {
-          // Handle simple geometry
-          const serializedGeometries = [];
-          const is3DObject = is3D(item);
-          
-          for (const geom of item.geometry) {
-            if (geom) {
-              serializedGeometries.push(await serializeSingleGeometry(geom, is3DObject, item.plane));
-            }
-          }
-          
-          return {
-            isAssembly: false,
-            geometry: serializedGeometries,
-            tags: item.tags || [],
-            color: item.color || defaultColor,
-            bom: item.bom || [],
-            plane: serializePlane(item.plane),
-            is3D: is3DObject
-          };
-        }
-      } catch (error) {
-        console.error("Error in serializeGeometryItem:", error);
-        throw error;
-      }
-    }
-
-    return serializeGeometryItem(item);
-  });
+  const metadata_struct = serializeHelper(item);
+  return metadata_struct;
 }
-
 /**
  * Deserializes data and stores it in the library
- * @param {object} data - Serialized geometry data
- * @param {number} libraryID - ID to store the deserialized geometry in the library
- * @returns {boolean} True if deserialization was successful
+ * @param {object} struct describing the serialized object including references to it's
+ *     serialized geometry files.
+ * @returns {Promise<object>} returns promise of a deserialized object which is ready for
+ *     storage in the library.
  */
-function deserialize(data, libraryID) {
-  return started.then(async () => {
-    if (!data) {
-      throw new Error('No data provided for deserialization');
-    }
+async function deserialize(metadata_struct) {
+  await started;
 
-    // Function to deserialize a plane
-    function deserializePlane(planeData) {
-      if (!planeData) {
-        // Create default plane if none was provided
-        return new Plane().pivot(0, "Y");
-      }
-      
-      // Recreate the plane from the serialized data
-      const plane = new Plane();
-      
-      if (planeData.origin) plane.origin = planeData.origin;
-      if (planeData.xDir) plane.xDir = planeData.xDir;
-      if (planeData.yDir) plane.yDir = planeData.yDir;
-      if (planeData.zDir) plane.zDir = planeData.zDir;
-      
-      return plane;
-    }
+  if (!metadata_struct) {
+    throw new Error('Invalid metadata structure provided for deserialization');
+  }
 
-    // Helper function to deserialize from BREP format
-    async function deserializeFromBrep(brepData) {
-      if (!brepData) return null;
-      
-      try {
-        const oc = replicad.getOC();
-        
-        // Convert base64 to binary data
-        const byteCharacters = atob(brepData);
-        const byteNumbers = new Array(byteCharacters.length);
-        
-        for (let i = 0; i < byteCharacters.length; i++) {
-          byteNumbers[i] = byteCharacters.charCodeAt(i);
-        }
-        
-        const byteArray = new Uint8Array(byteNumbers);
-        const brepString = new TextDecoder().decode(byteArray);
-        
-        // Create a string stream with the BREP data
-        const stringStream = new oc.StringStream_WCharPtr(brepString);
-        
-        // Create a builder to construct the shape
-        const builder = new oc.BRep_Builder();
-        
-        // Create a shape to store the result
-        const shape = new oc.TopoDS_Shape();
-        
-        // Read from the string stream into the shape
-        oc.BRepTools.Read_2(shape, fname, builder, new oc.Message_ProgressRange_1());
-        
-        // Create a Solid from the shape
-        const result = new replicad.Solid(shape);
-        
-        // Clean up
-        stringStream.delete();
-        builder.delete();
-        
-        return result;
-      } catch (error) {
-        console.error("Error deserializing from BREP:", error);
-        throw new Error(`Failed to deserialize from BREP: ${error.message}`);
-      }
-    }
+  deserializeHelper = (item) => {
+    if (typeof item.geometry === 'string') {
+      fname = item.geometry;
+      // A leaf. read shape and plane from the file system
+      const builder = new oc.BRep_Builder();
+      const shape = new oc.TopoDS_Shape();
+      oc.BRepTools.Read_2(shape, fname, builder, new oc.Message_ProgressRange_1());
+      const deserializedGeom = new replicad.Solid(shape);
+      builder.delete();
 
-    // Function to deserialize a single geometry from serialized geometry data
-    async function deserializeSingleGeometry(geometryData) {
-      if (!geometryData || !geometryData.data) return null;
-      
-      try {
-        // Deserialize from BREP data
-        let importedGeometry = await deserializeFromBrep(geometryData.data);
-        
-        // If the original was a 2D sketch, extract a sketch from the imported geometry
-        if (geometryData.is2D) {
-          try {
-            // Extract a 2D projection from the thin 3D object
-            importedGeometry = replicad.drawProjection(importedGeometry, "top").visible;
-          } catch (error) {
-            console.warn("Could not convert back to 2D sketch:", error);
-            // Return the object as is if conversion fails
-          }
-        }
-        
-        return importedGeometry;
-      } catch (error) {
-        console.error("Error deserializing geometry:", error);
-        throw new Error(`Failed to deserialize geometry: ${error.message}`);
+      const result = {
+        ...item,
+        geometry: deserializedGeom, // replace geometry with the deserialized object
       }
-    }
 
-    // Function to deserialize a geometry item (could be an assembly)
-    async function deserializeGeometryItem(item) {
-      try {
-        if (item.isAssembly) {
-          // Handle assembly - recursively deserialize each component
-          const deserializedGeometry = [];
-          
-          for (const component of item.geometry) {
-            deserializedGeometry.push(await deserializeGeometryItem(component));
-          }
-          
-          // Recreate the plane from serialized data
-          const plane = deserializePlane(item.plane);
-          
-          return {
-            geometry: deserializedGeometry,
-            tags: item.tags || [],
-            color: item.color || defaultColor,
-            bom: item.bom || [],
-            plane: plane
-          };
-        } else {
-          // Handle simple geometry
-          const deserializedGeometries = [];
-          
-          for (const geometryData of item.geometry) {
-            if (geometryData) {
-              deserializedGeometries.push(await deserializeSingleGeometry(geometryData));
-            }
-          }
-          
-          // Recreate the plane from serialized data
-          const plane = deserializePlane(item.plane);
-          
-          return {
-            geometry: deserializedGeometries,
-            tags: item.tags || [],
-            color: item.color || defaultColor,
-            bom: item.bom || [],
-            plane: plane
-          };
-        }
-      } catch (error) {
-        console.error("Error in deserializeGeometryItem:", error);
-        throw error;
+      if (item.plane) {
+        const planeFname = item.plane;
+        const planeBuilder = new oc.BRep_Builder();
+        const planeShape = new oc.TopoDS_Shape();
+        oc.BRepTools.Read_2(planeShape, planeFname, planeBuilder, new oc.Message_ProgressRange_1());
+        result.plane = new replicad.Plane(planeShape);
+        planeBuilder.delete();
       }
-    }
+      
+      return result;
+    } else { // branch of assembly
+      if (!item.geometry || !Array.isArray(item.geometry) || item.geometry.length === 0) {
+        throw new Error('Invalid geometry structure in item: ' + JSON.stringify(item));
+      }
 
-    try {
-      // Deserialize and store in library
-      library[libraryID] = await deserializeGeometryItem(data);
-      return true;
-    } catch (error) {
-      console.error("Error deserializing data:", error);
-      throw error;
+      const result = {
+        ...item,
+      }
+      result.geometry = item.geometry.map((subItem) => deserializeHelper(subItem));
+      return result;
     }
-  });
-}
-
-/**
- * Tests the serialization and deserialization functionality with various geometry types
- * @returns {object} Test results including success status and details
- */
-function testSerializeDeserialize() {
-  return started.then(async () => {
-    try {
-      const results = {
-        success: true,
-        details: []
-      };
-      
-      // Test 1: Simple geometry (circle) - 2D sketch
-      const testCircleID = generateUniqueID();
-      const destCircleID = generateUniqueID();
-      
-      await circle(testCircleID, 10);
-      
-      // Verify this is a 2D object
-      if (is3D(library[testCircleID])) {
-        results.success = false;
-        results.details.push("Circle should be a 2D object");
-      }
-      
-      const serializedCircle = await serialize(testCircleID);
-      await deserialize(serializedCircle, destCircleID);
-      
-      // Basic validation - check if objects exist in library
-      if (!library[testCircleID] || !library[destCircleID]) {
-        results.success = false;
-        results.details.push("Failed to serialize/deserialize circle: objects not found in library");
-      } else {
-        // Test parametric properties are preserved
-        const originalCircle = library[testCircleID].geometry[0];
-        const deserializedCircle = library[destCircleID].geometry[0];
-        
-        // Check if the shapes have similar properties
-        if (Math.abs(originalCircle.boundingBox.width - deserializedCircle.boundingBox.width) > 0.1) {
-          results.success = false;
-          results.details.push("Circle dimensions not preserved during serialization/deserialization");
-        } else {
-          results.details.push("Successfully serialized and deserialized a circle (2D sketch) with parametric properties preserved using BREP format");
-        }
-      }
-      
-      // Test 2: Rectangle - 2D sketch
-      const testRectID = generateUniqueID();
-      const destRectID = generateUniqueID();
-      
-      await rectangle(testRectID, 20, 10);
-      
-      // Verify this is a 2D object
-      if (is3D(library[testRectID])) {
-        results.success = false;
-        results.details.push("Rectangle should be a 2D object");
-      }
-      
-      const serializedRect = await serialize(testRectID);
-      await deserialize(serializedRect, destRectID);
-      
-      if (!library[testRectID] || !library[destRectID]) {
-        results.success = false;
-        results.details.push("Failed to serialize/deserialize rectangle: objects not found in library");
-      } else {
-        // Test parametric properties are preserved
-        const originalRect = library[testRectID].geometry[0];
-        const deserializedRect = library[destRectID].geometry[0];
-        
-        // Check if the shapes have similar properties
-        if (Math.abs(originalRect.boundingBox.width - deserializedRect.boundingBox.width) > 0.1 ||
-            Math.abs(originalRect.boundingBox.height - deserializedRect.boundingBox.height) > 0.1) {
-          results.success = false;
-          results.details.push("Rectangle dimensions not preserved during serialization/deserialization");
-        } else {
-          results.details.push("Successfully serialized and deserialized a rectangle (2D sketch) with parametric properties preserved using BREP format");
-        }
-      }
-      
-      // Test 3: Assembly of 2D objects (combination of shapes)
-      const test2DAssemblyID = generateUniqueID();
-      const dest2DAssemblyID = generateUniqueID();
-      
-      await assembly([testCircleID, testRectID], test2DAssemblyID);
-      
-      // Verify this is a 2D assembly
-      if (is3D(library[test2DAssemblyID])) {
-        results.success = false;
-        results.details.push("2D assembly should be identified as 2D");
-      }
-      
-      const serialized2DAssembly = await serialize(test2DAssemblyID);
-      await deserialize(serialized2DAssembly, dest2DAssemblyID);
-      
-      if (!library[test2DAssemblyID] || !library[dest2DAssemblyID]) {
-        results.success = false;
-        results.details.push("Failed to serialize/deserialize 2D assembly: objects not found in library");
-      } else {
-        // Check if the assembly has the correct number of components
-        if (library[test2DAssemblyID].geometry.length !== library[dest2DAssemblyID].geometry.length) {
-          results.success = false;
-          results.details.push("2D assembly component count not preserved during serialization/deserialization");
-        } else {
-          results.details.push("Successfully serialized and deserialized a 2D assembly with structure preserved using BREP format");
-        }
-      }
-      
-      // Test 4: Extruded shape (3D object)
-      const testExtrudeID = generateUniqueID();
-      const destExtrudeID = generateUniqueID();
-      
-      await extrude(testExtrudeID, testRectID, 5);
-      
-      // Verify this is a 3D object
-      if (!is3D(library[testExtrudeID])) {
-        results.success = false;
-        results.details.push("Extruded shape should be a 3D object");
-      }
-      
-      const serializedExtrude = await serialize(testExtrudeID);
-      await deserialize(serializedExtrude, destExtrudeID);
-      
-      if (!library[testExtrudeID] || !library[destExtrudeID]) {
-        results.success = false;
-        results.details.push("Failed to serialize/deserialize extruded shape: objects not found in library");
-      } else {
-        // Test parametric properties are preserved
-        const originalExtrude = library[testExtrudeID].geometry[0];
-        const deserializedExtrude = library[destExtrudeID].geometry[0];
-        
-        // Check if the shapes have similar properties
-        if (Math.abs(originalExtrude.boundingBox.width - deserializedExtrude.boundingBox.width) > 0.1 ||
-            Math.abs(originalExtrude.boundingBox.height - deserializedExtrude.boundingBox.height) > 0.1 ||
-            Math.abs(originalExtrude.boundingBox.depth - deserializedExtrude.boundingBox.depth) > 0.1) {
-          results.success = false;
-          results.details.push("Extruded shape dimensions not preserved during serialization/deserialization");
-        } else {
-          results.details.push("Successfully serialized and deserialized an extruded shape (3D object) with parametric properties preserved using BREP format");
-        }
-      }
-      
-      // Test 5: Assembly of 3D objects
-      const test3DAssemblyID = generateUniqueID();
-      const dest3DAssemblyID = generateUniqueID();
-      
-      // Create another 3D object
-      const testExtrude2ID = generateUniqueID();
-      await extrude(testExtrude2ID, testCircleID, 5);
-      
-      await assembly([testExtrudeID, testExtrude2ID], test3DAssemblyID);
-      
-      // Verify this is a 3D assembly
-      if (!is3D(library[test3DAssemblyID])) {
-        results.success = false;
-        results.details.push("3D assembly should be identified as 3D");
-      }
-      
-      const serialized3DAssembly = await serialize(test3DAssemblyID);
-      await deserialize(serialized3DAssembly, dest3DAssemblyID);
-      
-      if (!library[test3DAssemblyID] || !library[dest3DAssemblyID]) {
-        results.success = false;
-        results.details.push("Failed to serialize/deserialize 3D assembly: objects not found in library");
-      } else {
-        // Check if the assembly has the correct number of components
-        if (library[test3DAssemblyID].geometry.length !== library[dest3DAssemblyID].geometry.length) {
-          results.success = false;
-          results.details.push("3D assembly component count not preserved during serialization/deserialization");
-        } else {
-          results.details.push("Successfully serialized and deserialized a 3D assembly with structure preserved using BREP format");
-        }
-      }
-      
-      // Test 6: Operations on deserialized objects (validate they remain parametric)
-      const operationTestID = generateUniqueID();
-      
-      try {
-        // Try to perform a Boolean operation on the deserialized geometry
-        await extrude(operationTestID, destCircleID, 10);
-        
-        if (!library[operationTestID] || !is3D(library[operationTestID])) {
-          results.success = false;
-          results.details.push("Unable to perform operations on deserialized geometry");
-        } else {
-          results.details.push("Successfully performed operations on deserialized geometry, confirming parametric nature is preserved using BREP format");
-        }
-      } catch (error) {
-        results.success = false;
-        results.details.push(`Failed to perform operations on deserialized geometry: ${error.message}`);
-      }
-      
-      if (results.success) {
-        console.log("All serialization tests completed successfully using OpenCascade's native BREP format");
-      } else {
-        console.error("Some serialization tests failed", results.details);
-      }
-      
-      return results;
-    } catch (error) {
-      console.error("Error in serialization test:", error);
-      return { success: false, details: [error.toString()] };
-    }
-  });
+  }
+  return deserializeHelper(metadata_struct);
 }
 
 if (
