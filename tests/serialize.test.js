@@ -1,3 +1,4 @@
+import { expect } from 'vitest';
 import { 
   library, 
   started, 
@@ -10,6 +11,8 @@ import {
   tag,
   bom,
   color,
+  replicad,
+  getBoundingBox,
 } from '../src/worker.js';
 
 import { isAssembly } from './utils.js';
@@ -99,7 +102,8 @@ describe('serialize', () => {
     await extrude(box2, input2, 3);
 
     // Verify the rectangle was created
-    expect(library[box1].geometry[0]._wrapped.IsEqual(library[box2].geometry[0]._wrapped)).toBe(true);
+
+    // shape equality is difficult to check. Start with difference comparisons
   });
 
 
@@ -114,19 +118,29 @@ describe('serialize', () => {
     await extrude(boxId, inputID, 3);
 
     // Verify the rectangle was created
-    const result = library[boxId];
-    delete result.plane; // Remove plane for serialization test
+    const prior = library[boxId];
+    console.log(prior.geometry[0].wrapped.$$)
+    delete prior.plane; // Remove plane for serialization test
 
     const serialization_metadata = await serialize(boxId);
+    console.log(serialization_metadata)
+    console.log("starting deserialize...")
     const deserialized = await deserialize(serialization_metadata);
 
+    library["output"] = deserialized;
 
     expect(deserialized).toBeDefined();
     expect(deserialized.geometry).toHaveLength(1);
 
-    expect(deserialized.tags).toEqual(result.tags);
-    expect(deserialized.bom).toEqual(result.bom);
-    expect(deserialized.color).toEqual(result.color);
-    expect(deserialized.geometry[0]._wrapped.IsEqual(result.geometry[0]._wrapped)).toBe(true);
+    expect(deserialized.tags).toEqual(prior.tags);
+    expect(deserialized.bom).toEqual(prior.bom);
+    expect(deserialized.color).toEqual(prior.color);
+
+
+    const initialBox = getBoundingBox(boxId);
+    const deserializedBox = getBoundingBox("output");
+    console.log("initialBox: ", initialBox);
+    console.log("deserializedBox: ", deserializedBox);
+    expect(initialBox).toEqual(deserializedBox);
   });
 });

@@ -44,6 +44,8 @@ describe('extrude', () => {
 
     // 3. Check the result in the library
     const result = library[targetID];
+    console.log("Extrude result:");
+    console.log(result.geometry[0]);
     expect(result).toBeDefined();
     expect(result.geometry).toHaveLength(1);
     
@@ -53,6 +55,9 @@ describe('extrude', () => {
     
     // Check bounding box dimensions
     const bounds = solid.boundingBox;
+
+    console.log("after bounding box:");
+    console.log(result.geometry[0]);
     expect(bounds).toBeDefined();
     // Assert accuracy to 4 decimal places
     expect(bounds.width).toBeCloseTo(width, 4);

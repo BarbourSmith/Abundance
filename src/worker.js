@@ -233,6 +233,10 @@ function loftShapes(targetID, inputsIDs) {
  */
 function extrude(targetID, inputID, height) {
   return started.then(() => {
+    serialize(targetID).then((s) => {
+      console.log(s);
+      return deserialize(s);
+    }).then((d) => {console.log(d)});
     library[targetID] = actOnLeafs(library[inputID], (leaf) => {
       return {
         geometry: [
@@ -2790,19 +2794,19 @@ async function serialize(libraryID) {
       const fname = `${libraryID}_${index}.brep`;
       const oc = replicad.getOC();
 
-      const serializable = item.geometry[0]._wrapped ? item.geometry[0]._wrapped : item.geometry[0].innerShape;
+      const serializable = item.geometry[0].wrapped ? item.geometry[0].wrapped : item.geometry[0].innerShape;
 
       console.log(`Writing geometry to file: ${fname}`);
       console.log(serializable);
-      oc.BRepTools.Write_3(serializable, fname, new oc.Message_ProgressRange_1());
+      oc.BinTools.Write_3(serializable, fname, new oc.Message_ProgressRange_1());
       writtenFiles.push(fname);
 
       let planeFname = undefined;
-      if (item.plane) {
+      /*if (item.plane) {
         planeFname = `${libraryID}_${index}_plane.brep`;
-        oc.BRepTools.Write_3(item.plane.innerShape, planeFname, new oc.Message_ProgressRange_1());
+        oc.BinTools.Write_3(item.plane.innerShape, planeFname, new oc.Message_ProgressRange_1());
         writtenFiles.push(planeFname);
-      }
+      }*/
 
       const serializedItem = {
         ...item,
@@ -2843,26 +2847,25 @@ async function deserialize(metadata_struct) {
 
   const deserializeHelper = (item) => {
     if (typeof item.geometry === 'string') {
+      delete item.plane
       const fname = item.geometry;
       // A leaf. read shape and plane from the file system
-      const builder = new oc.BRepBuilderAPI_MakeSolid;
-      const shape = new oc.TopoDS_Solid();
-      oc.BRepTools.Read_2(shape, fname, builder, new oc.Message_ProgressRange_1());
-      const deserializedGeom = new replicad.Solid(shape);
-      builder.delete();
+      const shape = new oc.TopoDS_Solid(); // TODO: we don't always expect a solid.
+      console.log("constructed shape: ");
+      console.log(shape);
+      oc.BinTools.Read_2(shape, fname, new oc.Message_ProgressRange_1());
+      console.log("Shape read from file: ");
+      console.log(shape);
 
       const result = {
         ...item,
-        geometry: deserializedGeom, // replace geometry with the deserialized object
+        geometry: [replicad.cast(shape)], // replace geometry with the deserialized object
       }
-
       if (item.plane) {
         const planeFname = item.plane;
-        const planeBuilder = new oc.BRep_Builder();
         const planeShape = new oc.TopoDS_Shape();
-        oc.BRepTools.Read_2(planeShape, planeFname, planeBuilder, new oc.Message_ProgressRange_1());
+        oc.BinTools.Read_2(planeShape, planeFname, new oc.Message_ProgressRange_1());
         result.plane = new replicad.Plane(planeShape);
-        planeBuilder.delete();
       }
       
       return result;
@@ -2934,6 +2937,7 @@ if (
 export {
   library,
   started,
+  replicad,
   deleteFromLibrary,
   importingSTEP,
   importingSTL,

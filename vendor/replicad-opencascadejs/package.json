@@ -1,0 +1,22 @@
+{
+  "name": "replicad-opencascadejs",
+  "version": "0.15.2",
+  "description": "OpencascadeJS custom build for replicad",
+  "author": "Steve Genoud <steve@sgenoud.com>",
+  "homepage": "",
+  "license": "MIT",
+  "main": "src/replicad_single.js",
+  "directories": {
+    "lib": "src",
+    "test": "__tests__"
+  },
+  "files": [
+    "src"
+  ],
+  "scripts": {
+    "build": "echo 'No build step required'",
+    "updateDocker": "docker pull donalffons/opencascade.js",
+    "buildWasm": "cd build-config; docker run -it --rm -v $(pwd):/src -u $(id -u):$(id -g) donalffons/opencascade.js custom_build_single.yml && mv replicad_single* ../src; cd -"
+  },
+  "gitHead": "9ff74669d528bdc656e80461dd005457b3b12dac"
+}

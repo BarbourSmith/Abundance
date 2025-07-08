@@ -50,7 +50,7 @@
     "react-three-fiber": "^6.0.13",
     "replicad": "^0.16.1",
     "replicad-decorate": "^0.1.0",
-    "replicad-opencascadejs": "^0.15.2",
+    "replicad-opencascadejs": "file:vendor/replicad-opencascadejs",
     "replicad-shrink-wrap": "^0.1.0",
     "replicad-threejs-helper": "^0.15.2",
     "save-dev": "^0.0.1-security",
