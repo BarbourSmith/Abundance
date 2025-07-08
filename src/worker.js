@@ -14,17 +14,12 @@ let defaultColor = "#aad7f2";
 
 // This is the logic to load the web assembly code into replicad
 let loaded = false;
-let indexeddb = undefined;
 const init = async () => {
   if (loaded) return Promise.resolve(true);
 
-  ocPromise = opencascade({
+  const OC = await opencascade({
     locateFile: () => opencascadeWasm,
   });
-
-  const DBOpenRequest = window.indexedDB.open("worker", 4);
-
-  const OC = await ocPromise;
 
   loaded = true;
   replicad.setOC(OC);
@@ -237,16 +232,6 @@ function loftShapes(targetID, inputsIDs) {
  * @returns {Promise<boolean>} A promise that resolves to true when the extrusion is completed successfully
  */
 function extrude(targetID, inputID, height) {
-  serialize(library[inputID]).then((serialized) => {
-    console.log(serialized);
-    console.log("serialized finished");
-  })
-
-  testSerializeDeserialize().then( (result) => {
-    console.log("finished test serialize deserialize");
-    console.log(result);
-  });
-
   return started.then(() => {
     library[targetID] = actOnLeafs(library[inputID], (leaf) => {
       return {
@@ -2801,6 +2786,8 @@ async function serialize(libraryID) {
       // This is a stand-in id. See https://github.com/BarbourSmith/Abundance/issues/598 for long-term plan.
       const fname = `${libraryID}_${index}.brep`;
       const oc = replicad.getOC();
+      console.log(`Writing geometry to file: ${fname}`);
+      console.log(item.geometry);
       oc.BRepTools.Write_3(item.geometry[0].wrapped, fname, new oc.Message_ProgressRange_1());
       writtenFiles.push(fname);
 
@@ -2979,5 +2966,5 @@ export {
   shrinkWrapSketches,
   serialize,
   deserialize,
-  testSerializeDeserialize
+  isAssembly,
 };
