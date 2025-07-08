@@ -2779,6 +2779,9 @@ async function serialize(libraryID) {
   let index = 0;
 
   const serializeHelper = (item) => {
+    if (!item || !item.geometry || item.geometry.length === 0) {
+      throw new Error('Invalid item structure provided for serialization');
+    }
     if (
       item.geometry.length == 1 &&
       item.geometry[0].geometry == undefined
@@ -2786,15 +2789,18 @@ async function serialize(libraryID) {
       // This is a stand-in id. See https://github.com/BarbourSmith/Abundance/issues/598 for long-term plan.
       const fname = `${libraryID}_${index}.brep`;
       const oc = replicad.getOC();
+
+      const serializable = item.geometry[0]._wrapped ? item.geometry[0]._wrapped : item.geometry[0].innerShape;
+
       console.log(`Writing geometry to file: ${fname}`);
-      console.log(item.geometry);
-      oc.BRepTools.Write_3(item.geometry[0].wrapped, fname, new oc.Message_ProgressRange_1());
+      console.log(serializable);
+      oc.BRepTools.Write_3(serializable, fname, new oc.Message_ProgressRange_1());
       writtenFiles.push(fname);
 
       let planeFname = undefined;
       if (item.plane) {
         planeFname = `${libraryID}_${index}_plane.brep`;
-        oc.BRepTools.Write_3(item.plane.wrapped, planeFname, new oc.Message_ProgressRange_1());
+        oc.BRepTools.Write_3(item.plane.innerShape, planeFname, new oc.Message_ProgressRange_1());
         writtenFiles.push(planeFname);
       }
 
@@ -2829,17 +2835,18 @@ async function serialize(libraryID) {
  */
 async function deserialize(metadata_struct) {
   await started;
+  const oc = replicad.getOC();
 
   if (!metadata_struct) {
     throw new Error('Invalid metadata structure provided for deserialization');
   }
 
-  deserializeHelper = (item) => {
+  const deserializeHelper = (item) => {
     if (typeof item.geometry === 'string') {
-      fname = item.geometry;
+      const fname = item.geometry;
       // A leaf. read shape and plane from the file system
-      const builder = new oc.BRep_Builder();
-      const shape = new oc.TopoDS_Shape();
+      const builder = new oc.BRepBuilderAPI_MakeSolid;
+      const shape = new oc.TopoDS_Solid();
       oc.BRepTools.Read_2(shape, fname, builder, new oc.Message_ProgressRange_1());
       const deserializedGeom = new replicad.Solid(shape);
       builder.delete();
