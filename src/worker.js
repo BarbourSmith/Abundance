@@ -1846,13 +1846,13 @@ function computePositions(
   console.log("Starting to compute positions for shapes: ");
   console.log(shapesForLayout);
   const tolerance = 0.2;
-  const runtimeMs = 60000; // Increased runtime for better convergence
+  const runtimeMs = 45000; // Balanced runtime for good convergence
   const config = {
     curveTolerance: 0.1,
     spacing: layoutConfig.partPadding + tolerance * 2,
-    rotations: 16, // 22.5-degree increments - sweet spot for rotation flexibility
-    populationSize: 10, // Moderate population size
-    mutationRate: 40, // Balanced mutation rate
+    rotations: 12, // Start with original working config
+    populationSize: 8, // Original working config
+    mutationRate: 50, // Original working config
     useHoles: false,
   };
   // from the mesh format of [x1, y1, z1, x2, y2, z2, ...] to FloatPolygon friendly format of
@@ -1963,6 +1963,7 @@ function translatePlacements(placement, placedParts, partCount, shapesForLayout)
       " parts placed. score: " +
       placement.placementsData[0]
   );
+  console.log("shapesForLayout:", shapesForLayout.map(s => s.id));
 
   const result = [];
   for (let i = 0; i < placements.placementCount; i++) {
@@ -1972,6 +1973,7 @@ function translatePlacements(placement, placedParts, partCount, shapesForLayout)
       placements.bindData(j);
       // Map polygon packer's index-based ID back to the original shape ID
       const originalId = shapesForLayout[placements.id]?.id || placements.id;
+      console.log(`Mapping packer ID ${placements.id} to original ID ${originalId}`);
       sheet.push({
         id: originalId,
         rotate: placements.rotation,
