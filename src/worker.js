@@ -926,7 +926,7 @@ async function code(targetID, code, argumentsArray) {
 
     // Execute with timeout protection
     const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error("Code execution timed out")), 60000); // 1 min timeout
+      setTimeout(() => reject(new Error("Code execution timed out")), 180000); // 3 min timeout
     });
 
     const result = await Promise.race([
@@ -1846,7 +1846,7 @@ function computePositions(
   console.log("Starting to compute positions for shapes: ");
   console.log(shapesForLayout);
   const tolerance = 0.2;
-  const runtimeMs = 30000;
+  const runtimeMs = 180000;
   const config = {
     curveTolerance: 0.1,
     spacing: layoutConfig.partPadding + tolerance * 2,
