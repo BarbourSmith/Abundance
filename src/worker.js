@@ -1908,7 +1908,8 @@ function computePositions(
         let placements = translatePlacements(
           placementsData,
           placedParts,
-          partCount
+          partCount,
+          shapesForLayout
         );
 
         placementsCallback(placements);
@@ -1941,12 +1942,15 @@ function computePositions(
 /**
  *
  * @param {} placement
+ * @param {number} placedParts
+ * @param {number} partCount
+ * @param {Array} shapesForLayout - Array of shapes with original IDs for mapping
  * @returns List of placements as expected by applyLayout
  *  ie. a list of list of transforms, where each entry in the outer list is for 1 sheet's worth of placement
  *  Each transform follows the structure: {id: "part_id", rotate: degrees, translate: {x: x, y: y}}
  */
 
-function translatePlacements(placement, placedParts, partCount) {
+function translatePlacements(placement, placedParts, partCount, shapesForLayout) {
   const placements = new PlacementWrapper(
     placement.placementsData,
     placement.angleSplit
@@ -1966,8 +1970,10 @@ function translatePlacements(placement, placedParts, partCount) {
     placements.bindPlacement(i);
     for (let j = 0; j < placements.size; j++) {
       placements.bindData(j);
+      // Map polygon packer's index-based ID back to the original shape ID
+      const originalId = shapesForLayout[placements.id]?.id || placements.id;
       sheet.push({
-        id: placements.id,
+        id: originalId,
         rotate: placements.rotation,
         translate: { x: placements.x, y: placements.y },
       });
