@@ -90,8 +90,18 @@ export default class Point {
 
     public rotate(angle: number): Point {
         const angleData = ANGLE_CACHE.get(angle);
-        const sin: number = angleData[0];
-        const cos: number = angleData[1];
+        let sin: number;
+        let cos: number;
+        
+        if (angleData) {
+            sin = angleData[0];
+            cos = angleData[1];
+        } else {
+            // Handle angles not in cache by computing sin/cos directly
+            const radianAngle = (angle * Math.PI) / 180;
+            sin = Math.sin(radianAngle);
+            cos = Math.cos(radianAngle);
+        }
 
         return this.set(this.x * cos - this.y * sin, this.x * sin + this.y * cos);
     }
