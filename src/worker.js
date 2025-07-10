@@ -1850,7 +1850,7 @@ function computePositions(
   const config = {
     curveTolerance: 0.1,
     spacing: layoutConfig.partPadding + tolerance * 2,
-    rotations: 12, // TODO: this should be higher, like at least 8? idk
+    rotations: 360, // Allow 360 possible rotations (1-degree increments)
     populationSize: 8,
     mutationRate: 50,
     useHoles: false,
