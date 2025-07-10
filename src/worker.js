@@ -1850,8 +1850,8 @@ function computePositions(
   const config = {
     curveTolerance: 0.1,
     spacing: layoutConfig.partPadding + tolerance * 2,
-    rotations: 360, // Allow 360 possible rotations (1-degree increments)
-    populationSize: 8,
+    rotations: 72, // Allow 72 possible rotations (5-degree increments) - balanced approach
+    populationSize: 16, // Increase population size to handle larger search space
     mutationRate: 50,
     useHoles: false,
   };
