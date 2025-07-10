@@ -1850,9 +1850,9 @@ function computePositions(
   const config = {
     curveTolerance: 0.1,
     spacing: layoutConfig.partPadding + tolerance * 2,
-    rotations: 72, // Allow 72 possible rotations (5-degree increments) - balanced approach
-    populationSize: 16, // Increase population size to handle larger search space
-    mutationRate: 50,
+    rotations: 24, // Allow 24 possible rotations (15-degree increments) - balanced approach
+    populationSize: 12, // Moderate population size for better convergence
+    mutationRate: 30, // Reduced mutation rate for better stability
     useHoles: false,
   };
   // from the mesh format of [x1, y1, z1, x2, y2, z2, ...] to FloatPolygon friendly format of
