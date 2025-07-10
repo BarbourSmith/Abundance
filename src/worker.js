@@ -1846,13 +1846,13 @@ function computePositions(
   console.log("Starting to compute positions for shapes: ");
   console.log(shapesForLayout);
   const tolerance = 0.2;
-  const runtimeMs = 45000; // Balanced runtime for good convergence
+  const runtimeMs = 90000; // Significantly increased runtime for better convergence
   const config = {
     curveTolerance: 0.1,
-    spacing: layoutConfig.partPadding + tolerance * 3, // Increased spacing to prevent overlaps
-    rotations: 18, // 20-degree increments - 50% more than original
-    populationSize: 8, // Keep original population size
-    mutationRate: 45, // Slightly reduced mutation rate for better convergence
+    spacing: layoutConfig.partPadding + tolerance * 2.5, // Slightly increased spacing
+    rotations: 15, // Conservative increase from 12 to 15 (24-degree increments)
+    populationSize: 16, // Increased population size for better exploration
+    mutationRate: 20, // Lower mutation rate for more stable convergence
     useHoles: false,
   };
   // from the mesh format of [x1, y1, z1, x2, y2, z2, ...] to FloatPolygon friendly format of
