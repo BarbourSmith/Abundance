@@ -82,6 +82,7 @@ export default class GitHubMolecule extends Molecule {
           onChange: (value) => {
             if (input.value !== value) {
               input.setValue(value);
+              this.updateValue(input.name);
               //this.sendToRender();
             }
           },
