@@ -460,6 +460,7 @@ export default memo(function FlowCanvas({
     }
 
     // Iterate in reverse order to give priority to newer atoms
+    let handledByAtom = null;
     for (
       let i = GlobalVariables.currentMolecule.nodesOnTheScreen.length - 1;
       i >= 0;
@@ -467,8 +468,13 @@ export default memo(function FlowCanvas({
     ) {
       const molecule = GlobalVariables.currentMolecule.nodesOnTheScreen[i];
       const handled = molecule.doubleClick(event.clientX, event.clientY);
+      if (handled && !handledByAtom) {
+        handledByAtom = molecule;
+      }
     }
-    setActiveAtom(GlobalVariables.currentMolecule);
+    
+    // Set active atom to the one that handled the double-click, or the molecule if none
+    setActiveAtom(handledByAtom || GlobalVariables.currentMolecule);
   };
 
   /**
