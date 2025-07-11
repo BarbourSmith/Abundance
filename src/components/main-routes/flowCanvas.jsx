@@ -468,8 +468,9 @@ export default memo(function FlowCanvas({
     ) {
       const molecule = GlobalVariables.currentMolecule.nodesOnTheScreen[i];
       const handled = molecule.doubleClick(event.clientX, event.clientY);
-      if (handled && !handledByAtom) {
+      if (handled) {
         handledByAtom = molecule;
+        break; // Exit immediately when an atom handles the double-click
       }
     }
     
