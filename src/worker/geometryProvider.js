@@ -118,6 +118,8 @@ class GeometryProvider {
    // const id = this._hash.update(`${type}-${params.join('-')}`).digest('hex');
     const id = `${type}-${params.join('-')}`
     this._incrementCounter(type, id);
+    console.log(this._counter);
+    console.log(this._library)
     return id;
   }
 }
