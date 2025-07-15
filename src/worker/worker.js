@@ -8,6 +8,7 @@ import * as actions from "./actions.js";
 import * as interaction from "./interaction.js";
 import * as tags from "./tags.js";
 import * as codeLib from "./code.js";
+import GeometryProvider from "./GeometryProvider.js";
 
 var library = {};
 
