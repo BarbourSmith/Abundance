@@ -246,14 +246,14 @@ async function extrude(targetID, inputID, height) {
 
 /**
  * Moves a geometry by the specified x, y, and z distances.
- * @param {Object|string} geom - The geometry to move, or library ID for same
+ * @param {string} inputId - The library ID of the geometry to move
  * @param {number} x - The distance to move along the x-axis
  * @param {number} y - The distance to move along the y-axis
  * @param {number} z - The distance to move along the z-axis
  * @param {string|null} targetID - The ID to store the result in the library. If null, the result is returned
  * @returns {Promise<boolean|Object>} A promise that resolves to the moved geometry, or true if targetID is provided
  */
-async function move(geom, x, y, z, targetID = null) {
+async function move(inputId, x, y, z, targetID = null) {
   await started;
   const result = await actions.move(toGeometry(geom, "move-geometry"), x, y, z);
   if (targetID) {
@@ -266,7 +266,7 @@ async function move(geom, x, y, z, targetID = null) {
 
 /**
  * Function to rotate a geometry around the x, y, and z axis
- * @param {Object|string} geom - The geometry to rotate or id for same
+ * @param {string} inputId - Library ID of the geometry to rotate
  * @param {number} x - The angle to rotate around the x axis
  * @param {number} y - The angle to rotate around the y axis
  * @param {number} z - The angle to rotate around the z axis
@@ -288,12 +288,12 @@ async function rotate(geom, x, y, z, targetID = null) {
 
 /**
  * Scales a geometry by the specified scale factor.
- * @param {Object|string} geom - The geometry to scale, or library ID for same
+ * @param {string} inputId - libraryId of the geometry to scale
  * @param {number} scaleFactor - The scale factor to apply (1.0 = no change, 2.0 = double size, 0.5 = half size)
  * @param {string|null} targetID - The ID to store the result in the library. If null, the result is returned
  * @returns {Promise<boolean|Object>} A promise that resolves to the scaled geometry, or true if targetID is provided
  */
-async function scale(geom, scaleFactor, targetID = null) {
+async function scale(inputId, scaleFactor, targetID = null) {
   await started;
 
   geom = toGeometry(geom, "scale-geometry");
@@ -308,12 +308,12 @@ async function scale(geom, scaleFactor, targetID = null) {
 
 /**
  * Applies a fillet (rounded edge) to the input geometry.
- * @param {Object|string} geom - The geometry to fillet, or library ID for same
+ * @param {string} inputId - inputId of the geometry to fillet
  * @param {number} radius - The radius of the fillet
  * @param {string|null} targetID - The ID to store the result in the library. If null, the result is returned
  * @returns {Promise<boolean|Object>} A promise that resolves to the filleted geometry or true if targetID is provided
  */
-async function fillet(geom, radius, targetID = null) {
+async function fillet(inputId, radius, targetID = null) {
   await started;
 
   const result = await actions.fillet(
@@ -335,7 +335,7 @@ async function fillet(geom, radius, targetID = null) {
  * @param {string|null} targetID - The ID to store the result in the library. If null, the result is returned
  * @returns {Promise<boolean|Object>} A promise that resolves to the chamfered geometry or true if targetID is provided
  */
-async function chamfer(geom, size, targetID = null) {
+async function chamfer(inputId, size, targetID = null) {
   await started;
 
   const result = await actions.chamfer(
@@ -536,6 +536,7 @@ function extractBomList(inputID) {
  * @returns {Promise<boolean>} A promise that resolves to true when the export preparation is completed successfully
  */
 function visExport(targetID, inputID, fileType) {
+  // TODO
   return started.then(() => {
     let geometryToExport = tags.extractKeepOut(library[inputID]);
     let fusedGeometry = interaction.digFuse(geometryToExport);
@@ -579,17 +580,18 @@ function visExport(targetID, inputID, fileType) {
  */
 function downExport(ID, fileType, svgResolution, units) {
   return started.then(() => {
+    const geom = geometryProvider.get(library[ID].geometry[0]);
     let scaleUnit = units == "Inches" ? 1 : units == "MM" ? 25.4 : 1;
     let scaling = svgResolution / scaleUnit;
     if (fileType == "SVG") {
-      let svg = library[ID].geometry[0].clone().scale(scaling).toSVG(scaling);
+      let svg = geom.clone().scale(scaling).toSVG(scaling);
       var blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
 
       return blob;
     } else if (fileType == "STL") {
-      return library[ID].geometry[0].clone().blobSTL();
+      return geom.clone().blobSTL();
     } else {
-      return library[ID].geometry[0].clone().blobSTEP();
+      return geom.clone().blobSTEP();
     }
   });
 }
@@ -604,7 +606,7 @@ async function importingSTEP(targetID, file) {
   let STEPresult = await util.replicad.importSTEP(file);
 
   library[targetID] = {
-    geometry: [STEPresult],
+    geometry: [geometryProvider.addSingularToCache(STEPresult)],
     tags: [],
     color: util.defaultColor,
     bom: [],
@@ -622,7 +624,7 @@ async function importingSTL(targetID, file) {
   let STLresult = await util.replicad.importSTL(file);
 
   library[targetID] = {
-    geometry: [STLresult],
+    geometry: [geometryProvider.addSingularToCache(STLresult)],
     tags: [],
     color: util.defaultColor,
     bom: [],
@@ -658,7 +660,11 @@ async function importingSVG(targetID, svg, width) {
     let center = drawnSVG.boundingBox.center;
 
     library[targetID] = {
-      geometry: [drawnSVG.clone().translate(-center[0], -center[1])],
+      geometry: [
+        geometryProvider.addSingularToCache(
+          drawnSVG.clone().translate(-center[0], -center[1])
+        ),
+      ],
       tags: [],
       plane: new Plane().pivot(0, "Y"),
       color: util.defaultColor,
@@ -707,7 +713,8 @@ function visualizeGcode(targetID, gcode) {
   // Create a wire from the edges
   const wire = util.replicad.assembleWire(edges);
   library[targetID] = {
-    geometry: [wire],
+    // TODO: we could probably use a hash of the gcode string as an ID here.
+    geometry: [geometryProvider.addSingularToCache(wire)],
     tags: [],
     plane: new Plane().pivot(0, "Y"),
     color: util.defaultColor,
