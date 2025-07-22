@@ -1460,7 +1460,7 @@ function displayLayout(
  * @param {number} tolerance - Tolerance for comparing normal vectors (default: 0.01)
  * @returns {number} Count of faces with similar normal vectors (including the target face itself)
  */
-function countFacesWithSimilarNormals(targetFace, allFaces, tolerance = 0.01) {
+function countFacesWithSimilarNormals(targetFace, allFaces, tolerance = 0.1) {
   const targetNormal = targetFace.normalAt();
   let count = 0;
 
@@ -1471,7 +1471,7 @@ function countFacesWithSimilarNormals(targetFace, allFaces, tolerance = 0.01) {
     // Dot product of 1.0 means identical direction, -1.0 means opposite direction
     const dotProduct = Math.abs(targetNormal.dot(faceNormal) / (targetNormal.Length * faceNormal.Length));
     
-    // Consider faces with very similar normals (close to parallel)
+    // Consider faces with similar normals (more permissive tolerance for better detection)
     if (dotProduct > 1.0 - tolerance) {
       count++;
     }
@@ -1545,6 +1545,10 @@ function rotateForLayout(targetID, inputID, layoutConfig, warningCallback) {
       
       // Count faces with similar normal vectors for this candidate
       const similarNormalsCount = countFacesWithSimilarNormals(face, allFaces);
+      
+      // Debug: log face normal and similar count for analysis
+      const normal = face.normalAt();
+      console.log(`Face ${faceIndex}: Normal=(${normal.x.toFixed(3)}, ${normal.y.toFixed(3)}, ${normal.z.toFixed(3)}), Similar count: ${similarNormalsCount}, Thickness: ${prospectiveGoem.boundingBox.depth.toFixed(3)}`);
       
       candidates.push({
         face: face,
@@ -1670,6 +1674,13 @@ function rotateForLayout(targetID, inputID, layoutConfig, warningCallback) {
 
         return 0; // we can't decide.
       });
+      
+      console.log(`Selecting orientation for part. Candidates sorted by preference:`);
+      scores.forEach((score, idx) => {
+        console.log(`  ${idx}: Face=${score.candidate_index}, Planar=${score.is_planar}, Offset=${score.offset}, SimilarNormals=${score.similarNormalsCount}, Thickness=${score.thickness.toFixed(3)}, Area=${score.area.toFixed(3)}`);
+      });
+      console.log(`Selected: Face ${scores[0].candidate_index} (Similar normals: ${scores[0].similarNormalsCount})`);
+      
       selected = candidates[scores[0].candidate_index];
     }
     if (
