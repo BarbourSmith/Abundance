@@ -1782,20 +1782,27 @@ function applyLayout(targetID, inputID, positions, layoutConfig) {
       console.log("didn't find transform for id: " + leaf.id);
       return undefined;
     }
-    // apply rotation first. All rotations are around (0, 0, 0)
-    // Additionally, shift by sheet-index * sheet height so that multiple
-    // sheet layouts are spaced out from one another.
+    // For manual adjustments to work correctly, we need to rotate around the part's center
+    // rather than the global origin. When parts have been translated to their layout position,
+    // rotating around (0,0,0) causes them to orbit instead of rotate in place.
+    
+    // Calculate the rotation center: translate position + any sheet offset
+    const rotationCenterX = transform.translate.x;
+    const rotationCenterY = transform.translate.y + i * layoutConfig.height;
+    const rotationCenter = new replicad.Vector([rotationCenterX, rotationCenterY, 0]);
+    
+    // Apply translation first to get the part to its layout position
     let newGeom = leaf.geometry[0]
       .clone()
-      .rotate(
-        transform.rotate,
-        new replicad.Vector([0, 0, 0]),
-        new replicad.Vector([0, 0, 1])
-      )
       .translate(
         transform.translate.x,
         transform.translate.y + i * layoutConfig.height,
         0
+      )
+      .rotate(
+        transform.rotate,
+        rotationCenter,
+        new replicad.Vector([0, 0, 1])
       );
 
     return {
