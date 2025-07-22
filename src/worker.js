@@ -1489,8 +1489,8 @@ function countFacesWithSimilarNormals(targetFace, allFaces, tolerance = 0.01) {
  *    Criteria for the best face are as follows (in order):
  *    a) face must be flat (eg: not the edge of a cylinder)
  *    b) face must have no protrusions below the XY plane
- *    c) face must be within the (inferred) thickness of the material
- *    d) face should have the FEWEST faces sharing the same normal vector (to put complex side up)
+ *    c) face should have the FEWEST faces sharing the same normal vector (to put complex side up)
+ *    d) face must be within the (inferred) thickness of the material
  *    e) face should have minimal number of interior voids and have the largest bounding box
  */
 function rotateForLayout(targetID, inputID, layoutConfig, warningCallback) {
@@ -1633,6 +1633,13 @@ function rotateForLayout(targetID, inputID, layoutConfig, warningCallback) {
           return a.offset - b.offset; // prefer candidates with no offset
         }
 
+        // PRIORITY CRITERION: Prefer faces with FEWER similar normals to be placed down.
+        // This results in the face with MORE similar normals (more complex) being placed up.
+        // This takes priority over thickness optimization to ensure CNC accessibility.
+        if (a.similarNormalsCount != b.similarNormalsCount) {
+          return a.similarNormalsCount - b.similarNormalsCount; // prefer fewer similar normals down
+        }
+
         // Next, prefer thickness that matches material if possible, else pick thinnest
         // orientation. Or defer if thickness is equal.
         if (!equalThickness(a.thickness, b.thickness)) {
@@ -1648,13 +1655,7 @@ function rotateForLayout(targetID, inputID, layoutConfig, warningCallback) {
           }
         }
 
-        // NEW CRITERION: Prefer faces with FEWER similar normals to be placed down.
-        // This results in the face with MORE similar normals (more complex) being placed up.
-        if (a.similarNormalsCount != b.similarNormalsCount) {
-          return a.similarNormalsCount - b.similarNormalsCount; // prefer fewer similar normals down
-        }
-
-        // Tie brakes for candidates of equal thickness and similar normals count.
+        // Tie breakers for candidates with equal similar normals count and thickness.
 
         // First, look for interior wires, if unequal we prefer candidates with fewer since
         // interior wires *might* indicate carve-outs which are unreachable on the underside of the sheet.
