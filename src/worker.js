@@ -1784,28 +1784,19 @@ function applyLayout(targetID, inputID, positions, layoutConfig) {
     }
     
     // Fix for rotation around part centers instead of global origin:
-    // 1. First center the part at origin by translating by -center of its bounding box
-    // 2. Then apply layout transformations (translate to desired position, then rotate around that position)
-    // This ensures parts rotate around their geometric centers regardless of their original position
+    // 1. Apply translation first to position the part at its layout location
+    // 2. Apply rotation around the part's translated center position (not global origin)
+    // This ensures parts rotate around their own centers while maintaining packing compatibility
     
-    const originalGeom = leaf.geometry[0].clone();
-    const center = originalGeom.boundingBox.center;
-    
-    // Center the part at origin first (only center X and Y, keep Z as is for 2D parts)
-    const centeredGeom = originalGeom.translate(-center[0], -center[1], 0);
-    
-    // Calculate final position
     const translationX = transform.translate.x;
     const translationY = transform.translate.y + i * layoutConfig.height;
     
-    // Apply layout transformations: translate to position, then rotate around that position  
-    // Convert rotation from radians to degrees (replicad expects degrees)
-    const rotationDegrees = (transform.rotate * 180) / Math.PI;
-    
-    let newGeom = centeredGeom
+    // Apply translation first, then rotate around the translated position
+    let newGeom = leaf.geometry[0]
+      .clone()
       .translate(translationX, translationY, 0)
       .rotate(
-        rotationDegrees,
+        transform.rotate,
         new replicad.Vector([translationX, translationY, 0]),
         new replicad.Vector([0, 0, 1])
       );
