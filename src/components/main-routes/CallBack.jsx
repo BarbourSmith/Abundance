@@ -19,7 +19,9 @@ const Callback = ({
     if (params.get("code")) {
       setIsAuthorized(true);
     }
-    const serverEndpoint = import.meta.env.VITE_AUTHO_SERVER_ENDPOINT;
+    const serverEndpoint = window.origin.includes("abundance") || window.origin.includes("localhost")
+      ? import.meta.env.VITE_AUTHO_SERVER_ENDPOINT
+      : import.meta.env.VITE_AUTHO_SERVER_ENDPOINT_MOB;
     const serverUrl = import.meta.env.VITE_AUTHO_SERVER_URL;
 
     const callSecureApi = async () => {

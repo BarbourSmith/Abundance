@@ -16,7 +16,7 @@ export default class Input extends Atom {
      * This atom's name
      * @type {string}
      */
-    this.name;
+    this.name = "Input";
     /**
      * A description of this atom
      * @type {string}
@@ -50,24 +50,50 @@ export default class Input extends Atom {
 
     this.radius = 1 / 75;
 
+    /**
+     * Flag indicating if the name text is currently truncated
+     * @type {boolean}
+     */
+    this.isTextTruncated = false;
+
+    /**
+     * Timer for tooltip delay
+     * @type {number}
+     */
+    this.tooltipTimer = null;
+
+    /**
+     * Reference to the tooltip DOM element
+     * @type {HTMLElement}
+     */
+    this.tooltipElement = null;
+
     this.addIO("output", "number or geometry", this, this.type, this.value);
+
+    // Set values first to ensure this.name is correct before creating the parent input
+    this.setValues(values);
 
     //Add a new input to the current molecule
     if (typeof this.parent !== "undefined") {
       this.parent.addIO("input", this.name, this.parent, this.type, this.value);
     }
-
-    this.setValues(values);
   }
 
   /** Solution to canvas overflow https://stackoverflow.com/questions/10508988/html-canvas-text-overflow-ellipsis*/
   fittingString(c, str, maxWidth) {
+    if (!str) {
+      this.isTextTruncated = false;
+      return str || "";
+    }
+
     var width = c.measureText(str).width;
     var ellipsis = "…";
     var ellipsisWidth = c.measureText(ellipsis).width;
     if (width <= maxWidth || width <= ellipsisWidth) {
+      this.isTextTruncated = false;
       return str;
     } else {
+      this.isTextTruncated = true;
       var len = str.length;
       while (width >= maxWidth - ellipsisWidth && len-- > 0) {
         str = str.substring(0, len);
@@ -164,6 +190,10 @@ export default class Input extends Atom {
    * Remove the input from the parent molecule, then delete the atom normally.
    */
   deleteNode(backgroundClickAfter = true, deletePath = true, silent = false) {
+    // Clean up tooltip
+    this.clearTooltipTimer();
+    this.hideTooltip();
+
     //Remove this input from the parent molecule
     if (typeof this.parent !== "undefined") {
       this.parent.removeIO("input", this.name, this.parent, silent);
@@ -183,6 +213,100 @@ export default class Input extends Atom {
       }
     });
     this.oldName = this.name;
+
+    // Clear tooltip if name is no longer truncated
+    // Note: isTextTruncated will be updated in the next draw() call
+    // But we can hide tooltip immediately to avoid showing outdated info
+    if (this.tooltipElement) {
+      this.hideTooltip();
+    }
+  }
+
+  /**
+   * Creates and shows the tooltip element
+   */
+  showTooltip(x, y) {
+    if (!this.isTextTruncated || !this.name || this.tooltipElement) {
+      return;
+    }
+
+    // Get canvas position to properly position tooltip
+    const canvas = GlobalVariables.canvas.current;
+    const canvasRect = canvas.getBoundingClientRect();
+
+    this.tooltipElement = document.createElement("div");
+    this.tooltipElement.className = "tooltip";
+    this.tooltipElement.textContent = this.name;
+
+    // Position tooltip relative to the page, not just the canvas
+    this.tooltipElement.style.left = x + canvasRect.left + "px";
+    this.tooltipElement.style.top = y + canvasRect.top - 35 + "px";
+    this.tooltipElement.style.display = "block";
+    this.tooltipElement.style.padding = "4px 8px";
+    this.tooltipElement.style.borderRadius = "4px";
+    this.tooltipElement.style.whiteSpace = "nowrap";
+
+    document.body.appendChild(this.tooltipElement);
+  }
+
+  /**
+   * Hides and removes the tooltip element
+   */
+  hideTooltip() {
+    if (this.tooltipElement) {
+      document.body.removeChild(this.tooltipElement);
+      this.tooltipElement = null;
+    }
+  }
+
+  /**
+   * Override mouseMove to handle tooltip functionality
+   */
+  mouseMove(x, y) {
+    super.mouseMove(x, y);
+
+    // Only show tooltip if text is truncated
+    if (!this.isTextTruncated) {
+      this.clearTooltipTimer();
+      this.hideTooltip();
+      return;
+    }
+
+    // Check if mouse is over this input atom using the input's actual dimensions
+    let xInPixels = GlobalVariables.widthToPixels(this.x);
+    let yInPixels = GlobalVariables.heightToPixels(this.y);
+
+    // Use the input's width and height instead of just radius
+    const isOverAtom =
+      x >= xInPixels - (this.width || 100) / 2 &&
+      x <= xInPixels + (this.width || 100) / 2 &&
+      y >= yInPixels - (this.height || 30) / 2 &&
+      y <= yInPixels + (this.height || 30) / 2;
+
+    if (isOverAtom) {
+      // Mouse is over the atom
+      if (!this.tooltipTimer) {
+        // Start timer for delayed tooltip
+        this.tooltipTimer = setTimeout(() => {
+          this.showTooltip(x, y);
+          this.tooltipTimer = null;
+        }, 1000); // 1 second delay
+      }
+    } else {
+      // Mouse is not over the atom
+      this.clearTooltipTimer();
+      this.hideTooltip();
+    }
+  }
+
+  /**
+   * Clears the tooltip timer
+   */
+  clearTooltipTimer() {
+    if (this.tooltipTimer) {
+      clearTimeout(this.tooltipTimer);
+      this.tooltipTimer = null;
+    }
   }
 
   /**

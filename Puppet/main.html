@@ -28,8 +28,10 @@
   </head>
   <body>
     <div id="comparison-container" class="container"></div>
-    <script src="projects_to_test.js"></script>
-    <script>
+
+    <script type="module">
+      //import projects_to_test from "./projects_to_test.js";
+      const projects_to_test = ["Laundry-Shelf", "Wall-Anchor"];
       const container = document.getElementById("comparison-container");
 
       // Get current date and time

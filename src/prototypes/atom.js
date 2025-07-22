@@ -3,6 +3,14 @@ import GlobalVariables from "../js/globalvariables.js";
 import showdown from "showdown";
 import globalvariables from "../js/globalvariables.js";
 
+// Make this an enum once we're using typescript
+const AlertType = Object.freeze({
+  ERROR: "error",
+  WARNING: "warning",
+  INFO: "info",
+  NONE: "none",
+});
+
 /**
  * This class is the prototype for all atoms.
  */
@@ -109,10 +117,13 @@ export default class Atom {
      */
     this.y = 0;
     /**
-     * A warning message displayed next to the atom. Put text in here to have a warning automatically show up. Cleared each time the output is regenerated.
-     * @type {string}
+     * A message displayed next to the atom. Set the type and the message to display the alert. Cleared each time the output is regenerated.
+     * @type {object}
      */
-    this.alertMessage = "";
+    this.alert = {
+      type: AlertType.NONE,
+      message: "",
+    };
     /**
      * A flag to indicate if the atom is currently computing a new output. Turns the molecule blue.
      * @type {boolean}
@@ -227,17 +238,28 @@ export default class Atom {
     GlobalVariables.c.closePath();
 
     if (this.showHover) {
-      if (this.alertMessage.length > 0) {
+      if (this.alert.type != AlertType.NONE) {
         this.color = "red";
+        let prefix = "ERROR: ";
+        switch (this.alert.type) {
+          case AlertType.WARNING:
+            prefix = "WARNING: ";
+            this.color = "orange";
+            break;
+          case AlertType.INFO:
+            prefix = "INFO: ";
+            this.color = this.defaultColor;
+            break;
+        }
 
         //Draw Alert block
         GlobalVariables.c.beginPath();
         const padding = 10;
-        GlobalVariables.c.fillStyle = "red";
+        GlobalVariables.c.fillStyle = this.color;
         GlobalVariables.c.rect(
           xInPixels + radiusInPixels - padding / 2,
           yInPixels - radiusInPixels + padding / 2,
-          GlobalVariables.c.measureText(this.alertMessage.toUpperCase()).width +
+          GlobalVariables.c.measureText(prefix + this.alert.message).width +
             padding,
           -(parseInt(GlobalVariables.c.font) + padding)
         );
@@ -250,7 +272,7 @@ export default class Atom {
         GlobalVariables.c.beginPath();
         GlobalVariables.c.fillStyle = "black";
         GlobalVariables.c.fillText(
-          this.alertMessage.toUpperCase(),
+          prefix + this.alert.message,
           xInPixels + radiusInPixels,
           yInPixels - radiusInPixels
         );
@@ -333,20 +355,33 @@ export default class Atom {
    * @returns
    */
   alertingErrorHandler() {
+    console.log("Error in atom: " + this.name);
     return (err) => {
       this.processing = false;
       console.log(err);
-      this.setAlert(err.message);
+      this.setError(err.message || "Unkown error occurred");
     };
   }
 
   /**
-   * Set an alert to display next to the atom.
+   * Set an Error alert to display next to the atom.
    * @param {string} message - The message to display.
    */
-  setAlert(message) {
-    this.color = "orange";
-    this.alertMessage = String(message);
+  setError(message) {
+    this.alert = { type: AlertType.ERROR, message: String(message) };
+  }
+
+  /**
+   * Set a warning alert on this atom. Indicates an issue but that
+   * processing will continue.
+   */
+  setWarning(message) {
+    this.alert = { type: AlertType.WARNING, message: String(message) };
+  }
+
+  /** Set an informational alert on this atom */
+  setInfo(message) {
+    this.alert = { type: AlertType.INFO, message: String(message) };
   }
 
   /**
@@ -354,7 +389,7 @@ export default class Atom {
    */
   clearAlert() {
     this.color = this.defaultColor;
-    this.alertMessage = "";
+    this.alert = { type: AlertType.NONE, message: "" };
   }
 
   /**
@@ -596,13 +631,13 @@ export default class Atom {
    * @param {string} inputName - The name of the input that changed (optional)
    */
   updateValue(inputName) {
-    // If called with an input name parameter (from AttachmentPoint), 
+    // If called with an input name parameter (from AttachmentPoint),
     // just call the main updateValue logic
     if (inputName !== undefined) {
       this.updateValue();
       return;
     }
-    
+
     this.waitOnComingInformation();
   }
 
@@ -673,7 +708,7 @@ export default class Atom {
     try {
       GlobalVariables.writeToDisplay(this.uniqueID);
     } catch (err) {
-      this.setAlert(err);
+      this.setError(err);
     }
   }
   /**

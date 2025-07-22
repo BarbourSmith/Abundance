@@ -4,13 +4,13 @@
 
 import express from "express";
 import axios from "axios";
-import serverless from 'serverless-http';
+import serverless from "serverless-http";
 
 import jwt from "express-jwt";
 import jwksRsa from "jwks-rsa";
 
-const domain = 'dev-ln37eaqfk7dp2480.us.auth0.com' 
-const audience = 'https://api.github.com/'
+const domain = "dev-ln37eaqfk7dp2480.us.auth0.com";
+const audience = "https://api.github.com/";
 
 const checkJwt = jwt({
   secret: jwksRsa.expressJwtSecret({
@@ -44,13 +44,13 @@ app.get("/api/greet", checkJwt, async (req, res) => {
     const token = await fetchManagementApi();
     const gitToken = await forwardRequest(token, userID);
     // Set multiple headers
-   res.set({
-    "Content-Type" : "application/json",
-      "Access-Control-Allow-Origin" : "*",
-      "Allow" : "GET, OPTIONS, POST",
-      "Access-Control-Allow-Methods" : "GET, OPTIONS, POST",
-      "Access-Control-Allow-Headers" : "*"
-  });
+    res.set({
+      "Content-Type": "application/json",
+      "Access-Control-Allow-Origin": "*",
+      Allow: "GET, OPTIONS, POST",
+      "Access-Control-Allow-Methods": "GET, OPTIONS, POST",
+      "Access-Control-Allow-Headers": "*",
+    });
     res.status(200).send({ success: true, message: gitToken });
   } catch (error) {
     res.status(500).send({ success: false, message: error.message });
@@ -59,13 +59,13 @@ app.get("/api/greet", checkJwt, async (req, res) => {
 app.get("/api/ourAutho", async (req, res) => {
   try {
     const code = req.query.code; // Retrieve 'code' from query parameters
-  console.log("Code received:", code);
+    console.log("Code received:", code);
 
     // Set multiple headers
     res.set({
       "Content-Type": "application/json",
       "Access-Control-Allow-Origin": "*",
-      "Allow": "GET, OPTIONS, POST",
+      Allow: "GET, OPTIONS, POST",
       "Access-Control-Allow-Methods": "GET, OPTIONS, POST",
       "Access-Control-Allow-Headers": "*",
     });
@@ -92,16 +92,52 @@ app.get("/api/ourAutho", async (req, res) => {
     res.status(500).send({ success: false, message: error.message });
   }
 });
-app.get("/api/deployAutho", async (req, res) => {
+app.get("/api/mobAutho", async (req, res) => {
   try {
     const code = req.query.code; // Retrieve 'code' from query parameters
-  console.log("Code received:", code);
+    console.log("Code received:", code);
 
     // Set multiple headers
     res.set({
       "Content-Type": "application/json",
       "Access-Control-Allow-Origin": "*",
-      "Allow": "GET, OPTIONS, POST",
+      Allow: "GET, OPTIONS, POST",
+      "Access-Control-Allow-Methods": "GET, OPTIONS, POST",
+      "Access-Control-Allow-Headers": "*",
+    });
+
+    const response = await axios.get(
+      "https://github.com/login/oauth/access_token",
+      {
+        params: {
+          client_id: "Ov23lioNfq4Q063COhYR",
+          client_secret: process.env.CLIENT_SECRET_GIT_MOB,
+          code: code,
+          redirect_uri: `http://192.168.1.169:4444/callback`,
+        },
+        headers: {
+          Accept: "application/json",
+          "Accept-Encoding": "application/json",
+        },
+      }
+    );
+    const access_token = response.data.access_token;
+
+    res.status(200).send({ success: true, message: access_token });
+  } catch (error) {
+    res.status(500).send({ success: false, message: error.message });
+  }
+});
+app.get("/api/deployAutho", async (req, res) => {
+  try {
+    const code = req.query.code; // Retrieve 'code' from query parameters
+    console.log("Code received:", code);
+
+    // Set multiple headers
+    res.set({
+      "Content-Type": "application/json",
+      "Access-Control-Allow-Origin": "*",
+      Allow: "GET, OPTIONS, POST",
       "Access-Control-Allow-Methods": "GET, OPTIONS, POST",
       "Access-Control-Allow-Headers": "*",
     });
@@ -137,7 +173,7 @@ app.get("/api/test", (req, res) => {
   res.set({
     "Content-Type": "application/json",
     "Access-Control-Allow-Origin": "*",
-    "Allow": "GET, OPTIONS, POST",
+    Allow: "GET, OPTIONS, POST",
     "Access-Control-Allow-Methods": "GET, OPTIONS, POST",
     "Access-Control-Allow-Headers": "*",
   });
@@ -169,8 +205,7 @@ const fetchManagementApi = async () => {
 
   const body = JSON.stringify({
     client_id: "XWdAtXHXzzoIzbAj39I9ffebVfJWxpx4",
-    client_secret:process.env.CLIENT_SECRET
-      ,
+    client_secret: process.env.CLIENT_SECRET,
     audience: "https://dev-ln37eaqfk7dp2480.us.auth0.com/api/v2/",
     grant_type: "client_credentials",
   });
@@ -203,4 +238,4 @@ app.listen(serverPort, () =>
   console.log(`API Server listening on port ${serverPort}`)
 ); */
 
-export const handler = serverless(app); 
+export const handler = serverless(app);

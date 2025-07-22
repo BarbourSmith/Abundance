@@ -154,6 +154,7 @@ export default class Color extends Atom {
             value: input.value,
             label: input.name,
             disabled: checkConnector(),
+            step: 0.01,
             onChange: (value) => {
               if (input.value !== value) {
                 input.setValue(value);

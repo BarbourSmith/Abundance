@@ -72,9 +72,7 @@ export default class ClipperWrapper {
     for (i = 0; i < nodeCount; ++i) {
       memSeg = memSegs[i];
       node = getPolygonNode(i, memSeg);
-
       this.cleanNode(node);
-
       this.polygon.bind(node.memSeg);
 
       if (this.polygon.isBroken || this.polygon.absArea <= trashold) {

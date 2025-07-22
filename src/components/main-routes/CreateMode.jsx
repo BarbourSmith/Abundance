@@ -7,14 +7,12 @@ import FlowCanvas from "./flowCanvas.jsx";
 import LowerHalf from "./lowerHalf.jsx";
 import ParamsEditor from "../secondary/ParameterEditor.jsx";
 import CodeWindow from "../secondary/codeWindow.jsx";
-import { useAuth0 } from "@auth0/auth0-react";
 import {
   BrowserRouter as Router,
   useParams,
   useNavigate,
 } from "react-router-dom";
 import NewProjectPopUp from "../secondary/NewProjectPopUp.jsx";
-import { exp, re } from "mathjs";
 import { Link } from "react-router-dom";
 
 /**
@@ -50,6 +48,9 @@ function CreateMode({
   const [wireParam, setWire] = useState(true);
   const [solidParam, setSolid] = useState(true);
 
+  /** State for import notifications */
+  const [importNotification, setImportNotification] = useState(null);
+
   /** State for save progress bar */
   const [saveState, setSaveState] = useState(0);
   const [savePopUp, setSavePopUp] = useState(false);
@@ -57,8 +58,6 @@ function CreateMode({
 
   /** State for top level molecule */
   const [currentMoleculeTop, setTop] = useState(false);
-
-  const { loginWithRedirect } = useAuth0();
 
   const lastSaveData = useRef({}); // The object saved last time the project was saved...used for comparison
 
@@ -294,32 +293,103 @@ function CreateMode({
     var reader = new FileReader();
 
     reader.onload = function (e) {
-      let base64result = e.target.result.split(",")[1];
-      authorizedUserOcto.rest.repos
-        .createOrUpdateFileContents({
-          owner: GlobalVariables.currentUser,
-          repo: GlobalVariables.currentRepoName,
-          path: file.name,
-          message: "Import File",
-          content: base64result,
-        })
-        .then((result) => {
-          activeAtom.updateFile(file, result.data.content.sha);
+      const base64result = e.target.result.split(",")[1];
+
+      (async () => {
+        try {
+          const existingFiles = await authorizedUserOcto.rest.repos.getContent({
+            owner: GlobalVariables.currentUser,
+            repo: GlobalVariables.currentRepoName,
+            path: "",
+          });
+
+          let fileName = file.name;
+          const fileExtension = fileName.substring(fileName.lastIndexOf("."));
+          const baseName = fileName.substring(0, fileName.lastIndexOf("."));
+          let uniqueFileName = fileName;
+          let counter = 1;
+
+          // Incrementally rename the file until a unique name is found
+          while (
+            existingFiles.data.some(
+              (existingFile) => existingFile.name === uniqueFileName
+            )
+          ) {
+            uniqueFileName = `${baseName}_copy${counter}${fileExtension}`;
+            counter++;
+          }
+
+          if (uniqueFileName !== fileName) {
+            console.warn(`File already exists. Renaming to: ${uniqueFileName}`);
+          }
+          const result = await Promise.race([
+            authorizedUserOcto.rest.repos.createOrUpdateFileContents({
+              owner: GlobalVariables.currentUser,
+              repo: GlobalVariables.currentRepoName,
+              path: uniqueFileName,
+              message: "Import File",
+              content: base64result,
+            }),
+            new Promise((_, reject) =>
+              setTimeout(
+                () => reject(new Error("File upload timed out")),
+                60000
+              )
+            ),
+          ]);
+          console.log("File uploaded successfully:", result);
+
+          activeAtom.updateFile(
+            { name: uniqueFileName },
+            result.data.content.sha
+          );
           saveProject(setSaveState, "Upload Save");
-        });
+
+          // Show upload notification
+          setImportNotification(`File uploaded: ${uniqueFileName}`);
+          setTimeout(() => setImportNotification(null), 3000);
+        } catch (error) {
+          setImportNotification(
+            `Failed to Upload File: Corrupt or exceeded size limit`
+          );
+          setTimeout(() => setImportNotification(null), 3000);
+          console.error("Error during file upload:", error);
+        }
+      })();
+    };
+
+    reader.onerror = function (error) {
+      console.error("Error reading file:", error);
+      alert("Failed to read the file. Please try again.");
     };
     reader.readAsDataURL(file);
   };
 
   const deleteAFile = async function (fileName, fileSha) {
-    console.log("deleting file");
-    authorizedUserOcto.rest.repos.deleteFile({
-      owner: GlobalVariables.currentUser,
-      repo: GlobalVariables.currentRepoName,
-      path: fileName,
-      message: "Deleted node",
-      sha: fileSha,
-    });
+    // If fileName is null or undefined, there's no file to delete
+    if (fileName == null) {
+      return;
+    }
+    
+    try {
+      await authorizedUserOcto.rest.repos.deleteFile({
+        owner: GlobalVariables.currentUser,
+        repo: GlobalVariables.currentRepoName,
+        path: fileName,
+        message: "Deleted node",
+        sha: fileSha,
+      });
+      console.log("File deleted successfully:", fileName);
+
+      // Show delete notification
+      setImportNotification(`File deleted: ${fileName}`);
+      setTimeout(() => setImportNotification(null), 3000);
+    } catch (error) {
+      console.error("Error deleting file:", error);
+      alert(
+        `Failed to delete file: ${fileName}. The file will remain in your repository.`
+      );
+    }
   };
 
   /**
@@ -393,7 +463,7 @@ function CreateMode({
         }
       });
     }
-    
+
     // Only update project thumbnail if a new one has been generated successfully
     const thumbnailToUse = finalSVG || backupProjectSVG;
     if (thumbnailToUse) {
@@ -433,6 +503,8 @@ function CreateMode({
                 "/imgs/abundance_logo.png"
               }
               alt="logo"
+              onClick={() => navigate("/")}
+              style={{ cursor: "pointer" }}
             />
           </div>
 
@@ -524,6 +596,7 @@ function CreateMode({
               setMesh,
               cad,
               setWireMesh,
+              importNotification,
             }}
           />
           <div className="parent flex-parent" id="lowerHalf">
@@ -582,7 +655,7 @@ function CreateMode({
         );
 
         if (loginConfirm) {
-          loginWithRedirect();
+          loginRedirect();
         } else {
           // user clicked cancel and is redirected to the run mode
         }

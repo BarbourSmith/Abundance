@@ -116,7 +116,7 @@ export default class Group extends Atom{
                 
                 this.basicThreadValueProcessing(values, "group")
                 this.clearAlert()
-            }catch(err){this.setAlert(err)}
+            }catch(err){this.setError(err)}
             
             //Delete or add ports as needed
             addOrDeletePorts(this)

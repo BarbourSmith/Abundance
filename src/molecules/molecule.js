@@ -108,31 +108,6 @@ export default class Molecule extends Atom {
   }
 
   /**
-   * Gives this molecule inputs with the same names as all of it's parent's inputs
-   */
-  copyInputsFromParent() {
-    if (this.parent) {
-      this.parent.nodesOnTheScreen.forEach((node) => {
-        if (node.atomType == "Input") {
-          this.placeAtom(
-            {
-              parentMolecule: this,
-              y: node.y,
-              parent: this,
-              name: node.name,
-              atomType: "Input",
-              uniqueID: GlobalVariables.generateUniqueID(),
-            },
-            null,
-            GlobalVariables.availableTypes,
-            true
-          );
-        }
-      });
-    }
-  }
-
-  /**
    * Add the center dot to the molecule
    */
   draw() {
@@ -201,6 +176,7 @@ export default class Molecule extends Atom {
           value: input.value,
           label: input.name,
           disabled: checkConnector(),
+          step: 0.01,
           onChange: (value) => {
             if (input.value !== value) {
               input.setValue(value);
@@ -296,7 +272,7 @@ export default class Molecule extends Atom {
    * Computes and returns an array of BOMEntry objects after looking at the tags of a geometry.*/
   async extractBomTags() {
     var tag = "BOMitem";
-    let bomlist = await GlobalVariables.cad.extractBomList(this.output.value);
+    let bomlist = await GlobalVariables.cad.extractBomList(this.uniqueID);
     return bomlist;
   }
 
@@ -371,24 +347,240 @@ export default class Molecule extends Atom {
       }
     });
   }
+
   /**
-   * Takes an array of recently deleted atoms
+   * Enhanced copy that includes internal connectors between selected atoms
+   */
+  copyWithConnectors() {
+    const selectedAtoms = [];
+    const selectedAtomIDs = new Set();
+    const internalConnectors = [];
+
+    // First pass: collect selected atoms and their IDs
+    this.nodesOnTheScreen.forEach((atom) => {
+      if (atom.selected) {
+        selectedAtoms.push(atom.serialize({ x: 0.05, y: 0.05 }));
+        selectedAtomIDs.add(atom.uniqueID);
+      }
+    });
+
+    // Early return if no atoms selected
+    if (selectedAtoms.length === 0) {
+      console.log("No atoms selected for copy with connectors");
+      return;
+    }
+
+    // Second pass: collect connectors that connect only selected atoms
+    this.nodesOnTheScreen.forEach((atom) => {
+      if (atom.selected && atom.output) {
+        atom.output.connectors.forEach((connector) => {
+          // Only include connectors where both ends are in selected atoms
+          if (
+            connector.attachmentPoint2 &&
+            selectedAtomIDs.has(
+              connector.attachmentPoint1.parentMolecule.uniqueID
+            ) &&
+            selectedAtomIDs.has(
+              connector.attachmentPoint2.parentMolecule.uniqueID
+            )
+          ) {
+            internalConnectors.push(connector.serialize());
+          }
+        });
+      }
+    });
+
+    // Store in a structured format that includes both atoms and connectors
+    GlobalVariables.atomsSelected = selectedAtoms;
+    GlobalVariables.connectorsSelected = internalConnectors;
+
+    console.log(
+      `Copied ${selectedAtoms.length} atoms with ${internalConnectors.length} internal connectors`
+    );
+  }
+
+  /**
+   * Move selected atoms with their internal connectors into a new or existing molecule
+   * @param {object} targetMolecule - The molecule to move atoms into (optional, creates new if not provided)
+   */
+  moveSelectedAtomsToMolecule(targetMolecule = null) {
+    // Check if any atoms are selected
+    const selectedCount = this.nodesOnTheScreen.filter(
+      (atom) => atom.selected
+    ).length;
+    if (selectedCount === 0) {
+      console.log("No atoms selected to move. Please select atoms first.");
+      return null;
+    }
+
+    // Copy atoms and connectors
+    this.copyWithConnectors();
+
+    if (GlobalVariables.atomsSelected.length === 0) {
+      console.warn("No atoms could be copied for moving");
+      return null;
+    }
+
+    console.log(
+      `Moving ${selectedCount} selected atoms to ${
+        targetMolecule ? "existing" : "new"
+      } molecule`
+    );
+
+    // Create new molecule if not provided
+    if (!targetMolecule) {
+      // Calculate center position of selected atoms
+      let avgX = 0,
+        avgY = 0;
+      GlobalVariables.atomsSelected.forEach((atom) => {
+        avgX += atom.x;
+        avgY += atom.y;
+      });
+      avgX /= GlobalVariables.atomsSelected.length;
+      avgY /= GlobalVariables.atomsSelected.length;
+
+      // Create new molecule
+      const newMoleculeObj = {
+        parentMolecule: this,
+        x: avgX,
+        y: avgY,
+        parent: this,
+        atomType: "Molecule",
+        uniqueID: GlobalVariables.generateUniqueID(),
+        name: "New Molecule",
+      };
+
+      // Place the new molecule
+      this.placeAtom(newMoleculeObj, true)
+        .then(() => {
+          // Find the newly created molecule
+          targetMolecule = this.nodesOnTheScreen.find(
+            (atom) => atom.uniqueID === newMoleculeObj.uniqueID
+          );
+
+          if (targetMolecule) {
+            this.completeAtomMove(targetMolecule);
+          } else {
+            console.error("Failed to create target molecule");
+          }
+        })
+        .catch((error) => {
+          console.error("Error creating target molecule:", error);
+        });
+    } else {
+      this.completeAtomMove(targetMolecule);
+    }
+
+    return targetMolecule;
+  }
+
+  /**
+   * Complete the atom move operation by placing atoms and connectors in target molecule
+   * @param {object} targetMolecule - The target molecule to place atoms into
+   */
+  completeAtomMove(targetMolecule) {
+    // Remove selected atoms from current molecule, excluding the target molecule
+    const atomsToRemove = [];
+    this.nodesOnTheScreen.forEach((atom) => {
+      if (atom.selected && atom !== targetMolecule) {
+        atomsToRemove.push(atom);
+      }
+    });
+
+    // Delete atoms from current molecule (this also removes their connectors)
+    atomsToRemove.forEach((atom) => {
+      atom.deleteNode();
+    });
+
+    // Create structured data for the target molecule
+    const moleculeData = {
+      allAtoms: GlobalVariables.atomsSelected,
+      allConnectors: GlobalVariables.connectorsSelected || [],
+      fileTypeVersion: 1,
+    };
+
+    // Remap IDs to avoid conflicts
+    const remappedData = targetMolecule.remapIDs(moleculeData);
+
+    // Place atoms in target molecule
+    if (remappedData?.allAtoms) {
+      const atomPromises = [];
+      remappedData.allAtoms.forEach((atomData) => {
+        const promise = targetMolecule.placeAtom(atomData, true);
+        atomPromises.push(promise);
+      });
+
+      // Place connectors after atoms are placed
+      Promise.all(atomPromises)
+        .then(() => {
+          if (remappedData.allConnectors) {
+            remappedData.allConnectors.forEach((connectorData) => {
+              targetMolecule.placeConnector(connectorData);
+            });
+          }
+        })
+        .catch((error) => {
+          console.warn("Error placing atoms or connectors:", error);
+        });
+    }
+
+    // Clear selection
+    GlobalVariables.atomsSelected = [];
+    GlobalVariables.connectorsSelected = [];
+  }
+
+  /**
+   * Performs undo operation with improved reliability and operation type awareness
    */
   undo() {
-    if (GlobalVariables.recentMoleculeRepresentation.length > 0) {
+    // Check if there are any undo states available
+    if (GlobalVariables.recentMoleculeRepresentation.length === 0) {
+      console.log("No undo history available");
+      return; // Exit gracefully when no undo history exists
+    }
+
+    try {
+      // Get the last saved state and operation info
       let rawFile = JSON.parse(
         GlobalVariables.recentMoleculeRepresentation.pop()
       );
+
+      // Get operation info if available
+      let operationInfo = null;
+      if (GlobalVariables.undoOperationHistory.length > 0) {
+        operationInfo = GlobalVariables.undoOperationHistory.pop();
+        console.log(
+          `Undoing ${operationInfo.type} operation: ${operationInfo.context}`
+        );
+      }
+
+      // Make a copy of current nodes to safely delete them
       const nodesCopy = [...GlobalVariables.topLevelMolecule.nodesOnTheScreen];
-      // Delete nodes so deserialize doesn't repeat, could be useful to not delete for a diff in the future
-      nodesCopy.forEach((atom, index) => {
-        atom.deleteNode();
+
+      // Delete all current nodes to prepare for state restoration
+      nodesCopy.forEach((atom) => {
+        try {
+          atom.deleteNode();
+        } catch (error) {
+          console.warn("Error deleting atom during undo:", error);
+        }
       });
 
-      if (rawFile.fileTypeVersion == 1) {
+      // Restore the previous state if it's a valid format
+      if (rawFile && rawFile.fileTypeVersion == 1) {
         GlobalVariables.topLevelMolecule.deserialize(rawFile);
+      } else {
+        console.warn("Invalid file format for undo operation");
       }
-      GlobalVariables.currentMolecule.selected = true;
+
+      // Ensure current molecule is selected
+      if (GlobalVariables.currentMolecule) {
+        GlobalVariables.currentMolecule.selected = true;
+      }
+    } catch (error) {
+      console.error("Error during undo operation:", error);
+      // If undo fails, we should try to maintain a consistent state
+      // The nodes have already been deleted, so we need to handle this gracefully
     }
   }
 
@@ -498,9 +690,12 @@ export default class Molecule extends Atom {
 
   createLevaBom() {
     let bomParams = {};
-    if (this.compiledBom) {
-      if (this.compiledBom.length > 0) {
-        this.compiledBom.map((item) => {
+    // Always show the top-level BOM, which contains the complete project BOM
+    const bomToShow =
+      GlobalVariables.topLevelMolecule?.compiledBom || this.compiledBom;
+    if (bomToShow) {
+      if (bomToShow.length > 0) {
+        bomToShow.map((item) => {
           bomParams[item.BOMitemName] = {
             value: item.numberNeeded,
             label: item.BOMitemName + " x",
@@ -515,19 +710,15 @@ export default class Molecule extends Atom {
 
           saveAs(myFile, fileName + "." + "txt");
         });
-
-        return bomParams;
       }
     }
+    return bomParams;
   }
 
   /**
    * Reads molecule's output atom ID to recompute the molecule in worker
    */
   recomputeMolecule(outputID) {
-    //super.updateValue();
-    console.log("recompute");
-
     try {
       this.processing = true;
       const centeredText = document.querySelector(".loading");
@@ -541,15 +732,23 @@ export default class Molecule extends Atom {
           this.awaitingPropagationFlag = true;
         }
 
-        this.compileBom().then((result) => {
-          this.compiledBom = result;
-        });
+        // Compile BOM at the top level to capture the entire project
+        if (GlobalVariables.topLevelMolecule === this) {
+          GlobalVariables.topLevelMolecule
+            .compileBom()
+            .then((result) => {
+              GlobalVariables.topLevelMolecule.compiledBom = result;
+            })
+            .catch((err) => {
+              console.warn("Failed to compile BOM at top level:", err);
+            });
+        }
         if (this.selected) {
           this.sendToRender();
         }
       });
     } catch (err) {
-      this.setAlert(err);
+      this.setError(err);
     }
   }
 
@@ -573,7 +772,7 @@ export default class Molecule extends Atom {
       const loadingDots = document.querySelector(".loading");
       loadingDots.style.display = "none";
     } catch (err) {
-      this.setAlert(err);
+      this.setError(err);
     }
   }
 
@@ -885,6 +1084,19 @@ export default class Molecule extends Atom {
    */
   async placeAtom(newAtomObj, unlock, values) {
     try {
+      //If the input has a name and is a copy, we need to make sure it is unique so that the constructors adds IO
+      if (
+        newAtomObj.atomType == "Input" &&
+        newAtomObj.name !== undefined &&
+        unlock
+      ) {
+        newAtomObj.name = GlobalVariables.incrementVariableName("Input", this);
+      }
+      // Save undo state for user-initiated atom additions (unlock=true means user action)
+      if (unlock && this === GlobalVariables.currentMolecule) {
+        GlobalVariables.saveUndoState("ADD", `Added ${newAtomObj.atomType}`);
+      }
+
       GlobalVariables.numberOfAtomsToLoad =
         GlobalVariables.numberOfAtomsToLoad + 1; //Indicate that one more atom needs to be loaded
 
@@ -920,13 +1132,21 @@ export default class Molecule extends Atom {
             atom.atomType == "Input" &&
             typeof newAtomObj.name !== "undefined"
           ) {
-            atom.name = newAtomObj.name;
+            // For copied inputs (when unlock=true), apply name deduplication
+            if (unlock) {
+              atom.name = GlobalVariables.incrementVariableName(
+                newAtomObj.name,
+                this
+              );
+            } else {
+              atom.name = newAtomObj.name; // Preserve exact name for normal loading
+            }
             atom.type = newAtomObj.type;
+
             atom.draw(); //The poling happens in draw :roll_eyes:
           } else if (atom.atomType == "Input") {
             atom.name = GlobalVariables.incrementVariableName(atom.name, this);
           }
-
           //If this is an output, check to make sure there are no existing outputs, and if there are delete the existing one because there can only be one
           if (atom.atomType == "Output") {
             //Check for existing outputs
@@ -937,16 +1157,13 @@ export default class Molecule extends Atom {
             });
           }
 
-          //Add the atom to the list to display
+          // Add the atom to the list to display
           this.nodesOnTheScreen.push(atom);
-          // fakes a click on newly placed atom
-          //atom.selected = false;
 
           if (unlock) {
             //Make this molecule spawn with all of it's parent's inputs
             if (atom.atomType == "Molecule") {
               //Not GitHubMolecule
-              atom.copyInputsFromParent();
 
               //Make begin propagation from an atom when it is placed. This is used when copy and pasting molecules.
               if (promise != null) {
@@ -959,6 +1176,26 @@ export default class Molecule extends Atom {
             }
 
             atom.updateValue();
+            const flowCanvas = document.querySelector("#flow-canvas");
+            if (!flowCanvas) {
+              console.warn("Flow canvas element not found");
+              return;
+            }
+            const mouseDownEvent = new MouseEvent("mousedown", {
+              bubbles: true,
+              cancelable: true,
+              clientX: GlobalVariables.widthToPixels(atom.x),
+              clientY: GlobalVariables.heightToPixels(atom.y),
+            });
+            flowCanvas.dispatchEvent(mouseDownEvent);
+
+            const mouseUpEvent = new MouseEvent("mouseup", {
+              bubbles: true,
+              cancelable: true,
+              clientX: GlobalVariables.widthToPixels(atom.x),
+              clientY: GlobalVariables.heightToPixels(atom.y),
+            });
+            flowCanvas.dispatchEvent(mouseUpEvent);
           }
         }
       }

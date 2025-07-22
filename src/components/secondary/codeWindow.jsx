@@ -52,6 +52,7 @@ export default function CodeWindow(props) {
       semi: "error",
       "callback-return": "off",
     },
+
   };
 
   return (
@@ -60,6 +61,17 @@ export default function CodeWindow(props) {
         width="100%"
         height="500px"
         extensions={[
+          keymap.of({
+            key: "Mod-s",
+            run: () => {
+              console.log("mod-s pressed, attempting to save code");
+              if (props.activeAtom != null) {
+                props.activeAtom.saveCode();
+              }
+              return true;
+            },
+            preventDefault: true,
+          }),
           langs.javascript(),
           linter(
             esLint(new eslint.Linter(), {

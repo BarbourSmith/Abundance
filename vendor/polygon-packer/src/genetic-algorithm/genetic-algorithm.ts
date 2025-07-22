@@ -14,7 +14,7 @@ export default class GeneticAlgorithm {
 
     #trashold: number = 0;
 
-    public init(nodes: PolygonNode[], bounds: BoundRect, config: NestConfig): void {
+    public init(nodes: PolygonNode[], bounds: BoundRect, config: NestConfig, seedPhenotype: Phenotype = null): void {
         if (!this.#isEmpty) {
             return;
         }
@@ -46,12 +46,20 @@ export default class GeneticAlgorithm {
         const angles: number[] = [];
         let i: number = 0;
         let mutant: Phenotype = null;
+        let firstPhenotype: Phenotype = null;
 
-        for (i = 0; i < adam.length; ++i) {
-            angles.push(this.randomAngle(polygon, adam[i]));
+        if (seedPhenotype) {
+            // Use the seed phenotype as the first individual if provided
+            firstPhenotype = seedPhenotype;
+            this.#population.push(firstPhenotype);
+        } else {
+            // Create a random first individual using the sorted adam order
+            for (i = 0; i < adam.length; ++i) {
+                angles.push(this.randomAngle(polygon, adam[i]));
+            }
+            firstPhenotype = new Phenotype(adam, angles);
+            this.#population.push(firstPhenotype);
         }
-
-        this.#population.push(new Phenotype(adam, angles));
 
         while (this.#population.length < config.populationSize) {
             mutant = this.mutate(this.#population[0]);

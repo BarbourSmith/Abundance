@@ -102,7 +102,7 @@ export default class Output extends Atom {
     try {
       GlobalVariables.writeToDisplay(this.uniqueID);
     } catch (err) {
-      this.setAlert(err);
+      this.setError(err);
     }
   }
 

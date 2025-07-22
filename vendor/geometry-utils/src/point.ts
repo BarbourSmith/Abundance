@@ -89,7 +89,14 @@ export default class Point {
     }
 
     public rotate(angle: number): Point {
-        const angleData = ANGLE_CACHE.get(angle);
+        let angleData = ANGLE_CACHE.get(angle);
+        
+        if (!angleData) {
+            // Fallback: calculate sin and cos if not in cache
+            const radians = (angle * Math.PI) / 180;
+            angleData = new Float32Array([Math.sin(radians), Math.cos(radians)]);
+        }
+        
         const sin: number = angleData[0];
         const cos: number = angleData[1];
 

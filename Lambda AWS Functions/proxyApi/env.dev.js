@@ -31,6 +31,9 @@ if (!clientOriginUrl) {
   );
 }
 
-const clientOrigins = ["http://localhost:4444"];
+const clientOrigins = [
+  "http://localhost:4444",
+  "http://192.168.1.169:4444/",
+];
 
 export { audience, domain, serverPort, clientOriginUrl, clientOrigins };

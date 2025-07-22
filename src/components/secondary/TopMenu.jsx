@@ -3,6 +3,7 @@ import GlobalVariables from "../../js/globalvariables.js";
 import ShareDialog from "./ShareDialog.jsx";
 import { useNavigate } from "react-router-dom";
 import SettingsPopUp from "./SettingsPopUp.jsx";
+import MobileSettingsPopUp from "./MobileSettingsPopUp.jsx";
 
 function TopMenu({
   authorizedUserOcto,
@@ -23,6 +24,8 @@ function TopMenu({
   let [settingsPopUp, setSettingsPopUp] = useState(false);
 
   const navigate = useNavigate();
+
+  console.log(GlobalVariables.isMobile());
 
   // objects for navigation items in the top menu
   const navItems = [
@@ -219,9 +222,13 @@ function TopMenu({
             )}
           </button>
 
-          <ul className={`menu-nav${navbarOpen ? " show-menu" : ""}`}>
+          <div className={`menu-nav${navbarOpen ? " show-menu" : ""}`}>
             {navItems.map((item, index) => (
-              <button key={item.id} className="menu-nav-button">
+              <button
+                key={item.id}
+                className="menu-nav-button"
+                onClick={item.buttonFunc}
+              >
                 <img
                   className=" thumnail-logo"
                   alt={item}
@@ -233,11 +240,11 @@ function TopMenu({
                   }
                   key={item.id}
                   title={item.id + "-button"}
-                  onClick={item.buttonFunc}
                 />
+                <span className="nav-text">{item.id}</span>
               </button>
             ))}
-          </ul>
+          </div>
         </nav>
       </>
     );
@@ -249,7 +256,13 @@ function TopMenu({
         <SaveBar {...{ saveState, savePopUp, setSavePopUp }} />
       ) : null}
       {settingsPopUp ? (
-        <SettingsPopUp {...{ setSettingsPopUp, shortCutsOn, setShortCuts }} />
+        GlobalVariables.isMobile() == true ? (
+          <MobileSettingsPopUp
+            {...{ setSettingsPopUp, shortCutsOn, setShortCuts }}
+          />
+        ) : (
+          <SettingsPopUp {...{ setSettingsPopUp, shortCutsOn, setShortCuts }} />
+        )
       ) : null}
       {shareDialog ? (
         <ShareDialog

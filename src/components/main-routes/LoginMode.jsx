@@ -24,7 +24,11 @@ const InitialLog = ({ setNoUserBrowsing }) => {
     }
 
     // the client id from github
-    const client_id = import.meta.env.VITE_GH_OAUTH_CLIENT_ID;
+
+    const client_id =
+      window.origin.includes("localhost") || window.origin.includes("abundance")
+        ? import.meta.env.VITE_GH_OAUTH_CLIENT_ID
+        : import.meta.env.VITE_GH_OAUTH_CLIENT_ID_MOB;
 
     // create a CSRF token and store it locally
     const csrfToken = window.crypto
@@ -38,9 +42,7 @@ const InitialLog = ({ setNoUserBrowsing }) => {
       forking: false,
     });
     // redirect the user to github
-    const link = `https://github.com/login/oauth/authorize?client_id=${client_id}&response_type=code&scope=repo&redirect_uri=${
-      import.meta.env.VITE_REDIRECT_URI
-    }callback&state=${state}&scope=${scope}`;
+    const link = `https://github.com/login/oauth/authorize?client_id=${client_id}&response_type=code&scope=repo&redirect_uri=${window.origin}/callback&state=${state}&scope=${scope}`;
     window.location.assign(link);
   };
 
@@ -76,7 +78,7 @@ const InitialLog = ({ setNoUserBrowsing }) => {
               id="loginButton"
               style={{ height: "40px" }}
               className="submit-btn"
-              onClick={() => loginHandler() /*loginWithRedirect()*/}
+              onClick={() => loginHandler()}
             >
               Login With GitHub
             </button>
@@ -485,7 +487,6 @@ const ShowProjects = ({
   user,
   authorizedUserOcto,
   pageDict,
-  loginWithRedirect,
   setNoUserBrowsing,
 }) => {
   const [search, setSearch] = useState("");
@@ -664,7 +665,11 @@ const ShowProjects = ({
                 result.data.name +
                 "/master/project.svg?sanitize=true",
               dateCreated: result.data.created_at,
-              html_url: result.data.html_url,
+              html_url:
+                "https://github.com/" +
+                GlobalVariables.currentUser +
+                "/" +
+                result.data.name,
             };
             fetch(apiUrl, {
               method: "POST",
@@ -762,7 +767,7 @@ const ShowProjects = ({
         className="login-nav-item"
         onClick={() => {
           setNoUserBrowsing(false);
-          loginWithRedirect();
+          loginRedirect();
         }}
       >
         <p>Login</p>
@@ -976,7 +981,6 @@ function LoginMode({
           user: null,
           authorizedUserOcto,
           pageDict,
-          loginWithRedirect,
           setNoUserBrowsing,
         }}
       />

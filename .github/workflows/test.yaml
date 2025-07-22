@@ -1,17 +1,19 @@
-# Simple workflow for running puppeter tests on pull requests
+# Simple workflow for running puppeteer tests on pull requests
 name: Puppeteer Tests
 
 on:
-  pull_request:
+  pull_request_target:
     branches: [main]
+    types: [opened, synchronize, closed]
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
 # Sets the GITHUB_TOKEN permissions to allow deployment to GitHub Pages
 permissions:
-  contents: read
-  pages: write
+  contents: write
+  pull-requests: write
+  issues: write
   id-token: write
 
 # Allow one concurrent deployment
@@ -20,12 +22,47 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    if: github.event.action == 'closed'
+    steps:
+      - name: Configure AWS credentials for cleanup
+        uses: aws-actions/configure-aws-credentials@v4
+        if: env.AWS_ACCESS_KEY_ID != ''
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      - name: Cleanup S3 screenshots
+        if: env.AWS_ACCESS_KEY_ID != ''
+        run: |
+          S3_BUCKET="${{ secrets.S3_BUCKET_NAME }}"
+          PR_PREFIX="pr-${{ github.event.number }}/"
+
+          echo "Cleaning up S3 screenshots for PR #${{ github.event.number }}"
+
+          # List and delete all objects with the PR prefix
+          aws s3 rm "s3://$S3_BUCKET/$PR_PREFIX" --recursive
+
+          echo "S3 cleanup completed for s3://$S3_BUCKET/$PR_PREFIX"
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      - name: Cleanup completed
+        run: |
+          echo "PR #${{ github.event.number }} closed - cleanup completed"
+
   test:
     runs-on: ubuntu-latest
+    if: github.event.action != 'closed'
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4.2.2
+      - name: Configure Git Safe Directory
+        run: |
+          git config --global --add safe.directory /github/workspace
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
@@ -39,10 +76,190 @@ jobs:
         run: npm run build
       - name: Start server
         run: npm start &
+      - name: Wait for server
+        run: |
+          echo "Waiting for server to start..."
+          timeout 30 bash -c 'until curl -s http://localhost:4444 > /dev/null; do sleep 1; done'
       - name: Run Tests
         run: npm test
-      - name: Upload screenshot
-        uses: actions/upload-artifact@v4
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        if: always() && env.AWS_ACCESS_KEY_ID != ''
         with:
-          name: puppeteer-screenshot
-          path: Puppet/images/main.png
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      - name: Upload screenshots to S3
+        if: always() && env.AWS_ACCESS_KEY_ID != ''
+        run: |
+          # Create unique folder for this PR and run
+          S3_FOLDER="pr-${{ github.event.number }}/run-${{ github.run_number }}"
+          S3_BUCKET="${{ secrets.S3_BUCKET_NAME }}"
+
+          # Upload all screenshot files to S3
+          for file in Puppet/images/*.png; do
+            if [ -f "$file" ]; then
+              filename=$(basename "$file")
+              aws s3 cp "$file" "s3://$S3_BUCKET/$S3_FOLDER/$filename" --content-type "image/png"
+              echo "Uploaded: $filename to s3://$S3_BUCKET/$S3_FOLDER/$filename"
+            fi
+          done
+
+          # Store S3 info for later steps
+          echo "S3_BUCKET=$S3_BUCKET" >> $GITHUB_ENV
+          echo "S3_FOLDER=$S3_FOLDER" >> $GITHUB_ENV
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      - name: Upload screenshots as artifacts (fallback)
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: puppeteer-screenshots
+          path: Puppet/images/*.png
+      - name: Create screenshot comparison comment
+        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request_target'
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+
+            // Get list of screenshot files
+            const screenshotDir = 'Puppet/images';
+            let files = [];
+            try {
+              files = fs.readdirSync(screenshotDir).filter(file => file === 'main.png' || file.endsWith('.png'));
+            } catch (e) {
+              console.log('Screenshot directory not found or empty');
+            }
+
+            // Check if S3 is configured
+            const s3Bucket = process.env.S3_BUCKET;
+            const s3Folder = process.env.S3_FOLDER;
+            const hasS3 = s3Bucket && s3Folder;
+
+            let comment = '## 📸 Puppeteer Test Screenshots\n\n';
+            comment += `Screenshots from commit: ${context.sha.substring(0, 7)}\n\n`;
+
+            if (files.length === 0) {
+              comment += 'No screenshots were generated.';
+            } else {
+              comment += `Generated ${files.length} screenshot(s):\n\n`;
+              
+              // Group screenshots by project
+              const projectScreenshots = {};
+              const otherScreenshots = [];
+              
+              files.forEach(file => {
+                if (file.includes('-Test.png') || file.includes('-Deployed.png')) {
+                  let projectName;
+                  if (file.includes('-Test.png')) {
+                    projectName = file.replace('-Test.png', '');
+                  } else if (file.includes('-Deployed.png')) {
+                    projectName = file.replace('-Deployed.png', '');
+                  }
+                  
+                  if (!projectScreenshots[projectName]) {
+                    projectScreenshots[projectName] = {};
+                  }
+                  if (file.includes('-Test.png')) {
+                    projectScreenshots[projectName].test = file;
+                  } else if (file.includes('-Deployed.png')) {
+                    projectScreenshots[projectName].deployed = file;
+                  }
+                } else {
+                  otherScreenshots.push(file);
+                }
+              });
+              
+              /*
+              // Uncomment this section if you want to display project comparisons
+              // This section is currently commented out to avoid cluttering the comment with too many images, uncomment when different tests are implemented
+              
+              // Display project comparisons
+              Object.keys(projectScreenshots).forEach(project => {
+                comment += `### ${project}\n\n`;
+                
+                if (hasS3) {
+                  // Display images visually when S3 is available
+                  const baseS3Url = `https://${s3Bucket}.s3.amazonaws.com/${s3Folder}`;
+                  
+                  if (projectScreenshots[project].test && projectScreenshots[project].deployed) {
+                    comment += `| Local Test Version | Deployed Version |\n`;
+                    comment += `|---|---|\n`;
+                    comment += `| ![${project} Test](${baseS3Url}/${projectScreenshots[project].test}) | ![${project} Deployed](${baseS3Url}/${projectScreenshots[project].deployed}) |\n\n`;
+                  } else if (projectScreenshots[project].test) {
+                    comment += `**Local Test Version:**\n\n`;
+                    comment += `![${project} Test](${baseS3Url}/${projectScreenshots[project].test})\n\n`;
+                  } else if (projectScreenshots[project].deployed) {
+                    comment += `**Deployed Version:**\n\n`;
+                    comment += `![${project} Deployed](${baseS3Url}/${projectScreenshots[project].deployed})\n\n`;
+                  }
+                } else {
+                  // Fallback to file names when S3 is not available
+                  if (projectScreenshots[project].test) {
+                    comment += `**Local Test Version:** \`${projectScreenshots[project].test}\`\n\n`;
+                  }
+                  if (projectScreenshots[project].deployed) {
+                    comment += `**Deployed Version:** \`${projectScreenshots[project].deployed}\`\n\n`;
+                  }
+                }
+              });
+              */
+              
+              // Display main
+              if (otherScreenshots.length > 0) {
+                comment += `### Two Project Comparison\n\n`;
+                if (hasS3) {
+                  const baseS3Url = `https://${s3Bucket}.s3.amazonaws.com/${s3Folder}`;
+                  otherScreenshots.forEach(file => {
+                    comment += `**${file}**\n\n![${file}](${baseS3Url}/${file})\n\n`;
+                  });
+                } else {
+                  otherScreenshots.forEach(file => {
+                    comment += `- \`${file}\`\n`;
+                  });
+                  comment += '\n';
+                }
+              }
+              
+              if (hasS3) {
+                comment += `\n**📁 S3 Location:** Screenshots are stored in \`${s3Bucket}/${s3Folder}/\`\n\n`;
+              } else {
+                comment += '**📁 Download Screenshots:** All screenshots are available in the [workflow artifacts]';
+                comment += `(https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}) `;
+                comment += 'for this workflow run. Click "Summary" then download the "puppeteer-screenshots" artifact.\n\n';
+              }
+              
+              comment += '*Note: S3 images are automatically cleaned up after 30 days. Workflow artifacts are cleaned up after 90 days by GitHub.*';
+            }
+
+            // Find existing comment to update or create new one
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.data.find(comment => 
+              comment.user.type === 'Bot' && comment.body.includes('📸 Puppeteer Test Screenshots')
+            );
+
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: comment
+              });
+            } else {
+             console.log('Creating new comment for Puppeteer screenshots');
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: comment
+              });
+            }

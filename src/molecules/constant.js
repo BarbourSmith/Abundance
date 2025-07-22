@@ -111,6 +111,7 @@ export default class Constant extends Atom {
       value: this.value,
       label: this.name,
       disabled: false,
+      step: 0.01,
       onChange: (value) => {
         if (this.value !== value) {
           this.output.setValue(value);

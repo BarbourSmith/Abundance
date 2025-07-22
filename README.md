@@ -184,6 +184,17 @@ The rotate atom rotates a shape along any of its three axis.
 
 <img width="836" alt="rotate-example" src="https://github.com/user-attachments/assets/ae6097ad-07a4-4a14-b69b-23fda96b426b" />
 
+### Scale
+
+The scale function scales a 2D or 3D shape by a specified factor. A scale factor of 1.0 keeps the original size, 2.0 doubles the size, and 0.5 halves the size. The Scale function can be used in the Code atom and works with both individual geometries and assemblies.
+
+Example usage in Code atom:
+```javascript
+// Scale a shape to 150% of its original size
+let scaledShape = Scale(library[inputShape], 1.5);
+return scaledShape;
+```
+
 
 ## Tags
 

@@ -200,7 +200,33 @@
   .menu > div:not(:last-child) {
     border-bottom: 1px solid #444;
   }
-}
+
+  .mobile-settings-popup {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.8);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #mobileSettingsPopUp {
+    width: 90%;
+    height: 90%;
+    background-color: var(--settingsPopup-background);
+    border: 5px solid #c5c2c2;
+    padding: 20px;
+    border-radius: 10px;
+    position: relative;
+  }
+
+  .settings-form {
+    color: var(--settingsPopup-text);
+  }
+} /*mobile style end*/
 
 /*Settings div styling*/
 .settingsDiv {
@@ -271,6 +297,7 @@
 }
 
 #settingsPopUp {
+  width: 100%;
   background-color: var(--settingsPopup-background);
   border: 5px solid #c5c2c2;
 }
@@ -580,7 +607,7 @@
   overflow-y: scroll;
   width: 100%;
   padding: 10px;
-  height: calc(100vh - 250px);
+  height: calc(100vh - 300px);
   margin-left: -10px;
 }
 

@@ -153,6 +153,48 @@ export default class Connector {
                   break; // Stop after finding the first available input
                 }
               }
+              
+              // If no available input was found and this is a molecule, create a new input
+              if (!attachmentMade && atom.atomType === "Molecule") {
+                // Determine the name for the new input
+                let inputName = "input";
+                
+                // Special case: if the connector comes from an Input atom, use its name
+                if (this.attachmentPoint1.parentMolecule.atomType === "Input") {
+                  inputName = this.attachmentPoint1.parentMolecule.name;
+                }
+                
+                // Ensure the name is unique within the target molecule
+                inputName = GlobalVariables.incrementVariableName(inputName, atom);
+                
+                // Create a new Input atom within the target molecule
+                const newInputAtom = new GlobalVariables.availableTypes.input.creator({
+                  atomType: "Input",
+                  name: inputName,
+                  parent: atom,
+                  parentMolecule: atom,
+                  x: atom.x - 0.15, // Position to the left of the molecule
+                  y: atom.y,
+                  uniqueID: GlobalVariables.generateUniqueID(),
+                  type: "geometry" // Default type, can be changed later
+                });
+                
+                // Add the new input atom to the molecule's nodes
+                atom.nodesOnTheScreen.push(newInputAtom);
+                
+                // The Input constructor automatically creates an input attachment point on the parent molecule
+                // Find this newly created input attachment point on the target molecule
+                const newInputAP = atom.inputs.find(input => 
+                  input.name === inputName && input.type === "input" && input.connectors.length === 0
+                );
+                
+                if (newInputAP) {
+                  attachmentMade = true;
+                  this.attachmentPoint2 = newInputAP;
+                  newInputAP.attach(this);
+                  this.propogate();
+                }
+              }
             }
           }
         });

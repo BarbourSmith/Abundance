@@ -75,7 +75,10 @@ const SettingsPopUp = ({ setSettingsPopUp, shortCutsOn, setShortCuts }) => {
   const [state, setState] = React.useState({
     shortcut: shortCutsOn,
     displaytheme: false,
-    fontSize: Globalvariables.canvasFont.replace("px Work Sans Bold", ""),
+    fontSize: parseInt(
+      Globalvariables.canvasFont.replace("px Work Sans Bold", ""),
+      10
+    ),
     atomSize: Globalvariables.atomSize * 1000,
     projectDescription: Globalvariables.currentRepo.description,
   });
@@ -93,6 +96,7 @@ const SettingsPopUp = ({ setSettingsPopUp, shortCutsOn, setShortCuts }) => {
       Globalvariables.currentRepo.description = event.target.value;
     }
     if (event.target.name === "fontSize") {
+      console.log(event.target.value);
       Globalvariables.canvasFont = `${event.target.value}px Work Sans Bold`;
       localStorage.setItem(
         "canvasFont",
@@ -152,7 +156,7 @@ const SettingsPopUp = ({ setSettingsPopUp, shortCutsOn, setShortCuts }) => {
               value={value}
               onChange={handleChange}
               aria-label="setting-tabs"
-              textColor="#767676"
+              textColor="inherit"
               indicatorColor="#767676"
             >
               <Tab label="Project Information" {...a11yProps(0)} />

@@ -1,6 +1,7 @@
 import { ClipperWrapper, getUint16, Polygon } from "geometry-utils";
 
 import { GeneticAlgorithm } from "./genetic-algorithm";
+import Phenotype from "./genetic-algorithm/phenotype";
 import { Parallel } from "./parallel";
 import NFPStore from "./nfp-store";
 import { BoundRect, DisplayCallback, NestConfig, PolygonNode } from "./types";
@@ -30,14 +31,57 @@ export default class PolygonPacker {
 
   #nodes: PolygonNode[] = [];
 
+  // Convert previous placements to a Phenotype object
+  private convertPlacementsToPhotype(placements: any[], configuration: NestConfig): Phenotype {
+    if (!placements || placements.length === 0) {
+      return null;
+    }
+
+    // Create a mapping from part ID to node index
+    const nodeMap = new Map<string, number>();
+    this.#nodes.forEach((node, index) => {
+      nodeMap.set(node.source.toString(), index);
+    });
+
+    const orderedNodes: PolygonNode[] = [];
+    const rotations: number[] = [];
+
+    // Try to match placements with nodes
+    placements.forEach((placement) => {
+      const nodeIndex = nodeMap.get(placement.id.toString());
+      if (nodeIndex !== undefined) {
+        orderedNodes.push(this.#nodes[nodeIndex]);
+        rotations.push(placement.rotate || 0);
+      } else {
+        console.log(`Warning: Could not find node for placement ID ${placement.id}`);
+      }
+    });
+
+    // Add any remaining nodes that weren't in the placements
+    this.#nodes.forEach((node, index) => {
+      if (!orderedNodes.find(n => n.source === node.source)) {
+        orderedNodes.push(node);
+        rotations.push(0);
+      }
+    });
+
+    if (orderedNodes.length === 0) {
+      return null;
+    }
+
+    return new Phenotype(orderedNodes, rotations);
+  }
+
   // progressCallback is called when progress is made
   // displayCallback is called when a new placement has been made
+  // previousPlacements is an optional array of previous placements to use as starting point
   public start(
     configuration: NestConfig,
     polygons: Float64Array[],
     binPolygon: Float64Array,
     progressCallback: (progress: number) => void,
-    displayCallback: DisplayCallback
+    displayCallback: DisplayCallback,
+    previousPlacements: any[] = null
   ): void {
     const clipperWrapper = new ClipperWrapper(configuration);
     const binData = clipperWrapper.generateBounds(binPolygon);
@@ -49,7 +93,7 @@ export default class PolygonPacker {
     this.#isWorking = true;
     this.#nodes = clipperWrapper.generateTree(polygons, configuration.useHoles);
 
-    this.launchWorkers(configuration, displayCallback);
+    this.launchWorkers(configuration, displayCallback, previousPlacements);
 
     this.#workerTimer = setInterval(() => {
       progressCallback(this.#progress);
@@ -60,8 +104,15 @@ export default class PolygonPacker {
     this.#progress = spawnCount / this.#nfpStore.nfpPairs.length;
   };
 
-  launchWorkers(configuration: NestConfig, displayCallback: DisplayCallback) {
-    this.#geneticAlgorithm.init(this.#nodes, this.#resultBounds, configuration);
+  launchWorkers(configuration: NestConfig, displayCallback: DisplayCallback, previousPlacements: any[] = null) {
+    let seedPhenotype = null;
+
+    // Convert previous placements to a seed phenotype if provided
+    if (previousPlacements && previousPlacements.length > 0) {
+      seedPhenotype = this.convertPlacementsToPhotype(previousPlacements[0], configuration);
+    }
+
+    this.#geneticAlgorithm.init(this.#nodes, this.#resultBounds, configuration, seedPhenotype);
     this.#nfpStore.init(
       this.#geneticAlgorithm.individual,
       this.#binNode,

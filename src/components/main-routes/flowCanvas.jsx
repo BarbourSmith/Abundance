@@ -29,11 +29,16 @@ export default memo(function FlowCanvas({
   setActiveAtom,
   shortCuts,
   authorizedUserOcto,
+  importNotification,
 }) {
   /** State for github molecule search input */
   const [searchingGitHub, setSearchingGitHub] = useState(false);
   const [isHovering, setIsHovering] = useState(false);
   const [search, setSearch] = useState("");
+
+  /** State for undo notification */
+  const [undoNotification, setUndoNotification] = useState(null);
+  const [isShortcut, setIsShortcutTriggered] = useState(false);
 
   const canvasRef = useRef(null);
   const circleMenu = useRef(null);
@@ -41,7 +46,7 @@ export default memo(function FlowCanvas({
   let lastTouchMove = null;
   let longPressTimer = useRef(null);
   let touchStartPos = useRef({ x: 0, y: 0 });
-  
+
   // Double tap detection
   let lastTapTime = useRef(0);
   let lastTapPosition = useRef({ x: 0, y: 0 });
@@ -99,30 +104,30 @@ export default memo(function FlowCanvas({
     if (e.touches && e.touches.length > 0) {
       // Set touchInterface flag to true when touch is detected
       GlobalVariables.touchInterface = true;
-      
+
       lastTouchMove = e;
       e.clientX = e.touches[0].clientX;
       e.clientY = e.touches[0].clientY;
-      
+
       // Cancel long press if finger moved significantly (more than 10 pixels)
       if (longPressTimer.current && touchStartPos.current) {
         const moveDistance = Math.sqrt(
           Math.pow(e.clientX - touchStartPos.current.x, 2) +
-          Math.pow(e.clientY - touchStartPos.current.y, 2)
+            Math.pow(e.clientY - touchStartPos.current.y, 2)
         );
-        
+
         if (moveDistance > 10) {
           clearTimeout(longPressTimer.current);
           longPressTimer.current = null;
         }
       }
     }
-    
+
     // Skip if clientX/Y are not defined (can happen when touchend fires with no coordinates)
     if (e.clientX === undefined || e.clientY === undefined) {
       return;
     }
-    
+
     GlobalVariables.currentMolecule.nodesOnTheScreen.forEach((molecule) => {
       molecule.mouseMove(e.clientX, e.clientY);
     });
@@ -138,18 +143,8 @@ export default memo(function FlowCanvas({
     // }
 
     if (e.key == "Backspace" || e.key == "Delete") {
-      /* Copy the top level molecule to the recently deleted atoms for undo */
-      const topLevelMoleculeCopy = JSON.stringify(
-        GlobalVariables.topLevelMolecule.serialize(),
-        null,
-        4
-      );
-
-      GlobalVariables.recentMoleculeRepresentation.push(topLevelMoleculeCopy);
-      //max the number of backups at 5
-      if (GlobalVariables.recentMoleculeRepresentation.length > 5) {
-        GlobalVariables.recentMoleculeRepresentation.shift();
-      }
+      /* Save undo state before deletion */
+      GlobalVariables.saveUndoState("DELETE", "Deleted selected atoms");
 
       GlobalVariables.atomsSelected = [];
       //Adds items to the  array that we will use to delete
@@ -169,35 +164,116 @@ export default memo(function FlowCanvas({
     if (e.key == "Control" || e.key == "Meta") {
       GlobalVariables.ctrlDown = true;
     }
+    if (e.key == "Shift" && !GlobalVariables.ctrlDown) {
+      // Trigger GitSearch when Shift is pressed
+      setSearchingGitHub(true);
+      setIsShortcutTriggered(true); // Set the shortcut flag
+    }
 
     if (GlobalVariables.ctrlDown && shortCuts.hasOwnProperty([e.key])) {
       e.preventDefault();
-      //Undo
+      // Undo
       if (e.key == "z") {
+        // Get operation info before undo (it gets popped during undo)
+        const operationInfo =
+          GlobalVariables.undoOperationHistory.length > 0
+            ? GlobalVariables.undoOperationHistory[
+                GlobalVariables.undoOperationHistory.length - 1
+              ]
+            : null;
+
+        const hadUndoHistory =
+          GlobalVariables.recentMoleculeRepresentation.length > 0;
+
         GlobalVariables.currentMolecule.undo();
+
+        // Show notification based on what was undone
+        if (hadUndoHistory && operationInfo) {
+          setUndoNotification(
+            `Undone: ${operationInfo.context || operationInfo.type}`
+          );
+        } else if (hadUndoHistory) {
+          setUndoNotification("Undone: Previous action");
+        } else {
+          setUndoNotification("No action to undo");
+        }
+
+        // Auto-dismiss notification after 3 seconds
+        setTimeout(() => setUndoNotification(null), 3000);
       }
       //Copy & Paste
-      if (e.key == "c") {
+      else if (e.key == "c") {
         GlobalVariables.atomsSelected = [];
-        GlobalVariables.currentMolecule.copy();
-      }
-      if (e.key == "v") {
-        GlobalVariables.atomsSelected.forEach((item) => {
-          let newAtomID = GlobalVariables.generateUniqueID();
-          item.uniqueID = newAtomID;
-          if (
-            item.atomType == "Molecule" ||
-            item.atomType == "GitHubMolecule"
-          ) {
-            item = GlobalVariables.currentMolecule.remapIDs(item);
-          }
-          GlobalVariables.currentMolecule.placeAtom(item, true);
+        GlobalVariables.connectorsSelected = [];
+        // Ctrl+C: Enhanced copy with connectors
+        GlobalVariables.currentMolecule.copyWithConnectors();
+      } else if (e.key == "v") {
+        // Deselect all currently selected atoms before pasting
+        GlobalVariables.currentMolecule.nodesOnTheScreen.forEach((atom) => {
+          atom.selected = false;
         });
+
+        // If we have connectors to paste, handle the full molecule structure
+        if (
+          GlobalVariables.connectorsSelected &&
+          GlobalVariables.connectorsSelected.length > 0
+        ) {
+          // Create a temporary molecule data structure
+          const moleculeData = {
+            allAtoms: GlobalVariables.atomsSelected,
+            allConnectors: GlobalVariables.connectorsSelected,
+            fileTypeVersion: 1,
+          };
+
+          // Remap IDs to avoid conflicts
+          const remappedData =
+            GlobalVariables.currentMolecule.remapIDs(moleculeData);
+
+          // Place atoms first
+          const atomPromises = [];
+          if (remappedData?.allAtoms) {
+            remappedData.allAtoms.forEach((atomData) => {
+              const promise = GlobalVariables.currentMolecule.placeAtom(
+                atomData,
+                true
+              );
+              atomPromises.push(promise);
+            });
+          }
+
+          // Wait for all atoms to be placed, then place connectors
+          Promise.all(atomPromises).then(() => {
+            if (remappedData?.allConnectors) {
+              remappedData.allConnectors.forEach((connectorData) => {
+                GlobalVariables.currentMolecule.placeConnector(connectorData);
+              });
+            }
+          });
+        } else {
+          // Regular paste without connectors
+          GlobalVariables.atomsSelected.forEach((item) => {
+            let newAtomID = GlobalVariables.generateUniqueID();
+            item.uniqueID = newAtomID;
+            if (
+              item.atomType == "Molecule" ||
+              item.atomType == "GitHubMolecule"
+            ) {
+              item = GlobalVariables.currentMolecule.remapIDs(item);
+            }
+            GlobalVariables.currentMolecule.placeAtom(item, true);
+          });
+        }
       }
 
+      // Move selected atoms to new molecule with connectors
+      else if (e.key == "m") {
+        GlobalVariables.currentMolecule.moveSelectedAtomsToMolecule();
+      }
       //Opens menu to search for github molecule
-      if (e.key == "g") {
+      else if (e.key == "g") {
         setSearchingGitHub(true);
+        setIsShortcutTriggered(true); // Set the shortcut flag
+        GlobalVariables.ctrlDown = false;
       } else {
         GlobalVariables.currentMolecule.placeAtom(
           {
@@ -222,6 +298,9 @@ export default memo(function FlowCanvas({
     if (e.key == "Control" || e.key == "Meta") {
       GlobalVariables.ctrlDown = false;
     }
+    if (e.key == "Shift") {
+      GlobalVariables.shiftDown = false;
+    }
   };
 
   /**
@@ -237,29 +316,29 @@ export default memo(function FlowCanvas({
     if (event.touches) {
       // Set touchInterface flag to true when touch is detected
       GlobalVariables.touchInterface = true;
-      
+
       // Store the initial touch position
       touchStartPos.current = {
         x: event.touches[0].clientX,
-        y: event.touches[0].clientY
+        y: event.touches[0].clientY,
       };
-      
+
       // Set clientX/Y for event handling
       event.clientX = event.touches[0].clientX;
       event.clientY = event.touches[0].clientY;
-      
+
       // Double tap detection
       const currentTime = new Date().getTime();
       const tapTimeDiff = currentTime - lastTapTime.current;
-      
+
       // Check if this tap is within time and distance thresholds of last tap
       if (tapTimeDiff < doubleTapDelay) {
         // Calculate distance between current tap and last tap
         const tapDistance = Math.sqrt(
           Math.pow(event.clientX - lastTapPosition.current.x, 2) +
-          Math.pow(event.clientY - lastTapPosition.current.y, 2)
+            Math.pow(event.clientY - lastTapPosition.current.y, 2)
         );
-        
+
         // If within radius, consider it a double tap
         if (tapDistance < doubleTapRadius) {
           // This is a double tap
@@ -268,11 +347,11 @@ export default memo(function FlowCanvas({
           return;
         }
       }
-      
+
       // Save this tap's time and position for potential double tap detection
       lastTapTime.current = currentTime;
       lastTapPosition.current = { x: event.clientX, y: event.clientY };
-      
+
       // Start a long press timer for touch events (700ms is a common duration for long press)
       longPressTimer.current = setTimeout(() => {
         // When timer completes, show the circular menu at touch position
@@ -301,12 +380,20 @@ export default memo(function FlowCanvas({
     } else {
       cmenu.hide();
       setSearchingGitHub(false);
+      setIsShortcutTriggered(false);
       setIsHovering(false);
       setSearch("");
 
       var clickHandledByMolecule = false;
+      var activeAtom = null;
       /*Run through all the atoms on the screen and decide if one was clicked*/
-      GlobalVariables.currentMolecule.nodesOnTheScreen.forEach((molecule) => {
+      // Iterate in reverse order to give priority to newer atoms
+      for (
+        let i = GlobalVariables.currentMolecule.nodesOnTheScreen.length - 1;
+        i >= 0;
+        i--
+      ) {
+        const molecule = GlobalVariables.currentMolecule.nodesOnTheScreen[i];
         let atomClicked;
 
         atomClicked = molecule.clickDown(
@@ -314,29 +401,36 @@ export default memo(function FlowCanvas({
           event.clientY,
           clickHandledByMolecule
         );
-        if (atomClicked !== undefined) {
-          let idi = atomClicked;
+        if (atomClicked !== undefined && !clickHandledByMolecule) {
+          activeAtom = atomClicked;
           /* Clicked atom is now the active atom */
-          setActiveAtom(idi);
           GlobalVariables.currentMolecule.selected = false;
           clickHandledByMolecule = true;
         }
-      });
+      }
+
+      // Set the active atom after all atoms have been processed
+      if (activeAtom) {
+        setActiveAtom(activeAtom);
+      }
 
       //Draw the selection box
       if (!clickHandledByMolecule && GlobalVariables.ctrlDown) {
-        GlobalVariables.currentMolecule.placeAtom(
-          {
-            parentMolecule: GlobalVariables.currentMolecule,
-            x: GlobalVariables.pixelsToWidth(event.clientX),
-            y: GlobalVariables.pixelsToHeight(event.clientY),
-            parent: GlobalVariables.currentMolecule,
-            name: "Box",
-            atomType: "Box",
-          },
-          null,
-          GlobalVariables.availableTypes
-        );
+        GlobalVariables.currentMolecule
+          .placeAtom(
+            {
+              parentMolecule: GlobalVariables.currentMolecule,
+              x: GlobalVariables.pixelsToWidth(event.clientX),
+              y: GlobalVariables.pixelsToHeight(event.clientY),
+              parent: GlobalVariables.currentMolecule,
+              name: "Box",
+              atomType: "Box",
+            },
+            false // Don't pass to undo
+          )
+          .then((newAtom) => {
+            console.log("Box atom placed:", newAtom);
+          });
       }
 
       if (!clickHandledByMolecule) {
@@ -355,7 +449,7 @@ export default memo(function FlowCanvas({
       clearTimeout(longPressTimer.current);
       longPressTimer.current = null;
     }
-    
+
     // Handle touch events
     if (event.touches && event.touches.length > 0) {
       event.clientX = event.touches[0].clientX;
@@ -364,10 +458,16 @@ export default memo(function FlowCanvas({
       event.clientX = event.changedTouches[0].clientX;
       event.clientY = event.changedTouches[0].clientY;
     }
-    
-    GlobalVariables.currentMolecule.nodesOnTheScreen.forEach((molecule) => {
-      molecule.doubleClick(event.clientX, event.clientY);
-    });
+
+    // Iterate in reverse order to give priority to newer atoms
+    for (
+      let i = GlobalVariables.currentMolecule.nodesOnTheScreen.length - 1;
+      i >= 0;
+      i--
+    ) {
+      const molecule = GlobalVariables.currentMolecule.nodesOnTheScreen[i];
+      const handled = molecule.doubleClick(event.clientX, event.clientY);
+    }
     setActiveAtom(GlobalVariables.currentMolecule);
   };
 
@@ -381,7 +481,11 @@ export default memo(function FlowCanvas({
       longPressTimer.current = null;
     }
 
-    if (lastTouchMove && lastTouchMove.touches && lastTouchMove.touches.length > 0) {
+    if (
+      lastTouchMove &&
+      lastTouchMove.touches &&
+      lastTouchMove.touches.length > 0
+    ) {
       event.clientX = lastTouchMove.touches[0].clientX;
       event.clientY = lastTouchMove.touches[0].clientY;
     } else if (event.changedTouches && event.changedTouches.length > 0) {
@@ -389,12 +493,12 @@ export default memo(function FlowCanvas({
       event.clientX = event.changedTouches[0].clientX;
       event.clientY = event.changedTouches[0].clientY;
     }
-    
+
     // If no coordinates were set, skip further processing
     if (event.clientX === undefined || event.clientY === undefined) {
       return;
     }
-    
+
     //every time the mouse button goes up
     GlobalVariables.currentMolecule.nodesOnTheScreen.forEach((molecule) => {
       molecule.clickUp(event.clientX, event.clientY);
@@ -497,9 +601,21 @@ export default memo(function FlowCanvas({
             setSearchingGitHub,
             isHovering,
             setIsHovering,
+            isShortcut,
+            setIsShortcutTriggered,
           }}
         />
       </div>
+
+      {/* Undo notification */}
+      {undoNotification && (
+        <div className="undo-notification">{undoNotification}</div>
+      )}
+
+      {/* Import notification */}
+      {importNotification && (
+        <div className="import-notification">{importNotification}</div>
+      )}
     </>
   );
 });

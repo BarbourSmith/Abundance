@@ -116,7 +116,7 @@ export default function ReplicadApp() {
           })
           .catch((e) => {
             console.error("Can't display Mesh " + e);
-            activeAtom.setAlert("Can't display Mesh " + e);
+            activeAtom.setError("Can't display Mesh " + e);
           });
         /*Set wireMesh*/
         //Exception: Don't display the mesh if the thing we are displaying is already the output
@@ -154,6 +154,7 @@ export default function ReplicadApp() {
   // Loads project
   const loadProject = function (project, authorizedUser) {
     GlobalVariables.recentMoleculeRepresentation = [];
+    GlobalVariables.undoOperationHistory = [];
     GlobalVariables.loadedRepo = project;
     GlobalVariables.currentRepoName = project.repoName;
     GlobalVariables.currentRepo = project;

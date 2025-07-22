@@ -8,7 +8,7 @@ export const NFP_INFO_START_INDEX: number = 2;
 
 function getAngleCache() {
     const result = new Map<number, Float32Array>();
-    const maxSplit: number = 16;
+    const maxSplit: number = 64;
     const memSeg: Float32Array = new Float32Array(2);
     let step: number = 0;
     let radianStep: number = 0;

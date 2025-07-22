@@ -2,9 +2,6 @@ import React, { useState, useEffect, useMemo } from "react";
 import globalvariables from "../../js/globalvariables";
 
 import { useControls, useCreateStore, LevaPanel, button } from "leva";
-import { re } from "mathjs";
-import fonts from "../../js/fonts";
-//import { c } from "vite/dist/node/types.d-FdqQ54oU";
 
 /**Creates new collapsible sidebar with Leva - edited from Replicad's ParamsEditor.jsx */
 export default (function ParamsEditor({
@@ -23,6 +20,8 @@ export default (function ParamsEditor({
   const store2 = useCreateStore();
   const store3 = useCreateStore();
   const store4 = useCreateStore();
+
+  let isMobile = globalvariables.isMobile();
 
   /*Work around Leva collapse issue */
   /**https://github.com/pmndrs/leva/issues/456#issuecomment-1537510948 */
@@ -43,10 +42,9 @@ export default (function ParamsEditor({
     if (run) {
       exportParams = activeAtom.createLevaExport();
     }
-  }
-  if (activeAtom.atomType == "Molecule") {
-    /** Creates Leva inputs inside each atom */
-    compiledBom = activeAtom.createLevaBom();
+    if (activeAtom.atomType == "Molecule") {
+      compiledBom = activeAtom.createLevaBom();
+    }
   }
   const bomParamsConfig = useMemo(() => {
     return { ...compiledBom };
@@ -68,10 +66,10 @@ export default (function ParamsEditor({
         if (activeAtom.currentEquation !== value) {
           activeAtom.setEquation(value);
           setInputChanged(activeAtom.currentEquation);
+          set({
+            [activeAtom.uniqueID + "result"]: activeAtom.evaluateEquation(),
+          });
         }
-        set({
-          [activeAtom.uniqueID + "result"]: activeAtom.evaluateEquation(),
-        });
       },
       order: -3,
     };
@@ -81,11 +79,31 @@ export default (function ParamsEditor({
       disabled: true,
     };
   }
+  if (activeAtom.atomType == "Import") {
+    inputParamsConfig["Load File"] = button(() => {
+      activeAtom.loadFile(
+        activeAtom.importOptions[activeAtom.importIndex],
+        (fileName) => {
+          set({
+            [activeAtom.uniqueID + "Loaded File"]: fileName,
+          });
+        }
+      );
+    });
+    inputParamsConfig[activeAtom.uniqueID + "Loaded File"] = {
+      value: activeAtom.fileName ? activeAtom.fileName : "", //href to the file
+      label: "Loaded File",
+      disabled: true,
+    };
+  }
 
   /** Creates Leva panel with parameters from active atom inputs */
 
   useControls(() => exportParamsConfig, { store: store4 }, [activeAtom]);
-  useControls(() => bomParamsConfig, { store: store3 }, [activeAtom]);
+  useControls(() => bomParamsConfig, { store: store3 }, [
+    activeAtom,
+    compiledBom,
+  ]);
 
   const [, set] = useControls(() => inputParamsConfig, { store: store1 }, [
     activeAtom,
@@ -164,6 +182,7 @@ export default (function ParamsEditor({
         <LevaPanel
           store={store1}
           neverHide
+          fill
           collapsed={{
             collapsed,
             onChange: (value) => {
@@ -171,7 +190,6 @@ export default (function ParamsEditor({
             },
           }}
           hideCopyButton
-          fill
           titleBar={{
             title: activeAtom.name || globalvariables.currentRepo.repoName,
             drag: false,
@@ -183,7 +201,7 @@ export default (function ParamsEditor({
         <LevaPanel
           store={store2}
           fill
-          hidden={false}
+          hidden={isMobile ? true : false}
           collapsed={true}
           hideCopyButton
           titleBar={{
@@ -198,7 +216,7 @@ export default (function ParamsEditor({
           <LevaPanel
             store={store3}
             fill
-            hidden={false}
+            hidden={isMobile ? true : false}
             collapsed={true}
             hideCopyButton
             titleBar={{

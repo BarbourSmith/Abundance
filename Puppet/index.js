@@ -1,13 +1,12 @@
-//ENTER YOUR GITHUB CREDENTIALS TO TEST PUPPETEER AND CHANGE PROJECTS TO TEST TO PROJECTS THAT EXIST FOR THAT SPECIFIC USER
+import puppeteer from "puppeteer";
+import projects_to_test from "./projects_to_test.js";
+import path from "path";
+import { fileURLToPath } from "url";
 
-//const envUserValue = "";
-//const envPassValue = "";
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const projectUser = "moatmaslow";
-
-const puppeteer = require("puppeteer");
-const projects_to_test = require("./projects_to_test.js");
-// Get the current date
 const currentDate = new Date().toISOString().split("T")[0];
 
 // Launch the browser and open a new blank page
@@ -22,7 +21,7 @@ const currentDate = new Date().toISOString().split("T")[0];
     });
     await loadPuppeteerAndExec(browser, currentDate);
   } catch (error) {
-    console.error(`Error processing projects`);
+    console.error(`Error processing projects:`, error);
   } finally {
     if (browser) {
       console.log(`Closing browser `);
@@ -36,7 +35,8 @@ async function loadPuppeteerAndExec(browser, date) {
   const page = await browser.newPage();
 
   for (const projectName of projects_to_test) {
-    console.log(projectName);
+    console.log(`Testing project: ${projectName}`);
+
     // Navigate the page to a localhost URL.
     await page.goto(
       "http://localhost:4444" + "/run/" + projectUser + "/" + projectName
@@ -45,45 +45,70 @@ async function loadPuppeteerAndExec(browser, date) {
     // Set screen size.
     await page.setViewport({ width: 1080, height: 1024 });
     const selector = "#molecule-fully-render-puppeteer";
-    /*await page.waitForSelector("#molecule-fully-render-puppeteer", {
-      visible: true,
-      timeout: 120000,
-    });*/
+
+    // Wait for the element to be present in the DOM
     await page.waitForFunction(
       (selector) => !!document.querySelector(selector),
       { timeout: 120000 }, // Increase timeout to 2 minutes
       selector
     );
-    await page.screenshot({
-      path: `Puppet/images/${projectName}-Test.png`,
-    });
-    console.log(`Screenshot: Puppet/images/${projectName}-Test-${date}.png `);
+    try {
+      await page.screenshot({
+        path: `Puppet/images/${projectName}-Test.png`,
+      });
+      console.log(`Screenshot saved: Puppet/images/${projectName}-Test.png`);
+    } catch (elementError) {
+      console.log(elementError);
+      await page.screenshot({
+        path: `Puppet/images/${projectName}-Test.png`,
+      });
+      console.log(`Screenshot saved: Puppet/images/${projectName}-Test.png`);
+    }
 
-    await page.goto(
-      "https://abundance.maslowcnc.com" +
-        "/run/" +
-        projectUser +
-        "/" +
-        projectName
-    );
-    await page.waitForFunction(
-      (selector) => !!document.querySelector(selector),
-      { timeout: 120000 }, // Increase timeout to 2 minutes
-      selector
-    );
-    await page.screenshot({
-      path: `Puppet/images/${projectName}-Deployed.png`,
-    });
+    // Try deployed version - skip if not available
+    try {
+      await page.goto(
+        "https://abundance.maslowcnc.com" +
+          "/run/" +
+          projectUser +
+          "/" +
+          projectName
+      );
+      // Wait for the element to be present in the DOM
+      await page.waitForFunction(
+        (selector) => !!document.querySelector(selector),
+        { timeout: 120000 }, // Increase timeout to 2 minutes
+        selector
+      );
 
-    console.log(
-      `Screenshot: Puppet/images/${projectName}-Deployed-${date}.png`
-    );
+      // Wait a bit for the page to load
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+
+      await page.screenshot({
+        path: `Puppet/images/${projectName}-Deployed.png`,
+      });
+      console.log(
+        `Screenshot saved: Puppet/images/${projectName}-Deployed.png`
+      );
+    } catch (deployedError) {
+      console.log(
+        `Deployed version not available for ${projectName}: ${deployedError.message}`
+      );
+    }
   }
+
   // Navigate to main.html
-  const path = require("path");
-  await page.goto(`file:${path.join(__dirname, "main.html")}`);
-  console.log("navigated to: main.html");
-  await page.screenshot({
-    path: `Puppet/images/main.png`,
-  });
+  try {
+    await page.goto(`file:${path.join(__dirname, "main.html")}`);
+
+    // Wait a bit for the page to load
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+
+    await page.screenshot({
+      path: `Puppet/images/main.png`,
+    });
+    console.log("Screenshot saved: Puppet/images/main.png");
+  } catch (mainError) {
+    console.error("Error taking main.html screenshot:", mainError.message);
+  }
 }

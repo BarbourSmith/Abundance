@@ -167,7 +167,7 @@ export default class Gcode extends Atom {
           console.error("Error creating STL for gcode:", err);
         });
     } catch (err) {
-      this.setAlert(err);
+      this.setError(err);
     }
 
   }
@@ -202,6 +202,7 @@ export default class Gcode extends Atom {
             inputParams[input.name] = {
               value: input.value,
               disabled: checkConnector(),
+              step: 0.01,
               onChange: (value) => {
                 input.setValue(value);
               },
@@ -217,7 +218,9 @@ export default class Gcode extends Atom {
     const partName = this.findIOValue("Part Name") || this.partName || "output";
     inputParams[`Download Gcode - ${partName}`] = button(() => {
       if (this.gcodeGenerated && this.gcodeString) {
-        downloadGcode(this.gcodeString, `${partName}.gcode`);
+        // Get the current part name dynamically when button is clicked
+        const currentPartName = this.findIOValue("Part Name") || this.partName || "output";
+        downloadGcode(this.gcodeString, `${currentPartName}.gcode`);
       } else {
         console.warn("No G-code available. Please generate G-code first.");
         // You could also show an alert or notification to the user here
