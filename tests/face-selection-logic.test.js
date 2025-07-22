@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import * as Worker from '../src/worker.js';
 
 describe('Complex Face Selection Logic', () => {
-  it('should select face with fewer similar normals to be placed down', async () => {
+  it('should prioritize faces with fewer similar normals over thickness optimization', async () => {
     await Worker.started;
 
     // Create a part that clearly demonstrates the issue:
