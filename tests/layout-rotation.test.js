@@ -115,17 +115,21 @@ describe('Layout Rotation', () => {
         expect(center2.x).toBeCloseTo(center1.x, 1);
         expect(center2.y).toBeCloseTo(center1.y, 1);
         
-        // For a 90-degree rotation, check if dimensions swap or rotation actually occurred
-        // Since rotation might not be exactly working as expected, let's be more lenient
-        const rotationWorked = (
-          Math.abs(bounds2.width - bounds1.height) < 2 && 
-          Math.abs(bounds2.height - bounds1.width) < 2
-        ) || (
-          Math.abs(bounds2.width - bounds1.width) < 1 &&
-          Math.abs(bounds2.height - bounds1.height) < 1
+        // For a 90-degree rotation of a 10x4 rectangle, dimensions should swap to 4x10
+        // Allow some tolerance for floating point precision
+        const dimensionsSwapped = (
+          Math.abs(bounds2.width - bounds1.height) < 0.5 && 
+          Math.abs(bounds2.height - bounds1.width) < 0.5
         );
         
-        expect(rotationWorked).toBe(true);
+        console.log('Checking dimension swap:', {
+          original: `${bounds1.width.toFixed(2)} x ${bounds1.height.toFixed(2)}`,
+          rotated: `${bounds2.width.toFixed(2)} x ${bounds2.height.toFixed(2)}`,
+          expectedAfterRotation: `${bounds1.height.toFixed(2)} x ${bounds1.width.toFixed(2)}`,
+          dimensionsSwapped
+        });
+        
+        expect(dimensionsSwapped).toBe(true);
         
         console.log('Test passed: Part rotated around its center');
         console.log(`Original center: (${center1.x.toFixed(2)}, ${center1.y.toFixed(2)})`);

@@ -1782,19 +1782,30 @@ function applyLayout(targetID, inputID, positions, layoutConfig) {
       console.log("didn't find transform for id: " + leaf.id);
       return undefined;
     }
-    // To fix rotation around part centers instead of global origin:
-    // 1. First translate the part to its layout position
-    // 2. Then rotate around that position, which becomes the part's center
-    // This ensures manual rotation adjustments work correctly.
     
+    // Fix for rotation around part centers instead of global origin:
+    // 1. First center the part at origin by translating by -center of its bounding box
+    // 2. Then apply layout transformations (translate to desired position, then rotate around that position)
+    // This ensures parts rotate around their geometric centers regardless of their original position
+    
+    const originalGeom = leaf.geometry[0].clone();
+    const center = originalGeom.boundingBox.center;
+    
+    // Center the part at origin first (only center X and Y, keep Z as is for 2D parts)
+    const centeredGeom = originalGeom.translate(-center[0], -center[1], 0);
+    
+    // Calculate final position
     const translationX = transform.translate.x;
     const translationY = transform.translate.y + i * layoutConfig.height;
     
-    let newGeom = leaf.geometry[0]
-      .clone()
+    // Apply layout transformations: translate to position, then rotate around that position  
+    // Convert rotation from radians to degrees (replicad expects degrees)
+    const rotationDegrees = (transform.rotate * 180) / Math.PI;
+    
+    let newGeom = centeredGeom
       .translate(translationX, translationY, 0)
       .rotate(
-        transform.rotate,
+        rotationDegrees,
         new replicad.Vector([translationX, translationY, 0]),
         new replicad.Vector([0, 0, 1])
       );
