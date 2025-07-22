@@ -1782,30 +1782,20 @@ function applyLayout(targetID, inputID, positions, layoutConfig) {
       console.log("didn't find transform for id: " + leaf.id);
       return undefined;
     }
-    // For manual adjustments to work correctly, we need to rotate around the part's center
-    // rather than the global origin. When parts have been translated to their layout position,
-    // rotating around (0,0,0) causes them to orbit instead of rotate in place.
-    //
-    // Solution: First translate the part to its layout position, then rotate around that position.
-    // This ensures the part rotates around its own center rather than orbiting around the origin.
+    // To fix rotation around part centers instead of global origin:
+    // 1. First translate the part to its layout position
+    // 2. Then rotate around that position, which becomes the part's center
+    // This ensures manual rotation adjustments work correctly.
     
-    // Calculate the rotation center: translate position + any sheet offset
-    const rotationCenterX = transform.translate.x;
-    const rotationCenterY = transform.translate.y + i * layoutConfig.height;
-    const rotationCenter = new replicad.Vector([rotationCenterX, rotationCenterY, 0]);
+    const translationX = transform.translate.x;
+    const translationY = transform.translate.y + i * layoutConfig.height;
     
-    // Apply translation first to get the part to its layout position,
-    // then rotate around that position
     let newGeom = leaf.geometry[0]
       .clone()
-      .translate(
-        transform.translate.x,
-        transform.translate.y + i * layoutConfig.height,
-        0
-      )
+      .translate(translationX, translationY, 0)
       .rotate(
         transform.rotate,
-        rotationCenter,
+        new replicad.Vector([translationX, translationY, 0]),
         new replicad.Vector([0, 0, 1])
       );
 
