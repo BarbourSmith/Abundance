@@ -1454,6 +1454,33 @@ function displayLayout(
 }
 
 /**
+ * Counts the number of faces that have similar normal vectors to a given face.
+ * @param {Object} targetFace - The face to compare against
+ * @param {Array} allFaces - Array of all faces in the geometry
+ * @param {number} tolerance - Tolerance for comparing normal vectors (default: 0.01)
+ * @returns {number} Count of faces with similar normal vectors (including the target face itself)
+ */
+function countFacesWithSimilarNormals(targetFace, allFaces, tolerance = 0.01) {
+  const targetNormal = targetFace.normalAt();
+  let count = 0;
+
+  allFaces.forEach((face) => {
+    const faceNormal = face.normalAt();
+    
+    // Calculate the dot product to measure similarity
+    // Dot product of 1.0 means identical direction, -1.0 means opposite direction
+    const dotProduct = Math.abs(targetNormal.dot(faceNormal) / (targetNormal.Length * faceNormal.Length));
+    
+    // Consider faces with very similar normals (close to parallel)
+    if (dotProduct > 1.0 - tolerance) {
+      count++;
+    }
+  });
+
+  return count;
+}
+
+/**
  * Rotates and moves all leafs into an orientation which can be fed into
  * the nesting algorithm.
  *
@@ -1463,7 +1490,8 @@ function displayLayout(
  *    a) face must be flat (eg: not the edge of a cylinder)
  *    b) face must have no protrusions below the XY plane
  *    c) face must be within the (inferred) thickness of the material
- *    d) face should have minimal number of interior voids and have the largest bounding box
+ *    d) face should have the FEWEST faces sharing the same normal vector (to put complex side up)
+ *    e) face should have minimal number of interior voids and have the largest bounding box
  */
 function rotateForLayout(targetID, inputID, layoutConfig, warningCallback) {
   var THICKNESS_TOLLERANCE = 0.001;
@@ -1499,6 +1527,8 @@ function rotateForLayout(targetID, inputID, layoutConfig, warningCallback) {
     //  2) there must be no parts of the shape which protrude "below" this face
     const candidates = [];
     let faceIndex = 0;
+    const allFaces = leaf.geometry[0].faces;
+    
     leaf.geometry[0].faces.forEach((face) => {
       let prospectiveGoem = moveFaceToCuttingPlane(leaf.geometry[0], face);
       let offset = 0;
@@ -1512,12 +1542,17 @@ function rotateForLayout(targetID, inputID, layoutConfig, warningCallback) {
         offset = -1 * prospectiveGoem.boundingBox.bounds[0][2];
         prospectiveGoem = prospectiveGoem.translate(0, 0, offset);
       }
+      
+      // Count faces with similar normal vectors for this candidate
+      const similarNormalsCount = countFacesWithSimilarNormals(face, allFaces);
+      
       candidates.push({
         face: face,
         offset: offset,
         geom: prospectiveGoem,
         faceIndex: faceIndex,
         thickness: prospectiveGoem.boundingBox.depth,
+        similarNormalsCount: similarNormalsCount,
       });
       faceIndex++;
     });
@@ -1572,6 +1607,7 @@ function rotateForLayout(targetID, inputID, layoutConfig, warningCallback) {
       //  - thickness
       //  - area (approx)
       //  - number of interior wires (if any)
+      //  - number of faces with similar normals (lower is better for face to be down)
       const scores = candidates.map((c, index) => {
         return {
           candidate_index: index,
@@ -1580,6 +1616,7 @@ function rotateForLayout(targetID, inputID, layoutConfig, warningCallback) {
           thickness: c.thickness,
           area: areaApprox(c.face.UVBounds),
           interiorWires: c.face.clone().innerWires().length,
+          similarNormalsCount: c.similarNormalsCount,
         };
       });
 
@@ -1611,7 +1648,13 @@ function rotateForLayout(targetID, inputID, layoutConfig, warningCallback) {
           }
         }
 
-        // Tie brakes for candidates of equal thickness.
+        // NEW CRITERION: Prefer faces with FEWER similar normals to be placed down.
+        // This results in the face with MORE similar normals (more complex) being placed up.
+        if (a.similarNormalsCount != b.similarNormalsCount) {
+          return a.similarNormalsCount - b.similarNormalsCount; // prefer fewer similar normals down
+        }
+
+        // Tie brakes for candidates of equal thickness and similar normals count.
 
         // First, look for interior wires, if unequal we prefer candidates with fewer since
         // interior wires *might* indicate carve-outs which are unreachable on the underside of the sheet.
