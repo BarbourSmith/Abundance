@@ -1640,16 +1640,10 @@ function rotateForLayout(targetID, inputID, layoutConfig, warningCallback) {
         // PRIORITY CRITERION: Prefer faces with FEWER similar normals to be placed down.
         // This results in the face with MORE similar normals (more complex) being placed up.
         // This takes priority over thickness optimization to ensure CNC accessibility.
-        // 
-        // EXPERIMENTAL: If the standard logic is placing complex faces down, try inverting it
         if (a.similarNormalsCount != b.similarNormalsCount) {
-          // Original logic: prefer fewer similar normals down
-          // return a.similarNormalsCount - b.similarNormalsCount;
-          
-          // INVERTED LOGIC: prefer more similar normals down (counterintuitive but may fix practical issue)
           console.log(`Comparing similar normals: Face A=${a.similarNormalsCount}, Face B=${b.similarNormalsCount}`);
-          const result = b.similarNormalsCount - a.similarNormalsCount; // INVERTED: prefer more similar normals down
-          console.log(`Selection result: ${result < 0 ? 'B preferred' : result > 0 ? 'A preferred' : 'tie'}`);
+          const result = a.similarNormalsCount - b.similarNormalsCount; // prefer fewer similar normals down
+          console.log(`Selection result: ${result < 0 ? 'A preferred (fewer similar normals down)' : result > 0 ? 'B preferred (fewer similar normals down)' : 'tie'}`);
           return result;
         }
 
