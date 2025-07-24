@@ -6,7 +6,7 @@ import Pages from "vite-plugin-pages";
 export default defineConfig({
   plugins: [reactPlugin(), Pages()],
 
-  base: "/", //change to "/" for local development or to "/Abundance/" for deployment
+  base: "/", //change to "/" for local development or to "/" for custom domain deployment (abundance.maslowcnc.com)
   build: {
     outDir: "dist",
     rollupOptions: {

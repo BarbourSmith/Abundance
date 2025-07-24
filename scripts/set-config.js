@@ -55,20 +55,30 @@ if (configType === 'dev') {
   console.log('Setting configuration for production deployment...');
   
   // Update vite.config.js for production
+  // Since we're using a custom domain (abundance.maslowcnc.com), use root path
   newViteConfig = viteConfig.replace(
     /base: ".*?", \/\/change to/,
-    'base: "/Abundance/", //change to'
+    'base: "/", //change to'
   );
   
-  // Keep current production configuration in .env as is
-  // (already set correctly)
+  // Update .env for production - comment dev section, uncomment prod section
+  newEnvConfig = envConfig
+    // Comment dev section
+    .replace(/(# FOR DEV.*?#commment out for deploy\n)((?:[^#\n].*\n)*)/gms, (match, header, lines) => {
+      return header + lines.replace(/^(?!#)/gm, '#');
+    })
+    // Uncomment prod section and fix VITE_BROWSER_ROUTER for custom domain
+    .replace(/(# FOR PROD.*?#commment out for dev\n)((?:#.*\n)*)/gms, (match, header, lines) => {
+      let uncommented = lines.replace(/^#(?![#\s])/gm, '');
+      // Fix VITE_BROWSER_ROUTER for custom domain (should be empty)
+      uncommented = uncommented.replace(/VITE_BROWSER_ROUTER = "\/Abundance"/, 'VITE_BROWSER_ROUTER = ""');
+      return header + uncommented;
+    });
 }
 
 // Write updated configurations
 fs.writeFileSync(viteConfigPath, newViteConfig);
-if (configType === 'dev') {
-  fs.writeFileSync(envPath, newEnvConfig);
-}
+fs.writeFileSync(envPath, newEnvConfig);
 
 console.log(`Configuration updated for ${configType === 'dev' ? 'development' : 'production'}`);
 
