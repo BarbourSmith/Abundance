@@ -42,13 +42,13 @@ if (configType === 'dev') {
   
   // Update .env for development - uncomment dev section, comment prod section
   newEnvConfig = envConfig
-    .replace(/^# FOR DEV.*#commment out for deploy\n(#.*\n)*/gm, (match) => {
-      return match.replace(/^#/gm, '').replace(/^# FOR DEV.*#commment out for deploy\n/gm, '# FOR DEV       #commment out for deploy\n');
+    // Uncomment dev section
+    .replace(/(# FOR DEV.*#commment out for deploy\n)((?:#.*\n)*)/gm, (match, header, lines) => {
+      return header + lines.replace(/^#(?!#)/gm, '');
     })
-    .replace(/^# FOR PROD.*#commment out for dev\n([^#].*\n)*/gm, (match) => {
-      return '# FOR PROD       #commment out for dev\n\n' + 
-        match.replace(/^# FOR PROD.*#commment out for dev\n/gm, '')
-               .replace(/^(?!#)/gm, '#');
+    // Comment prod section  
+    .replace(/(# FOR PROD.*#commment out for dev\n)((?:[^#].*\n)*)/gm, (match, header, lines) => {
+      return header + '\n#\n' + lines.replace(/^(?!#)/gm, '#');
     });
     
 } else if (configType === 'prod') {
