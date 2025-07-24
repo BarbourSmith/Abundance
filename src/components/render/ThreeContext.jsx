@@ -1,4 +1,4 @@
-import React, { Suspense, useRef, useEffect, useState } from "react";
+import React, { Suspense, useRef, useEffect, useState, useCallback } from "react";
 import { Canvas } from "@react-three/fiber";
 import {
   Wireframe,
@@ -14,7 +14,7 @@ import globalvariables from "../../js/globalvariables.js";
 
 THREE.Object3D.DEFAULT_UP.set(0, 0, 1);
 
-export default function ext({ children, ...props }) {
+export default React.memo(function ThreeContext({ children, ...props }) {
   const dpr = Math.min(window.devicePixelRatio, 2);
 
   let cameraZoom = props.cameraZoom;
@@ -38,7 +38,9 @@ export default function ext({ children, ...props }) {
   }, [gridScale, cameraZoom]);
 
   let previousZoomLevel = cameraZoom;
-  window.addEventListener("wheel", (e) => {
+  
+  // Memoize the wheel handler to prevent recreation on every render
+  const handleWheel = useCallback((e) => {
     if (cameraRef.current) {
       // Check if the zoom level change is greater than 5 points
       if (Math.abs(cameraRef.current.zoom - previousZoomLevel) > 3) {
@@ -46,7 +48,12 @@ export default function ext({ children, ...props }) {
         setGridScale(50 / cameraRef.current.zoom);
       }
     }
-  });
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener("wheel", handleWheel);
+    return () => window.removeEventListener("wheel", handleWheel);
+  }, [handleWheel]);
 
   return (
     <Suspense fallback={null}>
@@ -93,4 +100,4 @@ export default function ext({ children, ...props }) {
       </Canvas>
     </Suspense>
   );
-}
+});

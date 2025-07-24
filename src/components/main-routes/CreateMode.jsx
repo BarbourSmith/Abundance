@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import GlobalVariables from "../../js/globalvariables.js";
 import { Octokit } from "https://esm.sh/octokit@2.0.19";
 import ToggleRunCreate from "../secondary/ToggleRunCreate.jsx";
@@ -22,7 +22,7 @@ import { Link } from "react-router-dom";
  * @prop {setstate} setRunMode - setState function for runMode
  * @prop {boolean} RunMode - Determines if Run mode is on or off
  */
-function CreateMode({
+const CreateMode = React.memo(function CreateMode({
   activeAtom,
   setActiveAtom,
   authorizedUserOcto,
@@ -65,7 +65,7 @@ function CreateMode({
    * Object containing letters and values used for keyboard shortcuts
    * @type {object?}
    */
-  var shortCuts = {
+  const shortCuts = useMemo(() => ({
     a: "Assembly",
     b: "Loft", //>
     c: "Copy",
@@ -83,7 +83,7 @@ function CreateMode({
     x: "Equation",
     y: "Code", //is there a more natural code letter? can't seem to prevent command t new tab behavior
     z: "Undo", //saving this letter
-  };
+  }), []);
 
   /** Checks if activeAtom is topLevel to render goUp button */
   useEffect(() => {
@@ -92,31 +92,35 @@ function CreateMode({
     }
   }, [activeAtom]);
 
-  useEffect(() => {
-    window.addEventListener("keydown", handleBodyClick);
-    return () => {
-      window.removeEventListener("keydown", handleBodyClick);
-    };
-  });
-
-  useEffect(() => {
-    //Set autosave interval
-    const myInterval = setInterval(() => {
-      setSavePopUp(true);
-      saveProject(setSaveState, "Auto Save");
-    }, 300000);
-
-    //Clearing the interval
-    return () => clearInterval(myInterval);
-  }, []);
-
-  const handleBodyClick = (e) => {
+  // Memoize keyboard handler to prevent recreation on every render
+  const handleBodyClick = useCallback((e) => {
     if (e.metaKey && e.key == "s") {
       e.preventDefault();
       setSavePopUp(true);
       saveProject(setSaveState, "User Save");
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener("keydown", handleBodyClick);
+    return () => {
+      window.removeEventListener("keydown", handleBodyClick);
+    };
+  }, [handleBodyClick]);
+
+  // Memoize autosave function to prevent recreation
+  const handleAutoSave = useCallback(() => {
+    setSavePopUp(true);
+    saveProject(setSaveState, "Auto Save");
+  }, []);
+
+  useEffect(() => {
+    //Set autosave interval
+    const myInterval = setInterval(handleAutoSave, 300000);
+
+    //Clearing the interval
+    return () => clearInterval(myInterval);
+  }, [handleAutoSave]);
 
   function searchGithubMolecules(molecule) {
     return new Promise((resolve, reject) => {
@@ -395,7 +399,7 @@ function CreateMode({
   /**
    * Saves project by making a commit to the Github repository.
    */
-  const saveProject = async (setState, typeSave) => {
+  const saveProject = useCallback(async (setState, typeSave) => {
     //We only want to save if something has actually changed since the last save
     var jsonRepOfProject = GlobalVariables.topLevelMolecule.serialize();
 
@@ -486,7 +490,7 @@ function CreateMode({
       },
       setState
     );
-  };
+  }, [authorizedUserOcto]);
 
   if (authorizedUserOcto) {
     if (
@@ -673,6 +677,6 @@ function CreateMode({
         }
       });
   }
-}
+});
 
 export default CreateMode;
