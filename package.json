@@ -15,7 +15,9 @@
     "unit": "node ./tests/patchDependencies.mjs && vitest",
     "unit:watch": "node ./tests/patchDependencies.mjs && vitest --watch",
     "coverage": "vitest run --coverage",
-    "analyze-bundle": "node scripts/analyze-bundle.mjs"
+    "analyze-bundle": "node scripts/analyze-bundle.mjs",
+    "config:dev": "node scripts/set-config.js dev",
+    "config:prod": "node scripts/set-config.js prod"
   },
   "dependencies": {
     "-": "^0.0.1",
