@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Octokit } from "https://esm.sh/octokit@2.0.19";
 import {
   HashRouter as Router,
@@ -30,7 +30,6 @@ const queryClient = new QueryClient();
  * @type {object}
  */
 
-const cad = wrap(new cadWorker());
 export default function ReplicadApp() {
   const [size, setSize] = useState(5);
   const [mesh, setMesh] = useState({});
@@ -38,12 +37,16 @@ export default function ReplicadApp() {
   const [outdatedMesh, setOutdatedMesh] = useState(false);
   const [isAuthorized, setIsAuthorized] = useState(false);
 
+  // Memoize the CAD worker creation
+  const cad = useMemo(() => wrap(new cadWorker()), []);
+
+  // Memoize expensive mesh creation operation
   useEffect(() => {
     cad.createMesh(size).then((m) => {
       setMesh(m);
       setWireMesh(m);
     });
-  }, [size]);
+  }, [size, cad]);
 
   useEffect(() => {
     const element = document.querySelector("html");
@@ -65,7 +68,7 @@ export default function ReplicadApp() {
   );
 
   /* Creates an element to check with Puppeteer if the molecule is fully loaded*/
-  const createPuppeteerDiv = () => {
+  const createPuppeteerDiv = useCallback(() => {
     // Check if the div already exists
     const existingDiv = document.getElementById(
       "molecule-fully-render-puppeteer"
@@ -77,13 +80,14 @@ export default function ReplicadApp() {
       invisibleDiv.style.display = "none";
       document.body.appendChild(invisibleDiv);
     }
-  };
-  const loadingDotsNone = () => {
+  }, []);
+
+  const loadingDotsNone = useCallback(() => {
     const loadingDots = document.querySelector(".loading");
     if (loadingDots) {
       loadingDots.style.display = "none";
     }
-  };
+  }, []);
 
   useEffect(() => {
     localStorage.setItem("shortcuts", shortCutsOn);
@@ -149,10 +153,10 @@ export default function ReplicadApp() {
     };
 
     GlobalVariables.cad = cad;
-  }, [activeAtom]);
+  }, [activeAtom, cad, loadingDotsNone, createPuppeteerDiv]);
 
   // Loads project
-  const loadProject = function (project, authorizedUser) {
+  const loadProject = useCallback(function (project, authorizedUser) {
     GlobalVariables.recentMoleculeRepresentation = [];
     GlobalVariables.undoOperationHistory = [];
     GlobalVariables.loadedRepo = project;
@@ -190,9 +194,91 @@ export default function ReplicadApp() {
         alert("Can't load/find project " + e);
         throw new Error("Can't load/find project " + e);
       });
-  };
+  }, []);
 
-  /* Toggle button to switch between run and create modes  */
+  // Memoize props for CreateMode to prevent unnecessary re-renders
+  const createModeProps = useMemo(() => ({
+    activeAtom,
+    setActiveAtom,
+    authorizedUserOcto,
+    loadProject,
+    exportPopUp,
+    setExportPopUp,
+    shortCutsOn,
+    setShortCuts,
+    mesh,
+    setMesh,
+    size,
+    cad,
+    wireMesh,
+    setWireMesh,
+    outdatedMesh,
+    setOutdatedMesh,
+  }), [
+    activeAtom,
+    setActiveAtom,
+    authorizedUserOcto,
+    loadProject,
+    exportPopUp,
+    setExportPopUp,
+    shortCutsOn,
+    setShortCuts,
+    mesh,
+    setMesh,
+    size,
+    cad,
+    wireMesh,
+    setWireMesh,
+    outdatedMesh,
+    setOutdatedMesh,
+  ]);
+
+  // Memoize props for RunMode to prevent unnecessary re-renders
+  const runModeProps = useMemo(() => ({
+    isloggedIn,
+    setActiveAtom,
+    activeAtom: GlobalVariables.currentMolecule,
+    authorizedUserOcto,
+    loadProject,
+    mesh,
+    wireMesh,
+    setWireMesh,
+    outdatedMesh,
+    setOutdatedMesh,
+    redirectType,
+    setRedirectType,
+  }), [
+    isloggedIn,
+    setActiveAtom,
+    authorizedUserOcto,
+    loadProject,
+    mesh,
+    wireMesh,
+    setWireMesh,
+    outdatedMesh,
+    setOutdatedMesh,
+    redirectType,
+    setRedirectType,
+  ]);
+
+  // Memoize props for LoginMode to prevent unnecessary re-renders
+  const loginModeProps = useMemo(() => ({
+    setIsLoggedIn,
+    isloggedIn,
+    authorizedUserOcto,
+    setAuthorizedUserOcto,
+    exportPopUp,
+    setExportPopUp,
+    isAuthorized,
+  }), [
+    setIsLoggedIn,
+    isloggedIn,
+    authorizedUserOcto,
+    setAuthorizedUserOcto,
+    exportPopUp,
+    setExportPopUp,
+    isAuthorized,
+  ]);
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -201,19 +287,7 @@ export default function ReplicadApp() {
           <Route
             exact
             path=""
-            element={
-              <LoginMode
-                {...{
-                  setIsLoggedIn,
-                  isloggedIn,
-                  authorizedUserOcto,
-                  setAuthorizedUserOcto,
-                  exportPopUp,
-                  setExportPopUp,
-                  isAuthorized,
-                }}
-              />
-            }
+            element={<LoginMode {...loginModeProps} />}
           />
           <Route
             path="/callback"
@@ -229,49 +303,11 @@ export default function ReplicadApp() {
           />
           <Route
             path="/:owner/:repoName"
-            element={
-              <CreateMode
-                {...{
-                  activeAtom,
-                  setActiveAtom,
-                  authorizedUserOcto,
-                  loadProject,
-                  exportPopUp,
-                  setExportPopUp,
-                  shortCutsOn,
-                  setShortCuts,
-                  mesh,
-                  setMesh,
-                  size,
-                  cad,
-                  wireMesh,
-                  setWireMesh,
-                  outdatedMesh,
-                  setOutdatedMesh,
-                }}
-              />
-            }
+            element={<CreateMode {...createModeProps} />}
           />
           <Route
             path="/run/:owner/:repoName"
-            element={
-              <RunMode
-                {...{
-                  isloggedIn,
-                  setActiveAtom,
-                  activeAtom: GlobalVariables.currentMolecule,
-                  authorizedUserOcto,
-                  loadProject,
-                  mesh,
-                  wireMesh,
-                  setWireMesh,
-                  outdatedMesh,
-                  setOutdatedMesh,
-                  redirectType,
-                  setRedirectType,
-                }}
-              />
-            }
+            element={<RunMode {...runModeProps} />}
           />
         </Routes>
       </main>

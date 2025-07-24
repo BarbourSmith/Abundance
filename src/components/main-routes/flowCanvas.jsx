@@ -87,7 +87,9 @@ export default memo(function FlowCanvas({
     });
   }, []);
 
-  const draw = () => {
+  const draw = useCallback(() => {
+    if (!GlobalVariables.c || !GlobalVariables.canvas.current) return;
+    
     GlobalVariables.c.clearRect(
       0,
       0,
@@ -98,7 +100,7 @@ export default memo(function FlowCanvas({
     GlobalVariables.currentMolecule.nodesOnTheScreen.forEach((atom) => {
       atom.update();
     });
-  };
+  }, []);
 
   const mouseMove = (e) => {
     if (e.touches && e.touches.length > 0) {
