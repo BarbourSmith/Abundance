@@ -302,14 +302,20 @@ You can read the complete documentation at ----(Documentation pending)
 
         npm install --legacy-peer-deps
 
-3. Edit files for local development:
+3. Configure for local development:
 
-        Follow the comments in .env to switch to local development mode and in is vite config change /Abundance to / 
+        npm run config:dev
 
-4.  Run webpack:
+   This automatically sets up the correct paths for local development.
+
+4.  Run the development server:
 
         npm start
 
 Your canvas piece should open up automatically at http://localhost:4444 
+
+## Deployment
+
+For GitHub Pages deployment, the workflow automatically runs `npm run config:prod` to set the correct base paths before building. This ensures that asset URLs include the `/Abundance/` prefix required for GitHub Pages deployment.
 
 
