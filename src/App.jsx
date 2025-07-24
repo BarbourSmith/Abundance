@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, Suspense, lazy } from "react";
 import { Octokit } from "https://esm.sh/octokit@2.0.19";
 import {
   HashRouter as Router,
@@ -9,13 +9,16 @@ import {
 
 import { wrap } from "comlink";
 import GlobalVariables from "./js/globalvariables.js";
-import LoginMode from "./components/main-routes/LoginMode.jsx";
-import RunMode from "./components/main-routes/RunMode.jsx";
-import CreateMode from "./components/main-routes/CreateMode.jsx";
+import LoadingSpinner from "./components/common/LoadingSpinner.jsx";
 import cadWorker from "./worker/worker.js?worker";
 
 import { QueryClient, QueryClientProvider } from "react-query";
-import Callback from "./components/main-routes/CallBack.jsx";
+
+// Lazy load main route components for better code splitting
+const LoginMode = lazy(() => import("./components/main-routes/LoginMode.jsx"));
+const RunMode = lazy(() => import("./components/main-routes/RunMode.jsx"));
+const CreateMode = lazy(() => import("./components/main-routes/CreateMode.jsx"));
+const Callback = lazy(() => import("./components/main-routes/CallBack.jsx"));
 
 /*Import style scripts*/
 import "./styles/maslowCreate.css";
@@ -64,7 +67,7 @@ export default function ReplicadApp() {
 
   const [authorizedUserOcto, setAuthorizedUserOcto] = useState(null);
   const [shortCutsOn, setShortCuts] = useState(
-    localStorage.getItem("shortcuts") === "true" ? true : false
+    localStorage.getItem("shortcuts") === "true"
   );
 
   /* Creates an element to check with Puppeteer if the molecule is fully loaded*/
@@ -95,10 +98,8 @@ export default function ReplicadApp() {
 
   useEffect(() => {
     GlobalVariables.writeToDisplay = (id, resetView = false) => {
-      console.log("write to display running " + id);
       setOutdatedMesh(true);
       if (resetView) {
-        console.log("reset view");
         cad
           .resetView()
           .then((m) => {
@@ -283,33 +284,35 @@ export default function ReplicadApp() {
   return (
     <QueryClientProvider client={queryClient}>
       <main>
-        <Routes>
-          <Route
-            exact
-            path=""
-            element={<LoginMode {...loginModeProps} />}
-          />
-          <Route
-            path="/callback"
-            element={
-              <Callback
-                isAuthorized={isAuthorized}
-                setIsAuthorized={setIsAuthorized}
-                setIsLoggedIn={setIsLoggedIn}
-                setAuthorizedUserOcto={setAuthorizedUserOcto}
-                setRedirectType={setRedirectType}
-              />
-            }
-          />
-          <Route
-            path="/:owner/:repoName"
-            element={<CreateMode {...createModeProps} />}
-          />
-          <Route
-            path="/run/:owner/:repoName"
-            element={<RunMode {...runModeProps} />}
-          />
-        </Routes>
+        <Suspense fallback={<LoadingSpinner message="Loading Abundance..." />}>
+          <Routes>
+            <Route
+              exact
+              path=""
+              element={<LoginMode {...loginModeProps} />}
+            />
+            <Route
+              path="/callback"
+              element={
+                <Callback
+                  isAuthorized={isAuthorized}
+                  setIsAuthorized={setIsAuthorized}
+                  setIsLoggedIn={setIsLoggedIn}
+                  setAuthorizedUserOcto={setAuthorizedUserOcto}
+                  setRedirectType={setRedirectType}
+                />
+              }
+            />
+            <Route
+              path="/:owner/:repoName"
+              element={<CreateMode {...createModeProps} />}
+            />
+            <Route
+              path="/run/:owner/:repoName"
+              element={<RunMode {...runModeProps} />}
+            />
+          </Routes>
+        </Suspense>
       </main>
     </QueryClientProvider>
   );

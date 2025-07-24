@@ -183,11 +183,10 @@ class GlobalVariables {
      * @type {string}
      */
     this.currentUser;
-    /** 
-          /** 
-         * A reference to the selected repository name.
-         * @type {string}
-         */
+    /**
+     * A reference to the selected repository name.
+     * @type {string}
+     */
     this.currentRepoName;
     /**
      * A reference to the selected repository authenticated.
@@ -313,7 +312,7 @@ class GlobalVariables {
 
     const math = create(all); //What does this do? I think it is used to evalue strings as math
     /**
-     * An evaluator for strings as mathmatical equations which is sandboxed and secure.
+     * An evaluator for strings as mathematical equations which is sandboxed and secure.
      * @type {function}
      */
     this.limitedEvaluate = math.evaluate;
@@ -441,7 +440,7 @@ class GlobalVariables {
    * @param {string} The unique ID to read from
    */
   writeToDisplay(id, resetView = false) {
-    console.log("Write to display not set"); //This is a placedholder. It is created in flowCanvas.js
+    // Placeholder function - implementation is set in App.jsx
   }
 
   /**

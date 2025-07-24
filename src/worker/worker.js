@@ -254,7 +254,6 @@ async function extrude(targetID, inputID, height) {
  */
 async function move(geom, x, y, z, targetID = null) {
   await started;
-  console.log("move called for target " + targetID);
   const result = await actions.move(toGeometry(geom, "move-geometry"), x, y, z);
   if (targetID) {
     library[targetID] = result;
@@ -664,7 +663,6 @@ async function importingSVG(targetID, svg, width) {
       color: util.defaultColor,
       bom: [],
     };
-    console.log("SVG imported successfully");
 
     return true;
   } catch (error) {
@@ -825,8 +823,6 @@ async function assembly(inputIDs, targetID = null) {
  */
 function fusion(targetID, inputIDs) {
   return started.then(async () => {
-    console.log("fusion with inputs: " + inputIDs.length);
-    console.log(inputIDs);
     library[targetID] = await interaction.fusion(inputIDs.map(getOrThrow));
     return true;
   });
@@ -1005,12 +1001,10 @@ function generateCameraPosition(meshArray) {
 
 function generateDisplayMesh(id) {
   return started.then(() => {
-    console.log("Generating display mesh for " + id);
     if (library[id] == undefined || id == undefined) {
-      console.log("ID undefined or not found in library");
       //throw new Error("ID not found in library");
       generateDefaultMesh(id).then((result) => {
-        console.log(result);
+        // Default mesh generated
       });
     }
     let meshArray = [];
@@ -1036,7 +1030,6 @@ function generateDisplayMesh(id) {
     try {
       cameraZoom = generateCameraPosition(meshArray);
     } catch (e) {
-      console.log("Error generating camera position");
       cameraZoom = 1;
     }
     let finalMeshes = [];

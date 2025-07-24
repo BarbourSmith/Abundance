@@ -211,7 +211,6 @@ function chainFuse(chain) {
     }
     return fused;
   } catch (e) {
-    console.log(e);
     throw new Error("Fusion failed", e);
   }
 }
@@ -326,7 +325,6 @@ function cutAssembly(partToCut, cuttingParts) {
       };
     }
   } catch (e) {
-    console.log(e);
     throw new Error("Cut Assembly failed", e);
   }
 }
@@ -384,7 +382,6 @@ function recursiveCut(partToCut, cuttingPart) {
       }
     }
   } catch (e) {
-    console.log(e);
     throw new Error("Recursive Cut failed", e);
   }
 }

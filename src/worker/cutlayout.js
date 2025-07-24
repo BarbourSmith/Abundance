@@ -286,8 +286,6 @@ function rotateForLayout(assembly, layoutConfig, warningCallback) {
  * Apply the transformations to the geometry to apply the layout
  */
 function applyLayout(rotatedAssembly, positions, layoutConfig) {
-  console.log("Applying layout");
-  console.log(positions);
   return util.actOnLeafs(rotatedAssembly, (leaf) => {
     let transform, index;
     for (var i = 0; i < positions.length; i++) {
@@ -369,8 +367,6 @@ function computePositions(
   layoutConfig,
   previousPlacements = null
 ) {
-  console.log("Starting to compute positions for shapes: ");
-  console.log(shapesForLayout);
 
   const tolerance = 0.2;
   const runtimeMs = 120000;
