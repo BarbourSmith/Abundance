@@ -14,7 +14,8 @@
     "test": "node Puppet/index.js",
     "unit": "node ./tests/patchDependencies.mjs && vitest",
     "unit:watch": "node ./tests/patchDependencies.mjs && vitest --watch",
-    "coverage": "vitest run --coverage"
+    "coverage": "vitest run --coverage",
+    "analyze-bundle": "node scripts/analyze-bundle.mjs"
   },
   "dependencies": {
     "-": "^0.0.1",
