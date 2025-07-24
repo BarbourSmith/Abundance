@@ -55,10 +55,10 @@ if (configType === 'dev') {
   console.log('Setting configuration for production deployment...');
   
   // Update vite.config.js for production
-  // Since we're using a custom domain (abundance.maslowcnc.com), use root path
+  // GitHub Pages serves from /Abundance/ path even with custom domain
   newViteConfig = viteConfig.replace(
     /base: ".*?", \/\/change to/,
-    'base: "/", //change to'
+    'base: "/Abundance/", //change to'
   );
   
   // Update .env for production - comment dev section, uncomment prod section
@@ -67,11 +67,11 @@ if (configType === 'dev') {
     .replace(/(# FOR DEV.*?#commment out for deploy\n)((?:[^#\n].*\n)*)/gms, (match, header, lines) => {
       return header + lines.replace(/^(?!#)/gm, '#');
     })
-    // Uncomment prod section and fix VITE_BROWSER_ROUTER for custom domain
+    // Uncomment prod section and set VITE_BROWSER_ROUTER for GitHub Pages
     .replace(/(# FOR PROD.*?#commment out for dev\n)((?:#.*\n)*)/gms, (match, header, lines) => {
       let uncommented = lines.replace(/^#(?![#\s])/gm, '');
-      // Fix VITE_BROWSER_ROUTER for custom domain (should be empty)
-      uncommented = uncommented.replace(/VITE_BROWSER_ROUTER = "\/Abundance"/, 'VITE_BROWSER_ROUTER = ""');
+      // Set VITE_BROWSER_ROUTER to match the GitHub Pages path
+      uncommented = uncommented.replace(/VITE_BROWSER_ROUTER = ""/, 'VITE_BROWSER_ROUTER = "/Abundance"');
       return header + uncommented;
     });
 }

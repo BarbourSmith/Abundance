@@ -75,6 +75,7 @@ function ShareDialog({
               style={{ margin: "16px" }}
               href={
                 window.location.origin +
+                import.meta.env.VITE_BROWSER_ROUTER +
                 "/run/" +
                 GlobalVariables.currentRepo.owner +
                 "/" +
@@ -82,7 +83,7 @@ function ShareDialog({
               }
               target="_blank"
             >
-              {window.location.origin}/Abundance/run/
+              {window.location.origin}{import.meta.env.VITE_BROWSER_ROUTER}/run/
               {GlobalVariables.currentRepo.owner}/
               {GlobalVariables.currentRepo.repoName}
             </a>
