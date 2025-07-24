@@ -91,10 +91,8 @@ export default function ReplicadApp() {
 
   useEffect(() => {
     GlobalVariables.writeToDisplay = (id, resetView = false) => {
-      console.log("write to display running " + id);
       setOutdatedMesh(true);
       if (resetView) {
-        console.log("reset view");
         cad
           .resetView()
           .then((m) => {

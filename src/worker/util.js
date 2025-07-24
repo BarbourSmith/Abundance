@@ -104,8 +104,7 @@ function actOnLeafs(assembly, action, plane) {
   plane = plane || assembly.plane;
   //This is a leaf
   if (assembly.geometry == undefined) {
-    console.log("empty geometry found:");
-    console.log(assembly);
+    // Empty geometry - silently handle
   }
 
   if (

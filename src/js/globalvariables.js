@@ -441,7 +441,7 @@ class GlobalVariables {
    * @param {string} The unique ID to read from
    */
   writeToDisplay(id, resetView = false) {
-    console.log("Write to display not set"); //This is a placedholder. It is created in flowCanvas.js
+    // Placeholder function - implementation is set in App.jsx
   }
 
   /**
