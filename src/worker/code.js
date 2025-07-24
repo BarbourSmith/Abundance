@@ -282,8 +282,8 @@ function logError(error, context) {
   if (error.columnNumber) {
     console.error("Column number:", error.columnNumber);
   }
-  console.log("full error:");
-  console.log(error);
+  console.error("full error:");
+  console.error(error);
 }
 
 export { executeCode };
