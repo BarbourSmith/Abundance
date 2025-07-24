@@ -22,10 +22,6 @@ export default defineConfig({
             if (id.includes('three') || id.includes('replicad') || id.includes('@react-three')) {
               return 'three-vendor';
             }
-            // Code editor related
-            if (id.includes('codemirror') || id.includes('@uiw')) {
-              return 'editor-vendor';
-            }
             // Material UI and UI libraries
             if (id.includes('@mui') || id.includes('@emotion') || id.includes('leva')) {
               return 'ui-vendor';
@@ -38,7 +34,7 @@ export default defineConfig({
             if (id.includes('mathjs') || id.includes('geometry-utils') || id.includes('polygon-packer')) {
               return 'math-vendor';
             }
-            // Other vendor libraries
+            // Other vendor libraries (including codemirror - keep together with other dependencies)
             return 'vendor';
           }
           
