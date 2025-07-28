@@ -47,6 +47,17 @@ export default class Atom {
      */
     this.uniqueID = GlobalVariables.generateUniqueID();
     /**
+     * A flag to indicate if the atom is currently computing a new output. Turns the molecule blue.
+     * @type {boolean}
+     */
+    this.processing = false;
+    /**
+     * This atom's value...Is can this be done away with? Are we basically storing the value in the output now?
+     * @type {object}
+     */
+    this.value = null;
+
+    /**
      * A description of this atom
      * @type {string}
      */
@@ -96,16 +107,7 @@ export default class Atom {
      * @type {string}
      */
     this.name = "name0";
-    /**
-     * This atom's parent, usually the molecule which contains this atom...how is this different from this.parent?
-     * @type {object}
-     */
-    this.parentMolecule = null;
-    /**
-     * This atom's value...Is can this be done away with? Are we basically storing the value in the output now?
-     * @type {object}
-     */
-    this.value = null;
+
     /**
      * A flag to indicate if this atom is currently being dragged on the screen.
      * @type {boolean}
@@ -117,16 +119,6 @@ export default class Atom {
      */
     this.showHover = false;
     /**
-     * The X coordinate of this atom now
-     * @type {number}
-     */
-    this.x = 0;
-    /**
-     * The Y coordinate of this atom now
-     * @type {number}
-     */
-    this.y = 0;
-    /**
      * A message displayed next to the atom. Set the type and the message to display the alert. Cleared each time the output is regenerated.
      * @type {object}
      */
@@ -134,11 +126,6 @@ export default class Atom {
       type: AlertType.NONE,
       message: "",
     };
-    /**
-     * A flag to indicate if the atom is currently computing a new output. Turns the molecule blue.
-     * @type {boolean}
-     */
-    this.processing = false;
 
     for (var key in values) {
       /**

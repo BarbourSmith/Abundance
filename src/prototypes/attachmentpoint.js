@@ -93,6 +93,11 @@ export default class AttachmentPoint {
      * @type {object}
      */
     this.connectors = [];
+    /**
+     * This atom's parent, usually the molecule which contains this atom...how is this different from this.parent?
+     * @type {object}
+     */
+    this.parentMolecule = null;
 
     for (var key in values) {
       /**
