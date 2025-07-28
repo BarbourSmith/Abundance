@@ -11,6 +11,9 @@ function layout(
   layoutConfig,
   previousPlacements = null
 ) {
+  // Abandon caching for now.
+  assembly = util.realizeAssembly(assembly);
+
   var [rotatedAssembly, shapesForLayout] = rotateForLayout(
     assembly,
     layoutConfig,
@@ -26,10 +29,8 @@ function layout(
   );
   return positionsPromise.then((positions) => {
     //This does the actual layout of the parts.
-    const layedOutAssembly = applyLayout(
-      rotatedAssembly,
-      positions,
-      layoutConfig
+    const layedOutAssembly = util.cacheAssembly(
+      applyLayout(rotatedAssembly, positions, layoutConfig)
     );
 
     if (positions.length == 0) {
@@ -54,13 +55,16 @@ function layout(
  * Lay the input geometry flat and apply the transformations to display it
  */
 function displayLayout(assembly, positions, warningCallback, layoutConfig) {
+  assembly = util.realizeAssembly(assembly);
   const [rotatedAssembly, shapesForLayout] = rotateForLayout(
     assembly,
     layoutConfig,
     warningCallback
   );
 
-  return applyLayout(rotatedAssembly, positions, layoutConfig);
+  return util.cacheAssembly(
+    applyLayout(rotatedAssembly, positions, layoutConfig)
+  );
 }
 
 /**
@@ -367,7 +371,6 @@ function computePositions(
   layoutConfig,
   previousPlacements = null
 ) {
-
   const tolerance = 0.2;
   const runtimeMs = 120000;
   const config = {

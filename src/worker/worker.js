@@ -8,7 +8,6 @@ import * as actions from "./actions.js";
 import * as interaction from "./interaction.js";
 import * as tags from "./tags.js";
 import * as codeLib from "./code.js";
-import GeometryProvider from "./GeometryProvider.js";
 
 var library = {};
 
@@ -246,14 +245,14 @@ async function extrude(targetID, inputID, height) {
 
 /**
  * Moves a geometry by the specified x, y, and z distances.
- * @param {string} inputId - The library ID of the geometry to move
+ * @param {string} geom - The library ID of the geometry to move
  * @param {number} x - The distance to move along the x-axis
  * @param {number} y - The distance to move along the y-axis
  * @param {number} z - The distance to move along the z-axis
  * @param {string|null} targetID - The ID to store the result in the library. If null, the result is returned
  * @returns {Promise<boolean|Object>} A promise that resolves to the moved geometry, or true if targetID is provided
  */
-async function move(inputId, x, y, z, targetID = null) {
+async function move(geom, x, y, z, targetID = null) {
   await started;
   const result = await actions.move(toGeometry(geom, "move-geometry"), x, y, z);
   if (targetID) {
@@ -293,7 +292,7 @@ async function rotate(geom, x, y, z, targetID = null) {
  * @param {string|null} targetID - The ID to store the result in the library. If null, the result is returned
  * @returns {Promise<boolean|Object>} A promise that resolves to the scaled geometry, or true if targetID is provided
  */
-async function scale(inputId, scaleFactor, targetID = null) {
+async function scale(geom, scaleFactor, targetID = null) {
   await started;
 
   geom = toGeometry(geom, "scale-geometry");
@@ -313,7 +312,7 @@ async function scale(inputId, scaleFactor, targetID = null) {
  * @param {string|null} targetID - The ID to store the result in the library. If null, the result is returned
  * @returns {Promise<boolean|Object>} A promise that resolves to the filleted geometry or true if targetID is provided
  */
-async function fillet(inputId, radius, targetID = null) {
+async function fillet(geom, radius, targetID = null) {
   await started;
 
   const result = await actions.fillet(
@@ -335,7 +334,7 @@ async function fillet(inputId, radius, targetID = null) {
  * @param {string|null} targetID - The ID to store the result in the library. If null, the result is returned
  * @returns {Promise<boolean|Object>} A promise that resolves to the chamfered geometry or true if targetID is provided
  */
-async function chamfer(inputId, size, targetID = null) {
+async function chamfer(geom, size, targetID = null) {
   await started;
 
   const result = await actions.chamfer(
@@ -551,7 +550,10 @@ function visExport(targetID, inputID, fileType) {
       /** Fuses input geometry, draws a top view projection*/
       if (util.is3D(library[inputID])) {
         finalGeometry = [
-          util.replicad.drawProjection(fusedGeometry, "top").visible,
+          util.replicad.drawProjection(
+            util.geometryProvider.get(fusedGeometry),
+            "top"
+          ).visible,
         ];
       } else {
         finalGeometry = [fusedGeometry];
@@ -580,7 +582,7 @@ function visExport(targetID, inputID, fileType) {
  */
 function downExport(ID, fileType, svgResolution, units) {
   return started.then(() => {
-    const geom = geometryProvider.get(library[ID].geometry[0]);
+    const geom = util.geometryProvider.get(library[ID].geometry[0]);
     let scaleUnit = units == "Inches" ? 1 : units == "MM" ? 25.4 : 1;
     let scaling = svgResolution / scaleUnit;
     if (fileType == "SVG") {
@@ -606,7 +608,7 @@ async function importingSTEP(targetID, file) {
   let STEPresult = await util.replicad.importSTEP(file);
 
   library[targetID] = {
-    geometry: [geometryProvider.addSingularToCache(STEPresult)],
+    geometry: [util.geometryProvider.addSingularToCache(STEPresult)],
     tags: [],
     color: util.defaultColor,
     bom: [],
@@ -624,7 +626,7 @@ async function importingSTL(targetID, file) {
   let STLresult = await util.replicad.importSTL(file);
 
   library[targetID] = {
-    geometry: [geometryProvider.addSingularToCache(STLresult)],
+    geometry: [util.geometryProvider.addSingularToCache(STLresult)],
     tags: [],
     color: util.defaultColor,
     bom: [],
@@ -661,7 +663,7 @@ async function importingSVG(targetID, svg, width) {
 
     library[targetID] = {
       geometry: [
-        geometryProvider.addSingularToCache(
+        util.geometryProvider.addSingularToCache(
           drawnSVG.clone().translate(-center[0], -center[1])
         ),
       ],
@@ -714,7 +716,7 @@ function visualizeGcode(targetID, gcode) {
   const wire = util.replicad.assembleWire(edges);
   library[targetID] = {
     // TODO: we could probably use a hash of the gcode string as an ID here.
-    geometry: [geometryProvider.addSingularToCache(wire)],
+    geometry: [util.geometryProvider.addSingularToCache(wire)],
     tags: [],
     plane: new Plane().pivot(0, "Y"),
     color: util.defaultColor,
@@ -750,20 +752,17 @@ const prettyProjection = (shape) => {
 function generateThumbnail(inputID) {
   return started.then(() => {
     if (library[inputID] != undefined) {
-      let fusedGeometry;
+      const fusedGeometry = util.geometryProvider.get(
+        interaction.digFuse(library[inputID])
+      );
       let projectionShape;
       let svg;
       if (util.is3D(library[inputID])) {
-        fusedGeometry = interaction.digFuse(library[inputID]);
         projectionShape = prettyProjection(fusedGeometry);
         svg = projectionShape.visible.toSVG();
       } else {
-        fusedGeometry = interaction
-          .digFuse(library[inputID])
-          .sketchOnPlane("XY")
-          .extrude(0.0001);
         projectionShape = util.replicad.drawProjection(
-          fusedGeometry,
+          fusedGeometry.sketchOnPlane("XY").extrude(0.0001),
           "top"
         ).visible;
         svg = projectionShape.toSVG();
@@ -791,7 +790,7 @@ function getBoundingBox(inputID) {
     maxZ = -Infinity;
 
   util.actOnLeafs(library[inputID], (leaf) => {
-    const bbox = leaf.geometry[0].boundingBox.bounds;
+    const bbox = util.geometryProvider.get(leaf.geometry[0]).boundingBox.bounds;
     minX = Math.min(minX, bbox[0][0]);
     minY = Math.min(minY, bbox[0][1]);
     minZ = Math.min(minZ, bbox[0][2]);
@@ -1018,7 +1017,13 @@ function generateDisplayMesh(id) {
     let meshArray = [];
 
     //Flatten the assembly to remove hierarchy
-    const flattened = flattenAssembly(library[id]);
+
+    const flattened = flattenAssembly(library[id]).map((item) => {
+      return {
+        geometry: util.geometryProvider.get(item.geometry),
+        color: item.color,
+      };
+    });
 
     flattened.forEach((displayObject) => {
       var cleanedGeometry = [];

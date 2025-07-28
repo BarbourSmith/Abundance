@@ -11,7 +11,7 @@ function extrude(toExtrude, height) {
   return util.actOnLeafs(toExtrude, (leaf) => {
     return {
       geometry: [
-        leaf.geometry[0].clone().sketchOnPlane(leaf.plane).extrude(height),
+        util.geometryProvider.extrude(leaf.geometry[0], leaf.plane, height),
       ],
       tags: leaf.tags,
       plane: leaf.plane,
@@ -31,7 +31,7 @@ function move(toMove, x, y, z) {
       toMove,
       (leaf) => {
         return {
-          geometry: [leaf.geometry[0].clone().translate(x, y, z)],
+          geometry: [util.geometryProvider.move(leaf.geometry[0], x, y, z)],
           plane: leaf.plane,
           tags: leaf.tags,
           color: leaf.color,
@@ -45,7 +45,7 @@ function move(toMove, x, y, z) {
       toMove,
       (leaf) => {
         return {
-          geometry: [leaf.geometry[0].clone().translate([x, y])],
+          geometry: [util.geometryProvider.move(leaf.geometry[0], x, y)],
           tags: leaf.tags,
           plane: leaf.plane.translate([0, 0, z]),
           color: leaf.color,
@@ -65,13 +65,7 @@ async function rotate(toRotate, x, y, z) {
   if (util.is3D(toRotate)) {
     return util.actOnLeafs(toRotate, (leaf) => {
       return {
-        geometry: [
-          leaf.geometry[0]
-            .clone()
-            .rotate(x, [0, 0, 0], [1, 0, 0])
-            .rotate(y, [0, 0, 0], [0, 1, 0])
-            .rotate(z, [0, 0, 0], [0, 0, 1]),
-        ],
+        geometry: [util.geometryProvider.rotate(leaf.geometry[0], x, y, z)],
         tags: leaf.tags,
         plane: leaf.plane,
         color: leaf.color,
@@ -81,7 +75,7 @@ async function rotate(toRotate, x, y, z) {
   } else {
     return util.actOnLeafs(toRotate, (leaf) => {
       return {
-        geometry: [leaf.geometry[0].clone().rotate(z, [0, 0, 0], [0, 0, 1])],
+        geometry: [util.geometryProvider.rotate(leaf.geometry[0], 0, 0, z)],
         tags: leaf.tags,
         plane: leaf.plane.pivot(x, "X").pivot(y, "Y"),
         color: leaf.color,
@@ -95,70 +89,38 @@ async function rotate(toRotate, x, y, z) {
  * Scale geom by the given factor and return the resulting geometry.
  */
 async function scale(geom, scaleFactor) {
-  if (util.is3D(geom)) {
-    return util.actOnLeafs(
-      geom,
-      (leaf) => {
-        return {
-          geometry: [leaf.geometry[0].clone().scale(scaleFactor)],
-          plane: leaf.plane,
-          tags: leaf.tags,
-          color: leaf.color,
-          bom: leaf.bom,
-        };
-      },
-      geom.plane
-    );
-  } else {
-    return util.actOnLeafs(
-      geom,
-      (leaf) => {
-        return {
-          geometry: [leaf.geometry[0].clone().scale(scaleFactor)],
-          tags: leaf.tags,
-          plane: leaf.plane,
-          color: leaf.color,
-          bom: leaf.bom,
-        };
-      },
-      geom.plane
-    );
-  }
+  return util.actOnLeafs(
+    geom,
+    (leaf) => {
+      return {
+        geometry: [util.geometryProvider.scale(leaf.geometry[0], scaleFactor)],
+        plane: leaf.plane,
+        tags: leaf.tags,
+        color: leaf.color,
+        bom: leaf.bom,
+      };
+    },
+    geom.plane
+  );
 }
 
 /**
  * Rounds all edges in geom to radius and return the resulting geometry.
  */
 async function fillet(geom, radius) {
-  if (util.is3D(geom)) {
-    return util.actOnLeafs(
-      geom,
-      (leaf) => {
-        return {
-          geometry: [leaf.geometry[0].clone().fillet(radius)],
-          plane: leaf.plane,
-          tags: leaf.tags,
-          color: leaf.color,
-          bom: leaf.bom,
-        };
-      },
-      geom.plane
-    );
-  } else {
-    return util.actOnLeafs(
-      geom,
-      (leaf) => {
-        return {
-          geometry: [leaf.geometry[0].clone().fillet(radius)],
-          tags: leaf.tags,
-          plane: leaf.plane,
-          color: leaf.color,
-          bom: leaf.bom,
-        };
-      },
-      geom.plane
-    );
-  }
+  return util.actOnLeafs(
+    geom,
+    (leaf) => {
+      return {
+        geometry: [util.geometryProvider.fillet(leaf.geometry[0], radius)],
+        plane: leaf.plane,
+        tags: leaf.tags,
+        color: leaf.color,
+        bom: leaf.bom,
+      };
+    },
+    geom.plane
+  );
 }
 
 /**
@@ -166,35 +128,19 @@ async function fillet(geom, radius) {
  * Returns the resulting geometry.
  */
 async function chamfer(geom, size) {
-  if (util.is3D(geom)) {
-    return util.actOnLeafs(
-      geom,
-      (leaf) => {
-        return {
-          geometry: [leaf.geometry[0].clone().chamfer(size)],
-          plane: leaf.plane,
-          tags: leaf.tags,
-          color: leaf.color,
-          bom: leaf.bom,
-        };
-      },
-      geom.plane
-    );
-  } else {
-    return util.actOnLeafs(
-      geom,
-      (leaf) => {
-        return {
-          geometry: [leaf.geometry[0].clone().chamfer(size)],
-          tags: leaf.tags,
-          plane: leaf.plane,
-          color: leaf.color,
-          bom: leaf.bom,
-        };
-      },
-      geom.plane
-    );
-  }
+  return util.actOnLeafs(
+    geom,
+    (leaf) => {
+      return {
+        geometry: [util.geometryProvider.chamfer(leaf.geometry[0], size)],
+        plane: leaf.plane,
+        tags: leaf.tags,
+        color: leaf.color,
+        bom: leaf.bom,
+      };
+    },
+    geom.plane
+  );
 }
 
 export { extrude, move, rotate, scale, fillet, chamfer };

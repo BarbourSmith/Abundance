@@ -2,9 +2,12 @@ import opencascade from "replicad-opencascadejs/src/replicad_single.js";
 import opencascadeWasm from "replicad-opencascadejs/src/replicad_single.wasm?url";
 import * as replicad from "replicad";
 import { v4 as uuidv4 } from "uuid";
+import { GeometryProvider } from "./geometryProvider.js";
 
 let defaultColor = "#aad7f2";
 let loaded = false;
+let geometryProvider = undefined;
+
 const init = async () => {
   if (loaded) return Promise.resolve(true);
 
@@ -14,6 +17,7 @@ const init = async () => {
 
   loaded = true;
   replicad.setOC(OC);
+  geometryProvider = new GeometryProvider();
 
   return true;
 };
@@ -24,12 +28,14 @@ const init = async () => {
  * @returns {boolean} True if the geometry is 3D, false if it's a 2D sketch
  */
 function is3D(inputs) {
-  // if it's an assembly assume it's 3d since our assemblies don't work for drawings right now
+  if (inputs === undefined || inputs.geometry === undefined) {
+    return false; // Invalid input, assume not 3D
+  }
   if (isAssembly(inputs)) {
     return inputs.geometry.some((input) => is3D(input));
   } else if (
-    inputs.geometry[0].mesh !== undefined ||
-    inputs.geometry[0] instanceof replicad.Wire
+    geometryProvider.get(inputs.geometry[0]).mesh !== undefined ||
+    geometryProvider.get(inputs.geometry[0]) instanceof replicad.Wire
   ) {
     return true;
   } else {
@@ -54,8 +60,13 @@ function getBounds(geometry) {
     if (isAssembly(geometry)) {
       // Handle assembly by iterating through all parts
       actOnLeafs(geometry, (leaf) => {
-        if (leaf.geometry && leaf.geometry[0] && leaf.geometry[0].boundingBox) {
-          const bbox = leaf.geometry[0].boundingBox.bounds;
+        if (
+          leaf.geometry &&
+          leaf.geometry[0] &&
+          geometryProvider.get(leaf.geometry[0]).boundingBox
+        ) {
+          const bbox = geometryProvider.get(leaf.geometry[0]).boundingBox
+            .bounds;
           minX = Math.min(minX, bbox[0][0]);
           minY = Math.min(minY, bbox[0][1]);
           minZ = Math.min(minZ, bbox[0][2]);
@@ -69,9 +80,10 @@ function getBounds(geometry) {
       if (
         geometry.geometry &&
         geometry.geometry[0] &&
-        geometry.geometry[0].boundingBox
+        geometryProvider.get(geometry.geometry[0]).boundingBox
       ) {
-        const bbox = geometry.geometry[0].boundingBox.bounds;
+        const bbox = geometryProvider.get(geometry.geometry[0]).boundingBox
+          .bounds;
         minX = bbox[0][0];
         minY = bbox[0][1];
         minZ = bbox[0][2];
@@ -101,11 +113,10 @@ function getBounds(geometry) {
  * @returns {Object} The transformed assembly with the action applied to all leaves
  */
 function actOnLeafs(assembly, action, plane) {
-  plane = plane || assembly.plane;
-  //This is a leaf
-  if (assembly.geometry == undefined) {
-    // Empty geometry - silently handle
+  if (assembly === undefined || assembly.geometry == undefined) {
+    // Empty assembly
   }
+  plane = plane || assembly.plane;
 
   if (
     assembly.geometry.length == 1 &&
@@ -146,7 +157,10 @@ function generateUniqueID() {
 function isWireGeometry(inputs) {
   if (isAssembly(inputs)) {
     return inputs.geometry.some((input) => isWireGeometry(input));
-  } else if (inputs.geometry && inputs.geometry[0] instanceof replicad.Wire) {
+  } else if (
+    inputs.geometry &&
+    geometryProvider.get(inputs.geometry[0]) instanceof replicad.Wire
+  ) {
     return true;
   } else {
     return false;
@@ -173,14 +187,62 @@ function isAssembly(part) {
   }
 }
 
+/**
+ * Given an assembly of GeomKeys from geometryProvider, return a new assembly
+ * where each key has been realized into a geometry object.
+ */
+function realizeAssembly(assembly) {
+  return actOnLeafs(assembly, (leaf) => {
+    if (leaf && leaf.geometry && leaf.geometry[0]) {
+      const realizedGeometry = geometryProvider.get(leaf.geometry[0]);
+      return {
+        geometry: [realizedGeometry],
+        tags: leaf.tags,
+        color: leaf.color,
+        bom: leaf.bom,
+        plane: leaf.plane,
+      };
+    } else {
+      return leaf; // No geometry to realize
+    }
+  });
+}
+
+/**
+ * Given an assembly of real geometries, place all geometries into the cache
+ * and return a new assembly which has the keys in place of the geometries.
+ */
+function cacheAssembly(assembly) {
+  if (!isAssembly(assembly)) {
+    throw new Error("Input expected to be an assembly. but was: " + assembly);
+  }
+  return actOnLeafs(assembly, (leaf) => {
+    if (leaf.geometry && leaf.geometry[0]) {
+      const geomKey = geometryProvider.addSingularToCache(leaf.geometry[0]);
+      return {
+        geometry: [geomKey],
+        tags: leaf.tags,
+        color: leaf.color,
+        bom: leaf.bom,
+        plane: leaf.plane,
+      };
+    } else {
+      return leaf; // No geometry to cache
+    }
+  });
+}
+
 export {
   init,
   actOnLeafs,
   replicad,
+  geometryProvider,
   is3D,
   isWireGeometry,
   isAssembly,
   generateUniqueID,
   getBounds,
   defaultColor,
+  realizeAssembly,
+  cacheAssembly,
 };

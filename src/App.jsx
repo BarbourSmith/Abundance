@@ -103,6 +103,7 @@ export default function ReplicadApp() {
           })
           .catch((e) => {
             console.error("reset view not working" + e);
+            console.error(e.stack);
           });
       } else {
         cad
@@ -114,6 +115,7 @@ export default function ReplicadApp() {
           })
           .catch((e) => {
             console.error("Can't display Mesh " + e);
+            console.error(e.stack)
             activeAtom.setError("Can't display Mesh " + e);
           });
         /*Set wireMesh*/

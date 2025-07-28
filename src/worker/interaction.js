@@ -1,5 +1,4 @@
 import * as util from "./util.js";
-import shrinkWrap from "replicad-shrink-wrap";
 import { Plane, Solid } from "replicad";
 
 /**
@@ -21,7 +20,9 @@ function loftShapes(sketches) {
       throw new Error("Parts to be lofted must be sketches");
     }
     let partToLoft = digFuse(sketch);
-    let sketchedpart = partToLoft.sketchOnPlane(sketch.plane);
+    let sketchedpart = util.geometryProvider
+      .get(partToLoft)
+      .sketchOnPlane(sketch.plane);
     if (!sketchedpart.sketches) {
       arrayOfSketchedGeometry.push(sketchedpart);
     } else {
@@ -32,7 +33,11 @@ function loftShapes(sketches) {
   const newPlane = new Plane().pivot(0, "Y");
 
   return {
-    geometry: [startGeometry.loftWith([...arrayOfSketchedGeometry])],
+    geometry: [
+      util.geometryProvider.addSingularToCache(
+        startGeometry.loftWith([...arrayOfSketchedGeometry])
+      ),
+    ],
     tags: [],
     plane: newPlane,
     color: util.defaultColor,
@@ -51,14 +56,8 @@ function difference(target, cutter) {
   ) {
     // Process each leaf of target independently
     return util.actOnLeafs(target, (leaf) => {
-      // Start with a clone of the original geometry
-      let resultGeometry = leaf.geometry[0].clone();
-
-      // Apply cuts recursively from cutter, checking bounding boxes
-      resultGeometry = recursiveCut(resultGeometry, cutter);
-
       return {
-        geometry: [resultGeometry],
+        geometry: [recursiveCut(leaf.geometry[0], cutter)],
         tags: leaf.tags,
         color: leaf.color,
         plane: leaf.plane,
@@ -80,15 +79,20 @@ function shrinkWrapSketches(sketches) {
     sketches.forEach((sketch) => {
       let fusedInput = digFuse(sketch);
       inputsToFuse.push(fusedInput);
-      if (fusedInput.innerShape.blueprints) {
+      if (util.geometryProvider.get(fusedInput).innerShape.blueprints) {
         throw new Error("Sketches to be lofted can't have interior geometries");
       }
       BOM.push(fusedInput.bom);
     });
-    let geometryToWrap = chainFuse(inputsToFuse);
+    // TODO: (tristan): I think there is a cache staleness issue with transient geometries like this one
+    // since we tie cache eviction to GC.. there's a chance that if shrinkWrapSketches is called
+    // again with the same sketches we'll get a cache miss for this fuse operation then get a hit with
+    // shrinkWrap below... To optimize we could prefer to match inputs to the public API?
+    // OTOH caching intervening states might allow for more hits between different operations (eg: the digfuse above)
+    let geometryToWrap = util.geometryProvider.fuse(inputsToFuse);
     const newPlane = new Plane().pivot(0, "Y");
     return {
-      geometry: [shrinkWrap(geometryToWrap, 50)],
+      geometry: [util.geometryProvider.shrinkWrap(geometryToWrap, 50)],
       tags: [],
       color: util.defaultColor,
       plane: newPlane,
@@ -105,9 +109,10 @@ function shrinkWrapSketches(sketches) {
 function intersect(shape1, shape2) {
   return util.actOnLeafs(shape1, (leaf) => {
     const shapeToIntersectWith = digFuse(shape2);
-    const newGeom = leaf.geometry[0].clone().intersect(shapeToIntersectWith);
     return {
-      geometry: [newGeom],
+      geometry: [
+        util.geometryProvider.intersect(leaf.geometry[0], shapeToIntersectWith),
+      ],
       tags: leaf.tags,
       color: leaf.color,
       plane: leaf.plane,
@@ -138,7 +143,7 @@ function fusion(shapes) {
   });
   const newPlane = new Plane().pivot(0, "Y");
   return {
-    geometry: [chainFuse(fusedGeometry)],
+    geometry: [util.geometryProvider.fuse(fusedGeometry)],
     tags: [],
     bom: bomAssembly,
     plane: newPlane,
@@ -198,24 +203,6 @@ async function assembly(geometries) {
 //// Helper Functions ////
 
 /**
- * Performs a chain fusion operation on an array of geometries.
- * @param {Array} chain - Array of geometry objects to fuse together sequentially
- * @returns {Object} The resulting fused geometry
- * @throws {Error} Throws an error if the fusion operation fails
- */
-function chainFuse(chain) {
-  try {
-    let fused = chain[0].clone();
-    for (let i = 1; i < chain.length; i++) {
-      fused = fused.fuse(chain[i]);
-    }
-    return fused;
-  } catch (e) {
-    throw new Error("Fusion failed", e);
-  }
-}
-
-/**
  * Recursively digs through an assembly and fuses all leaf geometries into a single geometry.
  * @param {Object} assembly - The assembly or leaf geometry to process
  * @returns {Object} A single fused geometry combining all leaves in the assembly
@@ -234,7 +221,7 @@ function digFuse(assembly) {
         flattened.push(digFuse(subAssembly));
       }
     });
-    return chainFuse(flattened);
+    return util.geometryProvider.fuse(flattened);
   } else {
     return assembly.geometry[0];
   }
@@ -288,11 +275,14 @@ function cutAssembly(partToCut, cuttingParts) {
       /*   if the part is a compound return each solid as a new assembly */
       function getSolids(compound) {
         return Array.from(
-          util.replicad.iterTopo(compound.wrapped, "solid"),
+          util.replicad.iterTopo(
+            util.geometryProvider.get(compound).wrapped,
+            "solid"
+          ),
           (s) => new Solid(s)
         );
       }
-      if (partCutCopy.wrapped) {
+      if (util.geometryProvider.get(partCutCopy).wrapped) {
         let solids = getSolids(partCutCopy);
         if (solids.length > 1) {
           let newAssembly = [];
@@ -325,6 +315,8 @@ function cutAssembly(partToCut, cuttingParts) {
       };
     }
   } catch (e) {
+    console.log(e);
+    console.log(e.trace);
     throw new Error("Cut Assembly failed", e);
   }
 }
@@ -349,39 +341,15 @@ function cutAssembly(partToCut, cuttingParts) {
 function recursiveCut(partToCut, cuttingPart) {
   try {
     let cutGeometry = partToCut;
+    const cuttingParts = [];
+    util.actOnLeafs(cuttingPart, (leaf) => {
+      cuttingParts.push(leaf.geometry[0]);
+    });
 
-    // Wire geometry should not participate in cutting operations
-    if (util.isWireGeometry({ geometry: [partToCut] })) {
-      return partToCut; // Wire parts should pass through unchanged
-    }
-
-    // if cutting part is an assembly pass back into the function to be cut by each part in that assembly
-    if (util.isAssembly(cuttingPart)) {
-      for (let i = 0; i < cuttingPart.geometry.length; i++) {
-        // Skip cutting with wire geometry
-        if (!util.isWireGeometry(cuttingPart.geometry[i])) {
-          cutGeometry = recursiveCut(cutGeometry, cuttingPart.geometry[i]);
-        }
-      }
-      return cutGeometry;
-    } else {
-      // Skip cutting if the cutting part is wire geometry
-      if (util.isWireGeometry(cuttingPart)) {
-        return partToCut;
-      }
-
-      //If the shapes don't overlap, we don't need to cut them
-      if (partToCut.boundingBox.isOut(cuttingPart.geometry[0].boundingBox)) {
-        return partToCut;
-      }
-      // cut and return part
-      else {
-        let cutPart;
-        cutPart = partToCut.cut(cuttingPart.geometry[0]);
-        return cutPart;
-      }
-    }
+    return util.geometryProvider.cut(cutGeometry, cuttingParts);
   } catch (e) {
+    console.log(e);
+    console.log(e.trace);
     throw new Error("Recursive Cut failed", e);
   }
 }
