@@ -147,11 +147,11 @@ async function executeCode(code, argumentsArray, library) {
     };
 
     const wrappedAssembly = async (inputIDs) => {
-      return util.realizeAssembly(
-        await assembly(
-          inputIDs.map((id) => toGeometry(id, "assembly-geometry", library))
-        )
+      const ids = inputIDs.map((id) =>
+        toGeometry(id, "assembly-geometry", library)
       );
+      const res = await assembly(ids);
+      return util.realizeAssembly(res);
     };
 
     const wrappedCutAssembly = async (input1, input2Array) => {
@@ -220,13 +220,7 @@ async function executeCode(code, argumentsArray, library) {
       userFunction(...inputValues),
       timeoutPromise,
     ]).then((result) => {
-      try {
-        // TODO(tristan): currently this always is a cache miss.
-        util.cacheAssembly(result);
-      } catch (e) {
-        console.log("Caching result assembly failed: ", e);
-        return result; // Return the result even if caching fails. Maybe it's just a number?
-      }
+      return util.cacheAssembly(result);
     });
   } catch (error) {
     console.error("Code execution error:", error);

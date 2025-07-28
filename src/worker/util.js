@@ -213,9 +213,6 @@ function realizeAssembly(assembly) {
  * and return a new assembly which has the keys in place of the geometries.
  */
 function cacheAssembly(assembly) {
-  if (!isAssembly(assembly)) {
-    throw new Error("Input expected to be an assembly. but was: " + assembly);
-  }
   return actOnLeafs(assembly, (leaf) => {
     if (leaf.geometry && leaf.geometry[0]) {
       const geomKey = geometryProvider.addSingularToCache(leaf.geometry[0]);

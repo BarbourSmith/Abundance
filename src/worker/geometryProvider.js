@@ -53,6 +53,18 @@ class GeomKey {
   // be GeomKey strings.
   static from(type, ...args) {
     // TODO: add some type specific serializations here, esp for planes
+    for (let i = 0; i < args.length; i++) {
+      if (args[i] instanceof replicad.Plane) {
+        // Convert Plane to a string representation
+        args[i] =
+          "plane(" +
+          args[i].origin.repr +
+          "-" +
+          args[i].xDir.repr +
+          args[i].zDir.repr +
+          ")";
+      }
+    }
     return new GeomKey(type + "-" + args.join("-"));
   }
 }
@@ -185,7 +197,7 @@ class GeometryProvider {
   chamfer(id, size) {
     const chamferId = this._makeId("chamfer", id, size);
     this._getOrCreate(chamferId, () => {
-      this.get(id).clone().chamfer(size);
+      return this.get(id).clone().chamfer(size);
     });
     return chamferId;
   }
