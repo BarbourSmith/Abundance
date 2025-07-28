@@ -978,62 +978,75 @@ export default class Molecule extends Atom {
     oldParentObjectConnectors = {}
   ) {
     let octokit = new Octokit();
-    await octokit
-      .request("GET /repos/{owner}/{repo}/contents/project.abundance", {
-        owner: item.owner,
-        repo: item.repoName,
-      })
-      .then((response) => {
-        let rawFile = JSON.parse(atob(response.data.content));
-        let rawFileWithNewIds = this.remapIDs(rawFile);
-        rawFileWithNewIds.atomType = "GitHubMolecule";
+    try {
+      await octokit
+        .request("GET /repos/{owner}/{repo}/contents/project.abundance", {
+          owner: item.owner,
+          repo: item.repoName,
+        })
+        .then((response) => {
+          let rawFile = JSON.parse(atob(response.data.content));
+          let rawFileWithNewIds = this.remapIDs(rawFile);
+          rawFileWithNewIds.atomType = "GitHubMolecule";
 
-        //content will be base64 encoded
-        let valuesToOverwriteInLoadedVersion = {};
-        let newMoleculeUniqueID = GlobalVariables.generateUniqueID();
+          //content will be base64 encoded
+          let valuesToOverwriteInLoadedVersion = {};
+          let newMoleculeUniqueID = GlobalVariables.generateUniqueID();
 
-        //If there are stored io values to recover
-        if (oldObject.ioValues != undefined) {
-          valuesToOverwriteInLoadedVersion = {
-            uniqueID: newMoleculeUniqueID,
-            x: this.x,
-            y: this.y,
-            parentRepo: item,
-            topLevel: false,
-            ioValues: oldObject.ioValues,
-          };
-        } else {
-          let xPos = 0.5;
-          let yPos = 0.6;
-          //If there's no last click default to middle of screen
-          if (GlobalVariables.lastClick) {
-            xPos = GlobalVariables.pixelsToWidth(GlobalVariables.lastClick[0]);
-            yPos = GlobalVariables.pixelsToHeight(GlobalVariables.lastClick[1]);
+          //If there are stored io values to recover
+          if (oldObject.ioValues != undefined) {
+            valuesToOverwriteInLoadedVersion = {
+              uniqueID: newMoleculeUniqueID,
+              x: this.x,
+              y: this.y,
+              parentRepo: item,
+              topLevel: false,
+              ioValues: oldObject.ioValues,
+            };
+          } else {
+            let xPos = 0.5;
+            let yPos = 0.6;
+            //If there's no last click default to middle of screen
+            if (GlobalVariables.lastClick) {
+              xPos = GlobalVariables.pixelsToWidth(
+                GlobalVariables.lastClick[0]
+              );
+              yPos = GlobalVariables.pixelsToHeight(
+                GlobalVariables.lastClick[1]
+              );
+            }
+            valuesToOverwriteInLoadedVersion = {
+              uniqueID: newMoleculeUniqueID,
+              parentRepo: item,
+              x: xPos,
+              y: yPos,
+              topLevel: false,
+            };
           }
-          valuesToOverwriteInLoadedVersion = {
-            uniqueID: newMoleculeUniqueID,
-            parentRepo: item,
-            x: xPos,
-            y: yPos,
-            topLevel: false,
-          };
-        }
 
-        GlobalVariables.currentMolecule
-          .placeAtom(rawFileWithNewIds, true, valuesToOverwriteInLoadedVersion)
-          .then(() => {
-            oldParentObjectConnectors.forEach((connector) => {
-              if (connector.ap1ID == oldObject.uniqueID) {
-                connector.ap1ID = newMoleculeUniqueID;
-                this.parent.placeConnector(connector);
-              }
-              if (connector.ap2ID == oldObject.uniqueID) {
-                connector.ap2ID = newMoleculeUniqueID;
-                this.parent.placeConnector(connector);
-              }
+          GlobalVariables.currentMolecule
+            .placeAtom(
+              rawFileWithNewIds,
+              true,
+              valuesToOverwriteInLoadedVersion
+            )
+            .then(() => {
+              oldParentObjectConnectors.forEach((connector) => {
+                if (connector.ap1ID == oldObject.uniqueID) {
+                  connector.ap1ID = newMoleculeUniqueID;
+                  this.parent.placeConnector(connector);
+                }
+                if (connector.ap2ID == oldObject.uniqueID) {
+                  connector.ap2ID = newMoleculeUniqueID;
+                  this.parent.placeConnector(connector);
+                }
+              });
             });
-          });
-      });
+        });
+    } catch (error) {
+      console.error("Error during API call:", error);
+      throw new Error("Failed to load GitHub molecule: " + error.message);
+    }
   }
 
   /** Gives new unique IDs to all atoms in a json object and remaps the connections with the attachment points */

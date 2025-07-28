@@ -828,7 +828,363 @@ Sidebar navigation
     opacity: 0;
   }
 }
+
+/* Extra small devices (phones, 600px and down) */
+@media only screen and (max-width: 600px) {
+  .menu-nav {
+    margin: auto;
+    pointer-events: none;
+    position: absolute;
+    top: 60px;
+    list-style: none;
+    width: 0;
+    overflow: hidden;
+    height: calc(100vh - 70px);
+    z-index: 9;
+    -webkit-user-select: none; /* Safari */
+    -khtml-user-select: none; /* Konqueror HTML */
+    -moz-user-select: none; /* Old versions of Firefox */
+    -ms-user-select: none; /* Internet Explorer/Edge */
+    user-select: none; /* Non-prefixed version */
+    /* transition: width ease 0.2s; */
+  }
+  .menu-nav button {
+    display: flex;
+    position: relative;
+    margin: 15px 10px;
+    padding: 0px;
+    width: 90%;
+    height: 50px;
+    border-left: 3px solid var(--abundance-color-brightPurple);
+    background-color: rgba(124, 77, 255, 0.1);
+  }
+
+  .menu-nav-button {
+    background-color: transparent;
+    border: none;
+  }
+  .nav-img,
+  .menu-nav img {
+    padding: 10px;
+  }
+  .menu-nav button:hover {
+    background-color: rgba(124, 77, 255, 0.2);
+  }
+  .menu-nav.show-menu {
+    width: calc(100% - 6px);
+    transform: translateX(0px);
+    pointer-events: auto;
+    background-color: var(--abundance-color-hightlightOffWhite);
+    border: 3px solid var(--abundance-color-darkGrey);
+  }
+
+  .nav-text {
+    display: inline;
+    font-family: ui-monospace, "SFMono-Regular", "Menlo", "Monaco", "Consolas",
+      "Liberation Mono", "Courier New", monospace;
+    font-weight: 500;
+    font-size: 16px;
+    align-self: center;
+  }
+}
+
+/* Small devices (portrait tablets and large phones, 600px and up) */
+@media only screen and (min-width: 600px) {
+  .menu-nav {
+    margin: auto;
+    pointer-events: none;
+    position: absolute;
+    top: 60px;
+    list-style: none;
+    width: 0;
+    overflow: hidden;
+    /*height: calc(100vh - 70px);*/
+    z-index: 9;
+    -webkit-user-select: none; /* Safari */
+    -khtml-user-select: none; /* Konqueror HTML */
+    -moz-user-select: none; /* Old versions of Firefox */
+    -ms-user-select: none; /* Internet Explorer/Edge */
+    user-select: none; /* Non-prefixed version */
+    /* transition: width ease 0.2s; */
+  }
+  .menu-nav button {
+    display: flex;
+    position: relative;
+    margin: 15px 10px;
+    padding: 0px;
+    width: 90%;
+    height: 50px;
+    border-left: 3px solid var(--abundance-color-brightPurple);
+    background-color: rgba(124, 77, 255, 0.1);
+  }
+
+  .menu-nav-button {
+    background-color: transparent;
+    border: none;
+  }
+  .nav-img,
+  .menu-nav img {
+    padding: 10px;
+  }
+  .menu-nav button:hover {
+    background-color: rgba(124, 77, 255, 0.2);
+  }
+  .menu-nav.show-menu {
+    width: calc(100% - 6px);
+    transform: translateX(0px);
+    pointer-events: auto;
+    background-color: var(--abundance-color-hightlightOffWhite);
+    border: 3px solid var(--abundance-color-darkGrey);
+  }
+
+  .nav-text {
+    display: inline;
+    font-family: ui-monospace, "SFMono-Regular", "Menlo", "Monaco", "Consolas",
+      "Liberation Mono", "Courier New", monospace;
+    font-weight: 500;
+    font-size: 16px;
+    align-self: center;
+  }
+
+  /*new leva sidebar */
+  .paramEditorDiv {
+    max-height: 25%;
+    position: absolute;
+    top: 53%;
+    left: 10px;
+    width: 250px;
+    z-index: 3;
+    overflow-x: auto;
+    box-sizing: content-box;
+    -ms-overflow-style: none; /* for Internet Explorer, Edge */
+    scrollbar-width: none; /* for Firefox */
+  }
+  .paramEditorDivRun {
+    position: absolute;
+    top: 19%;
+    right: 10px;
+    width: 280px;
+    z-index: 3;
+  }
+  .exportEditorDivRun {
+    position: absolute;
+    top: 12%;
+    right: 10px;
+    width: 280px;
+    z-index: 3;
+  }
+
+  .gridEditorDiv {
+    position: absolute;
+    top: 47%;
+    left: 10px;
+    width: 280px;
+    z-index: 3;
+  }
+  .gridEditorDivRun {
+    position: absolute;
+    top: 5%;
+    right: 10px;
+    width: 280px;
+    z-index: 5;
+  }
+  .switch {
+    position: fixed;
+    width: 45px;
+    top: 47%;
+    right: 5px;
+    z-index: 2;
+    font-size: 11px;
+  }
+
+  /* Top Nav Menu */
+
+  .menu-nav {
+    position: absolute;
+    padding: 1px;
+    margin-top: 20px;
+    top: -15px;
+    list-style: none;
+    width: 0;
+    overflow: hidden;
+    max-width: 150px;
+    max-height: 100vh;
+    right: 70px;
+    scrollbar-width: thin;
+    transform: translateX(170px);
+    transition: transform ease-in-out 0.1s;
+    z-index: 9;
+    -webkit-user-select: none; /* Safari */
+    -khtml-user-select: none; /* Konqueror HTML */
+    -moz-user-select: none; /* Old versions of Firefox */
+    -ms-user-select: none; /* Internet Explorer/Edge */
+    user-select: none; /* Non-prefixed version */
+  }
+  .menu-nav.show-menu {
+    width: 150px;
+    overflow: auto;
+  }
+}
+
+/* Medium devices (landscape tablets, 768px and up) */
 @media (min-width: 768px) {
+  /*new leva sidebar */
+  .paramEditorDiv {
+    max-height: 45%;
+    position: absolute;
+    top: 53%;
+    left: 10px;
+    width: 250px;
+    z-index: 3;
+    overflow-x: auto;
+    box-sizing: content-box;
+    -ms-overflow-style: none; /* for Internet Explorer, Edge */
+    scrollbar-width: none; /* for Firefox */
+  }
+  .paramEditorDivRun {
+    position: absolute;
+    top: 19%;
+    right: 10px;
+    width: 280px;
+    z-index: 3;
+  }
+  .exportEditorDivRun {
+    position: absolute;
+    top: 12%;
+    right: 10px;
+    width: 280px;
+    z-index: 3;
+  }
+
+  .gridEditorDiv {
+    position: absolute;
+    top: 47%;
+    left: 10px;
+    width: 280px;
+    z-index: 3;
+  }
+  .gridEditorDivRun {
+    position: absolute;
+    top: 5%;
+    right: 10px;
+    width: 280px;
+    z-index: 5;
+  }
+  .bomEditorDiv {
+    position: absolute;
+    top: 47%;
+    left: 300px;
+    width: 280px;
+    z-index: 3;
+  }
+  .bomEditorDivRun {
+    position: absolute;
+    top: 5%;
+    right: 310px;
+    width: 280px;
+    z-index: 2;
+  }
+  /* Run Navigation */
+
+  .run-navigation {
+    position: absolute;
+    width: 60px;
+    left: 100px;
+    top: 20%;
+    z-index: 3;
+  }
+  .run-navigation-button {
+    border: 2px solid var(--run-navigation-button-hover);
+    border-radius: 50%;
+    background-color: var(--run-navigation-button);
+    width: 60px;
+    height: 60px;
+    margin-bottom: 50px;
+  }
+  .run-navigation-button svg {
+    scale: 0.7;
+    position: relative;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+  }
+  /* The switch - the box around the slider */
+  .switch_run {
+    top: 20px;
+  }
+  .switch {
+    right: 70px;
+  }
+  .thumnail-logo {
+    width: 25px;
+    height: 25px;
+  }
+
+  .info_run_div {
+    line-height: 15px;
+    font-size: 18px;
+    left: 30vh;
+    bottom: 13vh;
+    border: 2px solid var(--run-project-info);
+  }
+
+  /* Top Nav Menu */
+
+  .menu-nav {
+    position: absolute;
+    padding: 1px;
+    margin-top: 20px;
+    top: -15px;
+    list-style: none;
+    width: 0;
+    overflow: hidden;
+    max-width: 250px;
+    right: 70px;
+    transform: translateX(170px);
+    transition: transform ease-in-out 0.1s;
+    z-index: 9;
+    -webkit-user-select: none; /* Safari */
+    -khtml-user-select: none; /* Konqueror HTML */
+    -moz-user-select: none; /* Old versions of Firefox */
+    -ms-user-select: none; /* Internet Explorer/Edge */
+    user-select: none; /* Non-prefixed version */
+  }
+
+  .nav-img,
+  .menu-nav img {
+    padding: 10px;
+  }
+  .menu-nav.show-menu {
+    width: 100%;
+    transform: translateX(0px);
+    background-color: var(--abundance-color-hightlightOffWhite);
+    border: none;
+  }
+  .nav-text {
+    display: inline;
+    font-family: ui-monospace, "SFMono-Regular", "Menlo", "Monaco", "Consolas",
+      "Liberation Mono", "Courier New", monospace;
+    font-weight: 500;
+    font-size: 14px;
+    align-self: center;
+  }
+  /* Share Dialog */
+
+  .share-dialog {
+    width: 600px;
+  }
+  .share-dialog button {
+    margin: 10px;
+    width: 100px;
+  }
+  .share-dialog button:hover {
+    background-color: var(--dialog-border);
+  }
+}
+
+/* Large devices (laptops/desktops, 992px and up) */
+@media only screen and (min-width: 992px) {
   /*new leva sidebar */
   .paramEditorDiv {
     max-height: 45%;
@@ -1031,6 +1387,25 @@ Sidebar navigation
   top: 50px;
   right: 20px;
   background-color: var(--abundance-color-brightPurple);
+  color: var(--abundance-color-fontWhite);
+  padding: 12px 16px;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  font-family: "Work Sans", sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  z-index: 1000;
+  max-width: 300px;
+  word-wrap: break-word;
+  animation: undoSlideIn 0.3s ease-out;
+}
+
+/* Import notification styles */
+.error-notification {
+  position: fixed;
+  top: 50px;
+  right: 20px;
+  background-color: rgb(223, 7, 7);
   color: var(--abundance-color-fontWhite);
   padding: 12px 16px;
   border-radius: 6px;

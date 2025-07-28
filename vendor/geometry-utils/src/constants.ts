@@ -10,7 +10,6 @@ function getAngleCache() {
     const result = new Map<number, Float32Array>();
     const maxSplit: number = 64;
     const memSeg: Float32Array = new Float32Array(2);
-    let step: number = 0;
     let radianStep: number = 0;
     let radianAngle: number = 0;
     let angle: number = 0;
@@ -18,14 +17,14 @@ function getAngleCache() {
     let j: number = 0;
 
     for (i = 1; i <= maxSplit; ++i) {
-        step = Math.round(360 / i);
         radianStep = (2 * Math.PI) / i;
 
         for (j = 0; j < i; ++j) {
-            angle = step * j;
+            // Calculate exact angle in degrees, then round for the key
+            radianAngle = radianStep * j;
+            angle = Math.round((radianAngle * 180) / Math.PI);
 
             if (!result.has(angle)) {
-                radianAngle = radianStep * j;
                 memSeg[0] = Math.sin(radianAngle);
                 memSeg[1] = Math.cos(radianAngle);
 

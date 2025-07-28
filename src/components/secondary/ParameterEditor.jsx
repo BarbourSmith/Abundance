@@ -7,6 +7,10 @@ import { useControls, useCreateStore, LevaPanel, button } from "leva";
 export default (function ParamsEditor({
   activeAtom,
   run,
+  gridParam,
+  axesParam,
+  wireParam,
+  solidParam,
   setGrid,
   setAxes,
   setWire,
@@ -112,31 +116,30 @@ export default (function ParamsEditor({
 
   /** Creates Leva panel with grid settings */
   useControls(
-    "Grid",
     {
       grid: {
-        value: true,
+        value: gridParam,
         label: "Grid",
         onChange: (value) => {
           setGrid(value);
         },
       },
       axes: {
-        value: true,
+        value: axesParam,
         label: "Axes",
         onChange: (value) => {
           setAxes(value);
         },
       },
       wire: {
-        value: true,
+        value: wireParam,
         label: "Output Wire",
         onChange: (value) => {
           setWire(value);
         },
       },
       wireframe: {
-        value: false,
+        value: solidParam,
         label: "Wireframe",
         onChange: (value) => {
           setSolid(value);

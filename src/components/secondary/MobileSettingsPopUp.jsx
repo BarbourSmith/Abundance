@@ -21,6 +21,14 @@ const MobileSettingsPopUp = ({
   setSettingsPopUp,
   shortCutsOn,
   setShortCuts,
+  gridParam,
+  axesParam,
+  wireParam,
+  solidParam,
+  setGrid,
+  setAxes,
+  setWire,
+  setSolid,
 }) => {
   let repoTopics = [];
   if (Globalvariables.currentRepo.topics.length > 0) {
@@ -219,11 +227,62 @@ const MobileSettingsPopUp = ({
               }
               label="Display light/dark"
             />
+            <FormGroup>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={gridParam}
+                    onChange={(event) => {
+                      setGrid(event.target.checked);
+                    }}
+                    name="grid"
+                    color="secondary"
+                  />
+                }
+                label="Grid"
+              />
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={axesParam}
+                    onChange={(event) => {
+                      setAxes(event.target.checked);
+                    }}
+                    name="axes"
+                    color="secondary"
+                  />
+                }
+                label="Axes"
+              />
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={wireParam}
+                    onChange={(event) => {
+                      setWire(event.target.checked);
+                    }}
+                    name="wire"
+                    color="secondary"
+                  />
+                }
+                label="Output Wire"
+              />
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={solidParam}
+                    onChange={(event) => {
+                      setSolid(event.target.checked);
+                    }}
+                    name="wireframe"
+                    color="secondary"
+                  />
+                }
+                label="Wireframe"
+              />
+            </FormGroup>
           </form>
-          <div
-            className="mobile-settings-footer"
-            style={{ margin: "50px 0 50px 0" }}
-          >
+          <div className="mobile-settings-footer">
             <button
               className="submit-button"
               onClick={(e) => {

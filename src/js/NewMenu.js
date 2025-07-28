@@ -32,13 +32,20 @@ const createCMenu = (targetElement, setSearchingGithub) => {
             const containerY = parseInt(cmenu._container.style.top, 10);
             GlobalVariables.lastClick = [containerX, containerY];
             setSearchingGithub(true);
+            if (e.type === "touchend") {
+              //need to prevent mousedown from running to keep gitsearch open
+              cmenu.hide();
+              e.preventDefault();
+              console.log(
+                "Touch event detected, preventing further click behavior."
+              );
+            }
           } else {
             setSearchingGithub(false);
             e.target.id = title.name;
             placeNewNode(e);
           }
         };
-
         menuArray.push(subMenu);
       }
     }
@@ -49,7 +56,7 @@ const createCMenu = (targetElement, setSearchingGithub) => {
    * This creates a new instance of the circular menu.
    */
   cmenu = CMenu(ele.current).config({
-    hideAfterClick: true,
+    hideAfterClick: GlobalVariables.isMobile() ? false : true,
     percent: 0.15,
     menus: [
       {
@@ -85,7 +92,7 @@ const createCMenu = (targetElement, setSearchingGithub) => {
     ],
   });
 
-  /*Mask the default context menu on the main canvas*/
+  /* Mask the default context menu on the main canvas*/
   document
     .getElementById("flow-canvas")
     .addEventListener("contextmenu", (e) => {
@@ -116,6 +123,7 @@ const createCMenu = (targetElement, setSearchingGithub) => {
       true
     );
     //Simulate a click on the new atom
+    cmenu.hide();
     var clickHandledByAtom = false;
 
     // Ensure canvas regains focus after placing atom

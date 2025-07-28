@@ -304,7 +304,7 @@ You can read the complete documentation at ----(Documentation pending)
 
 3. Edit files for local development:
 
-        Follow the comments in .env to switch to local develpment mode and in is vite config change /Abundance to / 
+        Follow the comments in .env to switch to local development mode and in is vite config change /Abundance to / 
 
 4.  Run webpack:
 

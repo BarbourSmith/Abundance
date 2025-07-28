@@ -46,7 +46,7 @@ function CreateMode({
   const [gridParam, setGrid] = useState(true);
   const [axesParam, setAxes] = useState(true);
   const [wireParam, setWire] = useState(true);
-  const [solidParam, setSolid] = useState(true);
+  const [solidParam, setSolid] = useState(false);
 
   /** State for import notifications */
   const [importNotification, setImportNotification] = useState(null);
@@ -562,6 +562,14 @@ function CreateMode({
               setActiveAtom,
               shortCutsOn,
               setShortCuts,
+              gridParam,
+              axesParam,
+              wireParam,
+              solidParam,
+              setGrid,
+              setAxes,
+              setWire,
+              setSolid,
             }}
           />
 
@@ -603,6 +611,10 @@ function CreateMode({
             {activeAtom ? (
               <ParamsEditor
                 {...{
+                  gridParam,
+                  axesParam,
+                  wireParam,
+                  solidParam,
                   activeAtom,
                   setActiveAtom,
                   setGrid,

@@ -1,12 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { Octokit } from "https://esm.sh/octokit@2.0.19";
 import {
-  BrowserRouter,
   HashRouter as Router,
   // BrowserRouter as Router,
   Routes,
   Route,
-  useNavigate,
 } from "react-router-dom";
 
 import { wrap } from "comlink";
@@ -14,17 +12,17 @@ import GlobalVariables from "./js/globalvariables.js";
 import LoginMode from "./components/main-routes/LoginMode.jsx";
 import RunMode from "./components/main-routes/RunMode.jsx";
 import CreateMode from "./components/main-routes/CreateMode.jsx";
-import cadWorker from "./worker.js?worker";
-import { button } from "leva";
+import cadWorker from "./worker/worker.js?worker";
+
 import { QueryClient, QueryClientProvider } from "react-query";
 import Callback from "./components/main-routes/CallBack.jsx";
 
 /*Import style scripts*/
 import "./styles/maslowCreate.css";
-import "./styles//menuIcons.css";
-import "./styles//login.css";
-import "./styles//codemirror.css";
-import { e } from "mathjs";
+import "./styles/menuIcons.css";
+import "./styles/login.css";
+import "./styles/codemirror.css";
+
 
 const queryClient = new QueryClient();
 /**
@@ -41,8 +39,10 @@ export default function ReplicadApp() {
   const [isAuthorized, setIsAuthorized] = useState(false);
 
   useEffect(() => {
-    cad.createMesh(size).then((m) => setMesh(m));
-    cad.createMesh(size).then((m) => setWireMesh(m));
+    cad.createMesh(size).then((m) => {
+      setMesh(m);
+      setWireMesh(m);
+    });
   }, [size]);
 
   useEffect(() => {
@@ -61,7 +61,7 @@ export default function ReplicadApp() {
 
   const [authorizedUserOcto, setAuthorizedUserOcto] = useState(null);
   const [shortCutsOn, setShortCuts] = useState(
-    localStorage.getItem("shortcuts") === "true" ? true : false
+    localStorage.getItem("shortcuts") === "true"
   );
 
   /* Creates an element to check with Puppeteer if the molecule is fully loaded*/
@@ -91,10 +91,8 @@ export default function ReplicadApp() {
 
   useEffect(() => {
     GlobalVariables.writeToDisplay = (id, resetView = false) => {
-      console.log("write to display running " + id);
       setOutdatedMesh(true);
       if (resetView) {
-        console.log("reset view");
         cad
           .resetView()
           .then((m) => {
@@ -129,7 +127,7 @@ export default function ReplicadApp() {
             })
             .catch((e) => {
               createPuppeteerDiv();
-              console.error("Can't comput Wireframe/No output " + e);
+              console.error("Can't compute Wireframe/No output " + e);
             });
         } else {
           /* reset mesh view if in output mode*/

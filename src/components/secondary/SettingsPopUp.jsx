@@ -17,7 +17,19 @@ import Slider from "@mui/material/Slider";
 import { Typography } from "@mui/material";
 import Divider from "@mui/material/Divider";
 
-const SettingsPopUp = ({ setSettingsPopUp, shortCutsOn, setShortCuts }) => {
+const SettingsPopUp = ({
+  setSettingsPopUp,
+  shortCutsOn,
+  setShortCuts,
+  gridParam,
+  axesParam,
+  wireParam,
+  solidParam,
+  setGrid,
+  setAxes,
+  setWire,
+  setSolid,
+}) => {
   let repoTopics = [];
   if (Globalvariables.currentRepo.topics.length > 0) {
     Globalvariables.currentRepo.topics.forEach((topic) => {
@@ -162,6 +174,7 @@ const SettingsPopUp = ({ setSettingsPopUp, shortCutsOn, setShortCuts }) => {
               <Tab label="Project Information" {...a11yProps(0)} />
               <Tab label="Canvas Settings" {...a11yProps(1)} />
               <Tab label="Project Settings" {...a11yProps(2)} />
+              <Tab label="Render Settings" {...a11yProps(3)} />
             </Tabs>
           </Box>
           <CustomTabPanel value={value} index={0}>
@@ -292,6 +305,62 @@ const SettingsPopUp = ({ setSettingsPopUp, shortCutsOn, setShortCuts }) => {
                 <MenuItem value={"Unitless"}>Unitless</MenuItem>
               </Select>
             </FormControl>
+          </CustomTabPanel>
+          <CustomTabPanel value={value} index={3}>
+            <FormGroup>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={gridParam}
+                    onChange={(event) => {
+                      setGrid(event.target.checked);
+                    }}
+                    name="grid"
+                    color="secondary"
+                  />
+                }
+                label="Grid"
+              />
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={axesParam}
+                    onChange={(event) => {
+                      setAxes(event.target.checked);
+                    }}
+                    name="axes"
+                    color="secondary"
+                  />
+                }
+                label="Axes"
+              />
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={wireParam}
+                    onChange={(event) => {
+                      setWire(event.target.checked);
+                    }}
+                    name="wire"
+                    color="secondary"
+                  />
+                }
+                label="Output Wire"
+              />
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={solidParam}
+                    onChange={(event) => {
+                      setSolid(event.target.checked);
+                    }}
+                    name="wireframe"
+                    color="secondary"
+                  />
+                }
+                label="Wireframe"
+              />
+            </FormGroup>
           </CustomTabPanel>
 
           <button className="submit-button" type="submit">

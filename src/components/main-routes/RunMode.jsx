@@ -61,7 +61,7 @@ function runMode({
   const [axesParam, setAxes] = useState(true);
   const [isItOwned, setOwned] = useState(false);
   const [wireParam, setWire] = useState(true);
-  const [solidParam, setSolid] = useState(true);
+  const [solidParam, setSolid] = useState(false);
 
   const windowSize = useWindowSize();
 
@@ -166,6 +166,10 @@ function runMode({
             run: true,
             activeAtom,
             setActiveAtom,
+            gridParam,
+            axesParam,
+            wireParam,
+            solidParam,
             setGrid,
             setAxes,
             setWire,

@@ -112,7 +112,6 @@ export default function (parent, data, index) {
   });
 
   on(a, "click", clickCallBack, data);
-  on(a, "touchstart", clickCallBack, data);
   on(a, "touchend", clickCallBack, data);
   on(a, "mouseleave", function () {
     document.getElementById(data.icon + "text").remove();
@@ -143,7 +142,7 @@ export default function (parent, data, index) {
     };
 
     on(a, "mouseenter", showSubMenu);
-    on(a, "touchstart", showSubMenu);
+    //on(a, "touchstart", showSubMenu);
 
     // Mouse and Touch Leave
     const hideSubMenu = (e) => {
@@ -177,7 +176,6 @@ export default function (parent, data, index) {
     };
 
     on(subMenu._container, "mouseenter", subMenuMouseEnter);
-    on(subMenu._container, "touchstart", subMenuMouseEnter);
 
     // Submenu Mouse and Touch Leave
     const subMenuMouseLeave = (e) => {

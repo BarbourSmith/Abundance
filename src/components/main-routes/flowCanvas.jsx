@@ -40,6 +40,9 @@ export default memo(function FlowCanvas({
   const [undoNotification, setUndoNotification] = useState(null);
   const [isShortcut, setIsShortcutTriggered] = useState(false);
 
+  /** State for error notification */
+  const [errorNotification, setErrorNotification] = useState(null);
+
   const canvasRef = useRef(null);
   const circleMenu = useRef(null);
   const navigate = useNavigate();
@@ -357,7 +360,7 @@ export default memo(function FlowCanvas({
         // When timer completes, show the circular menu at touch position
         cmenu.show([touchStartPos.current.x, touchStartPos.current.y], false);
         longPressTimer.current = null;
-      }, 700);
+      }, 500);
     } else {
       // For mouse events, don't start a long press timer
       longPressTimer.current = null;
@@ -468,7 +471,6 @@ export default memo(function FlowCanvas({
       const molecule = GlobalVariables.currentMolecule.nodesOnTheScreen[i];
       const handled = molecule.doubleClick(event.clientX, event.clientY);
     }
-    setActiveAtom(GlobalVariables.currentMolecule);
   };
 
   /**
@@ -603,6 +605,7 @@ export default memo(function FlowCanvas({
             setIsHovering,
             isShortcut,
             setIsShortcutTriggered,
+            setErrorNotification,
           }}
         />
       </div>
@@ -615,6 +618,11 @@ export default memo(function FlowCanvas({
       {/* Import notification */}
       {importNotification && (
         <div className="import-notification">{importNotification}</div>
+      )}
+
+      {/* Error notification */}
+      {errorNotification && (
+        <div className="error-notification">{errorNotification}</div>
       )}
     </>
   );

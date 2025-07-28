@@ -18,15 +18,20 @@ function TopMenu({
   setActiveAtom,
   shortCutsOn,
   setShortCuts,
+  gridParam,
+  axesParam,
+  wireParam,
+  solidParam,
+  setGrid,
+  setAxes,
+  setWire,
+  setSolid,
 }) {
   let [shareDialog, setShareDialog] = useState(false);
   let [dialogContent, setDialog] = useState("");
   let [settingsPopUp, setSettingsPopUp] = useState(false);
 
   const navigate = useNavigate();
-
-  console.log(GlobalVariables.isMobile());
-
   // objects for navigation items in the top menu
   const navItems = [
     {
@@ -258,10 +263,36 @@ function TopMenu({
       {settingsPopUp ? (
         GlobalVariables.isMobile() == true ? (
           <MobileSettingsPopUp
-            {...{ setSettingsPopUp, shortCutsOn, setShortCuts }}
+            {...{
+              setSettingsPopUp,
+              shortCutsOn,
+              setShortCuts,
+              gridParam,
+              axesParam,
+              wireParam,
+              solidParam,
+              setGrid,
+              setAxes,
+              setWire,
+              setSolid,
+            }}
           />
         ) : (
-          <SettingsPopUp {...{ setSettingsPopUp, shortCutsOn, setShortCuts }} />
+          <SettingsPopUp
+            {...{
+              setSettingsPopUp,
+              shortCutsOn,
+              setShortCuts,
+              gridParam,
+              axesParam,
+              wireParam,
+              solidParam,
+              setGrid,
+              setAxes,
+              setWire,
+              setSolid,
+            }}
+          />
         )
       ) : null}
       {shareDialog ? (

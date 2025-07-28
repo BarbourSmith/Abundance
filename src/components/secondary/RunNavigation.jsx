@@ -461,7 +461,7 @@ function RunNavigation({
       "You are not logged in. Would you like to log in?"
     );
     if (loginConfirm) {
-      console.log("login with redirect");
+      console.log("login redirect");
       loginHandler(redirect);
     } else {
       // user clicked cancel and is redirected to the run mode

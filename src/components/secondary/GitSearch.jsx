@@ -12,6 +12,7 @@ function GitSearch({
   setIsHovering,
   isShortcut,
   setIsShortcutTriggered,
+  setErrorNotification,
 }) {
   let searchBarValue = "";
   const [lastKey, setLastKey] = useState("");
@@ -87,7 +88,11 @@ function GitSearch({
    * @param {object} ev - The event triggered by clicking on a menu item.
    */
   function placeGitHubMolecule(e, item) {
-    GlobalVariables.currentMolecule.loadGithubMoleculeByName(item);
+    GlobalVariables.currentMolecule.loadGithubMoleculeByName(item).catch(() => {
+      setErrorNotification(`Error: Project Missing`);
+      // Auto-dismiss notification after 3 seconds
+      setTimeout(() => setErrorNotification(null), 3000);
+    });
     setSearchingGitHub(false);
     setIsShortcutTriggered(false);
     setSearch("");
@@ -125,6 +130,7 @@ function GitSearch({
       true
     );
     setSearchingGitHub(false);
+
     setSearch("");
     setIsShortcutTriggered(false);
     setIsHovering(false);

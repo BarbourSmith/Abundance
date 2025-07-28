@@ -128,7 +128,7 @@ export default class Code extends Atom {
     this.setValues([]);
     this.code = values.code || this.code;
 
-    //this.parseInputs(false);
+    this.parseInputs(false);
   }
 
   /**
