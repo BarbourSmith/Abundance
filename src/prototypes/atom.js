@@ -25,6 +25,9 @@ const AlertType = Object.freeze({
  * This class is the prototype for all atoms.
  */
 export default class Atom {
+  static SELECTED_COLOR = "#484848";
+  static DEFAULT_COLOR = "#F3EFEF";
+
   /**
    * The constructor function.
    * @param {object} values An array of values passed in which will be assigned to the class as this.x
@@ -77,21 +80,7 @@ export default class Atom {
      * @type {number}
      */
     this.radius = 1 / 60;
-    /**
-     * This atom's default color (ie when not selected or processing)
-     * @type {string}
-     */
-    this.defaultColor = "#F3EFEF";
-    /**
-     * This atom's color when selected
-     * @type {string}
-     */
-    this.selectedColor = "#484848";
-    /**
-     * The color currently used for strokes
-     * @type {string}
-     */
-    this.strokeColor = "#484848";
+
     /**
      * A flag to indicate if this atom is currently selected
      * @type {boolean}
@@ -178,18 +167,18 @@ export default class Atom {
     GlobalVariables.c.beginPath();
     GlobalVariables.c.font = GlobalVariables.canvasFont;
 
+    let strokeColor = Atom.DEFAULT_COLOR;
     if (this.processing) {
       GlobalVariables.c.fillStyle = "blue";
     } else if (this.selected) {
-      GlobalVariables.c.fillStyle = this.selectedColor;
-      GlobalVariables.c.strokeStyle = this.selectedColor;
-      this.color = this.selectedColor;
-      this.strokeColor = this.defaultColor;
+      GlobalVariables.c.fillStyle = Atom.SELECTED_COLOR;
+      GlobalVariables.c.strokeStyle = Atom.SELECTED_COLOR;
+      this.color = Atom.SELECTED_COLOR;
     } else {
-      GlobalVariables.c.fillStyle = this.defaultColor;
-      GlobalVariables.c.strokeStyle = this.selectedColor;
-      this.color = this.defaultColor;
-      this.strokeColor = this.selectedColor;
+      GlobalVariables.c.fillStyle = Atom.DEFAULT_COLOR;
+      GlobalVariables.c.strokeStyle = Atom.SELECTED_COLOR;
+      this.color = Atom.DEFAULT_COLOR;
+      strokeColor = Atom.SELECTED_COLOR;
     }
 
     GlobalVariables.c.beginPath();
@@ -219,7 +208,7 @@ export default class Atom {
     }
     GlobalVariables.c.textAlign = "start";
     GlobalVariables.c.fill();
-    GlobalVariables.c.strokeStyle = this.strokeColor;
+    GlobalVariables.c.strokeStyle = strokeColor;
     GlobalVariables.c.fillStyle = "white";
     GlobalVariables.c.stroke();
     GlobalVariables.c.closePath();
@@ -232,7 +221,7 @@ export default class Atom {
       yInPixels - radiusInPixels
     );
     GlobalVariables.c.fill();
-    GlobalVariables.c.strokeStyle = this.strokeColor;
+    GlobalVariables.c.strokeStyle = strokeColor;
     GlobalVariables.c.lineWidth = 1;
     GlobalVariables.c.stroke();
     GlobalVariables.c.closePath();
@@ -248,7 +237,7 @@ export default class Atom {
             break;
           case AlertType.INFO:
             prefix = "INFO: ";
-            this.color = this.defaultColor;
+            this.color = Atom.DEFAULT_COLOR;
             break;
         }
 
@@ -388,7 +377,7 @@ export default class Atom {
    * Clears the alert message attached to this atom.
    */
   clearAlert() {
-    this.color = this.defaultColor;
+    this.color = Atom.DEFAULT_COLOR;
     this.alert = { type: AlertType.NONE, message: "" };
   }
 

@@ -134,23 +134,17 @@ export default class Input extends Atom {
     if (this.processing) {
       GlobalVariables.c.fillStyle = "blue";
     } else if (this.selected) {
-      GlobalVariables.c.fillStyle = this.selectedColor;
-      GlobalVariables.c.strokeStyle = this.defaultColor;
+      GlobalVariables.c.fillStyle = Atom.SELECTED_COLOR;
+      GlobalVariables.c.strokeStyle = Atom.DEFAULT_COLOR;
       /**
        * This background color
        * @type {string}
        */
-      this.color = this.selectedColor;
-      /**
-       * This atoms accent color
-       * @type {string}
-       */
-      this.strokeColor = this.defaultColor;
+      this.color = Atom.SELECTED_COLOR;
     } else {
-      GlobalVariables.c.fillStyle = this.defaultColor;
-      GlobalVariables.c.strokeStyle = this.selectedColor;
-      this.color = this.defaultColor;
-      this.strokeColor = this.selectedColor;
+      GlobalVariables.c.fillStyle = Atom.DEFAULT_COLOR;
+      GlobalVariables.c.strokeStyle = Atom.SELECTED_COLOR;
+      this.color = Atom.DEFAULT_COLOR;
     }
 
     // Draw the inputs
