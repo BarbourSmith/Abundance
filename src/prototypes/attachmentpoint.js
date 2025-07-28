@@ -1,5 +1,6 @@
 import Connector from "./connector.js";
 import GlobalVariables from "../js/globalvariables.js";
+import Atom from "../prototypes/atom.js";
 import { Global } from "@emotion/react";
 
 /**
@@ -140,7 +141,7 @@ export default class AttachmentPoint {
     var textWidth = GlobalVariables.c.measureText(this.name).width;
 
     var bubbleColor =
-      this.name === "geometry" ? this.parentMolecule.selectedColor : "#C300FF";
+      this.name === "geometry" ? Atom.SELECTED_COLOR : "#C300FF";
     var halfRadius = radiusInPixels * 0.5;
     GlobalVariables.c.globalCompositeOperation = "source-over";
     GlobalVariables.c.beginPath();
@@ -182,7 +183,7 @@ export default class AttachmentPoint {
 
     // Draw text name of this AP
     GlobalVariables.c.beginPath();
-    GlobalVariables.c.fillStyle = this.parentMolecule.defaultColor;
+    GlobalVariables.c.fillStyle = Atom.DEFAULT_COLOR;
     GlobalVariables.c.fillText(this.name, textStart, yInPixels + 2);
     GlobalVariables.c.fill();
     GlobalVariables.c.closePath();
@@ -194,7 +195,9 @@ export default class AttachmentPoint {
     } else {
       GlobalVariables.c.fillStyle = "#6ba4ff";
     }
-    GlobalVariables.c.strokeStyle = this.parentMolecule.strokeColor;
+    GlobalVariables.c.strokeStyle = this.parentMolecule.selected
+      ? Atom.DEFAULT_COLOR
+      : Atom.SELECTED_COLOR;
     GlobalVariables.c.lineWidth = 1;
 
     GlobalVariables.c.arc(
