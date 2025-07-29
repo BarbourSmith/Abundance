@@ -116,7 +116,7 @@ function CreateMode({
       // Set the initial save data to the current project state after loading
       lastSaveData.current = GlobalVariables.topLevelMolecule.serialize();
     }
-  }, [GlobalVariables.loadedRepo]);
+  }, [activeAtom]); // Watch activeAtom changes instead of GlobalVariables.loadedRepo
 
   const handleBodyClick = (e) => {
     if (e.metaKey && e.key == "s") {
