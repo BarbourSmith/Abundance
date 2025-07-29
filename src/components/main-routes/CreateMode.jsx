@@ -110,6 +110,14 @@ function CreateMode({
     return () => clearInterval(myInterval);
   }, []);
 
+  // Initialize lastSaveData when a project is loaded to prevent unnecessary saves
+  useEffect(() => {
+    if (GlobalVariables.loadedRepo && GlobalVariables.topLevelMolecule) {
+      // Set the initial save data to the current project state after loading
+      lastSaveData.current = GlobalVariables.topLevelMolecule.serialize();
+    }
+  }, [GlobalVariables.loadedRepo]);
+
   const handleBodyClick = (e) => {
     if (e.metaKey && e.key == "s") {
       e.preventDefault();
