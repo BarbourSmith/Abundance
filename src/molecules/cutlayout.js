@@ -181,11 +181,11 @@ export default class CutLayout extends Atom {
       clearTimeout(this.positionUpdateTimeout);
     }
     
-    // Set a new timeout to update after 300ms of inactivity
+    // Set a new timeout to update after 200ms of inactivity (reduced from 300ms for better responsiveness)
     this.positionUpdateTimeout = setTimeout(() => {
       this.pendingPositionUpdate = false;
-      this.updateValue();
-    }, 300);
+      this.updateValueOptimized(); // Use optimized update for position changes
+    }, 200);
     
     this.pendingPositionUpdate = true;
   }
@@ -233,6 +233,50 @@ export default class CutLayout extends Atom {
         })
         .catch(this.alertingErrorHandler());
       
+    }
+  }
+
+  /**
+   * Optimized update for manual position changes - only updates display without full recomputation
+   */
+  updateValueOptimized() {
+    super.updateValue();
+
+    if (this.inputs.every((x) => x.ready)) {
+      var inputID = this.findIOValue("geometry");
+      var sheetWidth = this.findIOValue("Sheet Width");
+      var sheetHeight = this.findIOValue("Sheet Height");
+      var partPadding = this.findIOValue("Part Padding");
+
+      if (!inputID) {
+        this.setError('"geometry" input is missing');
+        return;
+      }
+      
+      // if positions isn't a list of lists, nest it so that it is
+      if (this.placements != undefined && this.placements.length > 0 && !Array.isArray(this.placements[0])) {
+        this.placements = [this.placements];
+      }
+
+      // For position-only updates, we can skip the expensive processing flag and recomputation
+      // since we're just applying already-computed positions with minor adjustments
+      GlobalVariables.cad
+        .displayLayout(
+          this.uniqueID,
+          inputID,
+          this.placements,
+          proxy((message) => {this.setWarning(message)}),
+          {
+            width: sheetWidth,
+            height: sheetHeight,
+            partPadding: partPadding,
+            units: GlobalVariables.topLevelMolecule.units[GlobalVariables.topLevelMolecule.unitsKey],
+          })
+        .then(() => {
+          this.basicThreadValueProcessing();
+          // Don't set processing=true for optimized updates to avoid blocking the UI
+        })
+        .catch(this.alertingErrorHandler());
     }
   }
 

@@ -70,7 +70,7 @@ describe("cutlayout.js", () => {
         timeout = setTimeout(() => {
           updateCalled = true;
           pendingUpdate = false;
-        }, 300);
+        }, 200); // Updated to match the new 200ms timeout
         
         pendingUpdate = true;
       };
@@ -88,7 +88,7 @@ describe("cutlayout.js", () => {
         expect(updateCalled).toBe(true);
         expect(pendingUpdate).toBe(false);
         done();
-      }, 350);
+      }, 250); // Updated to wait for the new timeout
     });
   });
 });
