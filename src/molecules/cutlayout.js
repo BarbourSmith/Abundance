@@ -3,6 +3,7 @@ import GlobalVariables from "../js/globalvariables.js";
 //import GlobalVariables from '../js/globalvariables.js'
 import { proxy } from "comlink";
 import { button, LevaInputs } from "leva";
+import useDebounce from "../hooks/useDebounce.js";
 
 
 /**
@@ -55,6 +56,10 @@ export default class CutLayout extends Atom {
     this.progress = 0.0;
 
     this.cancelationHandle = undefined;
+
+    // Add debouncing for manual position changes
+    this.pendingPositionUpdate = false;
+    this.positionUpdateTimeout = null;
 
     this.addIO("input", "geometry", this, "geometry", null);
 
@@ -165,6 +170,24 @@ export default class CutLayout extends Atom {
     this.basicThreadValueProcessing();
     this.updateValue();
     this.createLevaInputs();
+  }
+
+  /**
+   * Debounced update for manual position changes to avoid triggering updates on every keystroke
+   */
+  debouncedPositionUpdate() {
+    // Clear any pending timeout
+    if (this.positionUpdateTimeout) {
+      clearTimeout(this.positionUpdateTimeout);
+    }
+    
+    // Set a new timeout to update after 300ms of inactivity
+    this.positionUpdateTimeout = setTimeout(() => {
+      this.pendingPositionUpdate = false;
+      this.updateValue();
+    }, 300);
+    
+    this.pendingPositionUpdate = true;
   }
 
   /**
@@ -312,7 +335,7 @@ export default class CutLayout extends Atom {
                       placement.translate.y = value.y;
                       placement.rotate = value.z;
           
-                      this.updateValue();
+                      this.debouncedPositionUpdate();
                   }
                 }
             },

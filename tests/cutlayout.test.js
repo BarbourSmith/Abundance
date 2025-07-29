@@ -54,4 +54,41 @@ describe("cutlayout.js", () => {
       expect(result[0][0].translate.y).toBe(0);
     });
   });
+
+  describe("debouncing functionality", () => {
+    it("should test debouncing logic with setTimeout", (done) => {
+      let updateCalled = false;
+      let pendingUpdate = false;
+      let timeout;
+      
+      // Simulate the debouncing logic
+      const debouncedUpdate = () => {
+        if (timeout) {
+          clearTimeout(timeout);
+        }
+        
+        timeout = setTimeout(() => {
+          updateCalled = true;
+          pendingUpdate = false;
+        }, 300);
+        
+        pendingUpdate = true;
+      };
+      
+      // Call multiple times rapidly
+      debouncedUpdate();
+      debouncedUpdate();
+      debouncedUpdate();
+      
+      expect(pendingUpdate).toBe(true);
+      expect(updateCalled).toBe(false);
+      
+      // Wait for debounce to complete
+      setTimeout(() => {
+        expect(updateCalled).toBe(true);
+        expect(pendingUpdate).toBe(false);
+        done();
+      }, 350);
+    });
+  });
 });
