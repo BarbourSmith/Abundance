@@ -206,6 +206,12 @@ class GlobalVariables {
     this.topLevelMolecule;
 
     /**
+     * The initial save data for comparison when determining if project has changed
+     * @type {object}
+     */
+    this.initialSaveData = null;
+
+    /**
      * A flag to indicate if the program is running with a touch interface. Set in flowDraw.js.
      * @type {boolean}
      */

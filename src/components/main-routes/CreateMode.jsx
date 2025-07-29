@@ -110,14 +110,6 @@ function CreateMode({
     return () => clearInterval(myInterval);
   }, []);
 
-  // Initialize lastSaveData when a project is loaded to prevent unnecessary saves
-  useEffect(() => {
-    if (GlobalVariables.loadedRepo && GlobalVariables.topLevelMolecule) {
-      // Set the initial save data to the current project state after loading
-      lastSaveData.current = GlobalVariables.topLevelMolecule.serialize();
-    }
-  }, [activeAtom]); // Watch activeAtom changes instead of GlobalVariables.loadedRepo
-
   const handleBodyClick = (e) => {
     if (e.metaKey && e.key == "s") {
       e.preventDefault();
@@ -407,9 +399,14 @@ function CreateMode({
     //We only want to save if something has actually changed since the last save
     var jsonRepOfProject = GlobalVariables.topLevelMolecule.serialize();
 
+    // Use initialSaveData if lastSaveData is empty (like after project load)
+    const comparisonData = Object.keys(lastSaveData.current).length === 0 
+      ? GlobalVariables.initialSaveData 
+      : lastSaveData.current;
+
     //Don't save again if nothing has changed
     if (
-      JSON.stringify(jsonRepOfProject) == JSON.stringify(lastSaveData.current)
+      JSON.stringify(jsonRepOfProject) == JSON.stringify(comparisonData)
     ) {
       return;
     }
