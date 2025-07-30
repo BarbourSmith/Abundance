@@ -703,21 +703,7 @@ async function importingSVG(targetID, svg, width) {
 }
 
 /**
- * Calculate 3D distance between two points.
- * @param {Array} point1 - First point [x, y, z]
- * @param {Array} point2 - Second point [x, y, z]
- * @returns {number} The 3D distance between the points
- */
-function distance3D(point1, point2) {
-  const dx = point2[0] - point1[0];
-  const dy = point2[1] - point1[1];
-  const dz = point2[2] - point1[2];
-  return Math.sqrt(dx * dx + dy * dy + dz * dz);
-}
-
-/**
- * Visualizes G-code by parsing movement commands and creating optimized 3D wire geometry.
- * This version filters out extremely small movements to improve performance while maintaining connectivity.
+ * Visualizes G-code by parsing movement commands and creating 3D wire geometry.
  * @param {string} targetID - The unique identifier to store the visualized G-code geometry in the library
  * @param {string} gcode - The G-code string to visualize
  * @returns {void} This function does not return a value, it directly stores the result in the library
@@ -741,16 +727,8 @@ function visualizeGcode(targetID, gcode) {
       let y = yMatch ? Number(yMatch[1]) : currentPosition[1];
       let z = zMatch ? Number(zMatch[1]) : currentPosition[2];
 
-      const newPosition = [x, y, z];
-      
-      // Only create a line if the movement is significant enough (> 0.05mm)
-      // This filters out microscopic movements while preserving wire connectivity
-      if (distance3D(currentPosition, newPosition) > 0.05) {
-        edges.push(util.replicad.makeLine(currentPosition, newPosition));
-      }
-      
-      // Always update position to maintain continuity
-      currentPosition = newPosition;
+      edges.push(util.replicad.makeLine(currentPosition, [x, y, z]));
+      currentPosition = [x, y, z];
     }
   });
 
