@@ -4,13 +4,12 @@ import GlobalVariables from "../js/globalvariables.js";
 import { proxy } from "comlink";
 import { button, LevaInputs } from "leva";
 
-
 /**
  * Rearrange all input geometries to fit on a sheet of material. Parts are packed
  * as densely as possible while still respecting part padding. In general, all parts
  * will be arranged to be as thin as possible, however there are some exceptions in
  * order to fit into a sheet of stock with some uniform thickness.
- * 
+ *
  * Params:
  * - geometry: The geometry or assembly to be arranged
  * - width: The width of the sheet
@@ -77,7 +76,7 @@ export default class CutLayout extends Atom {
       "Part Padding",
       this,
       "number",
-      GlobalVariables.topLevelMolecule.unitsKey == "MM" ? 6 : .25
+      GlobalVariables.topLevelMolecule.unitsKey == "MM" ? 6 : 0.25
     );
 
     this.addIO("output", "geometry", this, "geometry", "");
@@ -138,7 +137,6 @@ export default class CutLayout extends Atom {
     GlobalVariables.c.setLineDash([]);
     GlobalVariables.c.closePath();
 
-
     //draw progress circle in the middle
     if (this.progress < 1.0) {
       GlobalVariables.c.beginPath();
@@ -171,7 +169,6 @@ export default class CutLayout extends Atom {
    * We only want the layout to update when the button is pressed not when the inputs update so we block the regular update value behavior
    */
   updateValue() {
-
     super.updateValue();
 
     if (this.inputs.every((x) => x.ready)) {
@@ -186,22 +183,32 @@ export default class CutLayout extends Atom {
         return;
       }
       // if positions isn't a list of lists, nest it so that it is
-      if (this.placements != undefined && this.placements.length > 0 && !Array.isArray(this.placements[0])) {
+      if (
+        this.placements != undefined &&
+        this.placements.length > 0 &&
+        !Array.isArray(this.placements[0])
+      ) {
         this.placements = [this.placements];
       }
-      
+
       GlobalVariables.cad
         .displayLayout(
           this.uniqueID,
           inputID,
           this.placements,
-          proxy((message) => {this.setWarning(message)}),
+          proxy((message) => {
+            this.setWarning(message);
+          }),
           {
             width: sheetWidth,
             height: sheetHeight,
             partPadding: partPadding,
-            units: GlobalVariables.topLevelMolecule.units[GlobalVariables.topLevelMolecule.unitsKey],
-          })
+            units:
+              GlobalVariables.topLevelMolecule.units[
+                GlobalVariables.topLevelMolecule.unitsKey
+              ],
+          }
+        )
         .then(() => {
           this.basicThreadValueProcessing();
           this.progress = 1.0;
@@ -209,7 +216,6 @@ export default class CutLayout extends Atom {
           this.processing = false;
         })
         .catch(this.alertingErrorHandler());
-      
     }
   }
 
@@ -244,15 +250,23 @@ export default class CutLayout extends Atom {
             this.progress = progress;
             this.cancelationHandle = cancelationHandle;
           }),
-          proxy((message) => {this.setWarning(message)}),
-          proxy((placements) => {this.handleNewPlacements(placements)}),
+          proxy((message) => {
+            this.setWarning(message);
+          }),
+          proxy((placements) => {
+            this.handleNewPlacements(placements);
+          }),
           {
             width: sheetWidth,
             height: sheetHeight,
             partPadding: partPadding,
-            units: GlobalVariables.topLevelMolecule.units[GlobalVariables.topLevelMolecule.unitsKey],
+            units:
+              GlobalVariables.topLevelMolecule.units[
+                GlobalVariables.topLevelMolecule.unitsKey
+              ],
           },
-          this.placements)
+          this.placements
+        )
         .then((positions) => {
           this.handleNewPlacements(positions);
         })
@@ -269,60 +283,69 @@ export default class CutLayout extends Atom {
    * Add the "Compute Layout" button to the leva inputs.
    */
   createLevaInputs() {
-      // if positions isn't a list of lists, nest it so that it is. Required for back-compatibility
-      if (this.placements != undefined && this.placements.length > 0 && !Array.isArray(this.placements[0])) {
-        this.placements = [this.placements];
+    // if positions isn't a list of lists, nest it so that it is. Required for back-compatibility
+    if (
+      this.placements != undefined &&
+      this.placements.length > 0 &&
+      !Array.isArray(this.placements[0])
+    ) {
+      this.placements = [this.placements];
+    }
+
+    let inputParams = super.createLevaInputs();
+
+    inputParams["Compute Layout"] = button(() => {
+      this.updateValueButton();
+    });
+
+    let prepareLabel = (sheet, index, totalsheets) => {
+      if (totalsheets > 1) {
+        return "sheet " + sheet + " p" + index;
+      } else {
+        return " " + index;
       }
+    };
 
-      let inputParams = super.createLevaInputs();
-  
-      inputParams["Compute Layout"] = button(() => {
-          this.updateValueButton();
+    //Expose the stored positions
+    let part_counter = 0;
+    const totalSheets = this.placements.length;
+    this.placements.forEach((sheet, index) => {
+      sheet.forEach((placement, part_num) => {
+        inputParams[this.uniqueID + "position" + part_counter] = {
+          value: {
+            x: placement.translate.x,
+            y: placement.translate.y,
+            z: placement.rotate,
+          },
+          label: prepareLabel(index, part_num, totalSheets),
+          step: 0.01,
+          onChange: (value, index) => {
+            const match = index.match(/position(\d+)/);
+            const indexNumber = match ? parseInt(match[1], 10) : null;
+
+            if (indexNumber != null) {
+              const placement = this.placements.flat()[indexNumber];
+              //Update the placement with the new value];
+              //If anything has changed we need to update the value and recompute
+              if (
+                placement.translate.x !== value.x ||
+                placement.translate.y !== value.y ||
+                placement.rotate !== value.z
+              ) {
+                placement.translate.x = value.x;
+                placement.translate.y = value.y;
+                placement.rotate = value.z;
+
+                this.updateValue();
+              }
+            }
+          },
+        };
+        part_counter++;
       });
+    });
 
-      let prepareLabel = (sheet, index, totalsheets) => {
-        if (totalsheets > 1) {
-          return "sheet " + sheet + " p" + index;
-        }
-        else {
-          return " " + index
-        }
-      };
-
-      
-      //Expose the stored positions
-      let part_counter = 0;
-      const totalSheets = this.placements.length;
-      this.placements.forEach((sheet, index) => {
-        sheet.forEach((placement, part_num) => {
-          inputParams[this.uniqueID + "position" + part_counter] = {
-            value: { x: placement.translate.x, y: placement.translate.y, z: placement.rotate },
-            label: prepareLabel(index, part_num, totalSheets),
-            step: 0.01,
-            onChange: (value, index) => {
-                const match = index.match(/position(\d+)/);
-                const indexNumber = match ? parseInt(match[1], 10) : null;
-
-                if (indexNumber != null) {
-                  const placement = this.placements.flat()[indexNumber];
-                  //Update the placement with the new value];
-                  //If anything has changed we need to update the value and recompute
-                  if (placement.translate.x !== value.x || placement.translate.y !== value.y || placement.rotate !== value.z) {
-                      placement.translate.x = value.x;
-                      placement.translate.y = value.y;
-                      placement.rotate = value.z;
-          
-                      this.updateValue();
-                  }
-                }
-            },
-          }
-          part_counter++;
-        });
-      });
-
-
-      return inputParams;
+    return inputParams;
   }
 
   /**
@@ -335,5 +358,4 @@ export default class CutLayout extends Atom {
 
     return valuesObj;
   }
-
 }
