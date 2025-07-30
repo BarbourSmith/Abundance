@@ -25,7 +25,7 @@ describe("gcode visualization", () => {
     };
   });
 
-  describe("line simplification helper functions", () => {
+  describe("distance calculation", () => {
     it("should calculate distance between 3D points correctly", () => {
       // We'll test the helper functions by importing them or creating similar logic
       const distance3D = (p1, p2) => {
@@ -39,102 +39,7 @@ describe("gcode visualization", () => {
       expect(distance3D([0, 0, 0], [0, 0, 0])).toBe(0);
       expect(distance3D([1, 1, 1], [2, 2, 2])).toBeCloseTo(Math.sqrt(3), 5);
     });
-
-    it("should detect collinear points", () => {
-      const areCollinear = (p1, p2, p3, tolerance = 0.01) => {
-        const v1 = [p2[0] - p1[0], p2[1] - p1[1], p2[2] - p1[2]];
-        const v2 = [p3[0] - p1[0], p3[1] - p1[1], p3[2] - p1[2]];
-        
-        const cross = [
-          v1[1] * v2[2] - v1[2] * v2[1],
-          v1[2] * v2[0] - v1[0] * v2[2],
-          v1[0] * v2[1] - v1[1] * v2[0]
-        ];
-        const crossMagnitude = Math.sqrt(cross[0] * cross[0] + cross[1] * cross[1] + cross[2] * cross[2]);
-        
-        const v1Mag = Math.sqrt(v1[0] * v1[0] + v1[1] * v1[1] + v1[2] * v1[2]);
-        const v2Mag = Math.sqrt(v2[0] * v2[0] + v2[1] * v2[1] + v2[2] * v2[2]);
-        const maxMag = Math.max(v1Mag, v2Mag);
-        
-        if (maxMag < tolerance) return true;
-        return (crossMagnitude / maxMag) < tolerance;
-      };
-
-      // Test perfectly collinear points
-      expect(areCollinear([0, 0, 0], [1, 1, 1], [2, 2, 2])).toBe(true);
-      expect(areCollinear([0, 0, 0], [1, 0, 0], [2, 0, 0])).toBe(true);
-      
-      // Test non-collinear points
-      expect(areCollinear([0, 0, 0], [1, 0, 0], [0, 1, 0])).toBe(false);
-    });
-
-    it("should simplify paths by removing unnecessary points", () => {
-      const simplifyPath = (points, minDistance = 0.1, collinearityTolerance = 0.05) => {
-        if (points.length <= 2) return points;
-        
-        const distance3D = (p1, p2) => {
-          const dx = p2[0] - p1[0];
-          const dy = p2[1] - p1[1];
-          const dz = p2[2] - p1[2];
-          return Math.sqrt(dx * dx + dy * dy + dz * dz);
-        };
-
-        const areCollinear = (p1, p2, p3, tolerance = 0.01) => {
-          const v1 = [p2[0] - p1[0], p2[1] - p1[1], p2[2] - p1[2]];
-          const v2 = [p3[0] - p1[0], p3[1] - p1[1], p3[2] - p1[2]];
-          
-          const cross = [
-            v1[1] * v2[2] - v1[2] * v2[1],
-            v1[2] * v2[0] - v1[0] * v2[2],
-            v1[0] * v2[1] - v1[1] * v2[0]
-          ];
-          const crossMagnitude = Math.sqrt(cross[0] * cross[0] + cross[1] * cross[1] + cross[2] * cross[2]);
-          
-          const v1Mag = Math.sqrt(v1[0] * v1[0] + v1[1] * v1[1] + v1[2] * v1[2]);
-          const v2Mag = Math.sqrt(v2[0] * v2[0] + v2[1] * v2[1] + v2[2] * v2[2]);
-          const maxMag = Math.max(v1Mag, v2Mag);
-          
-          if (maxMag < tolerance) return true;
-          return (crossMagnitude / maxMag) < tolerance;
-        };
-        
-        const simplified = [points[0]];
-        
-        for (let i = 1; i < points.length - 1; i++) {
-          const current = points[i];
-          const last = simplified[simplified.length - 1];
-          const next = points[i + 1];
-          
-          const distanceFromLast = distance3D(last, current);
-          if (distanceFromLast < minDistance) {
-            continue;
-          }
-          
-          if (areCollinear(last, current, next, collinearityTolerance)) {
-            continue;
-          }
-          
-          simplified.push(current);
-        }
-        
-        simplified.push(points[points.length - 1]);
-        return simplified;
-      };
-
-      // Test that collinear points are removed
-      const collinearPoints = [[0, 0, 0], [1, 0, 0], [2, 0, 0], [3, 0, 0]];
-      const simplified = simplifyPath(collinearPoints, 0.1, 0.05);
-      expect(simplified.length).toBe(2); // Should keep only start and end
-      expect(simplified[0]).toEqual([0, 0, 0]);
-      expect(simplified[1]).toEqual([3, 0, 0]);
-
-      // Test that points too close together are removed
-      const closePoints = [[0, 0, 0], [0.05, 0, 0], [0.1, 0, 0], [1, 0, 0]];
-      const simplifiedClose = simplifyPath(closePoints, 0.1, 0.05);
-      expect(simplifiedClose.length).toBeLessThan(closePoints.length);
-    });
   });
-
   describe("gcode parsing", () => {
     it("should handle simple linear movements", () => {
       const simpleGcode = `
@@ -185,7 +90,7 @@ G1 X20 Y10 Z0
   });
 
   describe("performance optimization", () => {
-    // Helper function to count edges that would be created
+    // Helper function to count edges that would be created by original approach
     const countEdgesOriginal = (gcode) => {
       let edgeCount = 0;
       let currentPosition = [0, 0, 0];
@@ -213,7 +118,6 @@ G1 X20 Y10 Z0
     const countEdgesOptimized = (gcode) => {
       let edgeCount = 0;
       let currentPosition = [0, 0, 0];
-      let points = [];
       
       const distance3D = (p1, p2) => {
         const dx = p2[0] - p1[0];
@@ -221,22 +125,10 @@ G1 X20 Y10 Z0
         const dz = p2[2] - p1[2];
         return Math.sqrt(dx * dx + dy * dy + dz * dz);
       };
-
-      const simplifyPath = (points) => {
-        if (points.length <= 2) return points;
-        // Simplified version for testing - just remove very close points
-        const simplified = [points[0]];
-        for (let i = 1; i < points.length; i++) {
-          if (distance3D(simplified[simplified.length - 1], points[i]) > 0.1) {
-            simplified.push(points[i]);
-          }
-        }
-        return simplified;
-      };
       
       const lines = gcode.split("\n");
       lines.forEach((line) => {
-        if (line.startsWith("G1")) {
+        if (line.startsWith("G0") || line.startsWith("G1")) {
           const xMatch = line.match(/X([\d.-]+)/);
           const yMatch = line.match(/Y([\d.-]+)/);
           const zMatch = line.match(/Z([\d.-]+)/);
@@ -247,35 +139,14 @@ G1 X20 Y10 Z0
 
           const newPosition = [x, y, z];
           
-          if (distance3D(currentPosition, newPosition) > 0.001) {
-            points.push([...currentPosition]);
-            currentPosition = newPosition;
-          }
-        } else if (line.startsWith("G0")) {
-          if (points.length > 0) {
-            points.push([...currentPosition]);
-            const simplified = simplifyPath(points);
-            edgeCount += simplified.length - 1;
-            points = [];
+          // Only count if movement is significant enough (> 0.05mm)
+          if (distance3D(currentPosition, newPosition) > 0.05) {
+            edgeCount++;
           }
           
-          const xMatch = line.match(/X([\d.-]+)/);
-          const yMatch = line.match(/Y([\d.-]+)/);
-          const zMatch = line.match(/Z([\d.-]+)/);
-
-          let x = xMatch ? Number(xMatch[1]) : currentPosition[0];
-          let y = yMatch ? Number(yMatch[1]) : currentPosition[1];
-          let z = zMatch ? Number(zMatch[1]) : currentPosition[2];
-
-          currentPosition = [x, y, z];
+          currentPosition = newPosition;
         }
       });
-
-      if (points.length > 0) {
-        points.push([...currentPosition]);
-        const simplified = simplifyPath(points);
-        edgeCount += simplified.length - 1;
-      }
       
       return edgeCount;
     };
@@ -284,10 +155,10 @@ G1 X20 Y10 Z0
       // Generate gcode with many tiny movements (like a detailed curve)
       let detailedGcode = "G21\nG90\nG0 X0 Y0 Z5\nG0 X0 Y0 Z0\n";
       
-      // Create many tiny movements
-      for (let i = 0; i <= 200; i++) {
-        const x = i * 0.01; // 0.01mm steps - very small
-        const y = Math.sin(x * 20) * 0.5; // Small sine wave
+      // Create many tiny movements smaller than our 0.05mm threshold
+      for (let i = 0; i <= 100; i++) {
+        const x = i * 0.02; // 0.02mm steps - smaller than threshold
+        const y = Math.sin(x * 20) * 0.1; // Small sine wave
         detailedGcode += `G1 X${x.toFixed(3)} Y${y.toFixed(3)} Z-1\n`;
       }
       
@@ -296,12 +167,12 @@ G1 X20 Y10 Z0
       
       console.log(`Original: ${originalCount} edges, Optimized: ${optimizedCount} edges`);
       
-      // Should see significant reduction
+      // Should see significant reduction because many movements are < 0.05mm
       expect(optimizedCount).toBeLessThan(originalCount * 0.8); // At least 20% reduction
-      expect(originalCount).toBeGreaterThan(200); // Confirms we have many segments
+      expect(originalCount).toBeGreaterThan(100); // Confirms we have many segments
     });
 
-    it("should preserve simple rectangular movements with minimal changes", () => {
+    it("should preserve larger movements with minimal changes", () => {
       const simpleGcode = `
 G21
 G90
@@ -318,38 +189,10 @@ G0 Z5
       
       console.log(`Simple rectangle - Original: ${originalCount} edges, Optimized: ${optimizedCount} edges`);
       
-      // The optimization correctly filters G0 moves, so we expect some reduction
-      // but the geometric complexity should be preserved for actual cutting moves
-      expect(optimizedCount).toBeGreaterThan(0); // Should have some cutting moves
+      // Since all movements are large (10mm), optimization should preserve most
+      expect(optimizedCount).toBeGreaterThan(0); // Should have cutting moves
       expect(optimizedCount).toBeLessThanOrEqual(originalCount); // Should not increase
-    });
-
-    it("should handle mixed G0/G1 movements appropriately", () => {
-      const mixedGcode = `
-G21
-G90
-G0 X0 Y0 Z5
-G1 X5 Y0 Z0
-G1 X5.01 Y0 Z0
-G1 X5.02 Y0 Z0
-G1 X5.03 Y0 Z0
-G1 X10 Y0 Z0
-G0 X20 Y0 Z5
-G1 X25 Y0 Z0
-G1 X25.01 Y0 Z0
-G1 X25.02 Y0 Z0
-G1 X30 Y0 Z0
-G0 Z5
-      `.trim();
-
-      const originalCount = countEdgesOriginal(mixedGcode);
-      const optimizedCount = countEdgesOptimized(mixedGcode);
-      
-      console.log(`Mixed movements - Original: ${originalCount} edges, Optimized: ${optimizedCount} edges`);
-      
-      // Should reduce tiny movements between the main movements
-      expect(optimizedCount).toBeLessThan(originalCount);
-      expect(optimizedCount).toBeGreaterThan(2); // Should still have some meaningful segments
+      expect(optimizedCount).toBeCloseTo(originalCount, 1); // Should be very close
     });
   });
 });

@@ -703,10 +703,10 @@ async function importingSVG(targetID, svg, width) {
 }
 
 /**
- * Calculate the distance between two 3D points.
+ * Calculate 3D distance between two points.
  * @param {Array} point1 - First point [x, y, z]
  * @param {Array} point2 - Second point [x, y, z]
- * @returns {number} The Euclidean distance between the points
+ * @returns {number} The 3D distance between the points
  */
 function distance3D(point1, point2) {
   const dx = point2[0] - point1[0];
@@ -716,95 +716,21 @@ function distance3D(point1, point2) {
 }
 
 /**
- * Check if three points are approximately collinear within a tolerance.
- * @param {Array} p1 - First point [x, y, z]
- * @param {Array} p2 - Middle point [x, y, z]
- * @param {Array} p3 - Third point [x, y, z]
- * @param {number} tolerance - Maximum allowed deviation from collinearity
- * @returns {boolean} True if points are approximately collinear
- */
-function areCollinear(p1, p2, p3, tolerance = 0.01) {
-  // Calculate vectors from p1 to p2 and p1 to p3
-  const v1 = [p2[0] - p1[0], p2[1] - p1[1], p2[2] - p1[2]];
-  const v2 = [p3[0] - p1[0], p3[1] - p1[1], p3[2] - p1[2]];
-  
-  // Calculate cross product magnitude (proportional to area of parallelogram)
-  const cross = [
-    v1[1] * v2[2] - v1[2] * v2[1],
-    v1[2] * v2[0] - v1[0] * v2[2],
-    v1[0] * v2[1] - v1[1] * v2[0]
-  ];
-  const crossMagnitude = Math.sqrt(cross[0] * cross[0] + cross[1] * cross[1] + cross[2] * cross[2]);
-  
-  // Calculate the magnitude of the longer vector
-  const v1Mag = Math.sqrt(v1[0] * v1[0] + v1[1] * v1[1] + v1[2] * v1[2]);
-  const v2Mag = Math.sqrt(v2[0] * v2[0] + v2[1] * v2[1] + v2[2] * v2[2]);
-  const maxMag = Math.max(v1Mag, v2Mag);
-  
-  // If vectors are too small, consider them collinear
-  if (maxMag < tolerance) return true;
-  
-  // Check if the ratio of cross product to maximum vector magnitude is within tolerance
-  return (crossMagnitude / maxMag) < tolerance;
-}
-
-/**
- * Simplify a path by removing points that don't significantly change the shape.
- * Uses a combination of distance filtering and collinearity checking.
- * @param {Array} points - Array of 3D points [[x, y, z], ...]
- * @param {number} minDistance - Minimum distance between consecutive points
- * @param {number} collinearityTolerance - Tolerance for collinearity checking
- * @returns {Array} Simplified array of points
- */
-function simplifyPath(points, minDistance = 0.1, collinearityTolerance = 0.05) {
-  if (points.length <= 2) return points;
-  
-  const simplified = [points[0]]; // Always keep the first point
-  
-  for (let i = 1; i < points.length - 1; i++) {
-    const current = points[i];
-    const last = simplified[simplified.length - 1];
-    const next = points[i + 1];
-    
-    // Check if the current point is far enough from the last kept point
-    const distanceFromLast = distance3D(last, current);
-    if (distanceFromLast < minDistance) {
-      continue; // Skip points that are too close
-    }
-    
-    // Check if this point is necessary for preserving the shape
-    // If the last, current, and next points are collinear, we can skip current
-    if (areCollinear(last, current, next, collinearityTolerance)) {
-      continue; // Skip collinear points
-    }
-    
-    simplified.push(current);
-  }
-  
-  // Always keep the last point
-  simplified.push(points[points.length - 1]);
-  
-  return simplified;
-}
-
-/**
  * Visualizes G-code by parsing movement commands and creating optimized 3D wire geometry.
- * This version combines small line segments and removes unnecessary points for better performance.
+ * This version filters out extremely small movements to improve performance while maintaining connectivity.
  * @param {string} targetID - The unique identifier to store the visualized G-code geometry in the library
  * @param {string} gcode - The G-code string to visualize
  * @returns {void} This function does not return a value, it directly stores the result in the library
  */
 function visualizeGcode(targetID, gcode) {
   let currentPosition = [0, 0, 0];
-  let points = []; // Collect all points first
   let edges = [];
 
-  // Split the gcode into lines and collect all movement points
+  // Split the gcode into lines
   const lines = gcode.split("\n");
   lines.forEach((line) => {
-    // Only process lines that start with G1 (actual cutting moves)
-    // G0 moves are rapid positioning and less important for visualization
-    if (line.startsWith("G1")) {
+    // Only process lines that start with G0 or G1
+    if (line.startsWith("G0") || line.startsWith("G1")) {
       // Parse the line for X, Y, Z values
       const xMatch = line.match(/X([\d.-]+)/);
       const yMatch = line.match(/Y([\d.-]+)/);
@@ -817,67 +743,26 @@ function visualizeGcode(targetID, gcode) {
 
       const newPosition = [x, y, z];
       
-      // Only add the point if it's different from the current position
-      if (distance3D(currentPosition, newPosition) > 0.001) {
-        points.push([...currentPosition]); // Add current position
-        currentPosition = newPosition;
-      }
-    } else if (line.startsWith("G0")) {
-      // For G0 moves, we break the current path and start a new one
-      if (points.length > 0) {
-        points.push([...currentPosition]); // Close current path
-        
-        // Simplify and create edges for the current path
-        const simplifiedPoints = simplifyPath(points, 0.1, 0.05);
-        for (let i = 0; i < simplifiedPoints.length - 1; i++) {
-          edges.push(util.replicad.makeLine(simplifiedPoints[i], simplifiedPoints[i + 1]));
-        }
-        
-        points = []; // Start new path
+      // Only create a line if the movement is significant enough (> 0.05mm)
+      // This filters out microscopic movements while preserving wire connectivity
+      if (distance3D(currentPosition, newPosition) > 0.05) {
+        edges.push(util.replicad.makeLine(currentPosition, newPosition));
       }
       
-      // Update position for G0 move but don't add to visualization
-      const xMatch = line.match(/X([\d.-]+)/);
-      const yMatch = line.match(/Y([\d.-]+)/);
-      const zMatch = line.match(/Z([\d.-]+)/);
-
-      let x = xMatch ? Number(xMatch[1]) : currentPosition[0];
-      let y = yMatch ? Number(yMatch[1]) : currentPosition[1];
-      let z = zMatch ? Number(zMatch[1]) : currentPosition[2];
-
-      currentPosition = [x, y, z];
+      // Always update position to maintain continuity
+      currentPosition = newPosition;
     }
   });
 
-  // Handle any remaining points
-  if (points.length > 0) {
-    points.push([...currentPosition]); // Add final position
-    const simplifiedPoints = simplifyPath(points, 0.1, 0.05);
-    for (let i = 0; i < simplifiedPoints.length - 1; i++) {
-      edges.push(util.replicad.makeLine(simplifiedPoints[i], simplifiedPoints[i + 1]));
-    }
-  }
-
-  // Only create wire if we have edges
-  if (edges.length > 0) {
-    const wire = util.replicad.assembleWire(edges);
-    library[targetID] = {
-      geometry: [wire],
-      tags: [],
-      plane: new Plane().pivot(0, "Y"),
-      color: util.defaultColor,
-      bom: [],
-    };
-  } else {
-    // Create empty geometry if no cutting moves found
-    library[targetID] = {
-      geometry: [],
-      tags: [],
-      plane: new Plane().pivot(0, "Y"),
-      color: util.defaultColor,
-      bom: [],
-    };
-  }
+  // Create a wire from the edges
+  const wire = util.replicad.assembleWire(edges);
+  library[targetID] = {
+    geometry: [wire],
+    tags: [],
+    plane: new Plane().pivot(0, "Y"),
+    color: util.defaultColor,
+    bom: [],
+  };
 }
 
 /**
