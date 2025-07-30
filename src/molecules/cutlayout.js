@@ -50,8 +50,10 @@ export default class CutLayout extends Atom {
      * @type {array}
      */
     this.placements = [];
+    this.hasRerenderedInputs = false;
 
     this.progress = 0.0;
+    this.counter = 0;
 
     this.cancelationHandle = undefined;
 
@@ -158,11 +160,12 @@ export default class CutLayout extends Atom {
     }
   }
 
-  handleNewPlacements(placements) {
+  handleNewPlacements(placements, rerenderInputsCallback) {
     this.placements = placements;
+    this.hasRerenderedInputs = false;
     this.basicThreadValueProcessing();
     this.updateValue();
-    this.createLevaInputs();
+    rerenderInputsCallback();
   }
 
   /**
@@ -222,14 +225,13 @@ export default class CutLayout extends Atom {
   /**
    * Pass the input geometry to a worker function to compute the translation.
    */
-  updateValueButton() {
+  updateValueButton(rerenderInputsCallback) {
     super.updateValue();
 
     if (this.inputs.every((x) => x.ready)) {
       if (this.cancelationHandle) {
-        // There's an in-progress nesting worker. Cancel it and start another nesting
-        // computation with the new inputs.
-        this.cancelationHandle();
+        console.warn("unexpectedly called while already processing.");
+        return;
       }
       this.processing = true;
       var inputID = this.findIOValue("geometry");
@@ -242,19 +244,26 @@ export default class CutLayout extends Atom {
         return;
       }
 
+      const layoutProcessId = this.counter;
+      this.counter++;
+
       GlobalVariables.cad
         .layout(
           this.uniqueID,
           inputID,
           proxy((progress, cancelationHandle) => {
             this.progress = progress;
-            this.cancelationHandle = cancelationHandle;
+            this.cancelationHandle = () => {
+              console.log("cancelation called on process: " + layoutProcessId);
+              cancelationHandle();
+            };
           }),
           proxy((message) => {
             this.setWarning(message);
           }),
           proxy((placements) => {
-            this.handleNewPlacements(placements);
+            console.log("new placements for process: " + layoutProcessId);
+            this.handleNewPlacements(placements, rerenderInputsCallback);
           }),
           {
             width: sheetWidth,
@@ -268,21 +277,30 @@ export default class CutLayout extends Atom {
           this.placements
         )
         .then((positions) => {
-          this.handleNewPlacements(positions);
+          console.log("layout completed for process: " + layoutProcessId);
+          this.handleNewPlacements(positions, rerenderInputsCallback);
         })
         .catch(this.alertingErrorHandler())
         .finally(() => {
-          this.progress = 1.0;
-          this.cancelationHandle = undefined;
-          this.processing = false;
+          this.finishProcessing();
         });
     }
+  }
+
+  finishProcessing() {
+    if (this.cancelationHandle) {
+      this.cancelationHandle();
+      this.cancelationHandle = undefined;
+      this.hasRerenderedInputs = false;
+    }
+    this.progress = 1.0;
+    this.processing = false;
   }
 
   /**
    * Add the "Compute Layout" button to the leva inputs.
    */
-  createLevaInputs() {
+  createLevaInputs(setInputChanged) {
     // if positions isn't a list of lists, nest it so that it is. Required for back-compatibility
     if (
       this.placements != undefined &&
@@ -293,10 +311,25 @@ export default class CutLayout extends Atom {
     }
 
     let inputParams = super.createLevaInputs();
+    console.log("starting with inputParams:");
+    console.log(inputParams);
 
-    inputParams["Compute Layout"] = button(() => {
-      this.updateValueButton();
-    });
+    // If the atom is processing and cancelable, replace
+    // the "Compute Layout" button with a "Halt Processing" button
+    // and trigger a re-render.
+    const isCancelable = this.cancelationHandle != undefined;
+    if (isCancelable) {
+      inputParams["Halt Processing"] = button(() => {
+        this.finishProcessing();
+        setInputChanged(isCancelable);
+      });
+    } else {
+      inputParams["Compute Layout"] = button(() => {
+        this.updateValueButton(() => {
+          setInputChanged(isCancelable);
+        });
+      });
+    }
 
     let prepareLabel = (sheet, index, totalsheets) => {
       if (totalsheets > 1) {
@@ -344,6 +377,16 @@ export default class CutLayout extends Atom {
         part_counter++;
       });
     });
+    if (!this.hasRerenderedInputs) {
+      // If we have already rerendered inputs, we don't need to do it again
+      console.log("createLevaInputs - and rerendering inputs");
+      console.log(this.placements);
+      setInputChanged(this.placements);
+      this.hasRerenderedInputs = true;
+    } else {
+      console.log("createLevaInputs - no rerender.");
+      console.log(this.placements);
+    }
 
     return inputParams;
   }

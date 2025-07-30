@@ -65,18 +65,23 @@ function displayLayout(assembly, positions, warningCallback, layoutConfig) {
   );
 
   const result = applyLayout(rotatedAssembly, positions, layoutConfig);
-  
+
   return [result, rotatedAssembly];
 }
 
 /**
  * Apply the transformations to display already-rotated geometry.
- * This function is used when we already have a pre-rotated assembly 
+ * This function is used when we already have a pre-rotated assembly
  * to avoid calling rotateForLayout again for performance.
  */
-function displayLayoutWithRotatedAssembly(rotatedAssembly, positions, warningCallback, layoutConfig) {
+function displayLayoutWithRotatedAssembly(
+  rotatedAssembly,
+  positions,
+  warningCallback,
+  layoutConfig
+) {
   const result = applyLayout(rotatedAssembly, positions, layoutConfig);
-  
+
   return result;
 }
 
@@ -346,7 +351,7 @@ function applyLayout(rotatedAssembly, positions, layoutConfig) {
       id: leaf.id,
     };
   });
-  
+
   return result;
 }
 
@@ -401,7 +406,6 @@ function computePositions(
   layoutConfig,
   previousPlacements = null
 ) {
-
   const tolerance = 0.2;
   const runtimeMs = 120000;
   const config = {
@@ -437,23 +441,28 @@ function computePositions(
   const packer = new PolygonPacker();
 
   let progressCallbackCounter = 0;
-  const callbackFunction = (num) => {
-    // Forward to the UI thread along with a cancelation handle.
-    // Expect a call every 0.1 seconds for this method.
-    // Unclear what the num argument is supposed to represent
-    progressCallbackCounter++;
-    progressCallback(
-      0.1 + 0.9 * ((progressCallbackCounter * 100) / runtimeMs),
-      proxy(() => {
-        packer.stop(false);
-      })
-    );
-  };
 
   const result = new Promise((resolve, reject) => {
     // See https://github.com/yuriilychak/SVGnest/blob/6ed19cf44cb458b11d7ae4abf1868a513c53420a/packages/polygon-packer/src/types.ts#L31
     let callbackCounter = 0;
     let bestPlacement = null;
+
+    // Start timer right away.
+    const timerId = setTimeout(() => {
+      console.log("Timeout reached. Stopping packer.");
+      if (bestPlacement != null) {
+        packer.stop(true);
+        resolve(bestPlacement);
+      } else {
+        packer.stop(true);
+        console.log(
+          "No placement found within time limit, using default placement at origin."
+        );
+        const defaultPlacements = createDefaultPlacements(shapesForLayout);
+        resolve(defaultPlacements);
+      }
+    }, runtimeMs);
+
     const displayCallback = (
       placementsData,
       placementPercentage,
@@ -473,28 +482,31 @@ function computePositions(
       }
     };
 
+    const clientCancelationHandle = () => {
+      packer.stop(false);
+      clearTimeout(timerId);
+    };
+
+    const packerProgressCallback = (num) => {
+      // Forward to the UI thread along with a cancelation handle.
+      // Expect a call every 0.1 seconds for this method.
+      // Unclear what the num argument is supposed to represent
+      progressCallbackCounter++;
+      progressCallback(
+        0.1 + 0.9 * ((progressCallbackCounter * 100) / runtimeMs),
+        proxy(clientCancelationHandle)
+      );
+    };
+
     try {
       packer.start(
         config,
         polygons,
         bin,
-        callbackFunction,
+        packerProgressCallback,
         displayCallback,
         previousPlacements
       );
-
-      setTimeout(() => {
-        console.log("Timeout reached. Stopping packer.");
-        if (bestPlacement != null) {
-          packer.stop(true);
-          resolve(bestPlacement);
-        } else {
-          packer.stop(true);
-          console.log("No placement found within time limit, using default placement at origin.");
-          const defaultPlacements = createDefaultPlacements(shapesForLayout);
-          resolve(defaultPlacements);
-        }
-      }, runtimeMs);
     } catch (err) {
       console.log("error in nesting engine: " + err);
       packer.stop(true);
@@ -711,4 +723,9 @@ function areaApprox(bounds) {
   return (bounds.uMax - bounds.uMin) * (bounds.vMax - bounds.vMin);
 }
 
-export { layout, displayLayout, displayLayoutWithRotatedAssembly, createDefaultPlacements };
+export {
+  layout,
+  displayLayout,
+  displayLayoutWithRotatedAssembly,
+  createDefaultPlacements,
+};
