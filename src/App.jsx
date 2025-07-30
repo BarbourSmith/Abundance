@@ -185,10 +185,10 @@ export default function ReplicadApp() {
         setActiveAtom(GlobalVariables.currentMolecule);
         GlobalVariables.currentMolecule.selected = true;
         
-        setTimeout(() => {
+        setTimeout(() => { //This works but it's a huge hack. We shouldn't be using setTimeout here
           //Save the deserialized project so that we can compare to prevent saving if nothing has changed
           lastSaveData.current = GlobalVariables.topLevelMolecule.serialize();
-        }, 3000);
+        }, 10000);
 
       })
       .catch((e) => {
