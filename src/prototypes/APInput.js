@@ -1,5 +1,107 @@
 import Connector from "./connector.js";
 import GlobalVariables from "../js/globalvariables.js";
+import Atom from "./atom.js";
+import AttachmentPoint from "./attachmentpoint.js";
+import { Global } from "@emotion/react";
+import ObservableEntity from "./observableEntity.js";
+import { T } from "vitest/dist/chunks/reporters.d.BFLkQcL6.js";
+
+// Mixin function to combine behaviors
+function mixin(BaseClass, ...mixins) {
+  mixins.forEach((mixin) => {
+    Object.assign(BaseClass.prototype, mixin);
+  });
+  return BaseClass;
+}
+
+/**
+ * This class creates a new attachmentPoint which are the input and output blobs on Atoms
+ */
+export default class APInput extends mixin(AttachmentPoint, ObservableEntity) {
+  /**
+   * The constructor function.
+   * @param {object} values An array of values passed in which will be assigned to the class as this.x
+   */
+  constructor(values) {
+    super(values);
+
+
+
+    /**
+     * Whether this AP is currently visible in the Flow Canvas, eg if the mouse is close to this
+     * APs parent molecule.
+     */
+    this.isVisible = false;
+
+    /**
+     * If this AP is in a 'targetted' state. This AP is 'targetted' if a at the mouse's current location a
+     * click or release will activate this AP, starting or completing a connection respectively.
+     */
+    this.isTargeted = false;
+
+    /**
+     * The current position of this AP. Measured in fraction of canvas width (x) or canvas height (x).
+     */
+    this.x;
+    this.y;
+
+    /**
+     * A unique identifying number for this attachment point among all other elements on the Flow Canvas.
+     * @type {number}
+     */
+    this.uniqueID = 0;
+
+    /**
+     * The attachment point type.
+     * @type {string}
+     */
+    this.atomType = "AttachmentPoint";
+
+    /**
+     * The attachment point value type. Options are number, geometry, array.
+     * @type {string}
+     */
+    this.valueType = "number";
+
+    /**
+     * The attachment point type. Options are input, output.
+     * @type {string}
+     */
+    this.type = "output";
+
+    /**
+     * The attachment point current value.
+     * @type {number}
+     */
+    this.value = 10;
+
+    /**
+     * The default value to be used by the ap when nothing is attached
+     * @type {string}
+     */
+    this.defaultValue = 10;
+
+    /**
+     * This atom's parent, usually the molecule which contains this atom...how is this different from this.parent?
+     * @type {object}
+     */
+    this.parentMolecule = null;
+
+    for (var key in values) {
+      /**
+       * Assign values in values as this.x
+       */
+      this[key] = values[key];
+    }
+
+    this.connector = null;
+    this.unsubscribeFn = null;
+    this.type = "input";
+    this.setDefault();
+    this.unexpand();
+  }
+import Connector from "./connector.js";
+import GlobalVariables from "../js/globalvariables.js";
 import Atom from "../prototypes/atom.js";
 import { Global } from "@emotion/react";
 import ObservableEntity from "./observableEntity.js";
@@ -39,7 +141,7 @@ export default class AttachmentPoint {
     this.isVisible = false;
 
     /**
-     * If this AP is in a 'targeted' state. This AP is 'targeted' if a at the mouse's current location a
+     * If this AP is in a 'targetted' state. This AP is 'targetted' if a at the mouse's current location a
      * click or release will activate this AP, starting or completing a connection respectively.
      */
     this.isTargeted = false;
@@ -125,7 +227,7 @@ export default class AttachmentPoint {
 
     let radiusInPixels = GlobalVariables.widthToPixels(this.scaledRadius);
 
-    if (this.isTargetted) {
+    if (this.isTargeted) {
       radiusInPixels = radiusInPixels * AttachmentPoint.TARGET_SCALEUP;
     }
 
@@ -140,15 +242,8 @@ export default class AttachmentPoint {
     GlobalVariables.c.fillStyle = bubbleColor;
 
     var topEdge = yInPixels - radiusInPixels;
-    var leftEdge = xInPixels;
-    if (this.type == "input") {
-      leftEdge = xInPixels - textWidth - radiusInPixels - halfRadius;
-    }
-
+    var leftEdge = xInPixels - textWidth - radiusInPixels - halfRadius;
     var textStart = leftEdge;
-    if (this.type == "output") {
-      textStart = leftEdge + radiusInPixels + halfRadius;
-    }
 
     // Draw pill-shape for the text of this AP
     GlobalVariables.c.arc(
@@ -180,7 +275,7 @@ export default class AttachmentPoint {
     GlobalVariables.c.fill();
     GlobalVariables.c.closePath();
 
-    // Draw the circular connection target
+    // Draw the circular connection target // TODO: do something here with error status
     GlobalVariables.c.beginPath();
     if (this.status == Status.READY) {
       GlobalVariables.c.fillStyle = this.parentMolecule.color;
@@ -212,35 +307,9 @@ export default class AttachmentPoint {
    * @param {boolean} clickProcessed - Has the click already been handled
    */
   clickDown(x, y, clickProcessed) {
-    if (this.isCloseEnoughToTarget(x, y) && !clickProcessed) {
-      if (this.type == "output") {
-        //begin to extend a connector from this if it is an output
-        new Connector({
-          parentMolecule: this.parentMolecule,
-          attachmentPoint1: this,
-          atomType: "Connector",
-          isMoving: true,
-        });
-      }
-      if (this.type == "input") {
-        //connectors can only be selected by clicking on an input
-        this.connectors.forEach((connector) => {
-          //select any connectors attached to this node
-          connector.selected = true;
-        });
-      }
-
-      return true; //indicate that the click was handled by this object
-    } else {
-      if (this.type == "input") {
-        //connectors can only be selected by clicking on an input
-        this.connectors.forEach((connector) => {
-          //unselect any connectors attached to this node
-          connector.selected = false;
-        });
-      }
-      return false; //indicate that the click was not handled by this object
-    }
+    const isClicked = this.isCloseEnoughToTarget(x, y) && !clickProcessed;
+    this.connector?.selected = isClicked;
+    return isClicked;
   }
 
   /**
@@ -249,9 +318,7 @@ export default class AttachmentPoint {
    * @param {number} y - The y coordinate of the click
    */
   clickUp(x, y) {
-    this.connectors.forEach((connector) => {
-      connector.clickUp(x, y);
-    });
+    this.connector?.clickUp(x, y);
   }
 
   /**
@@ -279,14 +346,12 @@ export default class AttachmentPoint {
         this.x,
         this.y
       );
-      this.isTargetted = this.isCloseEnoughToTarget(x, y);
+      this.isTargeted = this.isCloseEnoughToTarget(x, y);
     } else {
       this.unexpand();
     }
 
-    this.connectors.forEach((connector) => {
-      connector.mouseMove(x, y);
-    });
+    this.connector?.mouseMove(x, y);
   }
 
   /**
@@ -295,19 +360,11 @@ export default class AttachmentPoint {
    */
   unexpand() {
     this.isVisible = false;
-    this.isTargetted = false;
-    // Also restore this.x and this.x to be on the perimiter of parent module
+    this.isTargeted = false;
+    // Also restore this.x and this.x to be on the perimeter of parent module
     // since those values are used when rendering connectors.
     this.y = this.parentMolecule.y;
-    if (this.type == "input") {
-      this.x = this.parentMolecule.x - this.parentMolecule.radius;
-    } else {
-      if (this.parentMolecule.atomType == "Input") {
-        this.x = GlobalVariables.atomSize * 3.5;
-      } else {
-        this.x = this.parentMolecule.x + this.parentMolecule.radius;
-      }
-    }
+    this.x = this.parentMolecule.x - this.parentMolecule.radius;
     [this.x, this.y] = GlobalVariables.constrainToCanvasBorders(this.x, this.y);
   }
 
@@ -318,24 +375,7 @@ export default class AttachmentPoint {
    * the parent molecule.
    */
   computePosition(boundary) {
-    const inputList = this.parentMolecule.inputs.filter(
-      (input) => input.type == "input"
-    );
-
-    if (this.type == "output") {
-      if (this.parentMolecule.atomType == "Input") {
-        return [GlobalVariables.atomSize * 4, this.parentMolecule.y];
-      } else {
-        // Outputs are always singular and always positioned partially overlapped by the right-most
-        // pole of the parent molecule.
-        return [
-          this.parentMolecule.x +
-            this.parentMolecule.radius +
-            this.scaledRadius * 0.75,
-          this.parentMolecule.y,
-        ];
-      }
-    } else if (this.type == "input" && inputList.length == 1) {
+    if (this.parentMolecule.inputs.length == 1) {
       // Singular inputs are located in a mirror of the output, ie partially overlapped by the
       // left-most pole of the parent molecule.
       return [
@@ -347,8 +387,8 @@ export default class AttachmentPoint {
     } else {
       // This is one of several input APs for the parent molecule.
       // Otherwise APs are spaced in an arc at a distance around the parent molecule.
-      const attachmentPointNumber = inputList.indexOf(this);
-      const anglePerIO = Math.PI / (inputList.length + 1);
+      const attachmentPointNumber = this.parentMolecule.inputs.indexOf(this);
+      const anglePerIO = Math.PI / (this.parentMolecule.inputs.length + 1);
       // Reduce radius to ensure that the entire attachment point is inside boundary, even when targetted.
       const hoverRadius =
         boundary - this.scaledRadius * AttachmentPoint.TARGET_SCALEUP;
@@ -397,31 +437,25 @@ export default class AttachmentPoint {
 
     const apRadiusInPixels = GlobalVariables.widthToPixels(this.scaledRadius);
 
-    if (this.type == "output") {
-      return dist <= apRadiusInPixels * 2;
-    } else {
-      // this.type == "input"
-      let targetRadius = apRadiusInPixels * 2;
-      // check if this creates overlapping target areas in the case where there's multiple inputs.
-      // If so reduce the targetting radius.
-      const inputCount = this.parentMolecule.inputs.filter(
-        (input) => input.type == "input"
-      ).length;
+    // this.type == "input"
+    let targetRadius = apRadiusInPixels * 2;
+    // check if this creates overlapping target areas in the case where there's multiple inputs.
+    // If so reduce the targeting radius.
+    const inputCount = this.parentMolecule.inputs.length;
 
-      let hoverRadius = GlobalVariables.widthToPixels(
-        AttachmentPoint.DIST_FROM_PARENT * this.parentMolecule.radius -
-          this.scaledRadius * AttachmentPoint.TARGET_SCALEUP
-      );
+    let hoverRadius = GlobalVariables.widthToPixels(
+      AttachmentPoint.DIST_FROM_PARENT * this.parentMolecule.radius -
+        this.scaledRadius * AttachmentPoint.TARGET_SCALEUP
+    );
 
-      const anglePerIO = Math.PI / (inputCount + 1);
-      const maxNonOverlappingRadius = hoverRadius * Math.sin(anglePerIO / 2);
+    const anglePerIO = Math.PI / (inputCount + 1);
+    const maxNonOverlappingRadius = hoverRadius * Math.sin(anglePerIO / 2);
 
-      targetRadius = Math.max(
-        apRadiusInPixels,
-        Math.min(targetRadius, maxNonOverlappingRadius)
-      );
-      return dist < targetRadius;
-    }
+    targetRadius = Math.max(
+      apRadiusInPixels,
+      Math.min(targetRadius, maxNonOverlappingRadius)
+    );
+    return dist < targetRadius;
   }
 
   /**
@@ -429,36 +463,35 @@ export default class AttachmentPoint {
    * @param {string} key - The key which was pressed
    */
   keyPress(key) {
-    this.connectors.forEach((connector) => {
-      connector.keyPress(key);
-    });
+    this.connector?.keyPress(key);
+  }
+
+  /**
+   * Computes the curent position and then draws the ap on the screen.
+   */
+  update() {
+    this.draw();
+    this.connector?.update();
   }
 
   /**
    * Delete any connectors attached to this ap
    */
   deleteSelf(silent = false) {
-    //remove any connectors which were attached to this attachment point
-    var connectorsList = [...this.connectors]; //Make a copy of the list so that we can delete elements without having issues with forEach as we remove things from the list
-    connectorsList.forEach((connector) => {
-      connector.deleteSelf(silent);
-    });
+    this.deleteConnector();
   }
 
   /**
    * Delete a target connector which is passed in. The default option is to delete all of the connectors.
    */
-  deleteConnector(connector = "all") {
-    try {
-      const connectorIndex = this.connectors.indexOf(connector);
-      if (connectorIndex != -1) {
-        this.connectors.splice(connectorIndex, 1); //Remove the target connector
-      } else {
-        this.connectors = []; //Remove all of the connectors
-      }
-    } catch (err) {
-      console.warn("Error deleting connector: ");
-      console.warn(err);
+  deleteConnector(silent = false) {
+    if (this.connector) {
+      this.connector.deleteSelf(silent);
+      this.unsubscribeFn?.();
+      this.connector = null;
+      this.unsubscribeFn = null;
+      this.value = this.type == "number" ? this.defaultValue : null;
+      this.setReady();
     }
   }
 
@@ -468,7 +501,7 @@ export default class AttachmentPoint {
    * @param {number} y - The y coordinate of the target
    */
   wasConnectionMade(x, y) {
-    return this.isCloseEnoughToTarget(x, y) && this.connectors.length == 0;
+    return this.isCloseEnoughToTarget(x, y);
   }
 
   /**
@@ -476,31 +509,29 @@ export default class AttachmentPoint {
    * @param {object} connector - The connector to attach
    */
   attach(connector) {
-    this.connectors.push(connector);
-  }
-
-  /**
-   * Starts propagation from this attachmentPoint if it is not waiting for anything up stream.
-   */
-  beginPropagation() {
-    //If nothing is connected it is a starting point
-    if (this.connectors.length == 0) {
-      this.setValue(this.value);
+    if (!(connector instanceof Connector)) {
+      throw new Error("Connector must be an instance of Connector");
     }
+    this.deleteConnector();
+
+    this.connector = connector;
+    this.unsubscribeFn = connector.subscribe(() => {
+      this.onUpstreamChange();
+    });
   }
 
-  /**
-   * Passes a lock command to the parent molecule, or to the attached connector depending on input/output.
-   */
-  waitOnComingInformation() {
-    if (this.type == "output") {
-      this.connectors.forEach((connector) => {
-        connector.waitOnComingInformation();
-      });
+  onUpstreamChange() {
+    if (!this.connector) {
+      console.warn("Got upstream change callback but no connector attached");
+      return;
+    }
+    const upstreamMolecule = this.connector.attachmentPoint1.parentMolecule;
+    if (upstreamMolecule.status === Status.READY) {
+      this.setValue(upstreamMolecule.getValue());
+    } else if (upstreamMolecule.status != this.status) {
+      this.setStatus(upstreamMolecule.status);
     } else {
-      //If this is an input
-      this.ready = false;
-      this.parentMolecule.waitOnComingInformation(this.name);
+      console.log("no-op because upstream status is the same: ", this.status);
     }
   }
 
@@ -519,34 +550,18 @@ export default class AttachmentPoint {
   }
 
   /**
-   * Sets the current value of the ap. Force forces an update even if the value hasn't changed.
+   * Sets the current value of this AttachmentPoint. Propagates the change if
+   * the value is changed.
+   *
+   * newValue can be undefined or null, in which case the status will be set
+   * to STALE.
    */
   setValue(newValue) {
-    this.value = newValue;
-
-    this.ready = true;
-    //propagate the change to linked elements if this is an output
-    if (this.type == "output") {
-      this.connectors.forEach((connector) => {
-        //select any connectors attached to this node
-        connector.propogate();
-      });
+    const newState =
+      newValue === undefined || newValue === null ? Status.STALE : Status.READY;
+    if (this.status !== newState || this.value !== newValue) {
+      this.value = newValue;
+      this.setStatus(newState);
     }
-    //if this is an input attachment point
-    else {
-      this.parentMolecule.updateValue(this.name);
-    }
-  }
-
-  /**
-   * Computes the curent position and then draws the ap on the screen.
-   */
-  update() {
-    this.draw();
-
-    this.connectors.forEach((connector) => {
-      //update any connectors attached to this node
-      connector.update();
-    });
   }
 }

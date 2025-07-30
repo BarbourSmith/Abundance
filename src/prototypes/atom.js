@@ -2,6 +2,7 @@ import AttachmentPoint from "./attachmentpoint";
 import GlobalVariables from "../js/globalvariables.js";
 import showdown from "showdown";
 import globalvariables from "../js/globalvariables.js";
+import ObservableEntity from "./observableEntity.js";
 
 // Make this an enum once we're using typescript
 const AlertType = Object.freeze({
@@ -14,7 +15,7 @@ const AlertType = Object.freeze({
 /**
  * This class is the prototype for all atoms.
  */
-export default class Atom {
+export default class Atom extends ObservableEntity {
   static SELECTED_COLOR = "#484848";
   static DEFAULT_COLOR = "#F3EFEF";
 
@@ -39,11 +40,7 @@ export default class Atom {
      * @type {number}
      */
     this.uniqueID = GlobalVariables.generateUniqueID();
-    /**
-     * A flag to indicate if the atom is currently computing a new output. Turns the molecule blue.
-     * @type {boolean}
-     */
-    this.processing = false;
+
     /**
      * This atom's value...Is can this be done away with? Are we basically storing the value in the output now?
      * @type {object}
@@ -105,13 +102,6 @@ export default class Atom {
       type: AlertType.NONE,
       message: "",
     };
-
-    for (var key in values) {
-      /**
-       * Assign each of the values in values as this.value
-       */
-      this[key] = values[key];
-    }
   }
 
   /**
@@ -155,7 +145,7 @@ export default class Atom {
     GlobalVariables.c.font = GlobalVariables.canvasFont;
 
     let strokeColor = Atom.DEFAULT_COLOR;
-    if (this.processing) {
+    if (this.status === Status.PROCESSING) {
       GlobalVariables.c.fillStyle = "blue";
     } else if (this.selected) {
       GlobalVariables.c.fillStyle = Atom.SELECTED_COLOR;
@@ -332,19 +322,10 @@ export default class Atom {
    */
   alertingErrorHandler() {
     return (err) => {
-      this.processing = false;
       console.log("Error in atom: " + this.name);
       console.log(err);
       this.setError(err.message || "Unkown error occurred");
     };
-  }
-
-  /**
-   * Set an Error alert to display next to the atom.
-   * @param {string} message - The message to display.
-   */
-  setError(message) {
-    this.alert = { type: AlertType.ERROR, message: String(message) };
   }
 
   /**
@@ -542,7 +523,7 @@ export default class Atom {
   }
 
   /**
-   * Runs with each frame to draw the atom.
+   * UI rendering update. Runs with each frame to draw the atom.
    */
   update() {
     this.inputs.forEach((child) => {
@@ -593,6 +574,54 @@ export default class Atom {
     //request any contributions from this atom to the readme
 
     return [];
+  }
+
+  /**
+   * Compute the value of this atom. This must be overwritten by each atom type.
+   * Passed the list of input values.
+   *
+   * Return a promise which resolves to the computed value or throws an error
+   * if computation fails.
+   */
+  compute(...args) {
+    throw new Error("compute method not implemented in Atom prototype");
+  }
+
+  setReady(value) {
+    this.setStatus(Status.READY);
+    this.value = value;
+  }
+
+  setError(message) {
+    this.setStatus(Status.ERROR);
+    this.alert = { type: AlertType.ERROR, message: String(message) };
+  }
+
+  /**
+   * This method defines the core logic for propagating changes in the DAG.
+   *
+   * This method is called any time an input to this atom changes (including an input
+   * becoming stale, becoming ready etc). There are two possible cases:
+   * 1. After the change all inputs are ready. Set self to processing (and propagate this
+   *   change downstream). Then compute a new value for this atom asynchronously and update
+   *   to either READY or ERROR once that computation is done.
+   * 2. If not all inputs are ready, set self to stale and propagate this change downstream
+   *   as well.
+   */
+  onUpstreamChange() {
+    if (
+      this.inputs.filter((input) => input.ready).length == this.inputs.length
+    ) {
+      const inputVals = this.inputs.map((input) => input.getValue());
+      this.setProcessing();
+      this.compute(...inputVals)
+        .then((value) => {
+          this.setReady(value);
+        })
+        .catch(this.alertingErrorHandler);
+    } else {
+      this.setStale();
+    }
   }
 
   /**
