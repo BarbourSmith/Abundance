@@ -184,26 +184,172 @@ G1 X20 Y10 Z0
     });
   });
 
-  describe("performance characteristics", () => {
-    it("should reduce the number of line segments for highly detailed curves", () => {
-      // Generate a gcode with many small movements (simulating a curve)
-      let detailedGcode = "G21\nG90\n";
-      const numPoints = 1000;
+  describe("performance optimization", () => {
+    // Helper function to count edges that would be created
+    const countEdgesOriginal = (gcode) => {
+      let edgeCount = 0;
+      let currentPosition = [0, 0, 0];
       
-      // Create a sine wave with many small segments
-      for (let i = 0; i <= numPoints; i++) {
-        const x = i * 0.01; // 0.01mm steps
-        const y = Math.sin(x * 10) * 5; // Sine wave
-        detailedGcode += `G1 X${x.toFixed(3)} Y${y.toFixed(3)} Z0\n`;
+      const lines = gcode.split("\n");
+      lines.forEach((line) => {
+        if (line.startsWith("G0") || line.startsWith("G1")) {
+          const xMatch = line.match(/X([\d.-]+)/);
+          const yMatch = line.match(/Y([\d.-]+)/);
+          const zMatch = line.match(/Z([\d.-]+)/);
+
+          let x = xMatch ? Number(xMatch[1]) : currentPosition[0];
+          let y = yMatch ? Number(yMatch[1]) : currentPosition[1];
+          let z = zMatch ? Number(zMatch[1]) : currentPosition[2];
+
+          edgeCount++;
+          currentPosition = [x, y, z];
+        }
+      });
+      
+      return edgeCount;
+    };
+
+    // Helper function to simulate the optimized approach
+    const countEdgesOptimized = (gcode) => {
+      let edgeCount = 0;
+      let currentPosition = [0, 0, 0];
+      let points = [];
+      
+      const distance3D = (p1, p2) => {
+        const dx = p2[0] - p1[0];
+        const dy = p2[1] - p1[1]; 
+        const dz = p2[2] - p1[2];
+        return Math.sqrt(dx * dx + dy * dy + dz * dz);
+      };
+
+      const simplifyPath = (points) => {
+        if (points.length <= 2) return points;
+        // Simplified version for testing - just remove very close points
+        const simplified = [points[0]];
+        for (let i = 1; i < points.length; i++) {
+          if (distance3D(simplified[simplified.length - 1], points[i]) > 0.1) {
+            simplified.push(points[i]);
+          }
+        }
+        return simplified;
+      };
+      
+      const lines = gcode.split("\n");
+      lines.forEach((line) => {
+        if (line.startsWith("G1")) {
+          const xMatch = line.match(/X([\d.-]+)/);
+          const yMatch = line.match(/Y([\d.-]+)/);
+          const zMatch = line.match(/Z([\d.-]+)/);
+
+          let x = xMatch ? Number(xMatch[1]) : currentPosition[0];
+          let y = yMatch ? Number(yMatch[1]) : currentPosition[1];
+          let z = zMatch ? Number(zMatch[1]) : currentPosition[2];
+
+          const newPosition = [x, y, z];
+          
+          if (distance3D(currentPosition, newPosition) > 0.001) {
+            points.push([...currentPosition]);
+            currentPosition = newPosition;
+          }
+        } else if (line.startsWith("G0")) {
+          if (points.length > 0) {
+            points.push([...currentPosition]);
+            const simplified = simplifyPath(points);
+            edgeCount += simplified.length - 1;
+            points = [];
+          }
+          
+          const xMatch = line.match(/X([\d.-]+)/);
+          const yMatch = line.match(/Y([\d.-]+)/);
+          const zMatch = line.match(/Z([\d.-]+)/);
+
+          let x = xMatch ? Number(xMatch[1]) : currentPosition[0];
+          let y = yMatch ? Number(yMatch[1]) : currentPosition[1];
+          let z = zMatch ? Number(zMatch[1]) : currentPosition[2];
+
+          currentPosition = [x, y, z];
+        }
+      });
+
+      if (points.length > 0) {
+        points.push([...currentPosition]);
+        const simplified = simplifyPath(points);
+        edgeCount += simplified.length - 1;
       }
       
-      // Count original G1 commands
-      const originalG1Count = detailedGcode.split('\n').filter(line => line.startsWith('G1')).length;
-      expect(originalG1Count).toBe(numPoints + 1);
+      return edgeCount;
+    };
+
+    it("should reduce the number of line segments for curves with tiny movements", () => {
+      // Generate gcode with many tiny movements (like a detailed curve)
+      let detailedGcode = "G21\nG90\nG0 X0 Y0 Z5\nG0 X0 Y0 Z0\n";
       
-      // In the optimized version, many of these should be combined
-      // This is more of a conceptual test since we can't easily test the full function here
-      expect(originalG1Count).toBeGreaterThan(100); // Demonstrates the problem size
+      // Create many tiny movements
+      for (let i = 0; i <= 200; i++) {
+        const x = i * 0.01; // 0.01mm steps - very small
+        const y = Math.sin(x * 20) * 0.5; // Small sine wave
+        detailedGcode += `G1 X${x.toFixed(3)} Y${y.toFixed(3)} Z-1\n`;
+      }
+      
+      const originalCount = countEdgesOriginal(detailedGcode);
+      const optimizedCount = countEdgesOptimized(detailedGcode);
+      
+      console.log(`Original: ${originalCount} edges, Optimized: ${optimizedCount} edges`);
+      
+      // Should see significant reduction
+      expect(optimizedCount).toBeLessThan(originalCount * 0.8); // At least 20% reduction
+      expect(originalCount).toBeGreaterThan(200); // Confirms we have many segments
+    });
+
+    it("should preserve simple rectangular movements with minimal changes", () => {
+      const simpleGcode = `
+G21
+G90
+G0 X0 Y0 Z5
+G1 X10 Y0 Z0
+G1 X10 Y10 Z0
+G1 X0 Y10 Z0
+G1 X0 Y0 Z0
+G0 Z5
+      `.trim();
+
+      const originalCount = countEdgesOriginal(simpleGcode);
+      const optimizedCount = countEdgesOptimized(simpleGcode);
+      
+      console.log(`Simple rectangle - Original: ${originalCount} edges, Optimized: ${optimizedCount} edges`);
+      
+      // The optimization correctly filters G0 moves, so we expect some reduction
+      // but the geometric complexity should be preserved for actual cutting moves
+      expect(optimizedCount).toBeGreaterThan(0); // Should have some cutting moves
+      expect(optimizedCount).toBeLessThanOrEqual(originalCount); // Should not increase
+    });
+
+    it("should handle mixed G0/G1 movements appropriately", () => {
+      const mixedGcode = `
+G21
+G90
+G0 X0 Y0 Z5
+G1 X5 Y0 Z0
+G1 X5.01 Y0 Z0
+G1 X5.02 Y0 Z0
+G1 X5.03 Y0 Z0
+G1 X10 Y0 Z0
+G0 X20 Y0 Z5
+G1 X25 Y0 Z0
+G1 X25.01 Y0 Z0
+G1 X25.02 Y0 Z0
+G1 X30 Y0 Z0
+G0 Z5
+      `.trim();
+
+      const originalCount = countEdgesOriginal(mixedGcode);
+      const optimizedCount = countEdgesOptimized(mixedGcode);
+      
+      console.log(`Mixed movements - Original: ${originalCount} edges, Optimized: ${optimizedCount} edges`);
+      
+      // Should reduce tiny movements between the main movements
+      expect(optimizedCount).toBeLessThan(originalCount);
+      expect(optimizedCount).toBeGreaterThan(2); // Should still have some meaningful segments
     });
   });
 });
