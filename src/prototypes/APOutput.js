@@ -1,13 +1,13 @@
 import Connector from "./connector.js";
 import GlobalVariables from "../js/globalvariables.js";
-import Atom from "../prototypes/atom.js";
+import Atom from "./atom.js";
+import AttachmentPoint from "./attachmentpoint.js";
 import { Global } from "@emotion/react";
-import ObservableEntity from "./observableEntity.js";
 
 /**
  * This class creates a new attachmentPoint which are the input and output blobs on Atoms
  */
-export default class AttachmentPoint {
+export default class AttachmentPoint extends AttachmentPoint {
   // Constant dictates how far from the parent molecule APs are rendered when in a hover position.
   // Expressed as a multiple of the parents radius.
   static get DIST_FROM_PARENT() {
@@ -30,8 +30,6 @@ export default class AttachmentPoint {
    * @param {object} values An array of values passed in which will be assigned to the class as this.x
    */
   constructor(values) {
-    super();
-
     /**
      * Whether this AP is currently visible in the Flow Canvas, eg if the mouse is close to this
      * APs parent molecule.
@@ -39,10 +37,10 @@ export default class AttachmentPoint {
     this.isVisible = false;
 
     /**
-     * If this AP is in a 'targeted' state. This AP is 'targeted' if a at the mouse's current location a
+     * If this AP is in a 'targetted' state. This AP is 'targetted' if a at the mouse's current location a
      * click or release will activate this AP, starting or completing a connection respectively.
      */
-    this.isTargeted = false;
+    this.isTargetted = false;
 
     /**
      * The current position of this AP. Measured in fraction of canvas width (x) or canvas height (x).
@@ -86,6 +84,17 @@ export default class AttachmentPoint {
      */
     this.defaultValue = 10;
 
+    /**
+     * A flag to indicate if the attachment point is currently ready. Used to order initilization when program is loaded.
+     * @type {string}
+     */
+    this.ready = true;
+
+    /**
+     * A list of all of the connectors attached to this attachment point
+     * @type {object}
+     */
+    this.connectors = [];
     /**
      * This atom's parent, usually the molecule which contains this atom...how is this different from this.parent?
      * @type {object}
@@ -182,7 +191,7 @@ export default class AttachmentPoint {
 
     // Draw the circular connection target
     GlobalVariables.c.beginPath();
-    if (this.status == Status.READY) {
+    if (this.ready) {
       GlobalVariables.c.fillStyle = this.parentMolecule.color;
     } else {
       GlobalVariables.c.fillStyle = "#6ba4ff";
@@ -509,6 +518,19 @@ export default class AttachmentPoint {
    */
   setDefault() {
     this.setValue(this.defaultValue);
+  }
+
+  /**
+   * Updates the default value for the ap.
+   */
+  updateDefault(newDefault) {
+    var oldDefault = this.defaultValue;
+    this.defaultValue = newDefault;
+
+    if (this.connectors.length == 0 && this.value == oldDefault) {
+      //Update the value to be the default if there is nothing attached
+      this.value = this.defaultValue;
+    }
   }
 
   /**
