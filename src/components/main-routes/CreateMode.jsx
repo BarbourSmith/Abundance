@@ -399,7 +399,14 @@ function CreateMode({
     //We only want to save if something has actually changed since the last save
     var jsonRepOfProject = GlobalVariables.topLevelMolecule.serialize();
 
-    // Use initialSaveData if lastSaveData is empty (like after project load)
+    // Handle project just loaded case
+    if (GlobalVariables.projectJustLoaded) {
+      // Reset the save reference and use the loaded project state as baseline
+      lastSaveData.current = GlobalVariables.initialSaveData;
+      GlobalVariables.projectJustLoaded = false;
+    }
+
+    // Use initialSaveData if lastSaveData is empty (legacy fallback)
     const comparisonData = Object.keys(lastSaveData.current).length === 0 
       ? GlobalVariables.initialSaveData 
       : lastSaveData.current;

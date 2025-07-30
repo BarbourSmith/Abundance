@@ -185,7 +185,9 @@ export default function ReplicadApp() {
         GlobalVariables.currentMolecule.selected = true;
         
         // Initialize the save system with the current project state to prevent unnecessary saves
+        // This must be done AFTER all post-load modifications are complete
         GlobalVariables.initialSaveData = GlobalVariables.topLevelMolecule.serialize();
+        GlobalVariables.projectJustLoaded = true;
       })
       .catch((e) => {
         alert("Can't load/find project " + e);

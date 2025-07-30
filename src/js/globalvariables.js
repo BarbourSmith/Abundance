@@ -212,6 +212,12 @@ class GlobalVariables {
     this.initialSaveData = null;
 
     /**
+     * Flag to indicate if a project was just loaded and save system needs initialization
+     * @type {boolean}
+     */
+    this.projectJustLoaded = false;
+
+    /**
      * A flag to indicate if the program is running with a touch interface. Set in flowDraw.js.
      * @type {boolean}
      */
