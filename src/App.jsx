@@ -1,3 +1,18 @@
+/**
+ * Main Application Component for Abundance CAD
+ * 
+ * This is the root component that sets up:
+ * - Authentication state management
+ * - 3D CAD worker thread initialization
+ * - Routing between Login, Create, and Run modes
+ * - Global state for mesh rendering and themes
+ * 
+ * Architecture:
+ * - Uses HashRouter for GitHub Pages compatibility
+ * - Wraps CAD worker with Comlink for easy async communication
+ * - Manages global application state (auth, mesh, theme)
+ */
+
 import React, { useState, useEffect } from "react";
 import { Octokit } from "https://esm.sh/octokit@2.0.19";
 import {
@@ -23,21 +38,39 @@ import "./styles/menuIcons.css";
 import "./styles/login.css";
 import "./styles/codemirror.css";
 
-
+// React Query client for GitHub API caching
 const queryClient = new QueryClient();
-/**
- * The octokit instance which allows authenticated interaction with GitHub.
- * @type {object}
- */
 
+/**
+ * CAD worker instance wrapped with Comlink for easy async communication
+ * Handles heavy 3D geometry computations off the main thread
+ */
 const cad = wrap(new cadWorker());
+
+/**
+ * Main application component that orchestrates the entire Abundance CAD system
+ */
 export default function ReplicadApp() {
+  // 3D Mesh state - manages the current geometry being displayed
   const [size, setSize] = useState(5);
   const [mesh, setMesh] = useState({});
   const [wireMesh, setWireMesh] = useState(null);
   const [outdatedMesh, setOutdatedMesh] = useState(false);
+  
+  // Authentication and user state
   const [isAuthorized, setIsAuthorized] = useState(false);
+  const [isloggedIn, setIsLoggedIn] = useState(false);
+  const [authorizedUserOcto, setAuthorizedUserOcto] = useState(null);
+  
+  // UI state management
+  const [activeAtom, setActiveAtom] = useState(null);
+  const [exportPopUp, setExportPopUp] = useState(false);
+  const [redirectType, setRedirectType] = useState(null);
+  const [shortCutsOn, setShortCuts] = useState(
+    localStorage.getItem("shortcuts") === "true"
+  );
 
+  // Initialize 3D mesh on component mount
   useEffect(() => {
     cad.createMesh(size).then((m) => {
       setMesh(m);
@@ -45,6 +78,7 @@ export default function ReplicadApp() {
     });
   }, [size]);
 
+  // Load saved theme preference
   useEffect(() => {
     const element = document.querySelector("html");
     const storedClass = localStorage.getItem("displayTheme");
@@ -54,17 +88,10 @@ export default function ReplicadApp() {
     }
   }, []);
 
-  const [isloggedIn, setIsLoggedIn] = useState(false);
-  const [activeAtom, setActiveAtom] = useState(null);
-  const [exportPopUp, setExportPopUp] = useState(false);
-  const [redirectType, setRedirectType] = useState(null);
-
-  const [authorizedUserOcto, setAuthorizedUserOcto] = useState(null);
-  const [shortCutsOn, setShortCuts] = useState(
-    localStorage.getItem("shortcuts") === "true"
-  );
-
-  /* Creates an element to check with Puppeteer if the molecule is fully loaded*/
+  /**
+   * Creates a hidden div element for Puppeteer testing to detect when
+   * molecules are fully loaded and rendered
+   */
   const createPuppeteerDiv = () => {
     // Check if the div already exists
     const existingDiv = document.getElementById(
@@ -78,6 +105,7 @@ export default function ReplicadApp() {
       document.body.appendChild(invisibleDiv);
     }
   };
+  
   const loadingDotsNone = () => {
     const loadingDots = document.querySelector(".loading");
     if (loadingDots) {
