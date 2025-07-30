@@ -37,6 +37,7 @@ export default function ReplicadApp() {
   const [wireMesh, setWireMesh] = useState(null);
   const [outdatedMesh, setOutdatedMesh] = useState(false);
   const [isAuthorized, setIsAuthorized] = useState(false);
+  const lastSaveData = React.useRef(null);
 
   useEffect(() => {
     cad.createMesh(size).then((m) => {
@@ -183,6 +184,12 @@ export default function ReplicadApp() {
         }
         setActiveAtom(GlobalVariables.currentMolecule);
         GlobalVariables.currentMolecule.selected = true;
+        
+        setTimeout(() => {
+          //Save the deserialized project so that we can compare to prevent saving if nothing has changed
+          lastSaveData.current = GlobalVariables.topLevelMolecule.serialize();
+        }, 3000);
+
       })
       .catch((e) => {
         alert("Can't load/find project " + e);
@@ -246,6 +253,7 @@ export default function ReplicadApp() {
                   setWireMesh,
                   outdatedMesh,
                   setOutdatedMesh,
+                  lastSaveData
                 }}
               />
             }

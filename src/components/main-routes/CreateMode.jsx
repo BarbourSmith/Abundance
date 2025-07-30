@@ -39,6 +39,7 @@ function CreateMode({
   setWireMesh,
   outdatedMesh,
   setOutdatedMesh,
+  lastSaveData,
 }) {
   const navigate = useNavigate();
 
@@ -58,8 +59,6 @@ function CreateMode({
 
   /** State for top level molecule */
   const [currentMoleculeTop, setTop] = useState(false);
-
-  const lastSaveData = useRef({}); // The object saved last time the project was saved...used for comparison
 
   /**
    * Object containing letters and values used for keyboard shortcuts
@@ -403,6 +402,7 @@ function CreateMode({
     if (
       JSON.stringify(jsonRepOfProject) == JSON.stringify(lastSaveData.current)
     ) {
+      setState(100);
       return;
     }
 
