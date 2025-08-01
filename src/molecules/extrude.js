@@ -25,11 +25,11 @@ export default class Extrude extends Atom {
      * A description of this atom
      * @type {string}
      */
-    this.description = "Extrudes a 2D shape. Input can be negitive. ";
+    this.description = "Extrudes a 2D shape. Input can be negative.";
 
-    this.addIO("input", "geometry", this, "geometry", "", false, true);
-    this.addIO("input", "height", this, "number", 10.0);
-    this.addIO("output", "geometry", this, "geometry", "");
+    this.addIO("geometry", "geometry");
+    this.addIO("height", "number", 10.0);
+    this.addIO("geometry", "geometry", undefined, "output");
 
     this.setValues(values);
   }

@@ -701,8 +701,9 @@ export default class Molecule extends Atom {
 
   /**
    * Reads molecule's output atom ID to recompute the molecule in worker
-   */
+   *
   recomputeMolecule(outputID) {
+    // TODO: tristan a bunch of this needs to change but there's interesting cases highlighted.
     try {
       this.processing = true;
       const centeredText = document.querySelector(".loading");
@@ -734,7 +735,7 @@ export default class Molecule extends Atom {
     } catch (err) {
       this.setError(err);
     }
-  }
+  }*/
 
   /**
    * Called when this molecules value changes

@@ -16,7 +16,7 @@ class ObservableEntity {
 
   setStatus(status, force = false) {
     if (this.status != status || force) {
-      console.log(
+      console.debug(
         "changing status for " +
           this.constructor.name +
           " from " +

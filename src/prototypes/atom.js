@@ -259,33 +259,39 @@ export default class Atom extends ObservableEntity {
     }
   }
 
+  addNumericInput(name, defaultValue = 0) {
+    this.addIO(name, "number", defaultValue);
+  }
+
+  addGeometryInput(name, defaultValue = undefined) {
+    this.addIO(name, "geometry", defaultValue);
+  }
+
   /**
    * Adds a new attachment point to this atom
-   * @param {boolean} type - The type of the IO (input or output)
    * @param {string} name - The name of the new attachment point
-   * @param {object} target - The atom to attach the new attachment point to. Should we force this to always be this one?
    * @param {string} valueType - Describes the type of value the input is expecting options are number, geometry, array
    * @param {object} defaultValue - The default value to be used when the value is not yet set
+   * @param {string} type - Default is "input", may be overwritten to "output"
    */
-  addIO(type, name, target, valueType, defaultValue, ready, primary = false) {
+  addIO(name, valueType, defaultValue = undefined, type = "input") {
     //compute the baseline offset from parent node
     if (
-      target.inputs.find((o) => o.name === name && o.type === type) == undefined
+      this.inputs.find((o) => o.name === name && o.type === type) == undefined
     ) {
       var offset;
       if (type == "input") {
-        offset = -1 * target.scaledRadius;
+        offset = -1 * this.scaledRadius;
       } else {
-        offset = target.scaledRadius;
+        offset = this.scaledRadius;
       }
       var newAp = new AttachmentPoint({
-        parentMolecule: target,
+        parentMolecule: this,
         defaultOffsetX: offset,
         defaultOffsetY: 0,
         type: type,
         valueType: valueType,
         name: name,
-        primary: primary,
         value: defaultValue,
         defaultValue: defaultValue,
         uniqueID: GlobalVariables.generateUniqueID(),
@@ -295,11 +301,11 @@ export default class Atom extends ObservableEntity {
 
       if (type == "input") {
         const unsubFn = newAp.subscribe(() => {
-          target.onUpstreamChange();
+          this.onUpstreamChange();
         });
-        target.inputs.push({ ap: newAp, unsubscribeFn: unsubFn });
+        this.inputs.push({ ap: newAp, unsubscribeFn: unsubFn });
       } else {
-        target.output = newAp;
+        this.output = newAp;
       }
     }
   }

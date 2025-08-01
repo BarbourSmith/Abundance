@@ -12,9 +12,9 @@ export default class RegularPolygon extends Atom {
   constructor(values) {
     super(values);
 
-    this.addIO("input", "number of sides", this, "number", 6);
-    this.addIO("input", "diameter", this, "number", 10.0);
-    this.addIO("output", "geometry", this, "geometry", "");
+    this.addIO("number of sides", "number", 6);
+    this.addIO("diameter", "number", 10.0);
+    this.addIO("geometry", "geometry", undefined, "output");
 
     /**
      * This atom's name
@@ -34,6 +34,7 @@ export default class RegularPolygon extends Atom {
       "Creates a new regular polygon. Corners are on the diameter.";
 
     this.setValues(values);
+    this.onUpstreamChange();
   }
 
   /**

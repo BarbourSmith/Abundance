@@ -67,7 +67,7 @@ export default class Output extends Atom {
 
     this.setValues(values);
 
-    this.addIO("input", "number or geometry", this, "geometry", undefined);
+    this.addIO("number or geometry", "geometry");
   }
 
   compute(argsDict) {

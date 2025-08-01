@@ -85,7 +85,7 @@ export default class AttachmentPoint extends ObservableEntity {
      * The default value to be used by the ap when nothing is attached
      * @type {string}
      */
-    this.defaultValue = 10;
+    this.defaultValue = this.valueType == "number" ? 10 : null;
 
     /**
      * This atom's parent, usually the molecule which contains this atom...how is this different from this.parent?
@@ -187,7 +187,10 @@ export default class AttachmentPoint extends ObservableEntity {
     if (this.type == "output") {
       GlobalVariables.c.fillStyle = this.parentMolecule.color;
     } else {
-      GlobalVariables.c.fillStyle = Atom.statusAsColor(this.status, this.parentMolecule.selected);
+      GlobalVariables.c.fillStyle = Atom.statusAsColor(
+        this.status,
+        this.parentMolecule.selected
+      );
     }
 
     GlobalVariables.c.strokeStyle = this.parentMolecule.selected
@@ -508,6 +511,7 @@ export default class AttachmentPoint extends ObservableEntity {
       this.unsubscribeFn = upstream.subscribe(() => {
         this.onUpstreamChange();
       });
+      this.onUpstreamChange(); // the new connection itself constitutes an upstream change.
     } else {
       this.connectors.push(connector);
     }
