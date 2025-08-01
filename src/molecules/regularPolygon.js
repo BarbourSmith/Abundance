@@ -75,31 +75,18 @@ export default class RegularPolygon extends Atom {
     GlobalVariables.c.closePath();
   }
 
-  /**
-   * Starts propagation from this atom if it is not waiting for anything up stream.
-   */
-
-  beginPropagation(force = false) {
-    //Check to see if a value already exists. Generate it if it doesn't. Only do this for circles, rectangles, and regular polygons
-
-    this.inputs.forEach((input) => {
-      input.beginPropagation();
-    });
-  }
-
-  /**
-   * Create a new regular polygon in a worker thread.
-   */
-  updateValue() {
-    super.updateValue();
-    var numberOfSides = this.findIOValue("number of sides");
-    var diameter = this.findIOValue("diameter");
-
-    GlobalVariables.cad
-      .regularPolygon(this.uniqueID, diameter / 2, numberOfSides)
-      .then(() => {
-        this.basicThreadValueProcessing();
-      })
-      .catch(this.alertingErrorHandler());
+  // order of args dictated by the order in which they're initialized in the constructor.
+  compute(argsDict) {
+    console.log("computing new regular polygon with args:", argsDict);
+    return GlobalVariables.cad
+      .regularPolygon(
+        this.uniqueID,
+        argsDict.diameter / 2,
+        argsDict["number of sides"]
+      )
+      .then((geometry) => {
+        console.log("finished computing new regular polygon");
+        return this.uniqueID;
+      });
   }
 }

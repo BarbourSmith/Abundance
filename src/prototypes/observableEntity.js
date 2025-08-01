@@ -8,33 +8,41 @@ const Status = Object.freeze({
 /**
  * An observable component of the project DAG.
  */
-export default class ObservableEntity {
+class ObservableEntity {
   constructor() {
     this.status = Status.STALE;
     this.subscribers = [];
   }
 
-  setStatus(status) {
-    if (this.status != status) {
+  setStatus(status, force = false) {
+    if (this.status != status || force) {
+      console.log(
+        "changing status for " +
+          this.constructor.name +
+          " from " +
+          this.status +
+          " to " +
+          status
+      );
       this.status = status;
       this.propagateChange();
     }
   }
 
-  setStale() {
-    this.setStatus(Status.STALE);
+  setStale(force = false) {
+    this.setStatus(Status.STALE, force);
   }
 
-  setProcessing() {
-    this.setStatus(Status.PROCESSING);
+  setProcessing(force = false) {
+    this.setStatus(Status.PROCESSING, force);
   }
 
-  setError() {
-    this.setStatus(Status.ERROR);
+  setError(force = false) {
+    this.setStatus(Status.ERROR, force);
   }
 
-  setReady() {
-    this.setStatus(Status.READY);
+  setReady(force = false) {
+    this.setStatus(Status.READY, force);
   }
 
   /**
@@ -70,3 +78,5 @@ export default class ObservableEntity {
     });
   }
 }
+
+export { ObservableEntity, Status };

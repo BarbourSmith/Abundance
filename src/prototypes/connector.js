@@ -106,11 +106,12 @@ export default class Connector {
     if (this.isMoving) {
       //we only want to attach the connector which is currently moving
       var attachmentMade = false;
-      
+
       // First, try the traditional way - check if mouse is directly over an input attachment point
       GlobalVariables.currentMolecule.nodesOnTheScreen.forEach((molecule) => {
         //For every molecule on the screen
-        molecule.inputs.forEach((attachmentPoint) => {
+        molecule.inputs.forEach((input) => {
+          const attachmentPoint = input.ap;
           //For each of their attachment points
           if (attachmentPoint.wasConnectionMade(x, y) && !attachmentMade) {
             /** Prevent it from connecting to itself  */
@@ -127,23 +128,28 @@ export default class Connector {
           }
         });
       });
-      
+
       // If no direct connection was made to an attachment point, check if we're over an atom
       if (!attachmentMade) {
         GlobalVariables.currentMolecule.nodesOnTheScreen.forEach((atom) => {
           // Check if the mouse is over this atom
           const xInPixels = GlobalVariables.widthToPixels(atom.x);
           const yInPixels = GlobalVariables.heightToPixels(atom.y);
-          const dist = GlobalVariables.distBetweenPoints(x, xInPixels, y, yInPixels);
+          const dist = GlobalVariables.distBetweenPoints(
+            x,
+            xInPixels,
+            y,
+            yInPixels
+          );
           const radiusInPixels = GlobalVariables.widthToPixels(atom.radius);
-          
+
           // If mouse is over the atom and we haven't made a connection yet
           if (dist <= radiusInPixels && !attachmentMade) {
             // Ensure we're not trying to connect to the same atom
             if (this.attachmentPoint1.parentMolecule !== atom) {
               // Find the first available input attachment point
               for (let i = 0; i < atom.inputs.length; i++) {
-                const input = atom.inputs[i];
+                const input = atom.inputs[i].ap;
                 // Check if this input has no connectors and is an input type
                 if (input.type === "input" && input.connectors.length === 0) {
                   attachmentMade = true;
@@ -153,41 +159,48 @@ export default class Connector {
                   break; // Stop after finding the first available input
                 }
               }
-              
+
               // If no available input was found and this is a molecule, create a new input
               if (!attachmentMade && atom.atomType === "Molecule") {
                 // Determine the name for the new input
                 let inputName = "input";
-                
+
                 // Special case: if the connector comes from an Input atom, use its name
                 if (this.attachmentPoint1.parentMolecule.atomType === "Input") {
                   inputName = this.attachmentPoint1.parentMolecule.name;
                 }
-                
+
                 // Ensure the name is unique within the target molecule
-                inputName = GlobalVariables.incrementVariableName(inputName, atom);
-                
+                inputName = GlobalVariables.incrementVariableName(
+                  inputName,
+                  atom
+                );
+
                 // Create a new Input atom within the target molecule
-                const newInputAtom = new GlobalVariables.availableTypes.input.creator({
-                  atomType: "Input",
-                  name: inputName,
-                  parent: atom,
-                  parentMolecule: atom,
-                  x: atom.x - 0.15, // Position to the left of the molecule
-                  y: atom.y,
-                  uniqueID: GlobalVariables.generateUniqueID(),
-                  type: "geometry" // Default type, can be changed later
-                });
-                
+                const newInputAtom =
+                  new GlobalVariables.availableTypes.input.creator({
+                    atomType: "Input",
+                    name: inputName,
+                    parent: atom,
+                    parentMolecule: atom,
+                    x: atom.x - 0.15, // Position to the left of the molecule
+                    y: atom.y,
+                    uniqueID: GlobalVariables.generateUniqueID(),
+                    type: "geometry", // Default type, can be changed later
+                  });
+
                 // Add the new input atom to the molecule's nodes
                 atom.nodesOnTheScreen.push(newInputAtom);
-                
+
                 // The Input constructor automatically creates an input attachment point on the parent molecule
                 // Find this newly created input attachment point on the target molecule
-                const newInputAP = atom.inputs.find(input => 
-                  input.name === inputName && input.type === "input" && input.connectors.length === 0
+                const newInputAP = atom.inputs.find(
+                  (input) =>
+                    input.ap.name === inputName &&
+                    input.ap.type === "input" &&
+                    input.ap.connectors.length === 0
                 );
-                
+
                 if (newInputAP) {
                   attachmentMade = true;
                   this.attachmentPoint2 = newInputAP;
@@ -199,10 +212,10 @@ export default class Connector {
           }
         });
       }
-      
+
       // If no attachment point was found or connection was made, delete the connector
       if (!attachmentMade) {
-        this.deleteSelf();
+        this.attachmentPoint1.deleteConnector(this);
       }
       this.isMoving = false;
     }
@@ -227,16 +240,21 @@ export default class Connector {
     }
   }
 
+  getOtherAP(attachmentPoint) {
+    if (attachmentPoint === this.attachmentPoint1) {
+      return this.attachmentPoint2;
+    } else if (attachmentPoint === this.attachmentPoint2) {
+      return this.attachmentPoint1;
+    }
+    throw new Error("Invalid attachment point");
+  }
+
   /**
    * Called when any key is pressed. If the key is delete or backspace and the connector is selected then the connector is deleted.
    * @param {string} key - The key which was pressed
    */
   keyPress(key) {
-    if (this.selected) {
-      if (["Delete", "Backspace"].includes(key)) {
-        this.deleteSelf();
-      }
-    }
+    // no op.
   }
 
   /**
@@ -244,11 +262,11 @@ export default class Connector {
    */
   deleteSelf(silent = false) {
     //Remove this connector from the output it is attached to
-    this.attachmentPoint1.deleteConnector(this);
+    this.attachmentPoint1.deleteConnector(silent, this);
 
     //Free up the input to which this was attached
     if (this.attachmentPoint2 != null) {
-      this.attachmentPoint2.deleteConnector(this);
+      this.attachmentPoint2.deleteConnector(silent, this);
       if (!silent) {
         this.attachmentPoint2.setDefault();
       }

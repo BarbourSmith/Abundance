@@ -2,12 +2,12 @@ import Connector from "./connector.js";
 import GlobalVariables from "../js/globalvariables.js";
 import Atom from "../prototypes/atom.js";
 import { Global } from "@emotion/react";
-import ObservableEntity from "./observableEntity.js";
+import { ObservableEntity, Status } from "./observableEntity.js";
 
 /**
  * This class creates a new attachmentPoint which are the input and output blobs on Atoms
  */
-export default class AttachmentPoint {
+export default class AttachmentPoint extends ObservableEntity {
   // Constant dictates how far from the parent molecule APs are rendered when in a hover position.
   // Expressed as a multiple of the parents radius.
   static get DIST_FROM_PARENT() {
@@ -74,6 +74,7 @@ export default class AttachmentPoint {
      */
     this.type = "output";
 
+    this.connectors = [];
     /**
      * The attachment point current value.
      * @type {number}
@@ -101,6 +102,7 @@ export default class AttachmentPoint {
 
     // Initially hide this attachment point.
     this.unexpand();
+    this.setDefault();
   }
 
   /**
@@ -318,9 +320,7 @@ export default class AttachmentPoint {
    * the parent molecule.
    */
   computePosition(boundary) {
-    const inputList = this.parentMolecule.inputs.filter(
-      (input) => input.type == "input"
-    );
+    const inputList = this.parentMolecule.inputs.map((io) => io.ap);
 
     if (this.type == "output") {
       if (this.parentMolecule.atomType == "Input") {
@@ -404,9 +404,7 @@ export default class AttachmentPoint {
       let targetRadius = apRadiusInPixels * 2;
       // check if this creates overlapping target areas in the case where there's multiple inputs.
       // If so reduce the targetting radius.
-      const inputCount = this.parentMolecule.inputs.filter(
-        (input) => input.type == "input"
-      ).length;
+      const inputCount = this.parentMolecule.inputs.length;
 
       let hoverRadius = GlobalVariables.widthToPixels(
         AttachmentPoint.DIST_FROM_PARENT * this.parentMolecule.radius -
@@ -429,36 +427,50 @@ export default class AttachmentPoint {
    * @param {string} key - The key which was pressed
    */
   keyPress(key) {
-    this.connectors.forEach((connector) => {
-      connector.keyPress(key);
-    });
+    if (this.type == "input" && this.connectors.length > 0) {
+      if (
+        this.connectors[0].selected &&
+        ["Delete", "Backspace"].includes(key)
+      ) {
+        this.deleteConnector(this.connectors[0]);
+      }
+    }
   }
 
   /**
-   * Delete any connectors attached to this ap
+   * this AP is being deleted. Either because the parent molecule is being deleted, or because
+   * this AP is being removed from it's parent (eg: an equation has been changed or this AP is
+   * being removed from an assembly)
    */
   deleteSelf(silent = false) {
-    //remove any connectors which were attached to this attachment point
-    var connectorsList = [...this.connectors]; //Make a copy of the list so that we can delete elements without having issues with forEach as we remove things from the list
-    connectorsList.forEach((connector) => {
-      connector.deleteSelf(silent);
+    this.connectors.forEach((connector) => {
+      this.deleteConnector(connector, silent);
     });
+    this.connectors = [];
   }
 
-  /**
-   * Delete a target connector which is passed in. The default option is to delete all of the connectors.
-   */
-  deleteConnector(connector = "all") {
-    try {
-      const connectorIndex = this.connectors.indexOf(connector);
-      if (connectorIndex != -1) {
-        this.connectors.splice(connectorIndex, 1); //Remove the target connector
-      } else {
-        this.connectors = []; //Remove all of the connectors
+  deleteConnector(connector, silent = false) {
+    if (this.type == "input") {
+      if (this.connectors.length == 1) {
+        if (this.connectors[0] !== connector) {
+          throw new Error(
+            "Input connector exists but doesn't match delete target"
+          );
+        }
+        this.unsubscribeFn?.();
+        this.connectors = [];
+        connector.getOtherAP(this)?.deleteConnector(connector, silent);
+        this.setDefault();
+      } else if (this.connectors.length > 1) {
+        throw new Error("Multiple connectors attached to a single Input AP");
       }
-    } catch (err) {
-      console.warn("Error deleting connector: ");
-      console.warn(err);
+    } else {
+      // this is an output
+      const index = this.connectors.indexOf(connector);
+      if (index > -1) {
+        this.connectors.splice(index, 1);
+        connector.getOtherAP(this)?.deleteConnector(connector, silent);
+      }
     }
   }
 
@@ -476,31 +488,43 @@ export default class AttachmentPoint {
    * @param {object} connector - The connector to attach
    */
   attach(connector) {
-    this.connectors.push(connector);
-  }
+    if (!(connector instanceof Connector)) {
+      throw new Error("Connector must be an instance of Connector");
+    }
 
-  /**
-   * Starts propagation from this attachmentPoint if it is not waiting for anything up stream.
-   */
-  beginPropagation() {
-    //If nothing is connected it is a starting point
-    if (this.connectors.length == 0) {
-      this.setValue(this.value);
+    if (this.type == "input") {
+      if (this.connectors.length === 1) {
+        this.deleteConnector(this.connectors[0]); // new inbound connector usurps the old one.
+      } else if (this.connectors.length > 1) {
+        throw new Error("Multiple connectors attached to a single Input AP");
+      }
+
+      this.connectors = [connector];
+      const upstream = connector.attachmentPoint1.parentMolecule;
+      if (this.parentMolecule === upstream) {
+        throw new Error("Tried to make a circular connection");
+      }
+      this.unsubscribeFn = upstream.subscribe(() => {
+        this.onUpstreamChange();
+      });
+    } else {
+      console.log("attach called on output");
+      this.connectors.push(connector);
     }
   }
 
-  /**
-   * Passes a lock command to the parent molecule, or to the attached connector depending on input/output.
-   */
-  waitOnComingInformation() {
-    if (this.type == "output") {
-      this.connectors.forEach((connector) => {
-        connector.waitOnComingInformation();
-      });
+  onUpstreamChange() {
+    if (this.connectors.length === 0) {
+      console.warn("Got upstream change callback but no connector attached");
+      return;
+    }
+    const upstreamMolecule = this.connectors[0].attachmentPoint1.parentMolecule;
+    if (upstreamMolecule.status === Status.READY) {
+      this.setValue(upstreamMolecule.value);
+    } else if (upstreamMolecule.status != this.status) {
+      this.setStatus(upstreamMolecule.status);
     } else {
-      //If this is an input
-      this.ready = false;
-      this.parentMolecule.waitOnComingInformation(this.name);
+      console.log("no-op because upstream status is the same: ", this.status);
     }
   }
 
@@ -521,20 +545,24 @@ export default class AttachmentPoint {
   /**
    * Sets the current value of the ap. Force forces an update even if the value hasn't changed.
    */
-  setValue(newValue) {
-    this.value = newValue;
-
-    this.ready = true;
-    //propagate the change to linked elements if this is an output
-    if (this.type == "output") {
-      this.connectors.forEach((connector) => {
-        //select any connectors attached to this node
-        connector.propogate();
-      });
-    }
-    //if this is an input attachment point
-    else {
-      this.parentMolecule.updateValue(this.name);
+  setValue(newValue, type = this.valueType) {
+    if (this.type == "input") {
+      const newState =
+        newValue === undefined || newValue === null
+          ? Status.STALE
+          : Status.READY;
+      if (
+        this.status !== newState ||
+        this.value !== newValue ||
+        type !== this.valueType
+      ) {
+        this.valueType = type;
+        this.value = newValue;
+        this.setStatus(newState, true); // update and force propagation.
+      }
+    } else {
+      // this.type == "output"
+      console.log("setValue called on output..... no op");
     }
   }
 
