@@ -75,7 +75,13 @@ export default class RegularPolygon extends Atom {
     GlobalVariables.c.closePath();
   }
 
-  // order of args dictated by the order in which they're initialized in the constructor.
+  /**
+   * Computes the geometry of the regular polygon.
+   * @param {*} argsDict - dictionary of arguments keyed by their names (as set by addIO in constructor)
+   * @property {number} argsDict.diameter - the diameter of the regular polygon
+   * @property {number} argsDict["number of sides"] - the number of sides
+   * @returns promise containing the ID of the created geometry
+   */
   compute(argsDict) {
     console.log("computing new regular polygon with args:", argsDict);
     return GlobalVariables.cad

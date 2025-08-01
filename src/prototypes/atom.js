@@ -19,6 +19,22 @@ export default class Atom extends ObservableEntity {
   static SELECTED_COLOR = "#484848";
   static DEFAULT_COLOR = "#F3EFEF";
 
+  static statusAsColor(status, selected = false) {
+    if (selected) {
+      return Atom.SELECTED_COLOR;
+    }
+    switch (status) {
+      case Status.STALE:
+        return "#6bcfd6"; // light-blue
+      case Status.PROCESSING:
+        return "blue";
+      case Status.ERROR:
+        return "red";
+      case Status.READY:
+        return Atom.DEFAULT_COLOR;
+    }
+  }
+
   /**
    * The constructor function.
    * @param {object} values An array of values passed in which will be assigned to the class as this.x
@@ -149,19 +165,10 @@ export default class Atom extends ObservableEntity {
     GlobalVariables.c.beginPath();
     GlobalVariables.c.font = GlobalVariables.canvasFont;
 
-    let strokeColor = Atom.DEFAULT_COLOR;
-    if (this.status === Status.PROCESSING) {
-      GlobalVariables.c.fillStyle = "blue";
-    } else if (this.selected) {
-      GlobalVariables.c.fillStyle = Atom.SELECTED_COLOR;
-      GlobalVariables.c.strokeStyle = Atom.SELECTED_COLOR;
-      this.color = Atom.SELECTED_COLOR;
-    } else {
-      GlobalVariables.c.fillStyle = Atom.DEFAULT_COLOR;
-      GlobalVariables.c.strokeStyle = Atom.SELECTED_COLOR;
-      this.color = Atom.DEFAULT_COLOR;
-      strokeColor = Atom.SELECTED_COLOR;
-    }
+    this.color = Atom.statusAsColor(this.status, this.selected);
+    GlobalVariables.c.fillStyle = this.color;
+    GlobalVariables.c.strokeStyle = Atom.SELECTED_COLOR;
+    let strokeColor = this.selected ? Atom.DEFAULT_COLOR : Atom.SELECTED_COLOR;
 
     GlobalVariables.c.beginPath();
     if (drawType == "rect") {

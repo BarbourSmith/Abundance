@@ -66,22 +66,13 @@ export default class Extrude extends Atom {
     GlobalVariables.c.stroke();
     GlobalVariables.c.closePath();
   }
-  /**
-   * Pass the input shape to the worker thread to compute the extruded shape.
-   */
-  updateValue() {
-    super.updateValue();
 
-    if (this.inputs.every((x) => x.ready)) {
-      var inputID = this.findIOValue("geometry");
-      var extrudeDistance = this.findIOValue("height");
-
-      GlobalVariables.cad
-        .extrude(this.uniqueID, inputID, extrudeDistance)
-        .then(() => {
-          this.basicThreadValueProcessing();
-        })
-        .catch(this.alertingErrorHandler());
-    }
+  // order of args dictated by the order in which they're initialized in the constructor.
+  compute(argsDict) {
+    return GlobalVariables.cad
+      .extrude(this.uniqueID, argsDict.geometry, argsDict.height)
+      .then((_) => {
+        return this.uniqueID;
+      });
   }
 }

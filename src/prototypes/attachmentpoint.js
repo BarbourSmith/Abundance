@@ -184,11 +184,12 @@ export default class AttachmentPoint extends ObservableEntity {
 
     // Draw the circular connection target
     GlobalVariables.c.beginPath();
-    if (this.status == Status.READY || this.type == "output") {
+    if (this.type == "output") {
       GlobalVariables.c.fillStyle = this.parentMolecule.color;
     } else {
-      GlobalVariables.c.fillStyle = "#6ba4ff";
+      GlobalVariables.c.fillStyle = Atom.statusAsColor(this.status, this.parentMolecule.selected);
     }
+
     GlobalVariables.c.strokeStyle = this.parentMolecule.selected
       ? Atom.DEFAULT_COLOR
       : Atom.SELECTED_COLOR;
