@@ -58,9 +58,9 @@ export default class Connector {
      */
     this.startY = this.attachmentPoint1.parentMolecule.y;
 
-    this.attachmentPoint1.connectors.push(this); //Give input and output references to the connector
-    if (this.attachmentPoint2 != null) {
-      this.attachmentPoint2.connectors.push(this);
+    this.attachmentPoint1.attach(this);
+    if (this.attachmentPoint2) {
+      this.attachmentPoint2.attach(this);
     }
   }
 
@@ -111,7 +111,7 @@ export default class Connector {
       GlobalVariables.currentMolecule.nodesOnTheScreen.forEach((molecule) => {
         //For every molecule on the screen
         molecule.inputs.forEach((input) => {
-          const attachmentPoint = input.ap;
+          const attachmentPoint = input;
           //For each of their attachment points
           if (attachmentPoint.wasConnectionMade(x, y) && !attachmentMade) {
             /** Prevent it from connecting to itself  */
@@ -123,7 +123,6 @@ export default class Connector {
               attachmentMade = true;
               this.attachmentPoint2 = attachmentPoint;
               attachmentPoint.attach(this);
-              this.propogate();
             }
           }
         });
@@ -149,13 +148,13 @@ export default class Connector {
             if (this.attachmentPoint1.parentMolecule !== atom) {
               // Find the first available input attachment point
               for (let i = 0; i < atom.inputs.length; i++) {
-                const input = atom.inputs[i].ap;
+                const input = atom.inputs[i];
                 // Check if this input has no connectors and is an input type
                 if (input.type === "input" && input.connectors.length === 0) {
                   attachmentMade = true;
                   this.attachmentPoint2 = input;
                   input.attach(this);
-                  this.propogate();
+                  //  this.propogate();
                   break; // Stop after finding the first available input
                 }
               }
@@ -196,16 +195,16 @@ export default class Connector {
                 // Find this newly created input attachment point on the target molecule
                 const newInputAP = atom.inputs.find(
                   (input) =>
-                    input.ap.name === inputName &&
-                    input.ap.type === "input" &&
-                    input.ap.connectors.length === 0
+                    input.name === inputName &&
+                    input.type === "input" &&
+                    input.connectors.length === 0
                 );
 
                 if (newInputAP) {
                   attachmentMade = true;
                   this.attachmentPoint2 = newInputAP;
                   newInputAP.attach(this);
-                  this.propogate();
+                  //   this.propogate();
                 }
               }
             }
@@ -281,7 +280,6 @@ export default class Connector {
       var object = {
         ap1Name: this.attachmentPoint1.name,
         ap2Name: this.attachmentPoint2.name,
-        ap2Primary: this.attachmentPoint2.primary,
         ap1ID: this.attachmentPoint1.parentMolecule.uniqueID,
         ap2ID: this.attachmentPoint2.parentMolecule.uniqueID,
       };
@@ -298,15 +296,15 @@ export default class Connector {
     }
   }
 
-  /**
-   * Pass the value of the attached output to the attached input
-   */
-  propogate() {
-    //takes the input and passes it to the output
-    if (this.attachmentPoint1.ready && this.attachmentPoint2) {
-      this.attachmentPoint2.setValue(this.attachmentPoint1.getValue());
-    }
-  }
+  // /**
+  //  * Pass the value of the attached output to the attached input
+  //  */
+  // propogate() {
+  //   //takes the input and passes it to the output
+  //   if (this.attachmentPoint1.ready && this.attachmentPoint2) {
+  //     this.attachmentPoint2.setValue(this.attachmentPoint1.getValue());
+  //   }
+  // }
 
   /**
    * Used to walk back out the tree generating a list of constants...used for evolve

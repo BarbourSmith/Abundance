@@ -25,11 +25,13 @@ export default class Extrude extends Atom {
      * A description of this atom
      * @type {string}
      */
-    this.description = "Extrudes a 2D shape. Input can be negitive. ";
+    this.description = "Extrudes a 2D shape. Input can be negative.";
 
-    this.addIO("input", "geometry", this, "geometry", "", false, true);
-    this.addIO("input", "height", this, "number", 10.0);
-    this.addIO("output", "geometry", this, "geometry", "");
+    this.addAllIOs([
+      { name: "geometry", valueType: "geometry" },
+      { name: "height", valueType: "number", defaultValue: 10.0 },
+      { name: "geometry", valueType: "geometry", type: "output" },
+    ]);
 
     this.setValues(values);
   }
@@ -66,22 +68,13 @@ export default class Extrude extends Atom {
     GlobalVariables.c.stroke();
     GlobalVariables.c.closePath();
   }
-  /**
-   * Pass the input shape to the worker thread to compute the extruded shape.
-   */
-  updateValue() {
-    super.updateValue();
 
-    if (this.inputs.every((x) => x.ready)) {
-      var inputID = this.findIOValue("geometry");
-      var extrudeDistance = this.findIOValue("height");
-
-      GlobalVariables.cad
-        .extrude(this.uniqueID, inputID, extrudeDistance)
-        .then(() => {
-          this.basicThreadValueProcessing();
-        })
-        .catch(this.alertingErrorHandler());
-    }
+  // order of args dictated by the order in which they're initialized in the constructor.
+  compute(argsDict) {
+    return GlobalVariables.cad
+      .extrude(this.uniqueID, argsDict.geometry, argsDict.height)
+      .then((_) => {
+        return this.uniqueID;
+      });
   }
 }

@@ -12,10 +12,6 @@ export default class RegularPolygon extends Atom {
   constructor(values) {
     super(values);
 
-    this.addIO("input", "number of sides", this, "number", 6);
-    this.addIO("input", "diameter", this, "number", 10.0);
-    this.addIO("output", "geometry", this, "geometry", "");
-
     /**
      * This atom's name
      * @type {string}
@@ -34,6 +30,11 @@ export default class RegularPolygon extends Atom {
       "Creates a new regular polygon. Corners are on the diameter.";
 
     this.setValues(values);
+    this.addAllIOs([
+      { name: "number of sides", valueType: "number", defaultValue: 6 },
+      { name: "diameter", valueType: "number", defaultValue: 10.0 },
+      { name: "geometry", valueType: "geometry", type: "output" },
+    ]);
   }
 
   /**
@@ -75,18 +76,19 @@ export default class RegularPolygon extends Atom {
     GlobalVariables.c.closePath();
   }
 
-  // order of args dictated by the order in which they're initialized in the constructor.
+  /**
+   * Computes the geometry of the regular polygon.
+   * @param {*} argsDict - dictionary of arguments keyed by their names (as set by addIO in constructor)
+   * @property {number} argsDict.diameter - the diameter of the regular polygon
+   * @property {number} argsDict["number of sides"] - the number of sides
+   * @returns promise containing the ID of the created geometry
+   */
   compute(argsDict) {
     console.log("computing new regular polygon with args:", argsDict);
-    return GlobalVariables.cad
-      .regularPolygon(
-        this.uniqueID,
-        argsDict.diameter / 2,
-        argsDict["number of sides"]
-      )
-      .then((geometry) => {
-        console.log("finished computing new regular polygon");
-        return this.uniqueID;
-      });
+    return GlobalVariables.cad.regularPolygon(
+      this.uniqueID,
+      argsDict.diameter / 2,
+      argsDict["number of sides"]
+    );
   }
 }

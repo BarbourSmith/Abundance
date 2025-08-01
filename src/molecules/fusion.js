@@ -1,5 +1,8 @@
 import Atom from "../prototypes/atom.js";
-import { addOrDeletePorts } from "../js/alwaysOneFreeInput.js";
+import {
+  addOrDeletePorts,
+  inputsReadyIgnoringFreeAP,
+} from "../js/alwaysOneFreeInput.js";
 import GlobalVariables from "../js/globalvariables.js";
 
 /**
@@ -12,8 +15,6 @@ export default class Join extends Atom {
    */
   constructor(values) {
     super(values);
-
-    this.addIO("output", "geometry", this, "geometry", "");
 
     /**
      * This atom's name
@@ -44,28 +45,32 @@ export default class Join extends Atom {
 
     this.setValues(values);
 
-    //This loads any inputs which this atom had when last saved.
-    if (typeof this.ioValues !== "undefined") {
-      this.ioValues.forEach((ioValue) => {
-        //for each saved value
-        this.addIO("input", ioValue.name, this, "geometry", "");
-      });
-    }
-
     this.unionType = "Fusion";
 
     this.unionIndex;
 
+    const ioList = [
+      { name: "geometry", valueType: "geometry", type: "output" },
+    ];
+    if (typeof this.ioValues !== "undefined") {
+      this.ioValues.forEach((ioValue) => {
+        //for each saved value
+        ioList.push({
+          name: ioValue.name,
+          valueType: "geometry",
+        });
+      });
+    }
+    if (ioList.length === 1) {
+      //If there are no inputs, add a default input
+      ioList.push({
+        name: "Shape 1",
+        valueType: "geometry",
+      });
+    }
+
     this.setValues([]);
-  }
-
-  /**
-   * Add or delete ports as needed in addition to the normal begin propogation stuff
-   */
-  beginPropagation() {
-    //addOrDeletePorts(this); //Add or remove ports as needed
-
-    super.beginPropagation();
+    this.addAllIOs(ioList);
   }
 
   /**
@@ -120,27 +125,18 @@ export default class Join extends Atom {
     GlobalVariables.c.closePath();
   }
 
-  updateValue() {
-    super.updateValue();
+  /**
+   * Override the logic for determining if inputs are ready with the special case
+   * logic for an alwaysOneFreeInput atom.
+   */
+  inputsAreReady() {
+    return inputsReadyIgnoringFreeAP(this);
+  }
 
-    if (this.inputs.every((x) => x.ready)) {
-      this.processing = true;
-      var inputValues = [];
-      this.inputs.forEach((io) => {
-        if (io.connectors.length > 0 && io.type == "input") {
-          inputValues.push(io.getValue());
-        }
-      });
-      GlobalVariables.cad
-        .fusion(this.uniqueID, inputValues)
-        .then(() => {
-          this.basicThreadValueProcessing();
-        })
-        .catch(this.alertingErrorHandler());
-
-      //Delete or add ports as needed
-      addOrDeletePorts(this);
-    }
+  compute(inputs) {
+    addOrDeletePorts(this); // clean up ports then check if we're in a ready state.
+    const nonnullInputIds = Object.values(inputs).filter((i) => i);
+    return GlobalVariables.cad.fusion(this.uniqueID, nonnullInputIds);
   }
 
   /**

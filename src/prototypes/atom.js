@@ -2,6 +2,7 @@ import AttachmentPoint from "./attachmentpoint";
 import GlobalVariables from "../js/globalvariables.js";
 import showdown from "showdown";
 import globalvariables from "../js/globalvariables.js";
+<<<<<<< HEAD
 import { parse } from "mathjs";
 
 import {
@@ -13,6 +14,9 @@ import {
   LevaInputs,
 } from "leva";
 import { ObservableEntity, Status } from "./observableEntity.js";
+=======
+import { ObservableEntity, Status } from "./subscribableEntity.js";
+>>>>>>> f90492a6 (Clear shapes from the library as soon as they become stale. Ensures we)
 
 // Make this an enum once we're using typescript
 const AlertType = Object.freeze({
@@ -29,6 +33,22 @@ export default class Atom extends ObservableEntity {
   static SELECTED_COLOR = "#484848";
   static DEFAULT_COLOR = "#F3EFEF";
 
+  static statusAsColor(status, selected = false) {
+    if (selected) {
+      return Atom.SELECTED_COLOR;
+    }
+    switch (status) {
+      case Status.WAITING:
+        return "#6bcfd6"; // light-blue
+      case Status.PROCESSING:
+        return "blue";
+      case Status.ERROR:
+        return "red";
+      case Status.READY:
+        return Atom.DEFAULT_COLOR;
+    }
+  }
+
   /**
    * The constructor function.
    * @param {object} values An array of values passed in which will be assigned to the class as this.x
@@ -40,7 +60,7 @@ export default class Atom extends ObservableEntity {
      * An array of all of the input attachment points connected to this atom
      * @type {array}
      */
-    this.inputs = []; // holds {ap: AttachmentPoint, unsubscribeFn: function}
+    this.inputs = [];
     /**
      * This atom's output attachment point if it has one
      * @type {object}
@@ -51,12 +71,6 @@ export default class Atom extends ObservableEntity {
      * @type {number}
      */
     this.uniqueID = GlobalVariables.generateUniqueID();
-
-    /**
-     * This atom's value...Is can this be done away with? Are we basically storing the value in the output now?
-     * @type {object}
-     */
-    this.value = null;
 
     /**
      * A description of this atom
@@ -129,11 +143,7 @@ export default class Atom extends ObservableEntity {
     if (typeof this.ioValues !== "undefined") {
       this.ioValues.forEach((ioValue) => {
         //for each saved value
-        this.inputs
-          .map((io) => {
-            return io.ap;
-          })
-          .forEach((ap) => {
+        this.inputs.forEach((ap) => {
             //Find the matching IO and set it to be the saved value
             if (ioValue.name == ap.name && ap.type == "input") {
               ap.value = ioValue.ioValue;
@@ -156,25 +166,16 @@ export default class Atom extends ObservableEntity {
     let radiusInPixels = GlobalVariables.widthToPixels(this.radius);
 
     this.inputs.forEach((child) => {
-      child.ap.draw();
+      child.draw();
     });
 
     GlobalVariables.c.beginPath();
     GlobalVariables.c.font = GlobalVariables.canvasFont;
 
-    let strokeColor = Atom.DEFAULT_COLOR;
-    if (this.status === Status.PROCESSING) {
-      GlobalVariables.c.fillStyle = "blue";
-    } else if (this.selected) {
-      GlobalVariables.c.fillStyle = Atom.SELECTED_COLOR;
-      GlobalVariables.c.strokeStyle = Atom.SELECTED_COLOR;
-      this.color = Atom.SELECTED_COLOR;
-    } else {
-      GlobalVariables.c.fillStyle = Atom.DEFAULT_COLOR;
-      GlobalVariables.c.strokeStyle = Atom.SELECTED_COLOR;
-      this.color = Atom.DEFAULT_COLOR;
-      strokeColor = Atom.SELECTED_COLOR;
-    }
+    this.color = Atom.statusAsColor(this.status, this.selected);
+    GlobalVariables.c.fillStyle = this.color;
+    GlobalVariables.c.strokeStyle = Atom.SELECTED_COLOR;
+    let strokeColor = this.selected ? Atom.DEFAULT_COLOR : Atom.SELECTED_COLOR;
 
     GlobalVariables.c.beginPath();
     if (drawType == "rect") {
@@ -265,56 +266,86 @@ export default class Atom extends ObservableEntity {
     }
   }
 
-  /**
-   * Adds a new attachment point to this atom
-   * @param {boolean} type - The type of the IO (input or output)
-   * @param {string} name - The name of the new attachment point
-   * @param {object} target - The atom to attach the new attachment point to. Should we force this to always be this one?
-   * @param {string} valueType - Describes the type of value the input is expecting options are number, geometry, array
-   * @param {object} defaultValue - The default value to be used when the value is not yet set
-   */
-  addIO(type, name, target, valueType, defaultValue, ready, primary = false) {
-    //compute the baseline offset from parent node
-    if (
-      target.inputs.find((o) => o.name === name && o.type === type) == undefined
-    ) {
+  _subscribeToInputs() {
+    this.inputs.forEach((input) => {
+      input.subscribe(() => {
+        this.onUpstreamChange();
+      }, this.uniqueID);
+    });
+  }
+
+  _addIOWithoutSubscribing(
+    name,
+    valueType,
+    defaultValue = undefined,
+    type = "input"
+  ) {
+    const prior = this.inputs.find((o) => o.name === name && o.type === type);
+    if (prior == undefined) {
       var offset;
       if (type == "input") {
-        offset = -1 * target.scaledRadius;
+        offset = -1 * this.scaledRadius;
       } else {
-        offset = target.scaledRadius;
+        offset = this.scaledRadius;
       }
       var newAp = new AttachmentPoint({
-        parentMolecule: target,
+        parentMolecule: this,
         defaultOffsetX: offset,
         defaultOffsetY: 0,
         type: type,
         valueType: valueType,
         name: name,
-        primary: primary,
         value: defaultValue,
         defaultValue: defaultValue,
         uniqueID: GlobalVariables.generateUniqueID(),
         atomType: "AttachmentPoint",
         ready: true,
       });
-
       if (type == "input") {
-        const unsubFn = newAp.subscribe(() => {
-          target.onUpstreamChange();
-        });
-        target.inputs.push({ ap: newAp, unsubscribeFn: unsubFn });
+        this.inputs.push(newAp);
       } else {
-        target.output = newAp;
+        this.output = newAp;
       }
+      return newAp;
+    } else {
+      return prior;
     }
   }
 
-  updateIO(type, name, target, valueType, value) {
-    let ap = target.inputs.find((o) => o.name === name && o.type === type);
-    if (ap) {
-      ap.setValue(value, valueType); // This will propagate the new value (possibly right back to us?)
-    }
+  /**
+   * Add multiple IOs to this atom. Doesn't subscribe until all IOs have been added.
+   *
+   * ioList should be a list of {name: "inputName", valueType: "number"|"geometry", defaultValue: 0|undefined, type: "output"|undefined}
+   */
+  addAllIOs(ioList) {
+    ioList.forEach((io) => {
+      this._addIOWithoutSubscribing(
+        io.name,
+        io.valueType,
+        io.defaultValue,
+        io.type
+      );
+    });
+    this._subscribeToInputs();
+  }
+
+  /**
+   * Adds a new attachment point to this atom
+   * @param {string} name - The name of the new attachment point
+   * @param {string} valueType - Describes the type of value the input is expecting options are number, geometry, array
+   * @param {object} defaultValue - The default value to be used when the value is not yet set
+   * @param {string} type - Default is "input", may be overwritten to "output"
+   */
+  //type, name, target, valueType, defaultValue, ready, primary = false)
+  addIO(name, valueType, defaultValue = undefined, type = "input") {
+    const io = this._addIOWithoutSubscribing(
+      name,
+      valueType,
+      defaultValue,
+      type
+    );
+    this._subscribeToInputs();
+    return io;
   }
 
   /**
@@ -327,10 +358,10 @@ export default class Atom extends ObservableEntity {
   removeIO(type, name, target, silent = false) {
     //Remove the target IO attachment point
     target.inputs.forEach((input) => {
-      if (input.ap.name == name && input.ap.type == type) {
+      if (input.name == name && input.type == type) {
         target.inputs.splice(target.inputs.indexOf(input), 1);
-        input.unsubscribeFn();
-        input.ap.deleteSelf(silent);
+        input.unsubscribe(this.uniqueID);
+        input.deleteSelf(silent);
       }
     });
   }
@@ -416,7 +447,7 @@ export default class Atom extends ObservableEntity {
     }
     //Returns true if something was done with the click
     this.inputs.forEach((child) => {
-      if (child.ap.clickDown(x, y, clickProcessed) == true) {
+      if (child.clickDown(x, y, clickProcessed) == true) {
         clickProcessed = true;
       }
     });
@@ -463,7 +494,7 @@ export default class Atom extends ObservableEntity {
     this.isMoving = false;
 
     this.inputs.forEach((child) => {
-      child.ap.clickUp(x, y);
+      child.clickUp(x, y);
     });
     if (this.output) {
       this.output.clickUp(x, y);
@@ -487,7 +518,7 @@ export default class Atom extends ObservableEntity {
     }
 
     this.inputs.forEach((child) => {
-      child.ap.mouseMove(x, y);
+      child.mouseMove(x, y);
     });
     if (this.output) {
       this.output.mouseMove(x, y);
@@ -514,7 +545,7 @@ export default class Atom extends ObservableEntity {
    */
   keyPress(key) {
     this.inputs.forEach((child) => {
-      child.ap.keyPress(key);
+      child.keyPress(key);
     });
   }
 
@@ -523,8 +554,8 @@ export default class Atom extends ObservableEntity {
    */
   deleteNode(backgroundClickAfter = true, deletePath = true, silent = false) {
     this.inputs.forEach((input) => {
-      input.unsubscribeFn(); //unsubscribe from the input
-      input.ap.deleteSelf(silent);
+      input.unsubscribe(this.uniqueID);
+      input.deleteSelf(silent);
     });
     if (this.output) {
       this.output.deleteSelf(silent);
@@ -543,7 +574,7 @@ export default class Atom extends ObservableEntity {
    */
   update() {
     this.inputs.forEach((child) => {
-      child.ap.update();
+      child.update();
     });
     if (this.output) {
       this.output.update();
@@ -558,11 +589,7 @@ export default class Atom extends ObservableEntity {
   serialize(offset = { x: 0, y: 0 }) {
     //Offsets are used to make copy and pasted atoms move over a little bit
     var ioValues = [];
-    this.inputs
-      .map((io) => {
-        return io.ap;
-      })
-      .forEach((ap) => {
+    this.inputs.forEach((ap) => {
         if (
           typeof ap.getValue() == "number" ||
           typeof ap.getValue() == "string"
@@ -610,14 +637,18 @@ export default class Atom extends ObservableEntity {
     );
   }
 
-  setReady(value) {
-    this.value = value;
-    this.setStatus(Status.READY);
-  }
-
   setError(message) {
     this.alert = { type: AlertType.ERROR, message: String(message) };
     this.setStatus(Status.ERROR);
+  }
+
+  /**
+   * Return true if our inputs are ready for us to compute a value.
+   */
+  inputsAreReady() {
+    return this.inputs.every((input) => {
+      return input.getState().status == Status.READY;
+    });
   }
 
   /**
@@ -632,15 +663,12 @@ export default class Atom extends ObservableEntity {
    *   as well.
    */
   onUpstreamChange() {
-    if (
-      this.inputs.filter((input) => input.ap.status == Status.READY).length ==
-      this.inputs.length
-    ) {
+    if (this.inputsAreReady()) {
       const argsDict = Object.fromEntries(
-        this.inputs.map((input) => [input.ap.name, input.ap.getValue()])
+        this.inputs.map((input) => [input.name, input.getState().value])
       );
 
-      // const inputVals = this.inputs.map((input) => {input.ap.getValue());
+      // const inputVals = this.inputs.map((input) => {input.getValue());
       this.setProcessing();
       this.compute(argsDict)
         .then((value) => {
@@ -648,7 +676,10 @@ export default class Atom extends ObservableEntity {
         })
         .catch(this.alertingErrorHandler);
     } else {
-      this.setStale();
+      this.setWaiting();
+      GlobalVariables.cad
+        .deleteFromLibrary(this.uniqueID)
+        .catch(this.alertingErrorHandler);
     }
   }
 
@@ -665,7 +696,7 @@ export default class Atom extends ObservableEntity {
   walkBackForConstants(callback) {
     //Pass the call further up the chain
     this.inputs.forEach((input) => {
-      input.ap.connectors.forEach((connector) => {
+      input.connectors.forEach((connector) => {
         connector.walkBackForConstants(callback);
       });
     });
@@ -677,7 +708,7 @@ export default class Atom extends ObservableEntity {
   census() {
     var waiting = 0;
     this.inputs.forEach((input) => {
-      if (input.ap.ready != true) {
+      if (input.ready != true) {
         waiting = 1;
       }
     });
@@ -704,7 +735,6 @@ export default class Atom extends ObservableEntity {
     /** Runs through active atom inputs and adds IO parameters to default param*/
     if (this.inputs) {
       this.inputs.map((input) => {
-        input = input.ap;
         const checkConnector = () => {
           return input.connectors.length > 0;
         };
@@ -849,15 +879,11 @@ export default class Atom extends ObservableEntity {
     ioName = ioName.split("~").join("");
     var ioValue = null;
 
-    this.inputs
-      .map((io) => {
-        return io.ap;
-      })
-      .forEach((child) => {
-        if (child.name == ioName && child.type == "input") {
-          ioValue = child.getValue();
-        }
-      });
+    this.inputs.forEach((child) => {
+      if (child.name == ioName && child.type == "input") {
+        ioValue = child.getValue();
+      }
+    });
     return ioValue;
   }
 }

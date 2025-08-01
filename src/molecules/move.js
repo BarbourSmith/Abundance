@@ -12,12 +12,6 @@ export default class Move extends Atom {
   constructor(values) {
     super(values);
 
-    this.addIO("input", "geometry", this, "geometry", "", false, true);
-    this.addIO("input", "xDist", this, "number", 0.0);
-    this.addIO("input", "yDist", this, "number", 0.0);
-    this.addIO("input", "zDist", this, "number", 0.0);
-    this.addIO("output", "geometry", this, "geometry", "");
-
     /**
      * This atom's name
      * @type {string}
@@ -33,6 +27,14 @@ export default class Move extends Atom {
      * @type {string}
      */
     this.description = "Moves a shape laterally in X, Y, Z.";
+
+    this.addAllIOs([
+      { name: "geometry", valueType: "geometry" },
+      { name: "xDist", valueType: "number", defaultValue: 0.0 },
+      { name: "yDist", valueType: "number", defaultValue: 0.0 },
+      { name: "zDist", valueType: "number", defaultValue: 0.0 },
+      { name: "geometry", valueType: "geometry", type: "output" },
+    ]);
 
     this.setValues(values);
   }
@@ -71,24 +73,13 @@ export default class Move extends Atom {
     GlobalVariables.c.closePath();
   }
   /**
-   * Pass the input geometry to a worker function to compute the translation.
+   * Compute the moved geometry.
    */
-  updateValue() {
-    super.updateValue();
-
-    if (this.inputs.every((x) => x.ready)) {
-      this.processing = true;
-      var inputID = this.findIOValue("geometry");
-
-      var x = this.findIOValue("xDist");
-      var y = this.findIOValue("yDist");
-      var z = this.findIOValue("zDist");
-      GlobalVariables.cad
-        .move(inputID, x, y, z, this.uniqueID)
-        .then(() => {
-          this.basicThreadValueProcessing();
-        })
-        .catch(this.alertingErrorHandler());
-    }
+  compute(inputs) {
+    const inputID = inputs.geometry;
+    const x = inputs.xDist;
+    const y = inputs.yDist;
+    const z = inputs.zDist;
+    return GlobalVariables.cad.move(inputID, x, y, z, this.uniqueID);
   }
 }

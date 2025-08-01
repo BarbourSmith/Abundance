@@ -1,4 +1,5 @@
 import Atom from "../prototypes/atom.js";
+import AttachmentPoint from "../prototypes/attachmentpoint.js";
 import Connector from "../prototypes/connector.js";
 import GlobalVariables from "../js/globalvariables.js";
 import { button } from "leva";
@@ -6,6 +7,7 @@ import { Octokit } from "https://esm.sh/octokit@2.0.19";
 import { BOMEntry } from "../js/BOM";
 import globalvariables from "../js/globalvariables.js";
 import { LevaInputs } from "leva";
+import { Status } from "../prototypes/subscribableEntity.js";
 
 /**
  * This class creates the Molecule atom.
@@ -101,6 +103,10 @@ export default class Molecule extends Atom {
     this.setValues(values);
 
     this.color;
+
+    this.addAllIOs([
+      { name: "geometry or number", valueType: "geometry", type: "output" },
+    ]);
   }
 
   /**
@@ -136,7 +142,8 @@ export default class Molecule extends Atom {
   }
 
   /**
-   * Create Leva Menu Input - returns to ParameterEditor
+   * Overrides the usual CreateLevaInputs function because the
+   * inputs to the molecule atom aren't simple attachment points.
    */
   createLevaInputs() {
     let inputParams = {};
@@ -162,7 +169,6 @@ export default class Molecule extends Atom {
     /** Runs through active atom inputs and adds IO parameters to default param*/
     if (this.inputs) {
       this.inputs.map((input) => {
-        input = input.ap;
         const checkConnector = () => {
           return input.connectors.length > 0;
         };
@@ -221,8 +227,8 @@ export default class Molecule extends Atom {
 
     exportAtoms.forEach((atom) => {
       const partName =
-        atom.inputs.filter((input) => input.ap.name === "Part Name")[0]
-          ?.value || "Unnamed Part";
+        atom.inputs.filter((input) => input.name === "Part Name")[0]?.value ||
+        "Unnamed Part";
       exportParams[`Export ${partName}`] = button(() => {
         atom.exportFile();
         console.log(`Exporting: ${partName}`);
@@ -747,10 +753,52 @@ export default class Molecule extends Atom {
     return bomParams;
   }
 
+  getOutputAtom() {
+    return this.nodesOnTheScreen.find(
+      (atom) => atom.atomType === "Output" && atom.parent === this
+    );
+  }
+
+  onUpstreamChange() {
+    const outputAtom = this.getOutputAtom();
+    if (outputAtom) {
+      const state = outputAtom.getState();
+      if (state.status == Status.READY) {
+        GlobalVariables.cad
+          .molecule(this.uniqueID, state.value)
+          .then((result) => {
+            this.setReady(result);
+          })
+          .catch(this.alertingErrorHandler);
+      } else {
+        const inputAps = this.inputs.filter((input) => input.type == "input");
+        if (inputAps.every((input) => input.status == Atom.READY)) {
+          // All inputs are ready but our output isn't yet. check for an internal error
+          // else we're in progress.
+          if (
+            this.nodesOnTheScreen.some((atom) => {
+              atom.status == Atom.ERROR;
+            })
+          ) {
+            this.setStatus(Atom.ERROR, "An error occurred in a child atom.");
+          } else {
+            this.setProcessing();
+          }
+        }
+        // Else set status to waiting since some of our inputs are not ready.
+        this.setWaiting();
+      }
+    } else {
+      console.trace("Undefined output atom in onUpstreamChange");
+      this.setError("got callback with undefined output atom");
+    }
+  }
+
   /**
    * Reads molecule's output atom ID to recompute the molecule in worker
-   */
+   *
   recomputeMolecule(outputID) {
+    // TODO: tristan a bunch of this needs to change but there's interesting cases highlighted.
     try {
       this.processing = true;
       const loadingDiv = document.querySelector(".loading");
@@ -795,7 +843,7 @@ export default class Molecule extends Atom {
       }
       this.setError(err);
     }
-  }
+  }*/
 
   /**
    * Called when this molecules value changes
@@ -1115,6 +1163,21 @@ export default class Molecule extends Atom {
   }
 
   /**
+   * Override the addIO function from atom.js.
+   *
+   * molecule.js holds a list of inputs but we don't want to subscribe to them here.
+   * Instead we just keep the list and Input type atom within this molecule
+   * subscribes to the relevant APs (which provide either user entered values or
+   * values from a higher-order molecule).
+   *
+   * Constructs a new AP and returns it, does not subscribe to changes.
+   * The caller is responsible for calling updateIO and removeIO on `this` as needed.
+   */
+  addIO(name, valueType, defaultValue = undefined, type = "input") {
+    return this._addIOWithoutSubscribing(name, valueType, defaultValue, type);
+  }
+
+  /**
    * Delete this molecule and everything in it.
    */
   deleteNode(backgroundClickAfter = true, deletePath = true, silent = false) {
@@ -1267,6 +1330,14 @@ export default class Molecule extends Atom {
           // Add the atom to the list to display
           this.nodesOnTheScreen.push(atom);
 
+          if (atom.atomType == "Output") {
+            // Subscribe after atom has been added to the nodesOnTheScreen list so that
+            // it's findable
+            atom.subscribe(() => {
+              this.onUpstreamChange();
+            }, this.uniqueID);
+          }
+
           if (unlock) {
             //Make this molecule spawn with all of it's parent's inputs
             if (atom.atomType == "Molecule") {
@@ -1334,8 +1405,8 @@ export default class Molecule extends Atom {
         //When we have found the input atom
         atom.inputs.forEach((input) => {
           //Check each of its inputs
-          if (input.ap.name == connectorObj.ap2Name) {
-            inputAttachmentPoint = input.ap; //Until we find the one with the right name
+          if (input.name == connectorObj.ap2Name) {
+            inputAttachmentPoint = input; //Until we find the one with the right name
           }
         });
       }

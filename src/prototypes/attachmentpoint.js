@@ -2,7 +2,7 @@ import Connector from "./connector.js";
 import GlobalVariables from "../js/globalvariables.js";
 import Atom from "../prototypes/atom.js";
 import { Global } from "@emotion/react";
-import { ObservableEntity, Status } from "./observableEntity.js";
+import { ObservableEntity, Status } from "./subscribableEntity.js";
 
 /**
  * This class creates a new attachmentPoint which are the input and output blobs on Atoms
@@ -54,7 +54,7 @@ export default class AttachmentPoint extends ObservableEntity {
      * A unique identifying number for this attachment point among all other elements on the Flow Canvas.
      * @type {number}
      */
-    this.uniqueID = 0;
+    this.uniqueID = 0; // This always gets reset in the values loop below but it could be made so much clearer.
 
     /**
      * The attachment point type.
@@ -75,17 +75,12 @@ export default class AttachmentPoint extends ObservableEntity {
     this.type = "output";
 
     this.connectors = [];
-    /**
-     * The attachment point current value.
-     * @type {number}
-     */
-    this.value = 10;
 
     /**
      * The default value to be used by the ap when nothing is attached
      * @type {string}
      */
-    this.defaultValue = 10;
+    this.defaultValue = this.valueType == "number" ? 10 : null;
 
     /**
      * This atom's parent, usually the molecule which contains this atom...how is this different from this.parent?
@@ -184,11 +179,15 @@ export default class AttachmentPoint extends ObservableEntity {
 
     // Draw the circular connection target
     GlobalVariables.c.beginPath();
-    if (this.status == Status.READY) {
+    if (this.type == "output") {
       GlobalVariables.c.fillStyle = this.parentMolecule.color;
     } else {
-      GlobalVariables.c.fillStyle = "#6ba4ff";
+      GlobalVariables.c.fillStyle = Atom.statusAsColor(
+        this.status,
+        this.parentMolecule.selected
+      );
     }
+
     GlobalVariables.c.strokeStyle = this.parentMolecule.selected
       ? Atom.DEFAULT_COLOR
       : Atom.SELECTED_COLOR;
@@ -320,7 +319,7 @@ export default class AttachmentPoint extends ObservableEntity {
    * the parent molecule.
    */
   computePosition(boundary) {
-    const inputList = this.parentMolecule.inputs.map((io) => io.ap);
+    const inputList = this.parentMolecule.inputs;
 
     if (this.type == "output") {
       if (this.parentMolecule.atomType == "Input") {
@@ -457,9 +456,12 @@ export default class AttachmentPoint extends ObservableEntity {
             "Input connector exists but doesn't match delete target"
           );
         }
-        this.unsubscribeFn?.();
+        const otherAP = connector.getOtherAP(this);
+        if (otherAP) {
+          otherAP.parentMolecule.unsubscribe(this.uniqueID);
+          otherAP.deleteConnector(connector, silent);
+        }
         this.connectors = [];
-        connector.getOtherAP(this)?.deleteConnector(connector, silent);
         this.setDefault();
       } else if (this.connectors.length > 1) {
         throw new Error("Multiple connectors attached to a single Input AP");
@@ -500,15 +502,14 @@ export default class AttachmentPoint extends ObservableEntity {
       }
 
       this.connectors = [connector];
-      const upstream = connector.attachmentPoint1.parentMolecule;
+      const upstream = connector.getOtherAP(this).parentMolecule;
       if (this.parentMolecule === upstream) {
         throw new Error("Tried to make a circular connection");
       }
-      this.unsubscribeFn = upstream.subscribe(() => {
+      upstream.subscribe(() => {
         this.onUpstreamChange();
-      });
+      }, this.uniqueID);
     } else {
-      console.log("attach called on output");
       this.connectors.push(connector);
     }
   }
@@ -519,13 +520,7 @@ export default class AttachmentPoint extends ObservableEntity {
       return;
     }
     const upstreamMolecule = this.connectors[0].attachmentPoint1.parentMolecule;
-    if (upstreamMolecule.status === Status.READY) {
-      this.setValue(upstreamMolecule.value);
-    } else if (upstreamMolecule.status != this.status) {
-      this.setStatus(upstreamMolecule.status);
-    } else {
-      console.log("no-op because upstream status is the same: ", this.status);
-    }
+    this.setStatus(upstreamMolecule.status, upstreamMolecule.value);
   }
 
   /**
@@ -539,7 +534,7 @@ export default class AttachmentPoint extends ObservableEntity {
    * Reads and returns the current value of the ap.
    */
   getValue() {
-    return this.value;
+    return this.getState().value;
   }
 
   /**
@@ -547,19 +542,13 @@ export default class AttachmentPoint extends ObservableEntity {
    */
   setValue(newValue, type = this.valueType) {
     if (this.type == "input") {
-      const newState =
+      this.valueType = type; // TODO: do we need to force a propagation if this changed?
+      this.setStatus(
         newValue === undefined || newValue === null
-          ? Status.STALE
-          : Status.READY;
-      if (
-        this.status !== newState ||
-        this.value !== newValue ||
-        type !== this.valueType
-      ) {
-        this.valueType = type;
-        this.value = newValue;
-        this.setStatus(newState, true); // update and force propagation.
-      }
+          ? Status.WAITING
+          : Status.READY,
+        newValue
+      );
     } else {
       // this.type == "output"
       console.log("setValue called on output..... no op");
