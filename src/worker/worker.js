@@ -828,6 +828,13 @@ function fusion(targetID, inputIDs) {
   });
 }
 
+function unset(targetId) {
+  return started.then(() => {
+    delete library[targetId];
+    return true;
+  });
+}
+
 /**
  * Recursively flattens an assembly tree into a flat array of geometry objects with colors.
  * @param {Object} assembly - The assembly to flatten
@@ -1118,6 +1125,7 @@ if (
     resetView,
     visualizeGcode,
     getBoundingBox,
+    unset,
   });
 }
 
@@ -1160,4 +1168,5 @@ export {
   visExport,
   downExport,
   shrinkWrapSketches,
+  unset,
 };

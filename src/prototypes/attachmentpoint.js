@@ -184,7 +184,7 @@ export default class AttachmentPoint extends ObservableEntity {
 
     // Draw the circular connection target
     GlobalVariables.c.beginPath();
-    if (this.status == Status.READY) {
+    if (this.status == Status.READY || this.type == "output") {
       GlobalVariables.c.fillStyle = this.parentMolecule.color;
     } else {
       GlobalVariables.c.fillStyle = "#6ba4ff";
@@ -508,7 +508,6 @@ export default class AttachmentPoint extends ObservableEntity {
         this.onUpstreamChange();
       });
     } else {
-      console.log("attach called on output");
       this.connectors.push(connector);
     }
   }

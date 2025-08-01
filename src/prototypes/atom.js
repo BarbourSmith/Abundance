@@ -636,6 +636,7 @@ export default class Atom extends ObservableEntity {
         .catch(this.alertingErrorHandler);
     } else {
       this.setStale();
+      GlobalVariables.cad.unset(this.uniqueID).catch(this.alertingErrorHandler);
     }
   }
 
