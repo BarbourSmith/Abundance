@@ -2,7 +2,7 @@ import AttachmentPoint from "./attachmentpoint";
 import GlobalVariables from "../js/globalvariables.js";
 import showdown from "showdown";
 import globalvariables from "../js/globalvariables.js";
-import ObservableEntity from "./observableEntity.js";
+import { ObservableEntity, Status } from "./observableEntity.js";
 
 // Make this an enum once we're using typescript
 const AlertType = Object.freeze({
@@ -24,12 +24,13 @@ export default class Atom extends ObservableEntity {
    * @param {object} values An array of values passed in which will be assigned to the class as this.x
    */
   constructor(values) {
+    super();
     //Setup default values
     /**
      * An array of all of the input attachment points connected to this atom
      * @type {array}
      */
-    this.inputs = [];
+    this.inputs = []; // holds {ap: AttachmentPoint, unsubscribeFn: function}
     /**
      * This atom's output attachment point if it has one
      * @type {object}
@@ -118,12 +119,16 @@ export default class Atom extends ObservableEntity {
     if (typeof this.ioValues !== "undefined") {
       this.ioValues.forEach((ioValue) => {
         //for each saved value
-        this.inputs.forEach((io) => {
-          //Find the matching IO and set it to be the saved value
-          if (ioValue.name == io.name && io.type == "input") {
-            io.value = ioValue.ioValue;
-          }
-        });
+        this.inputs
+          .map((io) => {
+            return io.ap;
+          })
+          .forEach((ap) => {
+            //Find the matching IO and set it to be the saved value
+            if (ioValue.name == ap.name && ap.type == "input") {
+              ap.value = ioValue.ioValue;
+            }
+          });
       });
     }
   }
@@ -138,7 +143,7 @@ export default class Atom extends ObservableEntity {
     let radiusInPixels = GlobalVariables.widthToPixels(this.radius);
 
     this.inputs.forEach((child) => {
-      child.draw();
+      child.ap.draw();
     });
 
     GlobalVariables.c.beginPath();
@@ -282,7 +287,10 @@ export default class Atom extends ObservableEntity {
       });
 
       if (type == "input") {
-        target.inputs.push(newAp);
+        const unsubFn = newAp.subscribe(() => {
+          target.onUpstreamChange();
+        });
+        target.inputs.push({ ap: newAp, unsubscribeFn: unsubFn });
       } else {
         target.output = newAp;
       }
@@ -292,8 +300,7 @@ export default class Atom extends ObservableEntity {
   updateIO(type, name, target, valueType, value) {
     let ap = target.inputs.find((o) => o.name === name && o.type === type);
     if (ap) {
-      ap.valueType = valueType;
-      ap.value = value;
+      ap.setValue(value, valueType); // This will propagate the new value (possibly right back to us?)
     }
   }
 
@@ -307,9 +314,10 @@ export default class Atom extends ObservableEntity {
   removeIO(type, name, target, silent = false) {
     //Remove the target IO attachment point
     target.inputs.forEach((input) => {
-      if (input.name == name && input.type == type) {
+      if (input.ap.name == name && input.ap.type == type) {
         target.inputs.splice(target.inputs.indexOf(input), 1);
-        input.deleteSelf(silent);
+        input.unsubscribeFn();
+        input.ap.deleteSelf(silent);
       }
     });
   }
@@ -395,7 +403,7 @@ export default class Atom extends ObservableEntity {
     }
     //Returns true if something was done with the click
     this.inputs.forEach((child) => {
-      if (child.clickDown(x, y, clickProcessed) == true) {
+      if (child.ap.clickDown(x, y, clickProcessed) == true) {
         clickProcessed = true;
       }
     });
@@ -442,7 +450,7 @@ export default class Atom extends ObservableEntity {
     this.isMoving = false;
 
     this.inputs.forEach((child) => {
-      child.clickUp(x, y);
+      child.ap.clickUp(x, y);
     });
     if (this.output) {
       this.output.clickUp(x, y);
@@ -466,7 +474,7 @@ export default class Atom extends ObservableEntity {
     }
 
     this.inputs.forEach((child) => {
-      child.mouseMove(x, y);
+      child.ap.mouseMove(x, y);
     });
     if (this.output) {
       this.output.mouseMove(x, y);
@@ -493,7 +501,7 @@ export default class Atom extends ObservableEntity {
    */
   keyPress(key) {
     this.inputs.forEach((child) => {
-      child.keyPress(key);
+      child.ap.keyPress(key);
     });
   }
 
@@ -502,13 +510,8 @@ export default class Atom extends ObservableEntity {
    */
   deleteNode(backgroundClickAfter = true, deletePath = true, silent = false) {
     this.inputs.forEach((input) => {
-      //disable the inputs before deleting
-      input.ready = false;
-    });
-
-    const inputsCopy = [...this.inputs]; //Make a copy of the inputs list to delete all of them
-    inputsCopy.forEach((input) => {
-      input.deleteSelf(silent);
+      input.unsubscribeFn(); //unsubscribe from the input
+      input.ap.deleteSelf(silent);
     });
     if (this.output) {
       this.output.deleteSelf(silent);
@@ -519,7 +522,7 @@ export default class Atom extends ObservableEntity {
     this.parent.nodesOnTheScreen.splice(
       this.parent.nodesOnTheScreen.indexOf(this),
       1
-    ); //remove this node from the list
+    );
   }
 
   /**
@@ -527,7 +530,7 @@ export default class Atom extends ObservableEntity {
    */
   update() {
     this.inputs.forEach((child) => {
-      child.update();
+      child.ap.update();
     });
     if (this.output) {
       this.output.update();
@@ -542,18 +545,22 @@ export default class Atom extends ObservableEntity {
   serialize(offset = { x: 0, y: 0 }) {
     //Offsets are used to make copy and pasted atoms move over a little bit
     var ioValues = [];
-    this.inputs.forEach((io) => {
-      if (
-        typeof io.getValue() == "number" ||
-        typeof io.getValue() == "string"
-      ) {
-        var saveIO = {
-          name: io.name,
-          ioValue: io.getValue(),
-        };
-        ioValues.push(saveIO);
-      }
-    });
+    this.inputs
+      .map((io) => {
+        return io.ap;
+      })
+      .forEach((ap) => {
+        if (
+          typeof ap.getValue() == "number" ||
+          typeof ap.getValue() == "string"
+        ) {
+          var saveIO = {
+            name: ap.name,
+            ioValue: ap.getValue(),
+          };
+          ioValues.push(saveIO);
+        }
+      });
 
     var object = {
       atomType: this.atomType,
@@ -584,23 +591,26 @@ export default class Atom extends ObservableEntity {
    * if computation fails.
    */
   compute(...args) {
-    throw new Error("compute method not implemented in Atom prototype");
+    throw new Error(
+      "compute method must be overwritten. Missing in subclass: " +
+        this.constructor.name
+    );
   }
 
   setReady(value) {
-    this.setStatus(Status.READY);
     this.value = value;
+    this.setStatus(Status.READY);
   }
 
   setError(message) {
-    this.setStatus(Status.ERROR);
     this.alert = { type: AlertType.ERROR, message: String(message) };
+    this.setStatus(Status.ERROR);
   }
 
   /**
    * This method defines the core logic for propagating changes in the DAG.
    *
-   * This method is called any time an input to this atom changes (including an input
+   * Called any time an input to this atom changes (including an input
    * becoming stale, becoming ready etc). There are two possible cases:
    * 1. After the change all inputs are ready. Set self to processing (and propagate this
    *   change downstream). Then compute a new value for this atom asynchronously and update
@@ -610,11 +620,16 @@ export default class Atom extends ObservableEntity {
    */
   onUpstreamChange() {
     if (
-      this.inputs.filter((input) => input.ready).length == this.inputs.length
+      this.inputs.filter((input) => input.ap.status == Status.READY).length ==
+      this.inputs.length
     ) {
-      const inputVals = this.inputs.map((input) => input.getValue());
+      const argsDict = Object.fromEntries(
+        this.inputs.map((input) => [input.ap.name, input.ap.getValue()])
+      );
+
+      // const inputVals = this.inputs.map((input) => {input.ap.getValue());
       this.setProcessing();
-      this.compute(...inputVals)
+      this.compute(argsDict)
         .then((value) => {
           this.setReady(value);
         })
@@ -632,65 +647,16 @@ export default class Atom extends ObservableEntity {
   }
 
   /**
-   * Token update value function to give each atom one by default
-   * @param {string} inputName - The name of the input that changed (optional)
-   */
-  updateValue(inputName) {
-    // If called with an input name parameter (from AttachmentPoint),
-    // just call the main updateValue logic
-    if (inputName !== undefined) {
-      this.updateValue();
-      return;
-    }
-
-    this.waitOnComingInformation();
-  }
-
-  /**
    * Used to walk back out the tree generating a list of constants...used for evolve
    */
   walkBackForConstants(callback) {
     //Pass the call further up the chain
     this.inputs.forEach((input) => {
-      input.connectors.forEach((connector) => {
+      input.ap.connectors.forEach((connector) => {
         connector.walkBackForConstants(callback);
       });
     });
   }
-
-  /**
-   * Sets the atom to wait on coming information. Basically a pass through, but used for molecules
-   */
-  waitOnComingInformation() {
-    if (this.output) {
-      this.output.waitOnComingInformation();
-    }
-    if (this.processing) {
-      //console.log("information sent to something processing");
-      // this.processing = false;
-    }
-  }
-
-  /**
-   * Calls a worker thread to compute the atom's value.
-   */
-  basicThreadValueProcessing() {
-    this.decreaseToProcessCountByOne();
-    this.clearAlert();
-    if (this.output) {
-      this.output.setValue(this.uniqueID);
-      this.output.ready = true;
-    }
-    this.processing = false;
-    if (this.selected) {
-      this.sendToRender();
-    }
-  }
-
-  /**
-   * Starts propagation placeholder. Most atom types do not begin propagation.
-   */
-  beginPropagation() {}
 
   /**
    * Returns an array of length two indicating that this is one atom and if it is waiting to be computed
@@ -698,7 +664,7 @@ export default class Atom extends ObservableEntity {
   census() {
     var waiting = 0;
     this.inputs.forEach((input) => {
-      if (input.ready != true) {
+      if (input.ap.ready != true) {
         waiting = 1;
       }
     });
@@ -725,6 +691,7 @@ export default class Atom extends ObservableEntity {
     /** Runs through active atom inputs and adds IO parameters to default param*/
     if (this.inputs) {
       this.inputs.map((input) => {
+        input = input.ap;
         const checkConnector = () => {
           return input.connectors.length > 0;
         };
@@ -738,8 +705,11 @@ export default class Atom extends ObservableEntity {
             disabled: checkConnector(),
             onChange: (value) => {
               if (input.value !== value) {
+                console.log(
+                  "Setting input value for " + input.name + " to " + value
+                );
                 input.setValue(value);
-                //this.sendToRender();
+                this.sendToRender();
               }
             },
           };
@@ -748,6 +718,7 @@ export default class Atom extends ObservableEntity {
       return inputParams;
     }
   }
+
   /**
    * Find the value of an input for with a given name.
    * @param {string} ioName - The name of the target attachment point.
@@ -756,11 +727,15 @@ export default class Atom extends ObservableEntity {
     ioName = ioName.split("~").join("");
     var ioValue = null;
 
-    this.inputs.forEach((child) => {
-      if (child.name == ioName && child.type == "input") {
-        ioValue = child.getValue();
-      }
-    });
+    this.inputs
+      .map((io) => {
+        return io.ap;
+      })
+      .forEach((child) => {
+        if (child.name == ioName && child.type == "input") {
+          ioValue = child.getValue();
+        }
+      });
     return ioValue;
   }
 }

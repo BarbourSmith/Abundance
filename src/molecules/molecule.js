@@ -23,11 +23,7 @@ export default class Molecule extends Atom {
      * @type {array}
      */
     this.nodesOnTheScreen = [];
-    /**
-     * An array of the molecules inputs. Is this not inherited from atom?
-     * @type {array}
-     */
-    this.inputs = [];
+
     /**
      * This atom's type
      * @type {string}
@@ -166,6 +162,7 @@ export default class Molecule extends Atom {
     /** Runs through active atom inputs and adds IO parameters to default param*/
     if (this.inputs) {
       this.inputs.map((input) => {
+        input = input.ap;
         const checkConnector = () => {
           return input.connectors.length > 0;
         };
@@ -212,8 +209,8 @@ export default class Molecule extends Atom {
 
     exportAtoms.forEach((atom) => {
       const partName =
-        atom.inputs.filter((input) => input.name === "Part Name")[0]?.value ||
-        "Unnamed Part";
+        atom.inputs.filter((input) => input.ap.name === "Part Name")[0]
+          ?.value || "Unnamed Part";
       exportParams[`Export ${partName}`] = button(() => {
         atom.exportFile();
         console.log(`Exporting: ${partName}`);
@@ -591,19 +588,6 @@ export default class Molecule extends Atom {
     this.selected = false;
   }
 
-  /**
-   * Grab values from the inputs and push them out to the input atoms.
-   */
-  updateValue(targetName) {
-    //Molecules are fully transparent so we don't wait for all of the inputs to begin processing the things inside
-    this.nodesOnTheScreen.forEach((atom) => {
-      //Scan all the input atoms
-      if (atom.atomType == "Input" && atom.name == targetName) {
-        atom.updateValue(); //Tell that input to update it's value
-      }
-    });
-  }
-
   compileBom() {
     let compiled = this.extractBomTags().then((result) => {
       let bomList = [];
@@ -753,40 +737,16 @@ export default class Molecule extends Atom {
   }
 
   /**
-   * Sets atoms to wait on coming information.
-   */
-  waitOnComingInformation(inputName) {
-    this.nodesOnTheScreen.forEach((atom) => {
-      if (atom.name == inputName) {
-        atom.waitOnComingInformation();
-      }
-    });
-  }
-
-  /**
    * Called when this molecules value changes
    */
   propagate() {
     try {
-      this.updateValue();
+      //      this.updateValue();
       const loadingDots = document.querySelector(".loading");
       loadingDots.style.display = "none";
     } catch (err) {
       this.setError(err);
     }
-  }
-
-  /**
-   * Walks through each of the atoms in this molecule and begins Propagation from them if they have no inputs to wait for
-   */
-  beginPropagation(force = false) {
-    //Tell every atom inside this molecule to begin Propagation
-    this.nodesOnTheScreen.forEach((node) => {
-      node.beginPropagation(force);
-    });
-    this.inputs.forEach((input) => {
-      input.beginPropagation();
-    });
   }
 
   /**
@@ -956,8 +916,6 @@ export default class Molecule extends Atom {
         GlobalVariables.totalAtomCount = GlobalVariables.numberOfAtomsToLoad;
 
         this.census();
-
-        this.beginPropagation(forceBeginPropagation);
       }
 
       //Place the connectors
@@ -1134,10 +1092,6 @@ export default class Molecule extends Atom {
             atom.atomType == "GitHubMolecule"
           ) {
             promise = atom.deserialize(newAtomObj, values, true);
-
-            if (unlock) {
-              atom.beginPropagation();
-            }
           }
 
           //reassign the name of the Inputs to preserve linking
@@ -1174,21 +1128,6 @@ export default class Molecule extends Atom {
           this.nodesOnTheScreen.push(atom);
 
           if (unlock) {
-            //Make this molecule spawn with all of it's parent's inputs
-            if (atom.atomType == "Molecule") {
-              //Not GitHubMolecule
-
-              //Make begin propagation from an atom when it is placed. This is used when copy and pasting molecules.
-              if (promise != null) {
-                promise.then(() => {
-                  atom.beginPropagation();
-                });
-              } else {
-                atom.beginPropagation();
-              }
-            }
-
-            atom.updateValue();
             const flowCanvas = document.querySelector("#flow-canvas");
             if (!flowCanvas) {
               console.warn("Flow canvas element not found");
@@ -1237,8 +1176,8 @@ export default class Molecule extends Atom {
         //When we have found the input atom
         atom.inputs.forEach((input) => {
           //Check each of its inputs
-          if (input.name == connectorObj.ap2Name) {
-            inputAttachmentPoint = input; //Until we find the one with the right name
+          if (input.ap.name == connectorObj.ap2Name) {
+            inputAttachmentPoint = input.ap; //Until we find the one with the right name
           }
         });
       }

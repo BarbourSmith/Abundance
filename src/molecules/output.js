@@ -70,28 +70,12 @@ export default class Output extends Atom {
     this.addIO("input", "number or geometry", this, "geometry", undefined);
   }
 
-  /**
-   * Take the input value of this function and pass it to the parent Molecule to go up one level.
-   */
-  updateValue() {
-    super.updateValue();
-    if (this.inputs.every((x) => x.ready)) {
-      //still need to understand this
-      this.decreaseToProcessCountByOne();
-
-      var inputID = this.findIOValue("number or geometry");
-      GlobalVariables.cad
-        .output(this.uniqueID, inputID)
-        .then(() => {
-          this.basicThreadValueProcessing();
-          //Recompute molecule gets called if we have successfully updated the value of output
-          this.parent.recomputeMolecule(this.uniqueID);
-        })
-        .catch(this.alertingErrorHandler());
-
-      //Propagate passes the updated value on while parent.updateValue is called when one of the molecule inputs changes
-      this.parent.propagate();
-    }
+  compute(argsDict) {
+    return GlobalVariables.cad.output(
+      this.uniqueID,
+      argsDict["number or geometry"]
+    );
+    // TODO: we may need to do something here to ensure parent molecule gets recalculated?
   }
 
   /**
@@ -104,13 +88,6 @@ export default class Output extends Atom {
     } catch (err) {
       this.setError(err);
     }
-  }
-
-  /**
-   * Sets the parent molecule output to wait on coming information
-   */
-  waitOnComingInformation() {
-    this.parent.output.waitOnComingInformation();
   }
 
   /**
@@ -154,7 +131,7 @@ export default class Output extends Atom {
     }
 
     this.inputs.forEach((child) => {
-      child.draw();
+      child.ap.draw();
     });
 
     GlobalVariables.c.beginPath();
