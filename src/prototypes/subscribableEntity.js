@@ -11,7 +11,7 @@ const Status = Object.freeze({
 class ObservableEntity {
   constructor() {
     this.status = Status.STALE;
-    this.subscribers = [];
+    this.subscribers = {};
   }
 
   setStatus(status, force = false) {
@@ -53,27 +53,40 @@ class ObservableEntity {
    * return quickly, though of course it may dispatch an async operation if it needs to do heavier
    * computation.
    *
-   * This function returns a callable function which can be used to unsubscribe. Calling the
-   * unsubscribe function will ensure that onChange receives no further updates.
-   *
    * @param {function} onChange callback
-   * @returns {function} unsubscribe function
    * @throws {Error} if onChange is not a function
    */
-  subscribe(onChange) {
-    if (typeof onChange === "function") {
-      this.subscribers.push(onChange);
-      return () => {
-        this.subscribers = this.subscribers.filter((obs) => obs !== onChange);
-      };
+  subscribe(subscriber, id) {
+    if (typeof subscriber === "function") {
+      if (id in this.subscribers) {
+        console.warn(`Subscriber with id ${id} already exists. no-op.`);
+      } else {
+        this.subscribers[id] = subscriber;
+        subscriber(); // Call the callback immediately to notify the subscriber of the current state
+      }
     } else {
       throw new Error("Observer must be a function");
     }
   }
 
+  /**
+   * Remove the subscriber with the given id.
+   */
+  unsubscribe(id) {
+    if (this.subscribers[id]) {
+      delete this.subscribers[id];
+    } else {
+      console.warn(
+        `No subscriber found with id: ${id} in list: ${Object.keys(
+          this.subscribers
+        )}`
+      );
+    }
+  }
+
   propagateChange() {
     // Notify all subscribers of this atom that it has changed
-    this.subscribers.forEach((subscriber) => {
+    Object.values(this.subscribers).forEach((subscriber) => {
       subscriber();
     });
   }

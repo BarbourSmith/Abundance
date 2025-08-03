@@ -2,6 +2,26 @@ import Atom from "../prototypes/atom";
 import GlobalVariables from "../js/globalvariables.js";
 
 /**
+ * Modeling inputs....
+ * We need tokeep input atom type around because it's got the xy position
+ * which can be set by the user and it allows overwriting of the type
+ *
+ * But when this isn't the top-level molecule then we want these inputs to "look like"
+ * attachment points.
+ *
+ * Probably the simplest way to do this from our current impl is:
+ * * use the list of atoms as the single source of truth when serialized..
+ * * when rendering as top-level then we just treat inputs like anything else
+ *   * TODO: should we have an ap which is the UI value input?
+ * * when not at top-level we need to scan through for input atoms then create
+ *   attachment points as needed.
+ *
+ *
+ * TODO: where is the code for creating a new molecule atom?
+ *       where is the code for traversing up or down the molecule tree?
+ */
+
+/**
  * This class creates the input atom.
  */
 export default class Input extends Atom {
@@ -68,14 +88,42 @@ export default class Input extends Atom {
      */
     this.tooltipElement = null;
 
-    this.addIO("output", "number or geometry", this, this.type, this.value);
+    this.addIO("number or geometry", this.type, this.value, "output");
 
     // Set values first to ensure this.name is correct before creating the parent input
     this.setValues(values);
 
     //Add a new input to the current molecule
     if (typeof this.parent !== "undefined") {
-      this.parent.addIO("input", this.name, this.parent, this.type, this.value);
+      this.valueSource = this.parent.addIO(
+        this.name,
+        this.type,
+        this.value,
+        "input"
+      );
+      this.valueSource.subscribe(() => {
+        this.onUpstreamChange(); // Subscribe with our callback instead of our parent's which is default.
+      }, this.uniqueID);
+    } else {
+      throw new Error(
+        "constructed an input with undefined parent. IDK what to do here"
+      );
+    }
+
+    this.setReady(this.value);
+  }
+
+  onUpstreamChange() {
+    // Directly forward value from the upstream attachment point onwards to any subscribers we have.
+    if (!this.valueSource) {
+      throw new Error("upstreamchange called but no valueSource set.");
+    }
+
+    if (this.valueSource.status === Atom.READY) {
+      this.value = this.valueSource.getValue();
+      this.setReady(this.valueSource.getValue());
+    } else {
+      this.setStatus(this.valueSource.status);
     }
   }
 
@@ -304,28 +352,6 @@ export default class Input extends Atom {
   }
 
   /**
-   * Grabs the new value from the parent molecule's input, sets this atoms value, then propagates.
-   */
-  updateValue() {
-    this.parent.inputs.forEach((input) => {
-      //Grab the value for this input from the parent's inputs list
-      if (input.name == this.name) {
-        //If we have found the matching input
-        this.decreaseToProcessCountByOne();
-        this.value = input.getValue();
-        this.output.waitOnComingInformation(); //Lock all of the dependents
-        this.output.setValue(this.value);
-        this.parent.updateIO(
-          "input",
-          this.name,
-          this.parent,
-          this.type,
-          this.value
-        );
-      }
-    });
-  }
-  /**
    * Create Leva Menu Inputs for Editable Input Names - returns to ParameterEditor
    */
   createLevaInputs() {
@@ -334,9 +360,10 @@ export default class Input extends Atom {
       value: this.name,
       label: "Input Name",
       disabled: false,
-      onChange: (value) => {
-        if (this.name !== value) {
-          this.name = value;
+      onChange: (newName) => {
+        if (this.name !== newName) {
+          this.name = newName;
+          this.valueSource.name = newName; // Update the attachment point name
         }
       },
     };
@@ -345,19 +372,13 @@ export default class Input extends Atom {
       label: "Input Type",
       disabled: false,
       options: ["number", "string", "geometry", "array"],
-      onChange: (value) => {
-        if (this.type !== value) {
-          this.type = value;
-          this.output.valueType = value;
+      onChange: (newType) => {
+        if (this.type !== newType) {
+          this.type = newType;
+          this.output.valueType = newType;
           //Add a new input to the current molecule
-          if (typeof this.parent !== "undefined") {
-            this.parent.updateIO(
-              "input",
-              this.name,
-              this.parent,
-              this.type,
-              this.value
-            );
+          if (this.valueSource) {
+            this.valueSource.valueType = newType;
           }
         }
       },

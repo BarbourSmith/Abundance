@@ -1,4 +1,5 @@
 import Atom from "../prototypes/atom.js";
+import AttachmentPoint from "../prototypes/attachmentpoint.js";
 import Connector from "../prototypes/connector.js";
 import GlobalVariables from "../js/globalvariables.js";
 import { button } from "leva";
@@ -136,7 +137,8 @@ export default class Molecule extends Atom {
   }
 
   /**
-   * Create Leva Menu Input - returns to ParameterEditor
+   * Overrides the usual CreateLevaInputs function because the
+   * inputs to the molecule atom aren't simple attachment points.
    */
   createLevaInputs() {
     let inputParams = {};
@@ -162,7 +164,6 @@ export default class Molecule extends Atom {
     /** Runs through active atom inputs and adds IO parameters to default param*/
     if (this.inputs) {
       this.inputs.map((input) => {
-        input = input.ap;
         const checkConnector = () => {
           return input.connectors.length > 0;
         };
@@ -209,8 +210,8 @@ export default class Molecule extends Atom {
 
     exportAtoms.forEach((atom) => {
       const partName =
-        atom.inputs.filter((input) => input.ap.name === "Part Name")[0]
-          ?.value || "Unnamed Part";
+        atom.inputs.filter((input) => input.name === "Part Name")[0]?.value ||
+        "Unnamed Part";
       exportParams[`Export ${partName}`] = button(() => {
         atom.exportFile();
         console.log(`Exporting: ${partName}`);
@@ -1035,6 +1036,21 @@ export default class Molecule extends Atom {
   }
 
   /**
+   * Override the addIO function from atom.js.
+   *
+   * molecule.js holds a list of inputs but we don't want to subscribe to them here.
+   * Instead we just keep the list and Input type atom within this molecule
+   * subscribes to the relevant APs (which provide either user entered values or
+   * values from a higher-order molecule).
+   *
+   * Constructs a new AP and returns it, does not subscribe to changes.
+   * The caller is responsible for calling updateIO and removeIO on `this` as needed.
+   */
+  addIO(name, valueType, defaultValue = undefined, type = "input") {
+    return this._addIOWithoutSubscribing(name, valueType, defaultValue, type);
+  }
+
+  /**
    * Delete this molecule and everything in it.
    */
   deleteNode(backgroundClickAfter = true, deletePath = true, silent = false) {
@@ -1177,8 +1193,8 @@ export default class Molecule extends Atom {
         //When we have found the input atom
         atom.inputs.forEach((input) => {
           //Check each of its inputs
-          if (input.ap.name == connectorObj.ap2Name) {
-            inputAttachmentPoint = input.ap; //Until we find the one with the right name
+          if (input.name == connectorObj.ap2Name) {
+            inputAttachmentPoint = input; //Until we find the one with the right name
           }
         });
       }

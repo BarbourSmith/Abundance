@@ -131,7 +131,7 @@ export default class Output extends Atom {
     }
 
     this.inputs.forEach((child) => {
-      child.ap.draw();
+      child.draw();
     });
 
     GlobalVariables.c.beginPath();

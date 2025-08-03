@@ -111,7 +111,7 @@ export default class Connector {
       GlobalVariables.currentMolecule.nodesOnTheScreen.forEach((molecule) => {
         //For every molecule on the screen
         molecule.inputs.forEach((input) => {
-          const attachmentPoint = input.ap;
+          const attachmentPoint = input;
           //For each of their attachment points
           if (attachmentPoint.wasConnectionMade(x, y) && !attachmentMade) {
             /** Prevent it from connecting to itself  */
@@ -148,7 +148,7 @@ export default class Connector {
             if (this.attachmentPoint1.parentMolecule !== atom) {
               // Find the first available input attachment point
               for (let i = 0; i < atom.inputs.length; i++) {
-                const input = atom.inputs[i].ap;
+                const input = atom.inputs[i];
                 // Check if this input has no connectors and is an input type
                 if (input.type === "input" && input.connectors.length === 0) {
                   attachmentMade = true;
@@ -195,9 +195,9 @@ export default class Connector {
                 // Find this newly created input attachment point on the target molecule
                 const newInputAP = atom.inputs.find(
                   (input) =>
-                    input.ap.name === inputName &&
-                    input.ap.type === "input" &&
-                    input.ap.connectors.length === 0
+                    input.name === inputName &&
+                    input.type === "input" &&
+                    input.connectors.length === 0
                 );
 
                 if (newInputAP) {
