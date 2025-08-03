@@ -1,5 +1,5 @@
 const Status = Object.freeze({
-  STALE: "stale",
+  WAITING: "waiting",
   PROCESSING: "processing",
   ERROR: "error",
   READY: "ready",
@@ -10,12 +10,18 @@ const Status = Object.freeze({
  */
 class ObservableEntity {
   constructor() {
-    this.status = Status.STALE;
+    this.status = Status.WAITING;
+    this.value = null;
     this.subscribers = {};
   }
 
-  setStatus(status, force = false) {
-    if (this.status != status || force) {
+  setStatus(status, value = null) {
+    if (status == Status.READY && value === null) {
+      throw new Error("Ready status must have a value");
+    } else if (status !== Status.READY && value !== null) {
+      throw new Error("Non-ready status must not have a value");
+    }
+    if (this.status != status || this.value !== value) {
       console.debug(
         "changing status for " +
           this.constructor.name +
@@ -25,24 +31,25 @@ class ObservableEntity {
           status
       );
       this.status = status;
+      this.value = value;
       this.propagateChange();
     }
   }
 
-  setStale(force = false) {
-    this.setStatus(Status.STALE, force);
+  setWaiting() {
+    this.setStatus(Status.WAITING);
   }
 
-  setProcessing(force = false) {
-    this.setStatus(Status.PROCESSING, force);
+  setProcessing() {
+    this.setStatus(Status.PROCESSING);
   }
 
-  setError(force = false) {
-    this.setStatus(Status.ERROR, force);
+  setError() {
+    this.setStatus(Status.ERROR);
   }
 
-  setReady(force = false) {
-    this.setStatus(Status.READY, force);
+  setReady(value) {
+    this.setStatus(Status.READY, value);
   }
 
   /**
@@ -82,6 +89,16 @@ class ObservableEntity {
         )}`
       );
     }
+  }
+
+  /**
+   * @returns current status and value of this entity
+   */
+  getState() {
+    return {
+      status: this.status,
+      value: this.value,
+    };
   }
 
   propagateChange() {

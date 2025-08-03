@@ -75,11 +75,6 @@ export default class AttachmentPoint extends ObservableEntity {
     this.type = "output";
 
     this.connectors = [];
-    /**
-     * The attachment point current value.
-     * @type {number}
-     */
-    this.value = 10;
 
     /**
      * The default value to be used by the ap when nothing is attached
@@ -525,13 +520,7 @@ export default class AttachmentPoint extends ObservableEntity {
       return;
     }
     const upstreamMolecule = this.connectors[0].attachmentPoint1.parentMolecule;
-    if (upstreamMolecule.status === Status.READY) {
-      this.setValue(upstreamMolecule.value);
-    } else if (upstreamMolecule.status != this.status) {
-      this.setStatus(upstreamMolecule.status);
-    } else {
-      console.log("no-op because upstream status is the same: ", this.status);
-    }
+    this.setStatus(upstreamMolecule.status, upstreamMolecule.value);
   }
 
   /**
@@ -545,7 +534,7 @@ export default class AttachmentPoint extends ObservableEntity {
    * Reads and returns the current value of the ap.
    */
   getValue() {
-    return this.value;
+    return this.getState().value;
   }
 
   /**
@@ -553,19 +542,13 @@ export default class AttachmentPoint extends ObservableEntity {
    */
   setValue(newValue, type = this.valueType) {
     if (this.type == "input") {
-      const newState =
+      this.valueType = type; // TODO: do we need to force a propagation if this changed?
+      this.setStatus(
         newValue === undefined || newValue === null
-          ? Status.STALE
-          : Status.READY;
-      if (
-        this.status !== newState ||
-        this.value !== newValue ||
-        type !== this.valueType
-      ) {
-        this.valueType = type;
-        this.value = newValue;
-        this.setStatus(newState, true); // update and force propagation.
-      }
+          ? Status.WAITING
+          : Status.READY,
+        newValue
+      );
     } else {
       // this.type == "output"
       console.log("setValue called on output..... no op");

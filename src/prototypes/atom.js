@@ -24,7 +24,7 @@ export default class Atom extends ObservableEntity {
       return Atom.SELECTED_COLOR;
     }
     switch (status) {
-      case Status.STALE:
+      case Status.WAITING:
         return "#6bcfd6"; // light-blue
       case Status.PROCESSING:
         return "blue";
@@ -57,12 +57,6 @@ export default class Atom extends ObservableEntity {
      * @type {number}
      */
     this.uniqueID = GlobalVariables.generateUniqueID();
-
-    /**
-     * This atom's value...Is can this be done away with? Are we basically storing the value in the output now?
-     * @type {object}
-     */
-    this.value = null;
 
     /**
      * A description of this atom
@@ -621,11 +615,6 @@ export default class Atom extends ObservableEntity {
     );
   }
 
-  setReady(value) {
-    this.value = value;
-    this.setStatus(Status.READY);
-  }
-
   setError(message) {
     this.alert = { type: AlertType.ERROR, message: String(message) };
     this.setStatus(Status.ERROR);
@@ -644,11 +633,11 @@ export default class Atom extends ObservableEntity {
    */
   onUpstreamChange() {
     if (
-      this.inputs.filter((input) => input.status == Status.READY).length ==
-      this.inputs.length
+      this.inputs.filter((input) => input.getState().status == Status.READY)
+        .length == this.inputs.length
     ) {
       const argsDict = Object.fromEntries(
-        this.inputs.map((input) => [input.name, input.getValue()])
+        this.inputs.map((input) => [input.name, input.getState().value])
       );
 
       // const inputVals = this.inputs.map((input) => {input.getValue());
@@ -659,7 +648,7 @@ export default class Atom extends ObservableEntity {
         })
         .catch(this.alertingErrorHandler);
     } else {
-      this.setStale();
+      this.setWaiting();
       GlobalVariables.cad.unset(this.uniqueID).catch(this.alertingErrorHandler);
     }
   }
