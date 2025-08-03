@@ -118,13 +118,8 @@ export default class Input extends Atom {
     if (!this.valueSource) {
       throw new Error("upstreamchange called but no valueSource set.");
     }
-
-    if (this.valueSource.status === Atom.READY) {
-      this.value = this.valueSource.getValue();
-      this.setReady(this.valueSource.getValue());
-    } else {
-      this.setStatus(this.valueSource.status);
-    }
+    const state = this.valueSource.getState();
+    this.setStatus(state.status, state.value);
   }
 
   /** Solution to canvas overflow https://stackoverflow.com/questions/10508988/html-canvas-text-overflow-ellipsis*/
