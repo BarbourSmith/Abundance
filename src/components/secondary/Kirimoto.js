@@ -287,7 +287,7 @@ export const generateKirimoto = (stlUrl, centerPos, toolSize, passes, speed, ext
             tool: 1000,
             spindle: 1000,
             step: (z+extra) / passes,
-            steps: 1,
+            steps: passes,
             down: (z+extra) / passes,
             rate: speed,
             plunge: 250,
