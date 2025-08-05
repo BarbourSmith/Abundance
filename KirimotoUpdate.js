@@ -9,13 +9,14 @@ console.log(kiriEngine);
 
 const generateGcode = (
   stlUrl,
-  centerPos = [0, 0, 0],
-  toolSize = 6.35,
-  passes = 6,
-  speed = 500,
-  extra = 1,
-  gcodeCallback = (gcode) => console.log("Generated GCode:", gcode)
+  centerPos,
+  toolSize,
+  passes,
+  speed,
+  extra,
+  gcodeCallback
 ) => {
+  console.log("passes", passes);
   if (!stlUrl) {
     console.error("STL URL is not available.");
     return;
@@ -73,6 +74,7 @@ const generateGcode = (
         camLevelTool: 1000,
         camLevelSpindle: 1000,
         camLevelOver: 0.5,
+        camZBottom: -25, // temp hack to get around setTopZ bug
         camLevelSpeed: 1000,
         camLevelDown: 0,
         camLevelStock: true,
@@ -223,7 +225,7 @@ const generateGcode = (
         camToolInit: true,
         camFullEngage: 0.8,
         ops: [
-          {
+          /* { //need to update before trying pocket
             type: "rough",
             tool: 1000,
             spindle: 1000,
@@ -237,27 +239,27 @@ const generateGcode = (
             inside: true,
             voids: true,
             outside: false,
+          },*/
+          {
+            type: "outline",
+            tool: 1000,
+            spindle: 1000,
+            step: (z + extra) / passes,
+            steps: 1,
+            down: (z + extra) / passes,
+            rate: speed,
+            plunge: 250,
+            dogbones: true,
+            omitvoid: false,
+            omitthru: false,
+            outside: true,
+            inside: false,
+            wide: false,
+            top: true,
+            ov_topz: 0,
+            ov_botz: 0,
+            ov_conv: false,
           },
-          // {
-          //   type: "outline",
-          //   tool: 1000,
-          //   spindle: 1000,
-          //   step: (z+extra) / passes,
-          //   steps: 1,
-          //   down: (z+extra) / passes,
-          //   rate: speed,
-          //   plunge: 250,
-          //   dogbones: true,
-          //   omitvoid: false,
-          //   omitthru: false,
-          //   outside: true,
-          //   inside: false,
-          //   wide: false,
-          //   top: true,
-          //   ov_topz: 0,
-          //   ov_botz: 0,
-          //   ov_conv: false,
-          // },
           {
             type: "|",
           },
@@ -301,6 +303,7 @@ const generateGcode = (
     .then((eng) => eng.export())
     .then((gcode) => {
       gcodeCallback(gcode); // Only call the callback, don't download
+      console.log(gcode);
     })
     .catch((error) => {
       console.error("Kiri:Moto Error:", error);
