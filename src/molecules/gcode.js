@@ -1,8 +1,7 @@
 import Atom from "../prototypes/atom.js";
 import GlobalVariables from "../js/globalvariables.js";
 import { button } from "leva";
-import { initKiriMoto, generateKirimoto, downloadGcode } from '../components/secondary/Kirimoto.js'; // Adjust the path
-//import saveAs from '../lib/FileSaver.js'
+import { saveAs } from "file-saver";
 
 /**
  * This class creates the circle atom.
@@ -64,13 +63,8 @@ export default class Gcode extends Atom {
 
     this.partName = this.parent.name;
 
-    // Initialize Kiri:Moto if not already initialized
-    if (!GlobalVariables.kirimotoInitialized) {
-      initKiriMoto();
-    }
-
     this.stlURL = null; // Store the STL URL
- 
+
     this.center = [0, 0, 0]; //Used to correctly position the gcode
   }
 
@@ -112,21 +106,22 @@ export default class Gcode extends Atom {
    * Generates gcode using Kirimoto with the current parameters
    */
   _generateGcode() {
-    if (!GlobalVariables.kirimotoInitialized) {
+    /*if (!GlobalVariables.kirimotoInitialized) {
       // If Kirimoto is not initialized, wait 500ms and try again
-      setTimeout(() => this._generateGcode(), 500);
+      setTimeout(() => window.generateGcode(), 500);
       console.log("Waiting for Kirimoto to initialize...");
       return;
-    }
-    
+    }*/
+
     const gcodeCallback = this._createGcodeCallback();
-    generateKirimoto(
-      this.stlURL, 
-      this.center, 
-      this.findIOValue("Tool Size"), 
-      this.findIOValue("Passes"), 
-      this.findIOValue("Speed"), 
-      this.findIOValue("Cut Through"), 
+    console.log(this.stlURL);
+    window.generateGcode(
+      this.stlURL,
+      this.center,
+      this.findIOValue("Tool Size"),
+      this.findIOValue("Passes"),
+      this.findIOValue("Speed"),
+      this.findIOValue("Cut Through"),
       gcodeCallback
     );
   }
@@ -137,30 +132,31 @@ export default class Gcode extends Atom {
   updateValue() {
     super.updateValue();
     try {
-
       let inputID = this.findIOValue("Geometry");
 
       GlobalVariables.cad
-        .visExport(this.uniqueID+1, inputID, "STL") //What a hack, we shouldn't be using uniqueID+1 here
+        .visExport(this.uniqueID + 1, inputID, "STL") //What a hack, we shouldn't be using uniqueID+1 here
         .then((result) => {
           GlobalVariables.cad
-            .downExport(this.uniqueID+1, "STL")
+            .downExport(this.uniqueID + 1, "STL")
             .then((result) => {
               //Delete anything previously stored
               if (this.stlURL) {
                 URL.revokeObjectURL(this.stlURL); // Clean up the previous URL
               }
               this.stlURL = URL.createObjectURL(result); // Store the STL URL
-              GlobalVariables.cad.getBoundingBox(this.uniqueID+1).then((bounds) => {
-                this.center = [
-                  (bounds.max[0] + bounds.min[0]) / 2,
-                  (bounds.max[1] + bounds.min[1]) / 2,
-                  (bounds.max[2] + bounds.min[2]) / 2,
-                ];
-                if(window.location.pathname.includes('/run/')) {
-                  this._generateGcode();
-                }
-              });
+              GlobalVariables.cad
+                .getBoundingBox(this.uniqueID + 1)
+                .then((bounds) => {
+                  this.center = [
+                    (bounds.max[0] + bounds.min[0]) / 2,
+                    (bounds.max[1] + bounds.min[1]) / 2,
+                    (bounds.max[2] + bounds.min[2]) / 2,
+                  ];
+                  if (window.location.pathname.includes("/run/")) {
+                    this._generateGcode();
+                  }
+                });
             });
         })
         .catch((err) => {
@@ -169,7 +165,6 @@ export default class Gcode extends Atom {
     } catch (err) {
       this.setError(err);
     }
-
   }
 
   createLevaInputs() {
@@ -219,8 +214,9 @@ export default class Gcode extends Atom {
     inputParams[`Download Gcode - ${partName}`] = button(() => {
       if (this.gcodeGenerated && this.gcodeString) {
         // Get the current part name dynamically when button is clicked
-        const currentPartName = this.findIOValue("Part Name") || this.partName || "output";
-        downloadGcode(this.gcodeString, `${currentPartName}.gcode`);
+        const currentPartName =
+          this.findIOValue("Part Name") || this.partName || "output";
+        this.downloadGcode(this.gcodeString, `${currentPartName}.gcode`);
       } else {
         console.warn("No G-code available. Please generate G-code first.");
         // You could also show an alert or notification to the user here
@@ -231,6 +227,17 @@ export default class Gcode extends Atom {
     return inputParams;
   }
 
+  //Function to download G-code from a G-code string
+  downloadGcode = (gcode, filename = "output.gcode") => {
+    if (!gcode) {
+      console.error("No G-code available to download.");
+      return;
+    }
+
+    const blob = new Blob([gcode], { type: "text/plain" });
+    saveAs(blob, filename);
+  };
+
   /**
    * Add the part name to the object which is saved for this molecule
    */
@@ -240,5 +247,4 @@ export default class Gcode extends Atom {
 
     return superSerialObject;
   }
-
 }

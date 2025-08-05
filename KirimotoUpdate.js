@@ -1,38 +1,21 @@
-import GlobalVariables from "../../js/globalvariables.js";
-import { saveAs } from "file-saver";
+import { Engine } from "./engine.js";
 
-
-let kiriEngine = null;
-
-export const initKiriMoto = () => {
-  // Dynamically load the Kiri:Moto script
-  const script = document.createElement("script");
-  script.src = "https://grid.space/code/engine.js"; // this comes from the grid.space Kiri:Moto API -- https://docs.grid.space/projects/kiri-moto/apis
-  script.async = true;
-  script.onload = () => {
-    if (window.kiri) {
-      kiriEngine = window.kiri.newEngine();
-      console.log("Kiri:Moto script loaded successfully");
-      GlobalVariables.kirimotoInitialized = true; // Set a flag to indicate Kiri:Moto is initialized
-    }
-  };
-
-  script.onerror = () => {
-    console.error("Failed to load Kiri:Moto script");
-  };
-  document.body.appendChild(script);
+const display_message = (message) => {
+  console.log(message);
 };
 
-//This function generates G-code and calls the callback but doesn't download
-export const generateKirimoto = (stlUrl, centerPos, toolSize, passes, speed, extra, gcodeCallback) => {
-    
-    kiriEngine = window.kiri.newEngine(); //Create a new Kiri:Moto engine instance to start with a clean slate
+const kiriEngine = new Engine({ workURL: "./worker.js" });
+console.log(kiriEngine);
 
-  if (!kiriEngine) {
-    console.error("Kiri:Moto engine is not initialized yet.");
-    return;
-  }
-
+const generateGcode = (
+  stlUrl,
+  centerPos = [0, 0, 0],
+  toolSize = 6.35,
+  passes = 6,
+  speed = 500,
+  extra = 1,
+  gcodeCallback = (gcode) => console.log("Generated GCode:", gcode)
+) => {
   if (!stlUrl) {
     console.error("STL URL is not available.");
     return;
@@ -44,13 +27,12 @@ export const generateKirimoto = (stlUrl, centerPos, toolSize, passes, speed, ext
     })
     .load(stlUrl)
     .then((eng) => {
-        return eng.move(centerPos[0],centerPos[1],0);//Move the model to line up with where the parts were before
+      return eng.move(centerPos[0], centerPos[1], 0); //Move the model to line up with where the parts were before
     })
     .then((eng) => {
-    //   console.log("Kiri:Moto STL loaded successfully");
       return eng.setMode("CAM");
     })
-    .then((eng) =>{
+    .then((eng) => {
       const bounds = eng.widget.getBoundingBox();
       const x = bounds.max.x - bounds.min.x;
       const y = bounds.max.y - bounds.min.y;
@@ -60,9 +42,9 @@ export const generateKirimoto = (stlUrl, centerPos, toolSize, passes, speed, ext
         y: y + 10,
         z: z,
         center: {
-          x: x/2, //I'm not sure this is right. We might need to actually find the middle of the bounds
-          y: y/2,
-          z: z/2,
+          x: x / 2,
+          y: y / 2,
+          z: z / 2,
         },
       });
       return eng;
@@ -170,13 +152,13 @@ export const generateKirimoto = (stlUrl, centerPos, toolSize, passes, speed, ext
         camPocketContour: false,
         camPocketEngrave: false,
         camPocketOutline: false,
-        camPocketZTop: 0,
         camPocketZBottom: 0,
         camDrillTool: 1000,
         camDrillSpindle: 1000,
         camDrillDownSpeed: 250,
         camDrillDown: 5,
         camDrillDwell: 250,
+        d: 250,
         camDrillLift: 2,
         camDrillMark: false,
         camDrillingOn: false,
@@ -184,6 +166,8 @@ export const generateKirimoto = (stlUrl, centerPos, toolSize, passes, speed, ext
         camRegisterThru: 5,
         camFlipAxis: "X",
         camFlipOther: "",
+        camLaserEnable: ["M321"],
+        camLaserDisable: false,
         camLaserEnable: ["M321"],
         camLaserDisable: ["M322"],
         camLaserOn: ["M3"],
@@ -239,21 +223,21 @@ export const generateKirimoto = (stlUrl, centerPos, toolSize, passes, speed, ext
         camToolInit: true,
         camFullEngage: 0.8,
         ops: [
-            {
-              type: "rough",
-              tool: 1000,
-              spindle: 1000,
-              step: 0.4,
-              down: 3,
-              rate: 1000,
-              plunge: 250,
-              leave: 0,
-              leavez: 0,
-              top: false,
-              inside: true,
-              voids: true,
-              outside: false,
-            },  
+          {
+            type: "rough",
+            tool: 1000,
+            spindle: 1000,
+            step: 0.4,
+            down: 3,
+            rate: 1000,
+            plunge: 250,
+            leave: 0,
+            leavez: 0,
+            top: false,
+            inside: true,
+            voids: true,
+            outside: false,
+          },
           // {
           //   type: "outline",
           //   tool: 1000,
@@ -282,7 +266,7 @@ export const generateKirimoto = (stlUrl, centerPos, toolSize, passes, speed, ext
         camDrillThru: 5,
         camDrillPrecision: 1,
         "~camConventional": false,
-      })
+      });
       return eng;
     })
     .then((eng) =>
@@ -327,13 +311,6 @@ export const generateKirimoto = (stlUrl, centerPos, toolSize, passes, speed, ext
     });
 };
 
-//Function to download G-code from a G-code string
-export const downloadGcode = (gcode, filename = "output.gcode") => {
-  if (!gcode) {
-    console.error("No G-code available to download.");
-    return;
-  }
-  
-  const blob = new Blob([gcode], { type: "text/plain" });
-  saveAs(blob, filename);
-};
+Object.assign(window, {
+  generateGcode,
+});
