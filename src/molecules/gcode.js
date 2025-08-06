@@ -216,6 +216,8 @@ export default class Gcode extends Atom {
       this._handleGeometryInput(inputID);
     } catch (err) {
       this.setError(err);
+      // Complete propagation chain even when there's an error
+      this.basicThreadValueProcessing();
     }
   }
 
@@ -238,6 +240,8 @@ export default class Gcode extends Atom {
     } catch (err) {
       console.error("Error handling geometry input:", err);
       this.setError(err);
+      // Complete propagation chain even when there's an error
+      this.basicThreadValueProcessing();
     }
   }
 
@@ -278,12 +282,26 @@ export default class Gcode extends Atom {
               ];
               if(window.location.pathname.includes('/run/')) {
                 this._generateGcode();
+              } else {
+                // Complete propagation chain even when not generating gcode
+                this.basicThreadValueProcessing();
               }
+            }).catch((err) => {
+              console.error("Error getting bounding box for gcode:", err);
+              this.setError(err);
+              this.basicThreadValueProcessing();
             });
+          }).catch((err) => {
+            console.error("Error downloading STL for gcode:", err);
+            this.setError(err);
+            this.basicThreadValueProcessing();
           });
       })
       .catch((err) => {
         console.error("Error creating STL for gcode:", err);
+        this.setError(err);
+        // Complete propagation chain even when there's an error
+        this.basicThreadValueProcessing();
       });
   }
 
@@ -304,10 +322,15 @@ export default class Gcode extends Atom {
       if (window.location.pathname.includes('/run/')) {
         // Generate G-code for each part sequentially
         await this._generateSequentialGcode(sortedParts);
+      } else {
+        // Complete propagation chain even when not generating gcode
+        this.basicThreadValueProcessing();
       }
     } catch (err) {
       console.error("Error processing assembly:", err);
       this.setError(err);
+      // Complete propagation chain even when there's an error
+      this.basicThreadValueProcessing();
     }
   }
 
