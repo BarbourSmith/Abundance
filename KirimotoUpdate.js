@@ -28,6 +28,7 @@ const generateGcode = (
     })
     .load(stlUrl)
     .then((eng) => {
+      console.log(centerPos);
       return eng.move(centerPos[0], centerPos[1], 0); //Move the model to line up with where the parts were before
     })
     .then((eng) => {
@@ -41,7 +42,7 @@ const generateGcode = (
       eng.setStock({
         x: x + 10,
         y: y + 10,
-        z: z,
+        z: z - 25,
         center: {
           x: x / 2,
           y: y / 2,
@@ -85,9 +86,9 @@ const generateGcode = (
         camRoughPlunge: 250,
         camRoughStock: 0,
         camRoughStockZ: 0,
-        camRoughAll: true,
-        camRoughVoid: false,
-        camRoughFlat: false,
+        camRoughAll: false,
+        camRoughVoid: true,
+        camRoughFlat: true,
         camRoughTop: true,
         camRoughIn: true,
         camRoughOn: true,
@@ -103,7 +104,7 @@ const generateGcode = (
         camOutlineWide: false,
         camOutlineDogbone: false,
         camOutlineOmitThru: false,
-        camOutlineOmitVoid: false,
+        camOutlineOmitVoid: true,
         camOutlineOut: true,
         camOutlineIn: false,
         camOutlineOn: true,
@@ -150,7 +151,7 @@ const generateGcode = (
         camPocketSmooth: 0,
         camPocketRefine: 20,
         camPocketFollow: 5,
-        camPocketContour: false,
+        camPocketContour: true,
         camPocketEngrave: false,
         camPocketOutline: false,
         camPocketZTop: 0,
@@ -195,7 +196,7 @@ const generateGcode = (
         camZAnchor: "middle",
         camZOffset: 0,
         camZTop: 0,
-        camZBottom: -50, // temp hack to get around setTopZ bug
+        camZBottom: -25,
         camZClearance: 1,
         camZThru: 0,
         camFastFeed: 6000,
@@ -212,7 +213,7 @@ const generateGcode = (
         camIndexAxis: 0,
         camIndexAbs: true,
         camConventional: false,
-        camOriginCenter: false,
+        camOriginCenter: true,
         camOriginOffX: 0,
         camOriginOffY: 0,
         camOriginOffZ: 0,
@@ -232,14 +233,14 @@ const generateGcode = (
             type: "rough",
             tool: 1000,
             spindle: 1000,
-            down: z / passes,
+            down: 4,
             step: 0.4,
             rate: 1000,
             plunge: 250,
             leave: 0,
             leavez: 0,
-            all: true,
-            voids: false,
+            all: false,
+            voids: true,
             flats: true,
             inside: true,
             omitthru: false,
@@ -281,8 +282,8 @@ const generateGcode = (
         internal: 0,
         bedHeight: 2.5,
         bedWidth: 10000,
-        bedDepth: 10000,
-        maxHeight: 150,
+        bedDepth: 175,
+        maxHeight: 300,
         originCenter: false,
         spindleMax: 0,
         gcodePre: [
