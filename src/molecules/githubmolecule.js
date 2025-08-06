@@ -106,12 +106,13 @@ export default class GitHubMolecule extends Molecule {
     var githubMoleculeParentObjectConnectorsPreReload =
       this.parent.serialize().allConnectors;
 
+    let item = this.parentRepo;
+    let parentMolecule = this.parent;
+
     const copyOfNodeToBeDeleted = this;
     copyOfNodeToBeDeleted.deleteNode(false, false, true);
 
-    let item = this.parentRepo;
-
-    this.loadGithubMoleculeByName(
+    parentMolecule.loadGithubMoleculeByName(
       /*old way > keeping until i fix reload -- this.gitHubUniqueID*/
       item,
       githubMoleculeObjectPreReload,
