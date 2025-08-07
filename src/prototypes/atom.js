@@ -2,6 +2,7 @@ import AttachmentPoint from "./attachmentpoint";
 import GlobalVariables from "../js/globalvariables.js";
 import showdown from "showdown";
 import globalvariables from "../js/globalvariables.js";
+import { ObservableEntity, Status } from "./subscribableEntity.js";
 
 // Make this an enum once we're using typescript
 const AlertType = Object.freeze({
@@ -14,12 +15,31 @@ const AlertType = Object.freeze({
 /**
  * This class is the prototype for all atoms.
  */
-export default class Atom {
+export default class Atom extends ObservableEntity {
+  static SELECTED_COLOR = "#484848";
+  static DEFAULT_COLOR = "#F3EFEF";
+
+  static statusAsColor(status, selected = false) {
+    if (selected) {
+      return Atom.SELECTED_COLOR;
+    }
+    switch (status) {
+      case Status.WAITING:
+        return "#6bcfd6"; // light-blue
+      case Status.PROCESSING:
+        return "blue";
+      case Status.ERROR:
+        return "red";
+      case Status.READY:
+        return Atom.DEFAULT_COLOR;
+    }
+  }
   /**
    * The constructor function.
    * @param {object} values An array of values passed in which will be assigned to the class as this.x
    */
   constructor(values) {
+    super();
     //Setup default values
     /**
      * An array of all of the input attachment points connected to this atom
@@ -178,19 +198,9 @@ export default class Atom {
     GlobalVariables.c.beginPath();
     GlobalVariables.c.font = GlobalVariables.canvasFont;
 
-    if (this.processing) {
-      GlobalVariables.c.fillStyle = "blue";
-    } else if (this.selected) {
-      GlobalVariables.c.fillStyle = this.selectedColor;
-      GlobalVariables.c.strokeStyle = this.selectedColor;
-      this.color = this.selectedColor;
-      this.strokeColor = this.defaultColor;
-    } else {
-      GlobalVariables.c.fillStyle = this.defaultColor;
-      GlobalVariables.c.strokeStyle = this.selectedColor;
-      this.color = this.defaultColor;
-      this.strokeColor = this.selectedColor;
-    }
+    this.color = Atom.statusAsColor(this.status, this.selected);
+    GlobalVariables.c.fillStyle = this.color;
+    GlobalVariables.c.strokeStyle = Atom.SELECTED_COLOR;
 
     GlobalVariables.c.beginPath();
     if (drawType == "rect") {
@@ -219,7 +229,7 @@ export default class Atom {
     }
     GlobalVariables.c.textAlign = "start";
     GlobalVariables.c.fill();
-    GlobalVariables.c.strokeStyle = this.strokeColor;
+    GlobalVariables.c.strokeStyle = Atom.SELECTED_COLOR;
     GlobalVariables.c.fillStyle = "white";
     GlobalVariables.c.stroke();
     GlobalVariables.c.closePath();
@@ -232,7 +242,7 @@ export default class Atom {
       yInPixels - radiusInPixels
     );
     GlobalVariables.c.fill();
-    GlobalVariables.c.strokeStyle = this.strokeColor;
+    GlobalVariables.c.strokeStyle = Atom.SELECTED_COLOR;
     GlobalVariables.c.lineWidth = 1;
     GlobalVariables.c.stroke();
     GlobalVariables.c.closePath();
@@ -757,5 +767,145 @@ export default class Atom {
       }
     });
     return ioValue;
+  }
+
+  /**
+   * Add multiple IOs to this atom. Doesn't subscribe until all IOs have been added.
+   *
+   * ioList should be a list of {name: "inputName", valueType: "number"|"geometry", defaultValue: 0|undefined, type: "output"|undefined}
+   */
+  addAllIOs(ioList) {
+    ioList.forEach((io) => {
+      this._addIOWithoutSubscribing(io.name, io.valueType, io.defaultValue, io.type);
+    });
+    this._subscribeToInputs();
+  }
+
+  /**
+   * Adds a new attachment point to this atom
+   * @param {string} name - The name of the new attachment point
+   * @param {string} valueType - Describes the type of value the input is expecting options are number, geometry, array
+   * @param {object} defaultValue - The default value to be used when the value is not yet set
+   * @param {string} type - Default is "input", may be overwritten to "output"
+   */
+  addIO(name, valueType, defaultValue = undefined, type = "input") {
+    const io = this._addIOWithoutSubscribing(
+      name,
+      valueType,
+      defaultValue,
+      type
+    );
+    this._subscribeToInputs();
+    return io;
+  }
+
+  _addIOWithoutSubscribing(
+    name,
+    valueType,
+    defaultValue = undefined,
+    type = "input"
+  ) {
+    const prior = this.inputs.find((o) => o.name === name && o.type === type);
+    if (prior == undefined) {
+      var offset;
+      if (type == "input") {
+        offset = -1 * this.scaledRadius;
+      } else {
+        offset = this.scaledRadius;
+      }
+      var newAp = new AttachmentPoint({
+        parentMolecule: this,
+        defaultOffsetX: offset,
+        defaultOffsetY: 0,
+        type: type,
+        valueType: valueType,
+        name: name,
+        value: defaultValue,
+        defaultValue: defaultValue,
+        uniqueID: GlobalVariables.generateUniqueID(),
+        atomType: "AttachmentPoint",
+        ready: true,
+      });
+      if (type == "input") {
+        this.inputs.push(newAp);
+      } else {
+        this.output = newAp;
+      }
+      return newAp;
+    } else {
+      return prior;
+    }
+  }
+
+  _subscribeToInputs() {
+    this.inputs.forEach((input) => {
+      input.subscribe(() => {
+        this.onUpstreamChange();
+      }, this.uniqueID);
+    });
+  }
+
+  onUpstreamChange() {
+    if (
+      this.inputs.filter((input) => input.getState().status == Status.READY)
+        .length == this.inputs.length
+    ) {
+      const argsDict = Object.fromEntries(
+        this.inputs.map((input) => [input.name, input.getState().value])
+      );
+
+      this.setProcessing();
+      this.compute(argsDict)
+        .then((value) => {
+          this.setReady(value);
+        })
+        .catch(this.alertingErrorHandler());
+    } else {
+      this.setWaiting();
+      GlobalVariables.cad.unset(this.uniqueID).catch(this.alertingErrorHandler());
+    }
+  }
+
+  /**
+   * Returns an error handler function usable with Promise.catch.
+   * Prints the stack trace of a thrown error in the console and sets
+   * an alert on this atom with the message of the error.
+   * @returns
+   */
+  alertingErrorHandler() {
+    return (err) => {
+      console.log("Error in atom: " + this.name);
+      console.log(err);
+      this.setError();
+      this.alert = { type: AlertType.ERROR, message: err.message || "Unknown error occurred" };
+    };
+  }
+
+  /**
+   * Set a warning alert on this atom. Indicates an issue but that
+   * processing will continue.
+   */
+  setWarning(message) {
+    this.alert = { type: AlertType.WARNING, message: String(message) };
+  }
+
+  /** Set an informational alert on this atom */
+  setInfo(message) {
+    this.alert = { type: AlertType.INFO, message: String(message) };
+  }
+
+  /** Clear any alerts on this atom */
+  clearAlert() {
+    this.alert = { type: AlertType.NONE, message: "" };
+  }
+
+  /**
+   * Compute the output value of this atom given the input values.
+   * This method should be overridden by subclasses.
+   * @param {object} argsDict - Dictionary of input name -> input value
+   * @returns {Promise} Promise that resolves to the computed value
+   */
+  async compute(argsDict) {
+    throw new Error("compute method must be implemented by subclass");
   }
 }

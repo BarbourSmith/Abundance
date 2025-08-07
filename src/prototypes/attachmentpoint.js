@@ -1,11 +1,12 @@
 import Connector from "./connector.js";
 import GlobalVariables from "../js/globalvariables.js";
 import { Global } from "@emotion/react";
+import { ObservableEntity, Status } from "./subscribableEntity.js";
 
 /**
  * This class creates a new attachmentPoint which are the input and output blobs on Atoms
  */
-export default class AttachmentPoint {
+export default class AttachmentPoint extends ObservableEntity {
   // Constant dictates how far from the parent molecule APs are rendered when in a hover position.
   // Expressed as a multiple of the parents radius.
   static get DIST_FROM_PARENT() {
@@ -28,6 +29,7 @@ export default class AttachmentPoint {
    * @param {object} values An array of values passed in which will be assigned to the class as this.x
    */
   constructor(values) {
+    super();
     /**
      * Whether this AP is currently visible in the Flow Canvas, eg if the mouse is close to this
      * APs parent molecule.
@@ -71,22 +73,10 @@ export default class AttachmentPoint {
     this.type = "output";
 
     /**
-     * The attachment point current value.
-     * @type {number}
-     */
-    this.value = 10;
-
-    /**
      * The default value to be used by the ap when nothing is attached
      * @type {string}
      */
-    this.defaultValue = 10;
-
-    /**
-     * A flag to indicate if the attachment point is currently ready. Used to order initilization when program is loaded.
-     * @type {string}
-     */
-    this.ready = true;
+    this.defaultValue = this.valueType == "number" ? 10 : null;
 
     /**
      * A list of all of the connectors attached to this attachment point
@@ -103,6 +93,7 @@ export default class AttachmentPoint {
 
     // Initially hide this attachment point.
     this.unexpand();
+    this.setDefault();
   }
 
   /**
@@ -456,6 +447,7 @@ export default class AttachmentPoint {
       } else {
         this.connectors = []; //Remove all of the connectors
       }
+      this.onDisconnect();
     } catch (err) {
       console.warn("Error deleting connector: ");
       console.warn(err);
@@ -477,6 +469,7 @@ export default class AttachmentPoint {
    */
   attach(connector) {
     this.connectors.push(connector);
+    this.onConnect(connector);
   }
 
   /**
@@ -561,5 +554,76 @@ export default class AttachmentPoint {
       //update any connectors attached to this node
       connector.update();
     });
+  }
+
+  /**
+   * Restores the ap to it's default value.
+   */
+  setDefault() {
+    this.setValue(this.defaultValue);
+  }
+
+  /**
+   * Reads and returns the current value of the ap.
+   */
+  getValue() {
+    return this.getState().value;
+  }
+
+  /**
+   * Sets the current value of the ap. Force forces an update even if the value hasn't changed.
+   */
+  setValue(newValue, type = this.valueType) {
+    if (this.type == "input") {
+      this.valueType = type; // TODO: do we need to force a propagation if this changed?
+      this.setStatus(
+        newValue === undefined || newValue === null
+          ? Status.WAITING
+          : Status.READY,
+        newValue
+      );
+    } else {
+      // Output APs are managed by their parent atom
+      this.setReady(newValue);
+    }
+  }
+
+  /**
+   * Called when a connection is made to this attachment point
+   */
+  onConnect(connector) {
+    if (this.type === "input") {
+      // Input AP should subscribe to the connected atom
+      const connectedAP = connector.getOtherAP(this);
+      if (connectedAP && connectedAP.parentMolecule) {
+        connectedAP.parentMolecule.subscribe(() => {
+          this.onConnectedChange(connectedAP);
+        }, this.uniqueID);
+        this.onConnectedChange(connectedAP); // Initial update
+      }
+    }
+  }
+
+  /**
+   * Called when the connected atom changes state
+   */
+  onConnectedChange(connectedAP) {
+    const connectedState = connectedAP.parentMolecule.getState();
+    if (connectedState.status === Status.READY) {
+      this.setReady(connectedState.value);
+    } else {
+      this.setWaiting();
+    }
+  }
+
+  /**
+   * Called when a connection is removed from this attachment point
+   */
+  onDisconnect() {
+    if (this.type === "input") {
+      // Unsubscribe from any connected atoms and revert to default
+      // This should be handled by deleteConnector method
+      this.setDefault();
+    }
   }
 }
