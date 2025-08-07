@@ -68,7 +68,9 @@ export default class Input extends Atom {
      */
     this.tooltipElement = null;
 
-    this.addIO("output", "number or geometry", this, this.type, this.value);
+    this.addAllIOs([
+      { name: "number or geometry", valueType: this.type, type: "output" },
+    ]);
 
     // Set values first to ensure this.name is correct before creating the parent input
     this.setValues(values);
@@ -310,26 +312,19 @@ export default class Input extends Atom {
   }
 
   /**
-   * Grabs the new value from the parent molecule's input, sets this atoms value, then propagates.
+   * Compute the input value. Inputs act as pass-through from parent molecule.
    */
-  updateValue() {
-    this.parent.inputs.forEach((input) => {
-      //Grab the value for this input from the parent's inputs list
-      if (input.name == this.name) {
-        //If we have found the matching input
-        this.decreaseToProcessCountByOne();
-        this.value = input.getValue();
-        this.output.waitOnComingInformation(); //Lock all of the dependents
-        this.output.setValue(this.value);
-        this.parent.updateIO(
-          "input",
-          this.name,
-          this.parent,
-          this.type,
-          this.value
-        );
-      }
-    });
+  async compute(inputs) {
+    // For now, return the stored value. This can be enhanced later to interact with parent molecules.
+    return this.value;
+  }
+
+  /**
+   * Override onUpstreamChange for inputs since they have no inputs but may get values from parent
+   */
+  onUpstreamChange() {
+    // Inputs are ready with their current value
+    this.setReady(this.value);
   }
   /**
    * Create Leva Menu Inputs for Editable Input Names - returns to ParameterEditor

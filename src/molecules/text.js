@@ -39,9 +39,11 @@ export default class Text extends Atom {
 
     this.availableFonts = Fonts;
 
-    this.addIO("input", "Font Size", this, "number", 10.0);
-    this.addIO("input", "Text", this, "string", "Lorem Ipsum");
-    this.addIO("output", "geometry", this, "geometry", "");
+    this.addAllIOs([
+      { name: "Font Size", valueType: "number", defaultValue: 10.0 },
+      { name: "Text", valueType: "string", defaultValue: "Lorem Ipsum" },
+      { name: "geometry", valueType: "geometry", type: "output" },
+    ]);
 
     this.setValues(values);
   }
@@ -122,19 +124,13 @@ export default class Text extends Atom {
   }
 
   /**
-   * Update the value of the circle in worker.
+   * Compute the text geometry.
    */
-  updateValue() {
-    super.updateValue();
-    var fontSize = this.findIOValue("Font Size");
-    var text = this.findIOValue("Text");
-    let fontFamily = this.fontFamily;
-    GlobalVariables.cad
-      .text(this.uniqueID, text, fontSize, fontFamily)
-      .then(() => {
-        this.basicThreadValueProcessing();
-      })
-      .catch(this.alertingErrorHandler());
+  async compute(inputs) {
+    const fontSize = inputs["Font Size"];
+    const text = inputs.Text;
+    const fontFamily = this.fontFamily;
+    return GlobalVariables.cad.text(this.uniqueID, text, fontSize, fontFamily);
   }
 
   serialize(offset = { x: 0, y: 0 }) {

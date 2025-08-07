@@ -13,9 +13,10 @@ export default class Tag extends Atom {
   constructor(values) {
     super(values);
 
-    this.addIO("input", "geometry", this, "geometry", "", false, true);
-    //this.addIO("input", "tag", this, "string", "Tag String");
-    this.addIO("output", "geometry", this, "geometry", "");
+    this.addAllIOs([
+      { name: "geometry", valueType: "geometry" },
+      { name: "geometry", valueType: "geometry", type: "output" },
+    ]);
 
     /**
      * This atom's name
@@ -101,20 +102,13 @@ export default class Tag extends Atom {
   /**
    * Add a tag to the input geometry. The substance is not changed.
    */
-  updateValue() {
-    super.updateValue();
-
-    if (this.inputs.every((x) => x.ready)) {
-      this.processing = true;
-      var inputID = this.findIOValue("geometry");
-      var tags = this.tags;
-      GlobalVariables.cad
-        .tag(this.uniqueID, inputID, tags)
-        .then(() => {
-          this.basicThreadValueProcessing();
-        })
-        .catch(this.alertingErrorHandler());
-    }
+  /**
+   * Compute the tagged geometry.
+   */
+  async compute(inputs) {
+    const inputID = inputs.geometry;
+    const tags = this.tags;
+    return GlobalVariables.cad.tag(this.uniqueID, inputID, tags);
   }
   /**
    * Send the value of this atom to the 3D display. Used to display the number
