@@ -52,6 +52,8 @@ async function loadPuppeteerAndExec(browser, date) {
       { timeout: 120000 }, // Increase timeout to 2 minutes
       selector
     );
+    // Wait a few seconds after the selector is found before taking the screenshot
+    await new Promise((resolve) => setTimeout(resolve, 10000));
     try {
       await page.screenshot({
         path: `Puppet/images/${projectName}-Test.png`,
@@ -82,7 +84,7 @@ async function loadPuppeteerAndExec(browser, date) {
       );
 
       // Wait a bit for the page to load
-      await new Promise((resolve) => setTimeout(resolve, 5000));
+      await new Promise((resolve) => setTimeout(resolve, 10000));
 
       await page.screenshot({
         path: `Puppet/images/${projectName}-Deployed.png`,

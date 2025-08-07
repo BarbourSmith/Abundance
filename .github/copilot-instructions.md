@@ -1,163 +1,248 @@
-# Abundance - Web-based Collaborative CAD Program
+# Abundance - Web-Based CAD Platform
 
-Abundance is a React-based web application for collaborative 3D CAD design that integrates with GitHub for project storage. It uses the replicad library (OpenCascade) for 3D modeling operations and features a node-based programming interface for creating parametric designs.
+Abundance is a web-based CAD program for cooperative design that inherits from programming languages rather than drawing programs. It's built with React, Vite, and the replicad CAD library, enabling collaborative 3D modeling with GitHub integration.
 
-Always reference these instructions first and fallback to search or bash commands only when you encounter unexpected information that does not match the info here.
+**ALWAYS reference these instructions first and fallback to search or bash commands only when you encounter unexpected information that does not match the info here.**
 
-## Working Effectively
+## Quick Setup & Validation
 
-### Bootstrap and Setup
-- Install dependencies: `npm install --legacy-peer-deps` -- takes 15 seconds. NEVER CANCEL.
-- Build the application: `npm run build` -- takes 18 seconds. NEVER CANCEL. Set timeout to 45+ seconds.
-- Run unit tests: `npm run unit` -- takes 4 seconds. NEVER CANCEL. Set timeout to 15+ seconds.
-- Run end-to-end tests: `npm test` -- takes 30-60 seconds. NEVER CANCEL. Set timeout to 120+ seconds.
+Bootstrap, build, and test the repository:
 
-### Development Workflow
-- Start development server: `npm start` -- starts Vite dev server on port 4444 in under 1 second
-- Access application: `http://localhost:4444`
-- **CRITICAL**: The application loads successfully and shows the Abundance login screen
-- Hot reload is enabled - changes to source files automatically refresh the browser
+```bash
+# 1. Install dependencies (15 seconds, NEVER CANCEL)
+npm install --legacy-peer-deps
 
-### Environment Configuration
-- Edit `.env` file to switch between development and production modes:
-  - FOR DEV: Uncomment the "FOR DEV" section, comment out "FOR PROD" section
-  - FOR PROD: Comment out "FOR DEV" section, uncomment "FOR PROD" section
-- Edit `vite.config.js` base path:
-  - FOR DEV: Set `base: "/"`
-  - FOR PROD: Set `base: "/Abundance"`
+# 2. Build application (17 seconds, NEVER CANCEL - set timeout to 60+ seconds)
+npm run build
 
-## Validation
+# 3. Run unit tests (4 seconds, includes 47 geometry tests)
+npm run unit
 
-### Required Testing Steps
-- **ALWAYS** run the full build and test sequence after making changes:
-  1. `npm install --legacy-peer-deps` (if dependencies changed)
-  2. `npm run build` (verify build succeeds)
-  3. `npm run unit` (verify unit tests pass)
-  4. `npm start` (verify dev server starts)
-  5. `npm test` (verify Puppeteer e2e tests pass)
+# 4. Start development server (starts in ~300ms on port 4444)
+npm start
 
-### Manual Validation Requirements
-- **ALWAYS** manually test the application by opening `http://localhost:4444` and verifying:
-  - The login screen loads without errors
-  - Console shows no critical errors (some Auth0/GitHub API warnings are expected)
-  - The Vite dev server connects successfully
-- **CRITICAL**: After any changes to the worker, atoms, or core CAD functionality, run through a complete design scenario:
-  1. Login with GitHub (if testing auth flow)
-  2. Create or load a project
-  3. Place atoms (shapes, operations) in the flow
-  4. Verify 3D rendering works correctly
-  5. Test export functionality if modified
+# 5. Run end-to-end tests (50 seconds, NEVER CANCEL - set timeout to 120+ seconds)
+npm test
+```
 
-## Build System and Architecture
+**CRITICAL TIMING REQUIREMENTS:**
 
-### Key Technologies
-- **Frontend**: React 18.2.0 with Vite 5.4.19 build system
-- **3D Engine**: replicad (OpenCascade-based) for CAD operations
-- **Rendering**: React Three Fiber (@react-three/fiber) for 3D visualization
-- **Authentication**: Auth0 with GitHub OAuth integration
-- **Testing**: Vitest for unit tests, Puppeteer for end-to-end tests
+- **NEVER CANCEL BUILD OR TEST COMMANDS** - They may take longer than expected
+- Set minimum 60-second timeout for `npm run build`
+- Set minimum 120-second timeout for `npm test` (Puppeteer tests)
+- Always use `--legacy-peer-deps` flag with npm install
 
-### Critical Dependencies
-- `replicad` and `replicad-opencascadejs` - Core CAD engine (DO NOT UPDATE without extensive testing)
-- Vendor packages: `geometry-utils` and `polygon-packer` (file: dependencies in vendor/ directory)
-- `--legacy-peer-deps` flag is REQUIRED for npm install due to dependency conflicts
+## Development Environment Setup
 
-### Timeout Requirements
-- **Build**: NEVER CANCEL. Set timeout to 45+ seconds (usually takes 18 seconds)
-- **Unit Tests**: NEVER CANCEL. Set timeout to 15+ seconds (usually takes 4 seconds)  
-- **E2E Tests**: NEVER CANCEL. Set timeout to 120+ seconds (usually takes 30-60 seconds)
-- **Dev Server**: Starts in under 1 second, no timeout needed
+### Prerequisites
 
-## Testing Framework
+- Node.js 20 (verified working version from GitHub Actions)
+- npm with legacy peer dependencies support
+
+### Local Development vs Production
+
+Edit configuration files for local development:
+
+1. **For local development** - Uncomment the dev section in `.env`:
+
+   ```bash
+   # Uncomment these lines in .env for local development:
+   #VITE_APP_DEV = "/"
+   #VITE_REDIRECT_URI = "http://localhost:4444/"
+   #VITE_GH_OAUTH_CLIENT_ID = "Ov23liN8Q3iGPXSUHUsH"
+   ```
+
+2. **Change base path in `vite.config.js`**:
+   ```javascript
+   // Change from "/Abundance" to "/" for local development
+   base: "/", // for local development
+   ```
+
+### Running the Application
+
+**Development Mode:**
+
+```bash
+npm start
+# Starts Vite dev server at http://localhost:4444
+# Ready in ~300ms, includes hot reload
+```
+
+**Production Build:**
+
+```bash
+npm run build
+# Builds to dist/ folder (17 seconds)
+# Automatically copies index.html to 404.html for GitHub Pages routing
+```
+
+**Serve Production Build:**
+
+```bash
+npm run serve
+# Serves built files from dist/ for testing production build
+```
+
+## Testing & Validation
 
 ### Unit Tests (Vitest)
-- Located in `tests/` directory
-- Test core CAD operations: extrusion, boolean operations, geometry creation
-- Run with: `npm run unit`
-- Watch mode: `npm run unit:watch`
-- Coverage: `npm run coverage` (generates coverage/index.html)
-- **CRITICAL**: Tests require dependency patching via `tests/patchDependencies.mjs`
+
+```bash
+# Run all unit tests (4 seconds, 47 tests)
+npm run unit
+
+# Watch mode for development
+npm run unit:watch
+
+# Generate coverage report
+npm run coverage
+```
+
+**Unit Test Coverage:**
+
+- Geometry operations (shapes, extrude, interactions)
+- CAD functions (rotation, translation, boolean operations)
+- Code execution and validation
+- BOM (Bill of Materials) functionality
 
 ### End-to-End Tests (Puppeteer)
-- Located in `Puppet/` directory
-- Tests complete application workflows with real projects
-- Generates screenshots in `Puppet/images/` for visual verification
-- Run with: `npm test`
-- Tests specific projects defined in `Puppet/projects_to_test.js`
 
-## Project Structure
+```bash
+# NEVER CANCEL: Run Puppeteer tests (50 seconds, requires dev server running)
+npm test
+```
 
-### Core Directories
+**E2E Test Process:**
+
+1. Starts headless Chrome browser
+2. Tests projects: "Wall-Anchor" and "Test-Everything-Fully"
+3. Generates screenshots in `Puppet/images/`
+4. Validates 3D rendering and UI functionality
+
+**VALIDATION REQUIREMENT:** Always run through complete user scenarios after making changes:
+
+1. Start the development server (`npm start`)
+2. Navigate to http://localhost:4444
+3. Verify the login screen loads (should show GitHub OAuth login)
+4. Test both unit tests (`npm run unit`) and e2e tests (`npm test`)
+
+## Project Structure & Key Locations
+
+### Core Application Code
+
 ```
 src/
-├── components/          # React components
-│   ├── main-routes/    # Main application routing
-│   ├── render/         # 3D rendering components
-│   └── secondary/      # Secondary UI components
-├── worker/             # Web workers for CAD operations
-├── js/                 # Utility JavaScript modules
-├── molecules/          # CAD molecule definitions
-└── prototypes/         # Prototype components
-
-tests/                  # Unit test suites
-Puppet/                 # End-to-end test framework
-vendor/                 # Local dependencies (geometry-utils, polygon-packer)
+├── App.jsx              # Main React application
+├── components/          # Reusable UI components
+├── worker/             # CAD computation workers (shapes, actions, etc.)
+├── molecules/          # Reusable CAD components/assemblies
+└── js/                 # Core application logic
 ```
 
-### Key Files
-- `src/worker/` - Contains the core CAD computation logic
-- `src/components/render/` - 3D visualization and rendering
-- `src/js/circular-menu/` - Context menu for placing CAD atoms
-- `.env` - Environment configuration (dev/prod switching)
-- `vite.config.js` - Build configuration with base path setting
+### Testing Infrastructure
 
-## GitHub Integration
+```
+tests/                  # Unit tests (Vitest)
+├── shapes.test.js      # Geometry creation tests
+├── interaction.test.js # Boolean operations tests
+├── extrude.test.js     # 2D to 3D conversion tests
+└── ...
+
+Puppet/                 # End-to-end tests (Puppeteer)
+├── index.js            # Main test runner
+├── projects_to_test.js # List of projects to validate
+└── images/             # Generated screenshots
+```
+
+### Build & Configuration
+
+```
+vite.config.js          # Vite build configuration
+vitest.config.mjs       # Unit test configuration
+package.json            # Dependencies and scripts
+.env                    # Environment variables (dev/prod switch)
+```
+
+## GitHub Integration & Deployment
 
 ### CI/CD Workflows
-- `.github/workflows/test.yaml` - Runs Puppeteer tests on PRs with screenshot comparison
-- `.github/workflows/Actions.yaml` - Deploys to GitHub Pages on main branch
-- Both workflows use `npm ci --legacy-peer-deps` for consistent installs
 
-### Authentication Flow
-- Application integrates with GitHub OAuth for user authentication
-- Projects are stored as GitHub repositories
-- Different OAuth client IDs for development and production environments
+- **`.github/workflows/Actions.yaml`** - GitHub Pages deployment
+- **`.github/workflows/test.yaml`** - Puppeteer tests on PRs
 
-## Common Issues and Solutions
+### Deployment Process
 
-### Build Issues
-- If `npm install` fails: Ensure `--legacy-peer-deps` flag is used
-- If build fails with WASM errors: Check that replicad dependencies are properly installed
-- If tests fail: Run `npm run unit` individually to isolate unit test vs e2e test issues
+1. Pushes to `main` branch trigger automatic deployment
+2. Build process: `npm ci --legacy-peer-deps && npm run build`
+3. Deploys to GitHub Pages at abundance.maslowcnc.com
 
-### Development Environment
-- Port 4444 must be available for development server
-- GitHub OAuth requires proper redirect URI configuration in .env
-- Some console warnings about Auth0 and GitHub API are expected and not critical
+## Key Dependencies & Technologies
 
-### Performance Notes
-- Initial build includes large WASM files (replicad_single.wasm is ~10MB)
-- Bundle size warnings are expected due to CAD engine requirements
-- Hot reload works for UI changes but may require full reload for worker changes
+### Core Technologies
+
+- **React 18.2.0** - UI framework
+- **Vite 5.1.6** - Build tool and dev server
+- **replicad 0.16.1** - 3D CAD library
+- **three.js 0.161.0** - 3D rendering
+- **@react-three/fiber** - React Three.js integration
+
+### Authentication & Storage
+
+- **@auth0/auth0-react** - OAuth authentication
+- **@octokit/rest** - GitHub API integration
+- Projects stored as GitHub repositories
+
+## Common Development Tasks
+
+### Working with CAD Operations
+
+**Location:** `src/worker/` directory contains core CAD functions:
+
+- `shapes.js` - Basic shape creation (circle, rectangle, polygon)
+- `actions.js` - Transformations (move, rotate, extrude)
+- `interaction.js` - Boolean operations (union, difference, intersection)
+
+### Adding New Tests
+
+**Unit Tests:** Add to `tests/` directory using Vitest framework
+**E2E Tests:** Modify `Puppet/projects_to_test.js` to include new projects
+
+### Debugging Build Issues
+
+1. Check for replicad compatibility issues
+2. Verify `--legacy-peer-deps` is used
+3. Run `npm run unit` to catch geometry calculation errors
+4. Use `npm start` for development debugging with hot reload
 
 ## Validation Checklist
 
-Before completing any changes, ALWAYS verify:
-- [ ] `npm install --legacy-peer-deps` succeeds
-- [ ] `npm run build` completes without errors
-- [ ] `npm run unit` passes all tests
-- [ ] `npm start` successfully starts dev server on port 4444
-- [ ] Application loads at `http://localhost:4444` without critical errors
-- [ ] If modifying CAD functionality: `npm test` passes with new screenshots
-- [ ] No new build artifacts committed (dist/, coverage/, Puppet/images/*.png are gitignored)
+Before committing changes, ALWAYS:
 
-## Emergency Commands
+- [ ] Run `npm run build` and wait for completion (NEVER CANCEL)
+- [ ] Run `npm run unit` to verify unit tests pass
+- [ ] Start `npm start` and verify application loads at http://localhost:4444
+- [ ] Run `npm test` for full e2e validation (NEVER CANCEL)
+- [ ] Verify login screen displays correctly
+- [ ] Test core CAD functionality if making worker changes
 
-If the application becomes unresponsive or enters an error state:
-1. Stop dev server: Ctrl+C in terminal running `npm start`
-2. Clear node_modules: `rm -rf node_modules package-lock.json`
-3. Reinstall: `npm install --legacy-peer-deps`
-4. Rebuild: `npm run build`
-5. Restart: `npm start`
+## Known Issues & Workarounds
 
-**Remember**: NEVER CANCEL long-running commands. The CAD engine compilation and WASM loading require time to complete properly.
+### Dependencies
+
+- **ALWAYS use `--legacy-peer-deps`** flag with npm install
+- Some deprecation warnings are expected (rimraf, react-three-fiber)
+- 4 npm audit vulnerabilities present but do not affect functionality
+
+### Development Environment
+
+- OAuth integration requires GitHub configuration for full functionality
+- Local development uses different OAuth client IDs than production
+- Puppeteer tests require the development server to be running
+
+### Performance Notes
+
+- Initial build includes large WebAssembly files (10MB+ replicad_single.wasm)
+- Main bundle is large (5.6MB) - this is expected for CAD applications
+- 3D rendering requires WebGL support in browser
+
+**Never skip validation steps due to timing - builds and tests may take longer than typical web applications due to 3D geometry computations.**

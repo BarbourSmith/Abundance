@@ -95,7 +95,7 @@ class GlobalVariables {
         atomType: "Add-BOM-Tag",
         atomCategory: "Tags",
       },
-      color: { creator: Color, atomType: "Color", atomCategory: "Actions" },
+      color: { creator: Color, atomType: "Color", atomCategory: "Tags" },
       tag: { creator: Tag, atomType: "Tag", atomCategory: "Tags" },
       extracttag: {
         creator: ExtractTag,
