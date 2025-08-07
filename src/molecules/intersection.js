@@ -12,9 +12,11 @@ export default class Intersection extends Atom {
   constructor(values) {
     super(values);
 
-    this.addIO("input", "geometry1", this, "geometry", "");
-    this.addIO("input", "geometry2", this, "geometry", "");
-    this.addIO("output", "geometry", this, "geometry", "");
+    this.addAllIOs([
+      { name: "geometry1", valueType: "geometry" },
+      { name: "geometry2", valueType: "geometry" },
+      { name: "geometry", valueType: "geometry", type: "output" },
+    ]);
     /**
      * This atom's name
      * @type {string}
@@ -80,20 +82,12 @@ export default class Intersection extends Atom {
   /**
    * Grab the input geometries and pass them to a worker thread for computation.
    */
-  updateValue() {
-    super.updateValue();
-
-    if (this.inputs.every((x) => x.ready)) {
-      this.processing = true;
-      const input1ID = this.findIOValue("geometry1");
-      const input2ID = this.findIOValue("geometry2");
-
-      GlobalVariables.cad
-        .intersect(input1ID, input2ID, this.uniqueID)
-        .then(() => {
-          this.basicThreadValueProcessing();
-        })
-        .catch(this.alertingErrorHandler());
-    }
+  /**
+   * Compute the intersection of two geometries.
+   */
+  async compute(inputs) {
+    const input1ID = inputs.geometry1;
+    const input2ID = inputs.geometry2;
+    return GlobalVariables.cad.intersect(input1ID, input2ID, this.uniqueID);
   }
 }

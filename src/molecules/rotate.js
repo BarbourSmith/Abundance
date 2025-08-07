@@ -12,11 +12,13 @@ export default class Rotate extends Atom {
   constructor(values) {
     super(values);
 
-    this.addIO("input", "geometry", this, "geometry", "", false, true);
-    this.addIO("input", "x-axis degrees", this, "number", 0.0);
-    this.addIO("input", "y-axis degrees", this, "number", 0.0);
-    this.addIO("input", "z-axis degrees", this, "number", 0.0);
-    this.addIO("output", "geometry", this, "geometry", "");
+    this.addAllIOs([
+      { name: "geometry", valueType: "geometry" },
+      { name: "x-axis degrees", valueType: "number", defaultValue: 0.0 },
+      { name: "y-axis degrees", valueType: "number", defaultValue: 0.0 },
+      { name: "z-axis degrees", valueType: "number", defaultValue: 0.0 },
+      { name: "geometry", valueType: "geometry", type: "output" },
+    ]);
 
     /**
      * This atom's name
@@ -93,23 +95,13 @@ export default class Rotate extends Atom {
   }
 
   /**
-   * Pass the input shape to a worker thread to compute the rotation
+   * Compute the rotated geometry.
    */
-  updateValue() {
-    super.updateValue();
-
-    if (this.inputs.every((x) => x.ready)) {
-      this.processing = true;
-      var inputID = this.findIOValue("geometry");
-      var x = this.findIOValue("x-axis degrees");
-      var y = this.findIOValue("y-axis degrees");
-      var z = this.findIOValue("z-axis degrees");
-      GlobalVariables.cad
-        .rotate(inputID, x, y, z, this.uniqueID)
-        .then(() => {
-          this.basicThreadValueProcessing();
-        })
-        .catch(this.alertingErrorHandler());
-    }
+  async compute(inputs) {
+    const inputID = inputs.geometry;
+    const x = inputs["x-axis degrees"];
+    const y = inputs["y-axis degrees"];
+    const z = inputs["z-axis degrees"];
+    return GlobalVariables.cad.rotate(inputID, x, y, z, this.uniqueID);
   }
 }

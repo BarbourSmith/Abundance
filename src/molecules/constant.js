@@ -60,9 +60,9 @@ export default class Constant extends Atom {
 
     this.setValues(values); //This will overwrite the default value if one is loaded
     
-    this.addIO("output", "number", this, "number", this.value);
-
-    this.decreaseToProcessCountByOne(); //Since there is nothing upstream this needs to be removed from the list here
+    this.addAllIOs([
+      { name: "number", valueType: "number", type: "output" },
+    ]);
   }
 
   /**
@@ -122,20 +122,19 @@ export default class Constant extends Atom {
     return outputParams;
   }
   /**
-   * Set's the output value for constant
+   * Compute the constant value.
    */
-  updateValue() {
-    this.value = this.output.getValue();
-    this.output.ready = true;
-    this.processing = false;
+  async compute(inputs) {
+    return this.value; // Constants just return their stored value
   }
-
+  
   /**
-   * Starts propagation from this atom since it is not waiting for anything up stream.
+   * Override onUpstreamChange for constants since they have no inputs
    */
-    beginPropagation(force = false) {
-      this.output.setValue(this.value);
-    }
+  onUpstreamChange() {
+    // Constants are always ready with their stored value
+    this.setReady(this.value);
+  }
 
   /**
    * Send the value of this atom to the 3D display. Used to display the number
