@@ -27,9 +27,11 @@ export default class Extrude extends Atom {
      */
     this.description = "Extrudes a 2D shape. Input can be negitive. ";
 
-    this.addIO("input", "geometry", this, "geometry", "", false, true);
-    this.addIO("input", "height", this, "number", 10.0);
-    this.addIO("output", "geometry", this, "geometry", "");
+    this.addAllIOs([
+      { name: "geometry", valueType: "geometry" },
+      { name: "height", valueType: "number", defaultValue: 10.0 },
+      { name: "geometry", valueType: "geometry", type: "output" },
+    ]);
 
     this.setValues(values);
   }
@@ -67,21 +69,11 @@ export default class Extrude extends Atom {
     GlobalVariables.c.closePath();
   }
   /**
-   * Pass the input shape to the worker thread to compute the extruded shape.
+   * Compute the extruded geometry.
    */
-  updateValue() {
-    super.updateValue();
-
-    if (this.inputs.every((x) => x.ready)) {
-      var inputID = this.findIOValue("geometry");
-      var extrudeDistance = this.findIOValue("height");
-
-      GlobalVariables.cad
-        .extrude(this.uniqueID, inputID, extrudeDistance)
-        .then(() => {
-          this.basicThreadValueProcessing();
-        })
-        .catch(this.alertingErrorHandler());
-    }
+  async compute(inputs) {
+    const inputID = inputs.geometry;
+    const extrudeDistance = inputs.height;
+    return GlobalVariables.cad.extrude(this.uniqueID, inputID, extrudeDistance);
   }
 }

@@ -12,9 +12,11 @@ export default class RegularPolygon extends Atom {
   constructor(values) {
     super(values);
 
-    this.addIO("input", "number of sides", this, "number", 6);
-    this.addIO("input", "diameter", this, "number", 10.0);
-    this.addIO("output", "geometry", this, "geometry", "");
+    this.addAllIOs([
+      { name: "number of sides", valueType: "number", defaultValue: 6 },
+      { name: "diameter", valueType: "number", defaultValue: 10.0 },
+      { name: "geometry", valueType: "geometry", type: "output" },
+    ]);
 
     /**
      * This atom's name
@@ -76,30 +78,11 @@ export default class RegularPolygon extends Atom {
   }
 
   /**
-   * Starts propagation from this atom if it is not waiting for anything up stream.
+   * Compute the regular polygon geometry.
    */
-
-  beginPropagation(force = false) {
-    //Check to see if a value already exists. Generate it if it doesn't. Only do this for circles, rectangles, and regular polygons
-
-    this.inputs.forEach((input) => {
-      input.beginPropagation();
-    });
-  }
-
-  /**
-   * Create a new regular polygon in a worker thread.
-   */
-  updateValue() {
-    super.updateValue();
-    var numberOfSides = this.findIOValue("number of sides");
-    var diameter = this.findIOValue("diameter");
-
-    GlobalVariables.cad
-      .regularPolygon(this.uniqueID, diameter / 2, numberOfSides)
-      .then(() => {
-        this.basicThreadValueProcessing();
-      })
-      .catch(this.alertingErrorHandler());
+  async compute(inputs) {
+    const numberOfSides = inputs["number of sides"];
+    const diameter = inputs.diameter;
+    return GlobalVariables.cad.regularPolygon(this.uniqueID, diameter / 2, numberOfSides);
   }
 }

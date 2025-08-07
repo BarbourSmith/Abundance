@@ -12,9 +12,11 @@ export default class Rectangle extends Atom {
   constructor(values) {
     super(values);
 
-    this.addIO("input", "x length", this, "number", 10.0);
-    this.addIO("input", "y length", this, "number", 10.0);
-    this.addIO("output", "geometry", this, "geometry", "");
+    this.addAllIOs([
+      { name: "x length", valueType: "number", defaultValue: 10.0 },
+      { name: "y length", valueType: "number", defaultValue: 10.0 },
+      { name: "geometry", valueType: "geometry", type: "output" },
+    ]);
 
     /**
      * This atom's name
@@ -33,18 +35,6 @@ export default class Rectangle extends Atom {
     this.description = "Creates a new rectangle.";
 
     this.setValues(values);
-  }
-
-  /**
-   * Starts propagation from this atom if it is not waiting for anything up stream.
-   */
-  beginPropagation() {
-    //Check to see if a value already exists. Generate it if it doesn't. Only do this for circles and rectangles
-
-    //Triggers inputs with nothing connected to begin propagation
-    this.inputs.forEach((input) => {
-      input.beginPropagation();
-    });
   }
 
   /**
@@ -68,18 +58,11 @@ export default class Rectangle extends Atom {
   }
 
   /**
-   * Create a new rectangle in a worker thread.
+   * Compute the rectangle geometry.
    */
-  updateValue() {
-    super.updateValue();
-    var xVal = this.findIOValue("x length");
-    var yVal = this.findIOValue("y length");
-
-    GlobalVariables.cad
-      .rectangle(this.uniqueID, xVal, yVal)
-      .then(() => {
-        this.basicThreadValueProcessing();
-      })
-      .catch(this.alertingErrorHandler());
+  async compute(inputs) {
+    const xVal = inputs["x length"];
+    const yVal = inputs["y length"];
+    return GlobalVariables.cad.rectangle(this.uniqueID, xVal, yVal);
   }
 }
