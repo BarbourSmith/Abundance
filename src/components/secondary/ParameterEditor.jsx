@@ -1,7 +1,14 @@
 import React, { useState, useEffect, useMemo } from "react";
 import globalvariables from "../../js/globalvariables";
 
-import { useControls, useCreateStore, LevaPanel, button } from "leva";
+import {
+  useControls,
+  useCreateStore,
+  LevaPanel,
+  button,
+  Leva,
+  LevaInputs,
+} from "leva";
 
 /**Creates new collapsible sidebar with Leva - edited from Replicad's ParamsEditor.jsx */
 export default (function ParamsEditor({
@@ -66,6 +73,7 @@ export default (function ParamsEditor({
       value: activeAtom.currentEquation,
       label: "Current Equation",
       disabled: false,
+      type: LevaInputs.STRING,
       onChange: (value) => {
         if (activeAtom.currentEquation !== value) {
           activeAtom.setEquation(value);
@@ -77,6 +85,7 @@ export default (function ParamsEditor({
       },
       order: -3,
     };
+
     inputParamsConfig[activeAtom.uniqueID + "result"] = {
       label: "Result",
       value: 3,

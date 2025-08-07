@@ -123,11 +123,17 @@ export default function ReplicadApp() {
             .generateDisplayMesh(GlobalVariables.currentMolecule.uniqueID)
             .then((w) => {
               setWireMesh(w);
-              createPuppeteerDiv();
+              // Only create Puppeteer div when displaying the top-level molecule's output
+              if (id === GlobalVariables.topLevelMolecule?.uniqueID) {
+                createPuppeteerDiv();
+              }
             })
             .catch((e) => {
-              createPuppeteerDiv();
               console.error("Can't compute Wireframe/No output " + e);
+              // Create div even on error for top-level molecule to prevent hanging
+              if (id === GlobalVariables.topLevelMolecule?.uniqueID) {
+                createPuppeteerDiv();
+              }
             });
         } else {
           /* reset mesh view if in output mode*/
@@ -136,11 +142,13 @@ export default function ReplicadApp() {
             .resetView()
             .then((m) => {
               setWireMesh(m);
+              // Create Puppeteer div when in output mode (displaying top-level molecule)
               createPuppeteerDiv();
             })
             .catch((e) => {
-              createPuppeteerDiv();
               console.error("reset view not working" + e);
+              // Create div even on error to prevent hanging
+              createPuppeteerDiv();
             });
         }
       }
