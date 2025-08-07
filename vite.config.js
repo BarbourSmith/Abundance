@@ -6,7 +6,7 @@ import Pages from "vite-plugin-pages";
 export default defineConfig({
   plugins: [reactPlugin(), Pages()],
 
-  base: "/Abundance", //change to "/" for local development or to "/Abundance" for deployment
+  base: "/", //change to "/" for local development or to "/Abundance" for deployment
   build: {
     outDir: "dist",
   },
