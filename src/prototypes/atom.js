@@ -302,7 +302,12 @@ export default class Atom extends ObservableEntity {
    */
   addAllIOs(ioList) {
     ioList.forEach((io) => {
-      this.addIO(io.name, io.valueType, io.defaultValue, io.type);
+      this._addIOWithoutSubscribing(
+        io.name,
+        io.valueType,
+        io.defaultValue,
+        io.type
+      );
     });
     this._subscribeToInputs();
   }
@@ -621,6 +626,15 @@ export default class Atom extends ObservableEntity {
   }
 
   /**
+   * Return true if our inputs are ready for us to compute a value.
+   */
+  inputsAreReady() {
+    return this.inputs.every((input) => {
+      return input.getState().status == Status.READY;
+    });
+  }
+
+  /**
    * This method defines the core logic for propagating changes in the DAG.
    *
    * Called any time an input to this atom changes (including an input
@@ -632,10 +646,7 @@ export default class Atom extends ObservableEntity {
    *   as well.
    */
   onUpstreamChange() {
-    if (
-      this.inputs.filter((input) => input.getState().status == Status.READY)
-        .length == this.inputs.length
-    ) {
+    if (this.inputsAreReady()) {
       const argsDict = Object.fromEntries(
         this.inputs.map((input) => [input.name, input.getState().value])
       );
