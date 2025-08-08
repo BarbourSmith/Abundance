@@ -62,6 +62,10 @@ async function layout(
 ) {
   await started;
 
+  // Always clear the cache when layout is called because geometry input might have changed
+  const rotatedAssemblyKey = inputID + "_rotated";
+  delete library[rotatedAssemblyKey];
+
   return cutlayout
     .layout(
       getOrThrow(inputID),
@@ -72,8 +76,12 @@ async function layout(
       priorPlacements
     )
     .then((resultArray) => {
-      const [layedOutAssembly, positions] = resultArray;
+      const [layedOutAssembly, positions, rotatedAssembly] = resultArray;
       library[targetID] = layedOutAssembly;
+
+      // Store the rotated assembly for reuse in displayLayout to avoid calling rotateForLayout again
+      library[rotatedAssemblyKey] = rotatedAssembly;
+
       return positions;
     });
 }
@@ -98,12 +106,33 @@ async function displayLayout(
 ) {
   await started;
 
-  library[targetID] = await cutlayout.displayLayout(
-    getOrThrow(inputID),
-    placements,
-    warningCallback,
-    layoutConfig
-  );
+  // Check if we have a pre-rotated assembly from a previous layout call
+  const rotatedAssemblyKey = inputID + "_rotated";
+  const rotatedAssembly = library[rotatedAssemblyKey];
+
+  if (rotatedAssembly) {
+    // Use the pre-rotated assembly to avoid calling rotateForLayout again
+    library[targetID] = await cutlayout.displayLayoutWithRotatedAssembly(
+      rotatedAssembly,
+      placements,
+      warningCallback,
+      layoutConfig
+    );
+  } else {
+    // Call expensive function and cache the rotated assembly for future use
+    const [result, newRotatedAssembly] = await cutlayout.displayLayout(
+      getOrThrow(inputID),
+      placements,
+      warningCallback,
+      layoutConfig
+    );
+
+    // Cache the rotated assembly for future displayLayout calls
+    library[rotatedAssemblyKey] = newRotatedAssembly;
+
+    // Store the final result
+    library[targetID] = result;
+  }
 
   return true;
 }
@@ -682,7 +711,6 @@ async function importingSVG(targetID, svg, width) {
 function visualizeGcode(targetID, gcode) {
   let currentPosition = [0, 0, 0];
   let edges = [];
-
   // Split the gcode into lines
   const lines = gcode.split("\n");
   lines.forEach((line) => {
@@ -698,6 +726,15 @@ function visualizeGcode(targetID, gcode) {
       let y = yMatch ? Number(yMatch[1]) : currentPosition[1];
       let z = zMatch ? Number(zMatch[1]) : currentPosition[2];
 
+      //Reduce the number of edges by combining small movements
+      const threshold = 5; // Threshold for small movements
+      if (
+        Math.abs(x - currentPosition[0]) < threshold &&
+        Math.abs(y - currentPosition[1]) < threshold &&
+        Math.abs(z - currentPosition[2]) < threshold
+      ) {
+        return; // Skip small movements
+      }
       edges.push(util.replicad.makeLine(currentPosition, [x, y, z]));
       currentPosition = [x, y, z];
     }
@@ -796,6 +833,47 @@ function getBoundingBox(inputID) {
     min: [minX, minY, minZ],
     max: [maxX, maxY, maxZ],
   };
+}
+
+/**
+ * Check if the given geometry ID represents an assembly
+ * @param {string} inputID - The geometry ID to check
+ * @returns {Promise<boolean>} True if it's an assembly, false otherwise
+ */
+async function isAssembly(inputID) {
+  await started;
+  const geometry = library[inputID];
+  return util.isAssembly(geometry);
+}
+
+/**
+ * Extract individual parts from an assembly
+ * @param {string} assemblyID - The assembly ID
+ * @returns {Promise<Array<string>>} Array of part IDs
+ */
+async function extractParts(assemblyID) {
+  await started;
+  const assembly = getOrThrow(assemblyID);
+
+  if (!util.isAssembly(assembly)) {
+    // If it's not an assembly, return the original ID
+    return [assemblyID];
+  }
+
+  const parts = [];
+  let partIndex = 0;
+
+  // Extract each part from the assembly and store it in the library
+  util.actOnLeafs(assembly, (leaf) => {
+    if (leaf.geometry && leaf.geometry.length > 0) {
+      const partID = `${assemblyID}_part_${partIndex++}`;
+      library[partID] = leaf;
+      parts.push(partID);
+    }
+    return leaf;
+  });
+
+  return parts;
 }
 
 /**
@@ -1118,6 +1196,8 @@ if (
     resetView,
     visualizeGcode,
     getBoundingBox,
+    isAssembly,
+    extractParts,
   });
 }
 
@@ -1160,4 +1240,6 @@ export {
   visExport,
   downExport,
   shrinkWrapSketches,
+  isAssembly,
+  extractParts,
 };
