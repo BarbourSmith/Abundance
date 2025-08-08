@@ -28,12 +28,13 @@ export default class Intersection extends Atom {
      */
     this.description = "The space shared by two shapes.";
 
-    this.setValues(values);
     this.addAllIOs([
       { name: "geometry1", valueType: "geometry" },
       { name: "geometry2", valueType: "geometry" },
       { name: "geometry", valueType: "geometry", type: "output" },
     ]);
+
+    this.setValues(values);
   }
 
   /**

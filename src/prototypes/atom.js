@@ -56,7 +56,7 @@ export default class Atom extends ObservableEntity {
      * This atom's unique ID. Often overwritten later when loading
      * @type {number}
      */
-    this.uniqueID = GlobalVariables.generateUniqueID();
+    this.uniqueID = values?.uniqueID || GlobalVariables.cad.getUniqueID();
 
     /**
      * A description of this atom

@@ -51,12 +51,12 @@ export default class ExtractTag extends Atom {
     /** Value stored in tagList Observable is a struct of {source: "geomID", tags: ["tag1", "tag2"...]} */
     this.tagList = { source: undefined, tags: [] };
 
-    this.setValues(values);
-
     this.addAllIOs([
       { name: "input", valueType: "geometry" },
       { name: "output", valueType: "geometry", type: "output" },
     ]);
+
+    this.setValues(values);
   }
 
   /**

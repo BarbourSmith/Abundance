@@ -28,6 +28,7 @@ export default class Rotate extends Atom {
      */
     this.description =
       "Rotates the input geometry around the X, Y, or Z axis. Inputs are degrees.";
+
     this.addAllIOs([
       { name: "geometry", valueType: "geometry" },
       { name: "x-axis degrees", valueType: "number", defaultValue: 0.0 },

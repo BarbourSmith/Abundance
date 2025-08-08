@@ -29,12 +29,13 @@ export default class RegularPolygon extends Atom {
     this.description =
       "Creates a new regular polygon. Corners are on the diameter.";
 
-    this.setValues(values);
     this.addAllIOs([
       { name: "number of sides", valueType: "number", defaultValue: 6 },
       { name: "diameter", valueType: "number", defaultValue: 10.0 },
       { name: "geometry", valueType: "geometry", type: "output" },
     ]);
+
+    this.setValues(values);
   }
 
   /**

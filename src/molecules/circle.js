@@ -28,12 +28,11 @@ export default class Circle extends Atom {
      */
     this.description = "Creates a new circle.";
 
-    this.setValues(values);
-
     this.addAllIOs([
       { name: "diameter", valueType: "number", defaultValue: 10.0 },
       { name: "geometry", valueType: "geometry", type: "output" },
     ]);
+    this.setValues(values);
   }
 
   /**

@@ -58,9 +58,10 @@ export default class Constant extends Atom {
      */
     this.value = 10.0;
 
+    this.addAllIOs([{ name: "number", valueType: "number", type: "output" }]);
+
     this.setValues(values); //This will overwrite the default value if one is loaded
 
-    this.addAllIOs([{ name: "number", valueType: "number", type: "output" }]);
     this.setReady(this.value);
   }
 
