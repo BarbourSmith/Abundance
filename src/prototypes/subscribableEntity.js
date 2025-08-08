@@ -77,6 +77,13 @@ class ObservableEntity {
   }
 
   /**
+   * Remove all subscribers from this entity.
+   */
+  unsubscribeAll() {
+    this.subscribers = {};
+  }
+
+  /**
    * Remove the subscriber with the given id.
    */
   unsubscribe(id) {

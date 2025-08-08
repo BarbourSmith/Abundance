@@ -496,7 +496,7 @@ function output(targetID, inputID) {
       throw new Error("Nothing is connected to the output");
     }
 
-    return true;
+    return targetID;
   });
 }
 
@@ -514,7 +514,7 @@ function molecule(targetID, inputID) {
     } else {
       throw new Error("output ID is undefined");
     }
-    return true;
+    return targetID;
   });
 }
 

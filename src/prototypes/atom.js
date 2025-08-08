@@ -132,7 +132,7 @@ export default class Atom extends ObservableEntity {
         this.inputs.forEach((ap) => {
           //Find the matching IO and set it to be the saved value
           if (ioValue.name == ap.name && ap.type == "input") {
-            ap.value = ioValue.ioValue;
+            ap.setValue(ioValue.ioValue);
           }
         });
       });

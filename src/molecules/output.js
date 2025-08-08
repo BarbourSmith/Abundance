@@ -67,7 +67,7 @@ export default class Output extends Atom {
 
     this.setValues(values);
 
-    this.addIO("number or geometry", "geometry");
+    this.addAllIOs([{ name: "number or geometry", valueType: "geometry" }]);
   }
 
   compute(argsDict) {
@@ -75,7 +75,6 @@ export default class Output extends Atom {
       this.uniqueID,
       argsDict["number or geometry"]
     );
-    // TODO: we may need to do something here to ensure parent molecule gets recalculated?
   }
 
   /**
@@ -99,6 +98,8 @@ export default class Output extends Atom {
    * A function to allow you to still call the delete function if needed.
    */
   deleteOutputAtom(deletePath = true) {
+    // Clear all subscribers (typically just the parent molecule)
+    this.unsubscribeAll();
     super.deleteNode(false, deletePath);
   }
 

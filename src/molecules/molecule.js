@@ -102,6 +102,10 @@ export default class Molecule extends Atom {
     this.setValues(values);
 
     this.color;
+
+    this.addAllIOs([
+      { name: "geometry or number", valueType: "geometry", type: "output" },
+    ]);
   }
 
   /**
@@ -700,6 +704,45 @@ export default class Molecule extends Atom {
     return bomParams;
   }
 
+  childOutputAtomHasChanged(outputAtom) {
+    if (outputAtom) {
+      const state = outputAtom.getState();
+      if (state.status == Atom.READY) {
+        console.log(
+          "child output is ready. calling cad.molecule, expect to be ready soon"
+        );
+        GlobalVariables.cad
+          .molecule(this.uniqueID, state.value)
+          .then((result) => {
+            this.setReady(result);
+          })
+          .catch(this.alertingErrorHandler);
+      } else {
+        const inputAps = this.inputs.filter((input) => input.type == "input");
+        console.log("considering inputAPs: ");
+        console.log(inputAps);
+        if (inputAps.every((input) => input.status == Atom.READY)) {
+          // All inputs are ready but our output isn't yet. check for an internal error
+          // else we're in progress.
+          if (
+            this.nodesOnTheScreen.some((atom) => {
+              atom.status == Atom.ERROR;
+            })
+          ) {
+            this.setStatus(Atom.ERROR, "An error occurred in a child atom.");
+          } else {
+            this.setProcessing();
+          }
+        }
+        // Else set status to waiting since some of our inputs are not ready.
+        this.setWaiting();
+      }
+    } else {
+      console.trace("Undefined output atom in childOutputAtomHasChanged");
+      this.setError("got callback with undefined output atom");
+    }
+  }
+
   /**
    * Reads molecule's output atom ID to recompute the molecule in worker
    *
@@ -1128,6 +1171,7 @@ export default class Molecule extends Atom {
             atom.type = newAtomObj.type;
 
             atom.draw(); //The poling happens in draw :roll_eyes:
+            
           } else if (atom.atomType == "Input") {
             atom.name = GlobalVariables.incrementVariableName(atom.name, this);
           }
@@ -1139,6 +1183,9 @@ export default class Molecule extends Atom {
                 atom.deleteOutputAtom(false); //Remove them
               }
             });
+            atom.subscribe(() => {
+              this.childOutputAtomHasChanged(atom);
+            }, this.uniqueID);
           }
 
           // Add the atom to the list to display

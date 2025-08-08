@@ -95,13 +95,15 @@ export default class Input extends Atom {
 
     //Add a new input to the current molecule
     if (typeof this.parent !== "undefined") {
-      this.valueSource = this.parent.addIO(
+      // parent should subscribe so it can manage it's ready/processing/etc state
+      this.parentAP = this.parent.addIO(
         this.name,
         this.type,
         this.value,
         "input"
       );
-      this.valueSource.subscribe(() => {
+      // We also subscribe directly to the parent ap.
+      this.parentAP.subscribe(() => {
         this.onUpstreamChange(); // Subscribe with our callback instead of our parent's which is default.
       }, this.uniqueID);
     } else {
@@ -114,12 +116,14 @@ export default class Input extends Atom {
   }
 
   onUpstreamChange() {
-    // Directly forward value from the upstream attachment point onwards to any subscribers we have.
-    if (!this.valueSource) {
-      throw new Error("upstreamchange called but no valueSource set.");
+    // This is called when the parent attachment point changes
+    // We need to update the value of this input atom
+    console.log("onUpstreamChange called on input atom.");
+    console.log(this.parentAP);
+    if (this.parentAP) {
+      const parentState = this.parentAP.getState();
+      this.setStatus(parentState.status, parentState.value);
     }
-    const state = this.valueSource.getState();
-    this.setStatus(state.status, state.value);
   }
 
   /** Solution to canvas overflow https://stackoverflow.com/questions/10508988/html-canvas-text-overflow-ellipsis*/
@@ -358,7 +362,7 @@ export default class Input extends Atom {
       onChange: (newName) => {
         if (this.name !== newName) {
           this.name = newName;
-          this.valueSource.name = newName; // Update the attachment point name
+          this.parentAP.name = newName; // Update the attachment point name
         }
       },
     };
@@ -372,8 +376,8 @@ export default class Input extends Atom {
           this.type = newType;
           this.output.valueType = newType;
           //Add a new input to the current molecule
-          if (this.valueSource) {
-            this.valueSource.valueType = newType;
+          if (this.parentAP) {
+            this.parentAP.valueType = newType;
           }
         }
       },
