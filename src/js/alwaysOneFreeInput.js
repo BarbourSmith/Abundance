@@ -77,3 +77,26 @@ export const inputsReadyIgnoringFreeAP = (target) => {
     connected.every((input) => input.getState().status == Status.READY)
   );
 };
+
+export const initializeInputsFromSaved = (target, ioValues) => {
+  const ioList = [
+      { name: "geometry", valueType: "geometry", type: "output" },
+    ];
+    if (typeof ioValues !== "undefined") {
+      ioValues.forEach((ioValue) => {
+        //for each saved value
+        ioList.push({
+          name: ioValue.name,
+          valueType: "geometry",
+        });
+      });
+    }
+    if (ioList.length === 1) {
+      //If there are no inputs, add a default input
+      ioList.push({
+        name: "Shape 1",
+        valueType: "geometry",
+      });
+    }
+    target.addAllIOs(ioList);
+}

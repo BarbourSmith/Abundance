@@ -1,9 +1,13 @@
 import Atom from "../prototypes/atom.js";
-import { addOrDeletePorts } from "../js/alwaysOneFreeInput.js";
+import {
+  addOrDeletePorts,
+  inputsReadyIgnoringFreeAP,
+  initializeInputsFromSaved,
+} from "../js/alwaysOneFreeInput.js";
 import GlobalVariables from "../js/globalvariables.js";
 
 /**
- * This class creates the loft atom. 
+ * This class creates the loft atom.
  */
 export default class Loft extends Atom {
   /**
@@ -12,8 +16,6 @@ export default class Loft extends Atom {
    */
   constructor(values) {
     super(values);
-
-    this.addIO("output", "geometry", this, "geometry", "");
 
     /**
      * This atom's name
@@ -49,13 +51,8 @@ export default class Loft extends Atom {
     this.addedIO = false;
 
     this.setValues(values);
-
-    if (typeof this.ioValues !== "undefined") {
-      this.ioValues.forEach((ioValue) => {
-        //for each saved value
-        this.addIO("input", ioValue.name, this, "geometry", "");
-      });
-    }
+    //Initialize an appropriate number of input APs based on saved ioValues
+    initializeInputsFromSaved(this, this.ioValues);
 
     this.setValues([]);
   }
@@ -104,31 +101,14 @@ export default class Loft extends Atom {
     GlobalVariables.c.closePath();
   }
 
-  /**
-   * Generates a list of all of the input shapes, then passes them to a worker thread to compute the loft
-   */
-  updateValue() {
-    super.updateValue();
+  inputsAreReady() {
+    return inputsReadyIgnoringFreeAP(this);
+  }
 
-    if (this.inputs.every((x) => x.ready)) {
-      this.processing = true;
-      var inputsList = [];
-      this.inputs.forEach((io) => {
-        if (io.connectors.length > 0) {
-          inputsList.push(io.getValue());
-        }
-      });
-
-      GlobalVariables.cad
-        .loftShapes(this.uniqueID, inputsList)
-        .then(() => {
-          this.basicThreadValueProcessing();
-        })
-        .catch(this.alertingErrorHandler());
-
-      //Delete or add ports as needed
-      addOrDeletePorts(this);
-    }
+  compute(inputs) {
+    addOrDeletePorts(this); // clean up ports then check if we're in a ready state.
+    const nonnullInputIds = Object.values(inputs).filter((i) => i);
+    return GlobalVariables.cad.loftShapes(this.uniqueID, nonnullInputIds);
   }
 
   /**
