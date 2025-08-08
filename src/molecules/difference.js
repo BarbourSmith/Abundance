@@ -12,11 +12,6 @@ export default class Difference extends Atom {
   constructor(values) {
     super(values);
 
-
-    this.addIO("input", "geometry1", this, "geometry", "");
-    this.addIO("input", "geometry2", this, "geometry", "");
-    this.addIO("output", "geometry", this, "geometry", "");
-
     /**
      * This atom's name
      * @type {string}
@@ -34,6 +29,11 @@ export default class Difference extends Atom {
     this.description = "Subtracts shape two from shape one.";
 
     this.setValues(values);
+    this.addAllIOs([
+      { name: "geometry1", valueType: "geometry" },
+      { name: "geometry2", valueType: "geometry" },
+      { name: "geometry", valueType: "geometry", type: "output" },
+    ]);
   }
 
   /**
@@ -68,23 +68,13 @@ export default class Difference extends Atom {
     GlobalVariables.c.stroke();
     GlobalVariables.c.closePath();
   }
+
   /**
-   * Pass the input values to the worker thread to do the actual processing.
+   * Compute the difference of two geometries.
    */
-  updateValue() {
-    super.updateValue();
-
-    if (this.inputs.every((x) => x.ready)) {
-      this.processing = true;
-      const input1ID = this.findIOValue("geometry1");
-      const input2ID = this.findIOValue("geometry2");
-
-      GlobalVariables.cad
-        .difference(this.uniqueID, input1ID, input2ID)
-        .then(() => {
-          this.basicThreadValueProcessing();
-        })
-        .catch(this.alertingErrorHandler());
-    }
+  compute(inputs) {
+    const input1ID = inputs.geometry1;
+    const input2ID = inputs.geometry2;
+    return GlobalVariables.cad.difference(this.uniqueID, input1ID, input2ID);
   }
 }

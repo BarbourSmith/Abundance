@@ -65,12 +65,11 @@ export default class Color extends Atom {
       "Keep Out": "#D9544D",
     };
 
-    this.addIO("input", "geometry", this, "geometry", null, false, true);
-    this.addIO("output", "geometry", this, "geometry", null);
-
-    this.selectedValueColor;
-
     this.setValues(values);
+    this.addAllIOs([
+      { name: "color", valueType: "string", type: "output" },
+      { name: "geometry", valueType: "geometry", type: "input" },
+    ]);
   }
 
   /**
@@ -97,33 +96,11 @@ export default class Color extends Atom {
   }
 
   /**
-   * Applies a color tag to the object in a worker thread.
+   * Compute the constant value.
    */
-  updateValue() {
-    super.updateValue();
-
-    if (this.inputs.every((x) => x.ready)) {
-      this.processing = true;
-      var inputID = this.findIOValue("geometry");
-      var color = Object.values(this.colorOptions)[this.selectedColorIndex];
-      this.selectedValueColor = Object.keys(this.colorOptions)[
-        this.selectedColorIndex
-      ];
-      GlobalVariables.cad
-        .color(this.uniqueID, inputID, color)
-        .then(() => {
-          this.basicThreadValueProcessing();
-        })
-        .catch(this.alertingErrorHandler());
-    }
-  }
-
-  /**
-   * Updates the value of the selected color and then the value.
-   */
-  changeColor(index) {
-    this.selectedColorIndex = index;
-    this.updateValue();
+  compute(inputs) {
+    const color = Object.values(this.colorOptions)[this.selectedColorIndex];
+    return GlobalVariables.cad.color(this.uniqueID, inputs.geometry, color);
   }
 
   /**
@@ -132,40 +109,17 @@ export default class Color extends Atom {
   createLevaInputs() {
     let inputParams = {};
     /** Runs through active atom inputs and adds IO parameters to default param*/
-    if (this.inputs) {
-      this.inputs.map((input) => {
-        const checkConnector = () => {
-          return input.connectors.length > 0;
-        };
 
-        inputParams[this.uniqueID + "color"] = {
-          value: Object.keys(this.colorOptions)[this.selectedColorIndex],
-          label: "Color",
-          options: Object.keys(this.colorOptions),
-          onChange: (value) => {
-            this.changeColor(Object.keys(this.colorOptions).indexOf(value));
-            this.sendToRender();
-          },
-        };
-
-        /* Makes inputs for Io's other than geometry */
-        if (input.valueType !== "geometry") {
-          inputParams[this.uniqueID + input.name] = {
-            value: input.value,
-            label: input.name,
-            disabled: checkConnector(),
-            step: 0.01,
-            onChange: (value) => {
-              if (input.value !== value) {
-                input.setValue(value);
-                //this.sendToRender();
-              }
-            },
-          };
-        }
-      });
-      return inputParams;
-    }
+    inputParams[this.uniqueID + "color"] = {
+      value: Object.keys(this.colorOptions)[this.selectedColorIndex],
+      label: "Color",
+      options: Object.keys(this.colorOptions),
+      onChange: (value) => {
+        this.selectedColorIndex = Object.keys(this.colorOptions).indexOf(value);
+        this.onUpstreamChange();
+      },
+    };
+    return inputParams;
   }
 
   /**
