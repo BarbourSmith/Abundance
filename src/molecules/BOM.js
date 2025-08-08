@@ -51,29 +51,20 @@ export default class AddBOMTag extends Atom {
      */
     this.height;
 
-    this.addIO("input", "geometry", this, "geometry", null, false, true);
-    this.addIO("output", "geometry", this, "geometry", null);
+    this.uniqueID = values?.uniqueID || GlobalVariables.cad.getUniqueID();
+
+    this.addAllIOs([
+      { name: "geometry", valueType: "geometry" },
+      { name: "geometry", valueType: "geometry", type: "output" },
+    ]);
 
     this.setValues(values);
   }
 
-  /**
-   * Set the value to be the BOMitem
-   */
-  updateValue() {
-    super.updateValue();
-
-    if (this.inputs.every((x) => x.ready)) {
-      var inputID = this.findIOValue("geometry");
-      var bomItem = this.BOMitem;
-
-      GlobalVariables.cad
-        .bom(this.uniqueID, inputID, bomItem)
-        .then(() => {
-          this.basicThreadValueProcessing();
-        })
-        .catch(this.alertingErrorHandler());
-    }
+  compute(inputs) {
+    const inputID = inputs.geometry;
+    const bomItem = this.BOMitem;
+    return GlobalVariables.cad.bom(this.uniqueID, inputID, bomItem);
   }
 
   /**
@@ -114,7 +105,7 @@ export default class AddBOMTag extends Atom {
         disabled: false,
         onChange: (value) => {
           this.BOMitem[key] = value;
-          this.updateValue();
+          this.onUpstreamChange();
         },
       };
     }

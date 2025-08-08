@@ -44,12 +44,18 @@ export default class Export extends Atom {
 
     this.resolution = 96;
 
-    this.addIO("input", "geometry", this, "geometry", "");
-    this.addIO("input", "Resolution (dpi)", this, "number", this.resolution);
+    this.parent = values.parent;
 
-    this.addIO("input", "Part Name", this, "string", this.parent.name);
-
-    this.addIO("input", "File Type", this, "string", "SVG");
+    this.addAllIOs([
+      { name: "geometry", valueType: "geometry" },
+      { name: "File Type", valueType: "string", defaultValue: "SVG" },
+      {
+        name: "Resolution (dpi)",
+        valueType: "number",
+        defaultValue: this.resolution,
+      },
+      { name: "Part Name", valueType: "string", defaultValue: this.parent.name },
+    ]);
 
     this.setValues(values);
 
@@ -81,21 +87,12 @@ export default class Export extends Atom {
   /**
    * Update the displayed svg file
    */
-  updateValue() {
-    super.updateValue();
-
-    if (this.inputs.every((x) => x.ready)) {
-      this.processing = true;
-      let inputID = this.findIOValue("geometry");
-      let fileType = this.findIOValue("File Type");
-
-      GlobalVariables.cad
-        .visExport(this.uniqueID, inputID, fileType)
-        .then((result) => {
-          this.basicThreadValueProcessing();
-        })
-        .catch(this.alertingErrorHandler());
-    }
+  compute(inputs) {
+    return GlobalVariables.cad.visExport(
+      this.uniqueID,
+      inputs.geometry,
+      inputs["File Type"]
+    );
   }
 
   createLevaInputs() {

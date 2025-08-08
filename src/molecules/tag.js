@@ -36,12 +36,12 @@ export default class Tag extends Atom {
     /** Array of tags for this atom */
     this.tags = [""];
 
-    this.setValues(values);
-
     this.addAllIOs([
       { name: "geometry", valueType: "geometry" },
       { name: "geometry", valueType: "geometry", type: "output" },
     ]);
+
+    this.setValues(values);
   }
 
   /**

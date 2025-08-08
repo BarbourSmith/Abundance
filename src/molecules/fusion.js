@@ -2,6 +2,7 @@ import Atom from "../prototypes/atom.js";
 import {
   addOrDeletePorts,
   inputsReadyIgnoringFreeAP,
+  initializeInputsFromSaved,
 } from "../js/alwaysOneFreeInput.js";
 import GlobalVariables from "../js/globalvariables.js";
 
@@ -49,28 +50,10 @@ export default class Join extends Atom {
 
     this.unionIndex;
 
-    const ioList = [
-      { name: "geometry", valueType: "geometry", type: "output" },
-    ];
-    if (typeof this.ioValues !== "undefined") {
-      this.ioValues.forEach((ioValue) => {
-        //for each saved value
-        ioList.push({
-          name: ioValue.name,
-          valueType: "geometry",
-        });
-      });
-    }
-    if (ioList.length === 1) {
-      //If there are no inputs, add a default input
-      ioList.push({
-        name: "Shape 1",
-        valueType: "geometry",
-      });
-    }
+    //Initialize an appropriate number of input APs based on saved ioValues
+    initializeInputsFromSaved(this, this.ioValues);
 
     this.setValues([]);
-    this.addAllIOs(ioList);
   }
 
   /**

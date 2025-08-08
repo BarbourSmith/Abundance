@@ -1,5 +1,8 @@
 import Atom from "../prototypes/atom.js";
-import { addOrDeletePorts } from "../js/alwaysOneFreeInput.js";
+import {
+  addOrDeletePorts,
+  initializeInputsFromSaved,
+} from "../js/alwaysOneFreeInput.js";
 import GlobalVariables from "../js/globalvariables.js";
 
 /**
@@ -39,12 +42,8 @@ export default class shrinkWrap extends Atom {
 
     this.setValues(values);
 
-    if (typeof this.ioValues !== "undefined") {
-      this.ioValues.forEach((ioValue) => {
-        //for each saved value
-        this.addIO("input", ioValue.name, this, "geometry", "");
-      });
-    }
+    //Initialize an appropriate number of input APs based on saved ioValues
+    initializeInputsFromSaved(this, this.ioValues);
 
     this.setValues([]);
   }
@@ -93,30 +92,17 @@ export default class shrinkWrap extends Atom {
     GlobalVariables.c.closePath();
   }
 
-  /**
-   * Generates a list of all of the input shapes, then passes them to a worker thread to compute the hull
-   */
-  updateValue() {
-    super.updateValue();
+  inputsAreReady() {
+    return inputsReadyIgnoringFreeAP(this);
+  }
 
-    if (this.inputs.every((x) => x.ready)) {
-      this.processing = true;
-      var inputsList = [];
-      this.inputs.forEach((io) => {
-        if (io.connectors.length > 0) {
-          inputsList.push(io.getValue());
-        }
-      });
-      GlobalVariables.cad
-        .shrinkWrapSketches(this.uniqueID, inputsList)
-        .then(() => {
-          this.basicThreadValueProcessing();
-        })
-        .catch(this.alertingErrorHandler());
-
-      //Delete or add ports as needed
-      addOrDeletePorts(this);
-    }
+  compute(inputs) {
+    addOrDeletePorts(this); // clean up ports then check if we're in a ready state.
+    const nonnullInputIds = Object.values(inputs).filter((i) => i);
+    return GlobalVariables.cad.shrinkWrapSketches(
+      this.uniqueID,
+      nonnullInputIds
+    );
   }
 
   /**

@@ -70,7 +70,7 @@ export default class Atom extends ObservableEntity {
      * This atom's unique ID. Often overwritten later when loading
      * @type {number}
      */
-    this.uniqueID = GlobalVariables.generateUniqueID();
+    this.uniqueID = values?.uniqueID || GlobalVariables.cad.getUniqueID();
 
     /**
      * A description of this atom
@@ -127,6 +127,15 @@ export default class Atom extends ObservableEntity {
       type: AlertType.NONE,
       message: "",
     };
+
+    this.subscribe(() => {
+      if (this.getState().status != Status.ERROR) {
+        this.alert = {
+          type: AlertType.NONE,
+          message: "",
+        };
+      }
+    }, "self-clear-alert");
   }
 
   /**
@@ -376,7 +385,7 @@ export default class Atom extends ObservableEntity {
     return (err) => {
       console.log("Error in atom: " + this.name);
       console.log(err);
-      this.setError(err.message || "Unkown error occurred");
+      this.setError(err || "Unknown error occurred");
     };
   }
 
@@ -637,8 +646,11 @@ export default class Atom extends ObservableEntity {
     );
   }
 
-  setError(message) {
-    this.alert = { type: AlertType.ERROR, message: String(message) };
+  setError(err) {
+    if (err instanceof Error) {
+      err = err.message;
+    }
+    this.alert = { type: AlertType.ERROR, message: String(err) };
     this.setStatus(Status.ERROR);
   }
 
@@ -674,12 +686,12 @@ export default class Atom extends ObservableEntity {
         .then((value) => {
           this.setReady(value);
         })
-        .catch(this.alertingErrorHandler);
+        .catch(this.alertingErrorHandler());
     } else {
       this.setWaiting();
       GlobalVariables.cad
         .deleteFromLibrary(this.uniqueID)
-        .catch(this.alertingErrorHandler);
+        .catch(this.alertingErrorHandler());
     }
   }
 

@@ -100,13 +100,13 @@ export default class Molecule extends Atom {
      */
     this.projectAvailableTags = [];
 
-    this.setValues(values);
-
-    this.color;
-
     this.addAllIOs([
       { name: "geometry or number", valueType: "geometry", type: "output" },
     ]);
+
+    this.setValues(values);
+
+    this.color;
   }
 
   /**

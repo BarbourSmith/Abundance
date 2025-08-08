@@ -28,12 +28,13 @@ export default class Difference extends Atom {
      */
     this.description = "Subtracts shape two from shape one.";
 
-    this.setValues(values);
     this.addAllIOs([
       { name: "geometry1", valueType: "geometry" },
       { name: "geometry2", valueType: "geometry" },
       { name: "geometry", valueType: "geometry", type: "output" },
     ]);
+
+    this.setValues(values);
   }
 
   /**

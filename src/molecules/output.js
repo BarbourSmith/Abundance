@@ -64,10 +64,9 @@ export default class Output extends Atom {
      */
     this.description =
       "Connect geometry here to make it available in the next level up. ";
+    this.addAllIOs([{ name: "number or geometry", valueType: "geometry" }]);
 
     this.setValues(values);
-
-    this.addAllIOs([{ name: "number or geometry", valueType: "geometry" }]);
   }
 
   compute(argsDict) {

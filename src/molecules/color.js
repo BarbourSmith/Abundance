@@ -64,12 +64,12 @@ export default class Color extends Atom {
       White: "#FFFCF7",
       "Keep Out": "#D9544D",
     };
-
-    this.setValues(values);
     this.addAllIOs([
       { name: "color", valueType: "string", type: "output" },
       { name: "geometry", valueType: "geometry", type: "input" },
     ]);
+
+    this.setValues(values);
   }
 
   /**

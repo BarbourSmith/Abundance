@@ -560,7 +560,7 @@ function extractBomList(inputID) {
  * @param {string} targetID - The unique identifier to store the prepared export geometry in the library
  * @param {string} inputID - The library ID of the geometry to prepare for export
  * @param {string} fileType - The file type for export ("STL", "STEP", or "SVG")
- * @returns {Promise<boolean>} A promise that resolves to true when the export preparation is completed successfully
+ * @returns {Promise<targetID>} A promise that resolves to ID of the result when the export preparation is completed successfully
  */
 function visExport(targetID, inputID, fileType) {
   return started.then(() => {

@@ -70,31 +70,6 @@ export default (function ParamsEditor({
     return { ...inputParams };
   }, [inputParams]);
 
-  if (activeAtom.atomType == "Equation") {
-    /* Make an input for the equation itself */
-    inputParamsConfig[activeAtom.uniqueID + "currentequation"] = {
-      value: activeAtom.currentEquation,
-      label: "Current Equation",
-      disabled: false,
-      type: LevaInputs.STRING,
-      onChange: (value) => {
-        if (activeAtom.currentEquation !== value) {
-          activeAtom.setEquation(value);
-          setInputChanged(activeAtom.currentEquation);
-          set({
-            [activeAtom.uniqueID + "result"]: activeAtom.evaluateEquation(),
-          });
-        }
-      },
-      order: -3,
-    };
-
-    inputParamsConfig[activeAtom.uniqueID + "result"] = {
-      label: "Result",
-      value: 3,
-      disabled: true,
-    };
-  }
   if (activeAtom.atomType == "Import") {
     inputParamsConfig["Load File"] = button(() => {
       activeAtom.loadFile(

@@ -2,26 +2,6 @@ import Atom from "../prototypes/atom";
 import GlobalVariables from "../js/globalvariables.js";
 
 /**
- * Modeling inputs....
- * We need tokeep input atom type around because it's got the xy position
- * which can be set by the user and it allows overwriting of the type
- *
- * But when this isn't the top-level molecule then we want these inputs to "look like"
- * attachment points.
- *
- * Probably the simplest way to do this from our current impl is:
- * * use the list of atoms as the single source of truth when serialized..
- * * when rendering as top-level then we just treat inputs like anything else
- *   * TODO: should we have an ap which is the UI value input?
- * * when not at top-level we need to scan through for input atoms then create
- *   attachment points as needed.
- *
- *
- * TODO: where is the code for creating a new molecule atom?
- *       where is the code for traversing up or down the molecule tree?
- */
-
-/**
  * This class creates the input atom.
  */
 export default class Input extends Atom {

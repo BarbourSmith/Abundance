@@ -2,6 +2,7 @@ import Atom from "../prototypes/atom.js";
 import {
   addOrDeletePorts,
   inputsReadyIgnoringFreeAP,
+  initializeInputsFromSaved,
 } from "../js/alwaysOneFreeInput.js";
 import GlobalVariables from "../js/globalvariables.js";
 
@@ -45,30 +46,10 @@ export default class Assembly extends Atom {
 
     this.setValues(values);
 
-    //This loads any inputs which this atom had when last saved.
-    const ioList = [
-      { name: "geometry", valueType: "geometry", type: "output" },
-    ];
-    if (typeof this.ioValues !== "undefined") {
-      this.ioValues.forEach((ioValue) => {
-        //for each saved value
-        ioList.push({
-          name: ioValue.name,
-          valueType: "geometry",
-        });
-      });
-    }
-    if (ioList.length === 1) {
-      //If there are no inputs, add a default input
-      ioList.push({
-        name: "Shape 1",
-        valueType: "geometry",
-      });
-    }
-    console.log(ioList);
+    //Initialize an appropriate number of input APs based on saved ioValues
+    initializeInputsFromSaved(this, this.ioValues);
 
     this.setValues([]);
-    this.addAllIOs(ioList);
   }
 
   /**
