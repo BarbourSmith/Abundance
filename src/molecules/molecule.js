@@ -7,6 +7,7 @@ import { Octokit } from "https://esm.sh/octokit@2.0.19";
 import { BOMEntry } from "../js/BOM";
 import globalvariables from "../js/globalvariables.js";
 import { LevaInputs } from "leva";
+import { Status } from "../prototypes/subscribableEntity.js";
 
 /**
  * This class creates the Molecule atom.
@@ -704,10 +705,19 @@ export default class Molecule extends Atom {
     return bomParams;
   }
 
-  childOutputAtomHasChanged(outputAtom) {
+  getOutputAtom() {
+    return this.nodesOnTheScreen.find(
+      (atom) => atom.atomType === "Output" && atom.parent === this
+    );
+  }
+
+  onUpstreamChange() {
+    console.trace("onUpstreamChange called");
+    const outputAtom = this.getOutputAtom();
     if (outputAtom) {
       const state = outputAtom.getState();
-      if (state.status == Atom.READY) {
+      console.log("found output atom with state: ", state);
+      if (state.status == Status.READY) {
         console.log(
           "child output is ready. calling cad.molecule, expect to be ready soon"
         );
@@ -738,7 +748,7 @@ export default class Molecule extends Atom {
         this.setWaiting();
       }
     } else {
-      console.trace("Undefined output atom in childOutputAtomHasChanged");
+      console.trace("Undefined output atom in onUpstreamChange");
       this.setError("got callback with undefined output atom");
     }
   }
@@ -1171,7 +1181,6 @@ export default class Molecule extends Atom {
             atom.type = newAtomObj.type;
 
             atom.draw(); //The poling happens in draw :roll_eyes:
-            
           } else if (atom.atomType == "Input") {
             atom.name = GlobalVariables.incrementVariableName(atom.name, this);
           }
@@ -1183,13 +1192,18 @@ export default class Molecule extends Atom {
                 atom.deleteOutputAtom(false); //Remove them
               }
             });
-            atom.subscribe(() => {
-              this.childOutputAtomHasChanged(atom);
-            }, this.uniqueID);
           }
 
           // Add the atom to the list to display
           this.nodesOnTheScreen.push(atom);
+
+          if (atom.atomType == "Output") {
+            // Subscribe after atom has been added to the nodesOnTheScreen list so that
+            // it's findable
+            atom.subscribe(() => {
+              this.onUpstreamChange();
+            }, this.uniqueID);
+          }
 
           if (unlock) {
             const flowCanvas = document.querySelector("#flow-canvas");
