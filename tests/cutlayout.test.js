@@ -1,13 +1,16 @@
 // Test file for cutlayout.js - default placement functionality
-import { createDefaultPlacements } from "../src/worker/cutlayout.js";
+import {
+  createDefaultPlacements,
+  displayLayoutWithRotatedAssembly,
+} from "../src/worker/cutlayout.js";
 
 describe("cutlayout.js", () => {
   describe("createDefaultPlacements", () => {
     it("should create default placements at origin with zero rotation", () => {
       const shapesForLayout = [
-        { id: 'shape1' },
-        { id: 'shape2' },
-        { id: 'shape3' }
+        { id: "shape1" },
+        { id: "shape2" },
+        { id: "shape3" },
       ];
 
       const result = createDefaultPlacements(shapesForLayout);
@@ -22,10 +25,10 @@ describe("cutlayout.js", () => {
 
       // Each placement should have the correct structure and default values
       sheet.forEach((placement, index) => {
-        expect(placement).toHaveProperty('id');
-        expect(placement).toHaveProperty('rotate');
-        expect(placement).toHaveProperty('translate');
-        
+        expect(placement).toHaveProperty("id");
+        expect(placement).toHaveProperty("rotate");
+        expect(placement).toHaveProperty("translate");
+
         expect(placement.id).toBe(shapesForLayout[index].id);
         expect(placement.rotate).toBe(0);
         expect(placement.translate.x).toBe(0);
@@ -43,15 +46,45 @@ describe("cutlayout.js", () => {
     });
 
     it("should handle single shape", () => {
-      const shapesForLayout = [{ id: 'single-shape' }];
+      const shapesForLayout = [{ id: "single-shape" }];
       const result = createDefaultPlacements(shapesForLayout);
 
       expect(result.length).toBe(1);
       expect(result[0].length).toBe(1);
-      expect(result[0][0].id).toBe('single-shape');
+      expect(result[0][0].id).toBe("single-shape");
       expect(result[0][0].rotate).toBe(0);
       expect(result[0][0].translate.x).toBe(0);
       expect(result[0][0].translate.y).toBe(0);
+    });
+  });
+
+  describe("displayLayoutWithRotatedAssembly", () => {
+    it("should exist and be a function", () => {
+      expect(typeof displayLayoutWithRotatedAssembly).toBe("function");
+    });
+
+    it("should work with mock assembly and empty positions", () => {
+      // Create a minimal mock assembly to test the function exists and works
+      const mockRotatedAssembly = {
+        geometry: [],
+        tags: [],
+        color: "#aad7f2",
+        bom: [],
+      };
+
+      const positions = [[]]; // Empty positions
+      const warningCallback = () => {};
+      const layoutConfig = { width: 100, height: 100, partPadding: 1 };
+
+      // This should not throw an error
+      expect(() => {
+        displayLayoutWithRotatedAssembly(
+          mockRotatedAssembly,
+          positions,
+          warningCallback,
+          layoutConfig
+        );
+      }).not.toThrow();
     });
   });
 });
