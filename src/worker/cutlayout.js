@@ -36,7 +36,7 @@ function layout(
       // This should not happen anymore since we provide default placements,
       // but keep this as a safety check
       console.warn("Unexpected: received empty positions array");
-      return [rotatedAssembly, []];
+      return [rotatedAssembly, [], rotatedAssembly];
     } else {
       let unplacedParts = shapesForLayout.length - positions.flat().length;
       if (unplacedParts > 0) {
@@ -49,12 +49,13 @@ function layout(
       }
     }
 
-    return [layedOutAssembly, positions];
+    return [layedOutAssembly, positions, rotatedAssembly];
   });
 }
 
 /**
  * Lay the input geometry flat and apply the transformations to display it
+ * Returns both the result and the rotatedAssembly for caching purposes
  */
 function displayLayout(assembly, positions, warningCallback, layoutConfig) {
   const [rotatedAssembly, shapesForLayout] = rotateForLayout(
@@ -63,7 +64,25 @@ function displayLayout(assembly, positions, warningCallback, layoutConfig) {
     warningCallback
   );
 
-  return applyLayout(rotatedAssembly, positions, layoutConfig);
+  const result = applyLayout(rotatedAssembly, positions, layoutConfig);
+
+  return [result, rotatedAssembly];
+}
+
+/**
+ * Apply the transformations to display already-rotated geometry.
+ * This function is used when we already have a pre-rotated assembly
+ * to avoid calling rotateForLayout again for performance.
+ */
+function displayLayoutWithRotatedAssembly(
+  rotatedAssembly,
+  positions,
+  warningCallback,
+  layoutConfig
+) {
+  const result = applyLayout(rotatedAssembly, positions, layoutConfig);
+
+  return result;
 }
 
 /**
@@ -289,7 +308,7 @@ function rotateForLayout(assembly, layoutConfig, warningCallback) {
  * Apply the transformations to the geometry to apply the layout
  */
 function applyLayout(rotatedAssembly, positions, layoutConfig) {
-  return util.actOnLeafs(rotatedAssembly, (leaf) => {
+  const result = util.actOnLeafs(rotatedAssembly, (leaf) => {
     let transform, index;
     for (var i = 0; i < positions.length; i++) {
       let candidates = positions[i].filter(
@@ -332,6 +351,8 @@ function applyLayout(rotatedAssembly, positions, layoutConfig) {
       id: leaf.id,
     };
   });
+
+  return result;
 }
 
 /**
@@ -385,7 +406,6 @@ function computePositions(
   layoutConfig,
   previousPlacements = null
 ) {
-
   const tolerance = 0.2;
   const runtimeMs = 120000;
   const config = {
@@ -474,7 +494,9 @@ function computePositions(
           resolve(bestPlacement);
         } else {
           packer.stop(true);
-          console.log("No placement found within time limit, using default placement at origin.");
+          console.log(
+            "No placement found within time limit, using default placement at origin."
+          );
           const defaultPlacements = createDefaultPlacements(shapesForLayout);
           resolve(defaultPlacements);
         }
@@ -695,4 +717,9 @@ function areaApprox(bounds) {
   return (bounds.uMax - bounds.uMin) * (bounds.vMax - bounds.vMin);
 }
 
-export { layout, displayLayout, createDefaultPlacements };
+export {
+  layout,
+  displayLayout,
+  displayLayoutWithRotatedAssembly,
+  createDefaultPlacements,
+};
