@@ -27,7 +27,7 @@ async function code(targetID, codeText, argumentsArray) {
   await started;
   const result = await codeLib.executeCode(codeText, argumentsArray, library);
   library[targetID] = result;
-  return true;
+  return targetID;
 }
 
 /**
@@ -105,7 +105,7 @@ async function displayLayout(
     layoutConfig
   );
 
-  return true;
+  return targetID;
 }
 
 /**
@@ -169,7 +169,7 @@ function createMesh(thickness) {
 async function circle(id, diameter) {
   await started;
   library[id] = await shapes.circle(diameter);
-  return true;
+  return id;
 }
 
 /**
@@ -182,7 +182,7 @@ async function circle(id, diameter) {
 async function rectangle(id, x, y) {
   await started;
   library[id] = await shapes.rectangle(x, y);
-  return true;
+  return id;
 }
 
 /**
@@ -195,7 +195,7 @@ async function rectangle(id, x, y) {
 async function regularPolygon(id, radius, numberOfSides) {
   await started;
   library[id] = await shapes.regularPolygon(radius, numberOfSides);
-  return true;
+  return id;
 }
 
 /**
@@ -211,7 +211,7 @@ async function text(id, text, fontSize, fontFamily) {
   return started.then(async () => {
     const result = await shapes.text(text, fontSize, fontFamily);
     library[id] = result;
-    return true;
+    return id;
   });
 }
 
@@ -227,7 +227,7 @@ async function loftShapes(targetID, inputsIDs) {
   library[targetID] = await interaction.loftShapes(
     (inputsIDs || []).map(getOrThrow)
   );
-  return true;
+  return targetID;
 }
 
 /**
@@ -240,7 +240,7 @@ async function loftShapes(targetID, inputsIDs) {
 async function extrude(targetID, inputID, height) {
   await started;
   library[targetID] = await actions.extrude(getOrThrow(inputID), height);
-  return true;
+  return targetID;
 }
 
 /**
@@ -257,7 +257,7 @@ async function move(geom, x, y, z, targetID = null) {
   const result = await actions.move(toGeometry(geom, "move-geometry"), x, y, z);
   if (targetID) {
     library[targetID] = result;
-    return true;
+    return targetID;
   } else {
     return result;
   }
@@ -279,7 +279,7 @@ async function rotate(geom, x, y, z, targetID = null) {
   const result = await actions.rotate(asGeom, x, y, z);
   if (targetID) {
     library[targetID] = result;
-    return true;
+    return targetID;
   } else {
     return result;
   }
@@ -299,7 +299,7 @@ async function scale(geom, scaleFactor, targetID = null) {
   const result = await actions.scale(geom, scaleFactor);
   if (targetID) {
     library[targetID] = result;
-    return true;
+    return targetID;
   } else {
     return result;
   }
@@ -321,7 +321,7 @@ async function fillet(geom, radius, targetID = null) {
   );
   if (targetID) {
     library[targetID] = result;
-    return true;
+    return targetID;
   } else {
     return result;
   }
@@ -343,7 +343,7 @@ async function chamfer(geom, size, targetID = null) {
   );
   if (targetID) {
     library[targetID] = result;
-    return true;
+    return targetID;
   } else {
     return result;
   }
@@ -369,7 +369,7 @@ function difference(targetID, input1ID, input2ID) {
       getOrThrow(input1ID),
       getOrThrow(input2ID)
     );
-    return true;
+    return targetID;
   });
 }
 
@@ -385,7 +385,7 @@ function shrinkWrapSketches(targetID, inputIDs) {
     library[targetID] = await interaction.shrinkWrapSketches(
       inputIDs.map(getOrThrow)
     );
-    return true;
+    return targetID;
   });
 }
 
@@ -404,7 +404,7 @@ function intersect(input1ID, input2ID, targetID = null) {
     );
     if (targetID) {
       library[targetID] = result;
-      return true;
+      return targetID;
     } else {
       return result;
     }
@@ -421,7 +421,7 @@ function intersect(input1ID, input2ID, targetID = null) {
 function tag(targetID, inputID, TAG) {
   return started.then(() => {
     library[targetID] = tags.tag(getOrThrow(inputID), TAG);
-    return true;
+    return targetID;
   });
 }
 
@@ -449,7 +449,7 @@ function extractAllTags(inputID, tag) {
 function color(targetID, inputID, color) {
   return started.then(() => {
     library[targetID] = tags.color(getOrThrow(inputID), color);
-    return true;
+    return targetID;
   });
 }
 
@@ -463,7 +463,7 @@ function color(targetID, inputID, color) {
 function bom(targetID, inputID, BOM) {
   return started.then(() => {
     library[targetID] = tags.bom(getOrThrow(inputID), BOM);
-    return true;
+    return targetID;
   });
 }
 
@@ -478,7 +478,7 @@ function bom(targetID, inputID, BOM) {
 async function extractTag(targetID, inputID, TAG) {
   await started;
   library[targetID] = tags.extractTag(getOrThrow(inputID), TAG);
-  return true;
+  return targetID;
 }
 
 /**
@@ -564,7 +564,7 @@ function visExport(targetID, inputID, fileType) {
         plane: library[inputID].plane,
       };
     }
-    return true;
+    return targetID;
   });
 }
 
@@ -608,7 +608,7 @@ async function importingSTEP(targetID, file) {
     color: util.defaultColor,
     bom: [],
   };
-  return true;
+  return targetID;
 }
 
 /**
@@ -626,7 +626,7 @@ async function importingSTL(targetID, file) {
     color: util.defaultColor,
     bom: [],
   };
-  return true;
+  return targetID;
 }
 
 /**
@@ -664,7 +664,7 @@ async function importingSVG(targetID, svg, width) {
       bom: [],
     };
 
-    return true;
+    return targetID;
   } catch (error) {
     //add alert  ----> Try tweaking your file here https://iconly.io/tools/svg-convert-stroke-to-fill "
 
@@ -712,6 +712,7 @@ function visualizeGcode(targetID, gcode) {
     color: util.defaultColor,
     bom: [],
   };
+  return targetID;
 }
 
 /**
@@ -808,7 +809,7 @@ async function assembly(inputIDs, targetID = null) {
   const result = await interaction.assembly(inputIDs.map(getOrThrow));
   if (targetID != null) {
     library[targetID] = result;
-    return true;
+    return targetID;
   } else {
     return result;
   }
@@ -824,14 +825,7 @@ async function assembly(inputIDs, targetID = null) {
 function fusion(targetID, inputIDs) {
   return started.then(async () => {
     library[targetID] = await interaction.fusion(inputIDs.map(getOrThrow));
-    return true;
-  });
-}
-
-function unset(targetId) {
-  return started.then(() => {
-    delete library[targetId];
-    return true;
+    return targetID;
   });
 }
 
@@ -1125,7 +1119,6 @@ if (
     resetView,
     visualizeGcode,
     getBoundingBox,
-    unset,
   });
 }
 
@@ -1168,5 +1161,4 @@ export {
   visExport,
   downExport,
   shrinkWrapSketches,
-  unset,
 };
