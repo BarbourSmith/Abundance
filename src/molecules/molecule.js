@@ -712,15 +712,10 @@ export default class Molecule extends Atom {
   }
 
   onUpstreamChange() {
-    console.trace("onUpstreamChange called");
     const outputAtom = this.getOutputAtom();
     if (outputAtom) {
       const state = outputAtom.getState();
-      console.log("found output atom with state: ", state);
       if (state.status == Status.READY) {
-        console.log(
-          "child output is ready. calling cad.molecule, expect to be ready soon"
-        );
         GlobalVariables.cad
           .molecule(this.uniqueID, state.value)
           .then((result) => {
@@ -729,8 +724,6 @@ export default class Molecule extends Atom {
           .catch(this.alertingErrorHandler);
       } else {
         const inputAps = this.inputs.filter((input) => input.type == "input");
-        console.log("considering inputAPs: ");
-        console.log(inputAps);
         if (inputAps.every((input) => input.status == Atom.READY)) {
           // All inputs are ready but our output isn't yet. check for an internal error
           // else we're in progress.

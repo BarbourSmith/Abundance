@@ -28,21 +28,12 @@ export default class Circle extends Atom {
      */
     this.description = "Creates a new circle.";
 
+    this.setValues(values);
+
     this.addAllIOs([
       { name: "diameter", valueType: "number", defaultValue: 10.0 },
-      { name: "output", valueType: "geometry", type: "output" },
+      { name: "geometry", valueType: "geometry", type: "output" },
     ]);
-    this.setValues(values);
-  }
-
-  /**
-   * Starts propagation from this atom if it is not waiting for anything up stream.
-   */
-  beginPropagation(force = false) {
-    //Triggers inputs with nothing connected to begin propagation
-    this.inputs.forEach((input) => {
-      input.beginPropagation();
-    });
   }
 
   /**
@@ -67,16 +58,10 @@ export default class Circle extends Atom {
   }
 
   /**
-   * Update the value of the circle in worker.
+   * Compute the circle geometry.
    */
-  updateValue() {
-    super.updateValue();
-    var diameter = this.findIOValue("diameter");
-    GlobalVariables.cad
-      .circle(this.uniqueID, diameter)
-      .then(() => {
-        this.basicThreadValueProcessing();
-      })
-      .catch(this.alertingErrorHandler());
+  async compute(inputs) {
+    const diameter = inputs.diameter;
+    return GlobalVariables.cad.circle(this.uniqueID, diameter);
   }
 }

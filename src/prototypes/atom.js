@@ -649,7 +649,9 @@ export default class Atom extends ObservableEntity {
         .catch(this.alertingErrorHandler);
     } else {
       this.setWaiting();
-      GlobalVariables.cad.unset(this.uniqueID).catch(this.alertingErrorHandler);
+      GlobalVariables.cad
+        .deleteFromLibrary(this.uniqueID)
+        .catch(this.alertingErrorHandler);
     }
   }
 
@@ -718,9 +720,6 @@ export default class Atom extends ObservableEntity {
             disabled: checkConnector(),
             onChange: (value) => {
               if (input.value !== value) {
-                console.log(
-                  "Setting input value for " + input.name + " to " + value
-                );
                 input.setValue(value);
                 this.sendToRender();
               }
