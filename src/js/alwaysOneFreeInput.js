@@ -1,3 +1,5 @@
+import { Status } from "../prototypes/subscribableEntity.js";
+
 //This module is used to create atoms which do not have a set number of inputs, but instead always have one input free.
 
 /**
@@ -50,18 +52,28 @@ export const addOrDeletePorts = (target) => {
   //Add or delete ports as needed
   if (howManyInputPortsAvailable(target) == 0) {
     //We need to make a new port available
-    findHighestInput(target);
-    target.addIO(
-      "input",
-      "Shape " + (findHighestInput(target) + 1),
-      target,
-      "geometry",
-      "",
-      true
-    );
+    const highest = findHighestInput(target);
+    target.addIO("Shape " + (highest + 1), "geometry");
   }
   if (howManyInputPortsAvailable(target) >= 2) {
     //We need to remove the empty port
     deleteEmptyPort(target);
   }
+};
+
+/**
+ * Determines if inputs are ready for an alwaysOneFreeInput atom.
+ * Specifically, returns true iff:
+ *  * there is one free input (ie an input with no connector) in the WAITING status
+ *  * there is at least one other input with a connector
+ *  * and all other inputs have a connection and are in the READY status.
+ */
+export const inputsReadyIgnoringFreeAP = (target) => {
+  const connected = target.inputs.filter(
+    (input) => input.connectors.length > 0
+  );
+  return (
+    connected.length > 0 &&
+    connected.every((input) => input.getState().status == Status.READY)
+  );
 };
