@@ -55,7 +55,7 @@ export default class Import extends Atom {
 
     this.SVGwidth = 10;
 
-    this.addIO("output", "geometry", this, "geometry", "");
+    this.addIO("geometry", "geometry", undefined, "output");
 
     this.importOptions = ["SVG", "STL", "STEP"];
 
@@ -100,43 +100,38 @@ export default class Import extends Atom {
     });
     return result;
   };
-  /**
-   * Update the displayed svg file
-   */
-  updateValue() {
-    super.updateValue();
-    this.processing = true;
+
+  loadAndPropagate() {
+    this.setProcessing();
 
     if (this.fileName != null) {
-      this.getAFile().then((result) => {
-        this.sha = result.data.sha;
-        this.file = this.newBlobFromBase64(result);
-        let file = this.file;
-        let fileType = this.type;
+      this.getAFile()
+        .then((result) => {
+          this.sha = result.data.sha;
+          this.file = this.newBlobFromBase64(result);
+          let file = this.file;
+          let fileType = this.type;
 
-        let funcToCall =
-          fileType == "STL"
-            ? GlobalVariables.cad.importingSTL
-            : fileType == "SVG"
-            ? GlobalVariables.cad.importingSVG
-            : fileType == "STEP"
-            ? GlobalVariables.cad.importingSTEP
-            : null;
+          let funcToCall =
+            fileType == "STL"
+              ? GlobalVariables.cad.importingSTL
+              : fileType == "SVG"
+              ? GlobalVariables.cad.importingSVG
+              : fileType == "STEP"
+              ? GlobalVariables.cad.importingSTEP
+              : null;
 
-        if (funcToCall == null) {
-          throw new Error("Invalid file type");
-        }
+          if (funcToCall == null) {
+            throw new Error("Invalid file type");
+          }
 
-        funcToCall(this.uniqueID, file, this.SVGwidth)
-          .then((result) => {
-            this.basicThreadValueProcessing();
-            this.sendToRender();
-          })
-          .catch((error) => {
-            alert(`Error processing file: ${error.message || error}`);
-            this.alertingErrorHandler();
-          });
-      });
+          return funcToCall(this.uniqueID, file, this.SVGwidth);
+        })
+        .then((result) => {
+          this.setReady(result);
+          this.sendToRender();
+        })
+        .catch(this.alertingErrorHandler());
     }
   }
 
@@ -165,15 +160,6 @@ export default class Import extends Atom {
     });
   }
 
-  /**
-   * Begin propagation from this atom if there is a file uploaded
-   */
-  beginPropagation() {
-    if (this.fileName != null) {
-      this.updateValue();
-    }
-  }
-
   createLevaInputs() {
     let inputParams = {};
     if (this.fileName == null) {
@@ -192,7 +178,7 @@ export default class Import extends Atom {
           step: 0.01,
           onChange: (value) => {
             this.SVGwidth = value;
-            this.updateValue();
+            this.loadAndPropagate();
           },
         };
       }
@@ -256,7 +242,7 @@ export default class Import extends Atom {
 
     this.repoOwner = GlobalVariables.currentRepo.owner;
     this.repoName = GlobalVariables.currentRepoName;
-    this.updateValue();
+    this.loadAndPropagate();
   }
 
   /**
