@@ -90,10 +90,12 @@ export default class Tag extends Atom {
       label: "Add Tag",
       disabled: false,
       onChange: (value) => {
-        this.tags = [];
-        this.tags.push(value); // Add the new tag to the array
-        this.name = this.tags.toString();
-        this.onUpstreamChange();
+        const newVal = [value];
+        if (this.name !== newVal.toString()) {
+          this.tags = newVal;
+          this.name = newVal.toString();
+          this.onUpstreamChange();
+        }
       },
     };
 
@@ -105,7 +107,8 @@ export default class Tag extends Atom {
   /**
    * Compute the tagged geometry.
    */
-  async compute(inputs) {
+  compute(inputs) {
+    console.trace(`${this.uniqueID} compute called with inputs:`, inputs);
     const inputID = inputs.geometry;
     const tags = this.tags;
     return GlobalVariables.cad.tag(this.uniqueID, inputID, tags);
