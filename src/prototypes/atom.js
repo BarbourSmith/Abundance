@@ -109,7 +109,7 @@ export default class Atom extends ObservableEntity {
      * A message displayed next to the atom. Set the type and the message to display the alert. Cleared each time the output is regenerated.
      * @type {object}
      */
-    this.alert = {  
+    this.alert = {
       type: AlertType.NONE,
       message: "",
     };
@@ -368,7 +368,7 @@ export default class Atom extends ObservableEntity {
     return (err) => {
       console.log("Error in atom: " + this.name);
       console.log(err);
-      this.setError(err.message || "Unkown error occurred");
+      this.setError(err || "Unknown error occurred");
     };
   }
 
@@ -629,8 +629,11 @@ export default class Atom extends ObservableEntity {
     );
   }
 
-  setError(message) {
-    this.alert = { type: AlertType.ERROR, message: String(message) };
+  setError(err) {
+    if (err instanceof Error) {
+      err = err.message;
+    }
+    this.alert = { type: AlertType.ERROR, message: String(err) };
     this.setStatus(Status.ERROR);
   }
 

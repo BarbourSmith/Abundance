@@ -281,6 +281,7 @@ export default class CutLayout extends Atom {
         .catch(this.alertingErrorHandler())
         .finally(() => {
           this.cancelationHandle = undefined;
+          this.progress = 1.0;
         });
     }
   }
