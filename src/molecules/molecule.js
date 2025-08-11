@@ -772,21 +772,22 @@ export default class Molecule extends Atom {
           .catch(this.alertingErrorHandler);
       } else {
         const inputAps = this.inputs.filter((input) => input.type == "input");
-        if (inputAps.every((input) => input.status == Atom.READY)) {
+        if (inputAps.every((input) => input.status == Status.READY)) {
           // All inputs are ready but our output isn't yet. check for an internal error
           // else we're in progress.
           if (
             this.nodesOnTheScreen.some((atom) => {
-              atom.status == Atom.ERROR;
+              atom.status == Status.ERROR;
             })
           ) {
-            this.setStatus(Atom.ERROR, "An error occurred in a child atom.");
+            this.setStatus(Status.ERROR, "An error occurred in a child atom.");
           } else {
             this.setProcessing();
           }
+        } else {
+          // Else set status to waiting since some of our inputs are not ready.
+          this.setWaiting();
         }
-        // Else set status to waiting since some of our inputs are not ready.
-        this.setWaiting();
       }
     } else {
       console.trace("Undefined output atom in onUpstreamChange");
@@ -1382,7 +1383,8 @@ export default class Molecule extends Atom {
       }
       return promise;
     } catch (err) {
-      console.warn("Unable to place: " + newAtomObj);
+      console.error("Unable to place entity...");
+      console.warn(newAtomObj);
       console.warn(err);
       return Promise.resolve();
     }

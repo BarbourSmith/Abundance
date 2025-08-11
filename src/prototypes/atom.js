@@ -277,10 +277,17 @@ export default class Atom extends ObservableEntity {
 
   _subscribeToInputs() {
     this.inputs.forEach((input) => {
-      input.subscribe(() => {
-        this.onUpstreamChange();
-      }, this.uniqueID);
+      input.subscribe(
+        () => {
+          this.onUpstreamChange();
+        },
+        this.uniqueID,
+        false // Force no immediate callback
+      );
     });
+    if (this.inputs.length > 0) {
+      this.onUpstreamChange();
+    }
   }
 
   _addIOWithoutSubscribing(

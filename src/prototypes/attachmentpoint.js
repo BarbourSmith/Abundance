@@ -538,17 +538,27 @@ export default class AttachmentPoint extends ObservableEntity {
   }
 
   /**
-   * Sets the current value of the ap. Force forces an update even if the value hasn't changed.
+   * Sets the current value of the ap.
    */
   setValue(newValue, type = this.valueType) {
     if (this.type == "input") {
       this.valueType = type; // TODO: do we need to force a propagation if this changed?
-      this.setStatus(
-        newValue === undefined || newValue === null
-          ? Status.WAITING
-          : Status.READY,
-        newValue
-      );
+      if (this.valueType == "geometry") {
+        // This should only be called when deserializing. For geometries we'll allow the
+        // id to be stored in this.value, but status stays "WAITING" until it's overwritten
+        // by the onUpstreamChange callback subscribed a connector
+        this.value = newValue;
+        this.setWaiting();
+      } else {
+        // This is a number input. As long as the deserialized value is defined then we're
+        // ready.
+        this.setStatus(
+          newValue === undefined || newValue === null
+            ? Status.WAITING
+            : Status.READY,
+          newValue
+        );
+      }
     } else {
       // this.type == "output"
       console.log("setValue called on output..... no op");

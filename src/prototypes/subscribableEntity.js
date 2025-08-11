@@ -63,13 +63,15 @@ class ObservableEntity {
    * @param {function} onChange callback
    * @throws {Error} if onChange is not a function
    */
-  subscribe(subscriber, id) {
+  subscribe(subscriber, id, immediateCallback = true) {
     if (typeof subscriber === "function") {
       if (id in this.subscribers) {
         console.warn(`Subscriber with id ${id} already exists. no-op.`);
       } else {
         this.subscribers[id] = subscriber;
-        subscriber(); // Call the callback immediately to notify the subscriber of the current state
+        if (immediateCallback) {
+          subscriber(); // Call the callback immediately to notify the subscriber of the current state
+        }
       }
     } else {
       throw new Error("Observer must be a function");

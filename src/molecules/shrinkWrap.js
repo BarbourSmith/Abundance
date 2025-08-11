@@ -2,6 +2,7 @@ import Atom from "../prototypes/atom.js";
 import {
   addOrDeletePorts,
   initializeInputsFromSaved,
+  inputsReadyIgnoringFreeAP,
 } from "../js/alwaysOneFreeInput.js";
 import GlobalVariables from "../js/globalvariables.js";
 

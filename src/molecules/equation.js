@@ -1,6 +1,7 @@
 import Atom from "../prototypes/atom";
 import GlobalVariables from "../js/globalvariables.js";
 import { parse } from "mathjs";
+import { Status } from "../prototypes/subscribableEntity.js";
 
 /**
  * This class creates the Equation atom.
@@ -366,6 +367,13 @@ export default class Equation extends Atom {
       console.log(inputParams);
       return inputParams;
     }
+  }
+
+  inputsAreReady() {
+    return (
+      this.currentEquation &&
+      this.inputs.every((input) => input.getState().status == Status.READY)
+    );
   }
 
   compute(inputs) {
