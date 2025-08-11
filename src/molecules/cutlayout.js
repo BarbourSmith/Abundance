@@ -3,14 +3,14 @@ import GlobalVariables from "../js/globalvariables.js";
 //import GlobalVariables from '../js/globalvariables.js'
 import { proxy } from "comlink";
 import { button, LevaInputs } from "leva";
-
+import { Status } from "../prototypes/subscribableEntity.js";
 
 /**
  * Rearrange all input geometries to fit on a sheet of material. Parts are packed
  * as densely as possible while still respecting part padding. In general, all parts
  * will be arranged to be as thin as possible, however there are some exceptions in
  * order to fit into a sheet of stock with some uniform thickness.
- * 
+ *
  * Params:
  * - geometry: The geometry or assembly to be arranged
  * - width: The width of the sheet
@@ -56,31 +56,28 @@ export default class CutLayout extends Atom {
 
     this.cancelationHandle = undefined;
 
-    this.addIO("input", "geometry", this, "geometry", null);
-
-    this.addIO(
-      "input",
-      "Sheet Width",
-      this,
-      "number",
-      GlobalVariables.topLevelMolecule.unitsKey == "MM" ? 1219 : 48
-    );
-    this.addIO(
-      "input",
-      "Sheet Height",
-      this,
-      "number",
-      GlobalVariables.topLevelMolecule.unitsKey == "MM" ? 2438 : 96
-    );
-    this.addIO(
-      "input",
-      "Part Padding",
-      this,
-      "number",
-      GlobalVariables.topLevelMolecule.unitsKey == "MM" ? 6 : .25
-    );
-
-    this.addIO("output", "geometry", this, "geometry", "");
+    this.addAllIOs([
+      { name: "geometry", valueType: "geometry", type: "input" },
+      {
+        name: "Sheet Width",
+        valueType: "number",
+        defaultValue:
+          GlobalVariables.topLevelMolecule.unitsKey == "MM" ? 1219 : 48,
+      },
+      {
+        name: "Sheet Height",
+        valueType: "number",
+        defaultValue:
+          GlobalVariables.topLevelMolecule.unitsKey == "MM" ? 2438 : 96,
+      },
+      {
+        name: "Part Padding",
+        valueType: "number",
+        defaultValue:
+          GlobalVariables.topLevelMolecule.unitsKey == "MM" ? 6 : 0.25,
+      },
+      { name: "geometry", valueType: "geometry", type: "output" },
+    ]);
 
     this.setValues(values);
   }
@@ -138,7 +135,6 @@ export default class CutLayout extends Atom {
     GlobalVariables.c.setLineDash([]);
     GlobalVariables.c.closePath();
 
-
     //draw progress circle in the middle
     if (this.progress < 1.0) {
       GlobalVariables.c.beginPath();
@@ -160,72 +156,90 @@ export default class CutLayout extends Atom {
     }
   }
 
-  handleNewPlacements(placements) {
+  handleNewPlacements(placements, isFinalPlacement = false) {
     this.placements = placements;
-    this.basicThreadValueProcessing();
-    this.updateValue();
-    this.createLevaInputs();
+    this.displayLayout(isFinalPlacement);
+    if (this.setInputChanged) {
+      this.setInputChanged(this.placements);
+    }
   }
 
   /**
-   * We only want the layout to update when the button is pressed not when the inputs update so we block the regular update value behavior
+   * Read placements in backward compatible way. Updates this.placements to the
+   * current format if necessary. Returns well-formatted placements.
    */
-  updateValue() {
+  getPlacements() {
+    if (
+      this.placements != undefined &&
+      this.placements.length > 0 &&
+      !Array.isArray(this.placements[0])
+    ) {
+      this.placements = [this.placements];
+    }
+    return this.placements;
+  }
 
-    super.updateValue();
+  displayLayout(isFinalPlacement = false) {
+    const placements = this.getPlacements();
 
-    if (this.inputs.every((x) => x.ready)) {
-      this.processing = true;
+    if (this.inputsAreReady()) {
       var inputID = this.findIOValue("geometry");
       var sheetWidth = this.findIOValue("Sheet Width");
       var sheetHeight = this.findIOValue("Sheet Height");
       var partPadding = this.findIOValue("Part Padding");
-
-      if (!inputID) {
-        this.setError('"geometry" input is missing');
-        return;
-      }
-      // if positions isn't a list of lists, nest it so that it is
-      if (this.placements != undefined && this.placements.length > 0 && !Array.isArray(this.placements[0])) {
-        this.placements = [this.placements];
-      }
-      
-      GlobalVariables.cad
+      const priorStatus = this.status;
+      this.setProcessing();
+      return GlobalVariables.cad
         .displayLayout(
           this.uniqueID,
           inputID,
-          this.placements,
-          proxy((message) => {this.setWarning(message)}),
+          placements,
+          proxy((message) => {
+            this.setWarning(message);
+          }),
           {
             width: sheetWidth,
             height: sheetHeight,
             partPadding: partPadding,
-            units: GlobalVariables.topLevelMolecule.units[GlobalVariables.topLevelMolecule.unitsKey],
-          })
-        .then(() => {
-          this.basicThreadValueProcessing();
-          this.progress = 1.0;
-          this.cancelationHandle = undefined;
-          this.processing = false;
-        })
-        .catch(this.alertingErrorHandler());
-      
+            units:
+              GlobalVariables.topLevelMolecule.units[
+                GlobalVariables.topLevelMolecule.unitsKey
+              ],
+          }
+        )
+        .then((result) => {
+          this.sendToRender();
+          // Only update our status if this is the final placement
+          if (isFinalPlacement) {
+            this.setReady(result);
+          } else {
+            this.setStatus(priorStatus);
+            this.value = result;
+          }
+        });
     }
+  }
+
+  onUpstreamChange() {
+    // If the upstream geometry has changed, we need to reset our status as stale
+    // However, computation must be manually triggered via the "compute layout" button
+    // so there's not much else to do here.
+    this.setWaiting();
   }
 
   /**
    * Pass the input geometry to a worker function to compute the translation.
    */
-  updateValueButton() {
-    super.updateValue();
-
-    if (this.inputs.every((x) => x.ready)) {
+  updateValueButton(setInputsChanged) {
+    this.setInputsChanged = setInputsChanged;
+    if (this.inputsAreReady()) {
+      // Only checks AP inputs, not the placement values themselves.
       if (this.cancelationHandle) {
         // There's an in-progress nesting worker. Cancel it and start another nesting
         // computation with the new inputs.
         this.cancelationHandle();
       }
-      this.processing = true;
+      this.setProcessing();
       var inputID = this.findIOValue("geometry");
       var sheetWidth = this.findIOValue("Sheet Width");
       var sheetHeight = this.findIOValue("Sheet Height");
@@ -244,23 +258,29 @@ export default class CutLayout extends Atom {
             this.progress = progress;
             this.cancelationHandle = cancelationHandle;
           }),
-          proxy((message) => {this.setWarning(message)}),
-          proxy((placements) => {this.handleNewPlacements(placements)}),
+          proxy((message) => {
+            this.setWarning(message);
+          }),
+          proxy((placements) => {
+            this.handleNewPlacements(placements);
+          }),
           {
             width: sheetWidth,
             height: sheetHeight,
             partPadding: partPadding,
-            units: GlobalVariables.topLevelMolecule.units[GlobalVariables.topLevelMolecule.unitsKey],
+            units:
+              GlobalVariables.topLevelMolecule.units[
+                GlobalVariables.topLevelMolecule.unitsKey
+              ],
           },
-          this.placements)
+          this.placements
+        )
         .then((positions) => {
-          this.handleNewPlacements(positions);
+          this.handleNewPlacements(positions, true);
         })
         .catch(this.alertingErrorHandler())
         .finally(() => {
-          this.progress = 1.0;
           this.cancelationHandle = undefined;
-          this.processing = false;
         });
     }
   }
@@ -268,61 +288,64 @@ export default class CutLayout extends Atom {
   /**
    * Add the "Compute Layout" button to the leva inputs.
    */
-  createLevaInputs() {
-      // if positions isn't a list of lists, nest it so that it is. Required for back-compatibility
-      if (this.placements != undefined && this.placements.length > 0 && !Array.isArray(this.placements[0])) {
-        this.placements = [this.placements];
+  createLevaInputs(setInputChanged) {
+    this.setInputChanged = setInputChanged;
+    const placements = this.getPlacements();
+
+    let inputParams = super.createLevaInputs();
+
+    inputParams["Compute Layout"] = button(() => {
+      this.updateValueButton();
+    });
+
+    let prepareLabel = (sheet, index, totalsheets) => {
+      if (totalsheets > 1) {
+        return "sheet " + sheet + " p" + index;
+      } else {
+        return " " + index;
       }
+    };
 
-      let inputParams = super.createLevaInputs();
-  
-      inputParams["Compute Layout"] = button(() => {
-          this.updateValueButton();
+    //Expose the stored positions
+    let part_counter = 0;
+    const totalSheets = placements.length;
+    placements.forEach((sheet, index) => {
+      sheet.forEach((placement, part_num) => {
+        inputParams[this.uniqueID + "position" + part_counter] = {
+          value: {
+            x: placement.translate.x,
+            y: placement.translate.y,
+            z: placement.rotate,
+          },
+          label: prepareLabel(index, part_num, totalSheets),
+          step: 0.01,
+          onChange: (value, index) => {
+            const match = index.match(/position(\d+)/);
+            const indexNumber = match ? parseInt(match[1], 10) : null;
+
+            if (indexNumber != null) {
+              const placement = placements.flat()[indexNumber];
+              //Update the placement with the new value];
+              //If anything has changed we need to update the value and recompute
+              if (
+                placement.translate.x !== value.x ||
+                placement.translate.y !== value.y ||
+                placement.rotate !== value.z
+              ) {
+                placement.translate.x = value.x;
+                placement.translate.y = value.y;
+                placement.rotate = value.z;
+
+                this.handleNewPlacements(this.getPlacements(), true);
+              }
+            }
+          },
+        };
+        part_counter++;
       });
+    });
 
-      let prepareLabel = (sheet, index, totalsheets) => {
-        if (totalsheets > 1) {
-          return "sheet " + sheet + " p" + index;
-        }
-        else {
-          return " " + index
-        }
-      };
-
-      
-      //Expose the stored positions
-      let part_counter = 0;
-      const totalSheets = this.placements.length;
-      this.placements.forEach((sheet, index) => {
-        sheet.forEach((placement, part_num) => {
-          inputParams[this.uniqueID + "position" + part_counter] = {
-            value: { x: placement.translate.x, y: placement.translate.y, z: placement.rotate },
-            label: prepareLabel(index, part_num, totalSheets),
-            step: 0.01,
-            onChange: (value, index) => {
-                const match = index.match(/position(\d+)/);
-                const indexNumber = match ? parseInt(match[1], 10) : null;
-
-                if (indexNumber != null) {
-                  const placement = this.placements.flat()[indexNumber];
-                  //Update the placement with the new value];
-                  //If anything has changed we need to update the value and recompute
-                  if (placement.translate.x !== value.x || placement.translate.y !== value.y || placement.rotate !== value.z) {
-                      placement.translate.x = value.x;
-                      placement.translate.y = value.y;
-                      placement.rotate = value.z;
-          
-                      this.updateValue();
-                  }
-                }
-            },
-          }
-          part_counter++;
-        });
-      });
-
-
-      return inputParams;
+    return inputParams;
   }
 
   /**
@@ -335,5 +358,4 @@ export default class CutLayout extends Atom {
 
     return valuesObj;
   }
-
 }
