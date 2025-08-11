@@ -109,10 +109,19 @@ export default class Atom extends ObservableEntity {
      * A message displayed next to the atom. Set the type and the message to display the alert. Cleared each time the output is regenerated.
      * @type {object}
      */
-    this.alert = {
+    this.alert = {  
       type: AlertType.NONE,
       message: "",
     };
+
+    this.subscribe(() => {
+      if (this.getState().status != Status.ERROR) {
+        this.alert = {
+          type: AlertType.NONE,
+          message: "",
+        };
+      }
+    }, "self-clear-alert");
   }
 
   /**
@@ -657,12 +666,12 @@ export default class Atom extends ObservableEntity {
         .then((value) => {
           this.setReady(value);
         })
-        .catch(this.alertingErrorHandler);
+        .catch(this.alertingErrorHandler());
     } else {
       this.setWaiting();
       GlobalVariables.cad
         .deleteFromLibrary(this.uniqueID)
-        .catch(this.alertingErrorHandler);
+        .catch(this.alertingErrorHandler());
     }
   }
 

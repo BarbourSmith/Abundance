@@ -49,6 +49,12 @@ function rectangle(x, y) {
  */
 function regularPolygon(radius, numberOfSides) {
   const newPlane = new Plane().pivot(0, "Y");
+  if (numberOfSides < 3) {
+    throw new Error("Number of sides must be at least 3 for a polygon.");
+  }
+  if (numberOfSides % 1.0 !== 0) {
+    throw new Error("Number of sides must be an integer.");
+  }
   return {
     geometry: [util.replicad.drawPolysides(radius, numberOfSides)],
     tags: [],

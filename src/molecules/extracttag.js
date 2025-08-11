@@ -147,7 +147,7 @@ export default class ExtractTag extends Atom {
             this.setWaiting();
             this.tagList = { source: geomId, tags: result };
           })
-          .catch(this.alertingErrorHandler);
+          .catch(this.alertingErrorHandler());
       }
 
       if (this.tag) {
@@ -162,7 +162,7 @@ export default class ExtractTag extends Atom {
               );
               this.setReady(value);
             })
-            .catch(this.alertingErrorHandler);
+            .catch(this.alertingErrorHandler());
         }
       }
     } else {
