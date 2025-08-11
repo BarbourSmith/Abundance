@@ -14,7 +14,7 @@ export default class Equation extends Atom {
   constructor(values) {
     super(values);
 
-    this.addIO("output", "result", this, "number", 0);
+    this.addIO("result", "number", 0, "output");
 
     /**
      * This atom's name
@@ -91,18 +91,53 @@ export default class Equation extends Atom {
     //Find all the variables in this equation using word boundaries to avoid function names
     var re = /\b[a-zA-Z]+\b/g;
     const allMatches = this.currentEquation.match(re);
-    
+
     // Filter out common math function names to avoid treating them as variables
     const mathFunctions = new Set([
-      'sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'atan2',
-      'sinh', 'cosh', 'tanh', 'asinh', 'acosh', 'atanh',
-      'sqrt', 'cbrt', 'exp', 'log', 'log10', 'log2',
-      'abs', 'sign', 'ceil', 'floor', 'round', 'trunc',
-      'min', 'max', 'mean', 'median', 'mode', 'std', 'var',
-      'pi', 'e', 'i', 'true', 'false', 'null', 'undefined'
+      "sin",
+      "cos",
+      "tan",
+      "asin",
+      "acos",
+      "atan",
+      "atan2",
+      "sinh",
+      "cosh",
+      "tanh",
+      "asinh",
+      "acosh",
+      "atanh",
+      "sqrt",
+      "cbrt",
+      "exp",
+      "log",
+      "log10",
+      "log2",
+      "abs",
+      "sign",
+      "ceil",
+      "floor",
+      "round",
+      "trunc",
+      "min",
+      "max",
+      "mean",
+      "median",
+      "mode",
+      "std",
+      "var",
+      "pi",
+      "e",
+      "i",
+      "true",
+      "false",
+      "null",
+      "undefined",
     ]);
-    
-    const variables = allMatches ? allMatches.filter(match => !mathFunctions.has(match.toLowerCase())) : [];
+
+    const variables = allMatches
+      ? allMatches.filter((match) => !mathFunctions.has(match.toLowerCase()))
+      : [];
 
     //Remove any inputs which are not needed
     const deleteExtraInputs = () => {
@@ -117,11 +152,19 @@ export default class Equation extends Atom {
 
     //Add any inputs which are needed
     if (variables.length > 0) {
+      const inputArgs = [];
       for (var variable in variables) {
         if (!this.inputs.some((input) => input.name === variables[variable])) {
-          this.addIO("input", variables[variable], this, "number", 1);
+          inputArgs.push({
+            name: variables[variable],
+            valueType: "number",
+            defaultValue: 1,
+          });
         }
       }
+      // Batch add so that compute only gets called back once all inputs are
+      // constructed.
+      this.addAllIOs(inputArgs);
     }
   }
 
@@ -137,25 +180,63 @@ export default class Equation extends Atom {
       // Find all the variables in this equation using word boundaries to avoid function names
       var re = /\b[a-zA-Z]+\b/g;
       const allMatches = this.currentEquation.match(re);
-      
+
       // Filter out common math function names to avoid treating them as variables
       const mathFunctions = new Set([
-        'sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'atan2',
-        'sinh', 'cosh', 'tanh', 'asinh', 'acosh', 'atanh',
-        'sqrt', 'cbrt', 'exp', 'log', 'log10', 'log2',
-        'abs', 'sign', 'ceil', 'floor', 'round', 'trunc',
-        'min', 'max', 'mean', 'median', 'mode', 'std', 'var',
-        'pi', 'e', 'i', 'true', 'false', 'null', 'undefined'
+        "sin",
+        "cos",
+        "tan",
+        "asin",
+        "acos",
+        "atan",
+        "atan2",
+        "sinh",
+        "cosh",
+        "tanh",
+        "asinh",
+        "acosh",
+        "atanh",
+        "sqrt",
+        "cbrt",
+        "exp",
+        "log",
+        "log10",
+        "log2",
+        "abs",
+        "sign",
+        "ceil",
+        "floor",
+        "round",
+        "trunc",
+        "min",
+        "max",
+        "mean",
+        "median",
+        "mode",
+        "std",
+        "var",
+        "pi",
+        "e",
+        "i",
+        "true",
+        "false",
+        "null",
+        "undefined",
       ]);
-      
-      const variables = allMatches ? allMatches.filter(match => !mathFunctions.has(match.toLowerCase())) : [];
-      
+
+      const variables = allMatches
+        ? allMatches.filter((match) => !mathFunctions.has(match.toLowerCase()))
+        : [];
+
       if (variables.length > 0) {
         for (var variable in variables) {
           for (var i = 0; i < this.inputs.length; i++) {
             if (this.inputs[i].name == variables[variable]) {
               // Use word boundaries in replacement to avoid partial matches
-              const variablePattern = new RegExp(`\\b${this.inputs[i].name}\\b`, 'g');
+              const variablePattern = new RegExp(
+                `\\b${this.inputs[i].name}\\b`,
+                "g"
+              );
               substitutedEquation = substitutedEquation.replace(
                 variablePattern,
                 this.findIOValue(this.inputs[i].name)
@@ -174,62 +255,75 @@ export default class Equation extends Atom {
     }
   }
 
+  rerenderLevaInputs() {
+    if (this.setInputChanged) {
+      const representativeHash =
+        this.currentEquation +
+        this.inputs.map((input) => input.getValue()).join(",");
+      this.setInputChanged(representativeHash);
+    }
+  }
+
   /**
    * Create Leva Menu Inputs - returns to ParameterEditor
    */
   createLevaInputs(setInputChanged) {
+    this.setInputChanged = setInputChanged;
     // recreate inputs
     let inputParams = {};
     /** Runs through active atom inputs and adds IO parameters to default param*/
     if (this.inputs) {
+      console.log("recreating inputs for equation atom: ");
+      console.log(this.inputs);
       this.inputs.map((input) => {
         const checkConnector = () => {
           return input.connectors.length > 0;
         };
 
-        /* Some input parameters (inlcuding equation and result) live in the parameter editor file so they can use the set, get functions */
-
         /* Makes inputs for Io's other than geometry */
         if (input.valueType !== "geometry") {
           inputParams[input.name] = {
-            value: input.value,
+            value: input.getValue(),
             disabled: checkConnector(),
             step: 0.01,
             onChange: (value) => {
-              input.setValue(value);
-              setInputChanged(value);
-              //this.sendToRender();
+              input.setReady(value);
+              this.rerenderLevaInputs();
             },
             order: -2,
           };
         }
       });
+
+      inputParams[`${this.uniqueID}currentEquation`] = {
+        value: this.currentEquation,
+        label: "Current Equation",
+        disabled: false,
+        onChange: (value) => {
+          if (this.currentEquation !== value) {
+            this.setEquation(value);
+          }
+        },
+        order: -3,
+      };
+
+      inputParams[`${this.uniqueID}result`] = {
+        value: this.getState().value, // Possibly undefined if computation is in progress.
+        label: "Result",
+        disabled: true,
+      };
+
+      console.log(inputParams);
       return inputParams;
     }
   }
 
-  /**
-   * Evaluate the equation adding and removing inputs as needed
-   */
-  updateValue() {
-    // super.updateValue();
-    try {
-      this.addAndRemoveInputs();
-
-      if (this.inputs.every((x) => x.ready)) {
-        this.decreaseToProcessCountByOne();
-
-        //Evaluate the equation
-        this.value = this.evaluateEquation();
-
-        this.output.setValue(this.value);
-        this.output.ready = true;
-        this.clearAlert();
-      }
-    } catch (err) {
-      console.warn(err);
-      this.setError(err);
-    }
+  compute(inputs) {
+    return new Promise((resolve, reject) => {
+      this.value = this.evaluateEquation();
+      this.rerenderLevaInputs(); // Update the result in the leva panel
+      resolve(this.value);
+    });
   }
 
   /**
@@ -249,7 +343,8 @@ export default class Equation extends Atom {
    */
   setEquation(newEquation) {
     this.currentEquation = String(newEquation).trim(); //convert to string first, then remove leading and trailing whitespace
-    this.updateValue();
+    this.addAndRemoveInputs();
+    this.rerenderLevaInputs();
   }
 
   /**
