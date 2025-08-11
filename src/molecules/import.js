@@ -62,6 +62,7 @@ export default class Import extends Atom {
     this.importIndex = 0;
 
     this.setValues(values);
+    this.loadAndPropagate();
   }
 
   /**
