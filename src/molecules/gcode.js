@@ -1,7 +1,11 @@
 import Atom from "../prototypes/atom.js";
 import GlobalVariables from "../js/globalvariables.js";
 import { button } from "leva";
-import { initKiriMoto, generateKirimoto, downloadGcode } from '../components/secondary/Kirimoto.js'; // Adjust the path
+import {
+  initKiriMoto,
+  generateKirimoto,
+  downloadGcode,
+} from "../components/secondary/Kirimoto.js"; // Adjust the path
 //import saveAs from '../lib/FileSaver.js'
 
 /**
@@ -49,16 +53,26 @@ export default class Gcode extends Atom {
      */
     this.gcodeGenerated = false;
 
-    this.addIO("input", "Geometry", this, "geometry", null);
-    this.addIO("input", "Tool Size", this, "number", 6.35);
-    this.addIO("input", "Passes", this, "number", 6);
-    this.addIO("input", "Speed", this, "number", 500);
-    this.addIO("input", "Cut Through", this, "number", 1);
-    this.addIO("input", "Part Name", this, "string", this.parent.name);
-    //this.addIO("input", "tabs", this, "string", "true");
-    //this.addIO("input", "safe height", this, "number", 6);
+    this.parent = values.parent;
 
-    this.addIO("output", "Gcode", this, "geometry", "");
+    this.addAllIOs([
+      { name: "geometry", valueType: "geometry" },
+      { name: "Tool Size", valueType: "number", defaultValue: 6.35 },
+      { name: "Passes", valueType: "number", defaultValue: 3 },
+      { name: "Speed", valueType: "number", defaultValue: 1500 },
+      { name: "Cut Through", valueType: "number", defaultValue: 1.5 },
+      {
+        name: "Part Name",
+        valueType: "string",
+        defaultValue: this.parent.name,
+      },
+      {
+        name: "output",
+        valueType: "geometry",
+        defaultValue: null,
+        type: "output",
+      },
+    ]);
 
     this.setValues(values);
 
@@ -70,7 +84,7 @@ export default class Gcode extends Atom {
     }
 
     this.stlURL = null; // Store the STL URL
- 
+
     this.center = [0, 0, 0]; //Used to correctly position the gcode
   }
 
@@ -118,15 +132,15 @@ export default class Gcode extends Atom {
       console.log("Waiting for Kirimoto to initialize...");
       return;
     }
-    
+
     const gcodeCallback = this._createGcodeCallback();
     generateKirimoto(
-      this.stlURL, 
-      this.center, 
-      this.findIOValue("Tool Size"), 
-      this.findIOValue("Passes"), 
-      this.findIOValue("Speed"), 
-      this.findIOValue("Cut Through"), 
+      this.stlURL,
+      this.center,
+      this.findIOValue("Tool Size"),
+      this.findIOValue("Passes"),
+      this.findIOValue("Speed"),
+      this.findIOValue("Cut Through"),
       gcodeCallback
     );
   }
@@ -134,42 +148,29 @@ export default class Gcode extends Atom {
   /**
    * Generate a layered outline of the part where the tool will cut
    */
-  updateValue() {
-    super.updateValue();
-    try {
-
-      let inputID = this.findIOValue("Geometry");
-
-      GlobalVariables.cad
-        .visExport(this.uniqueID+1, inputID, "STL") //What a hack, we shouldn't be using uniqueID+1 here
-        .then((result) => {
-          GlobalVariables.cad
-            .downExport(this.uniqueID+1, "STL")
-            .then((result) => {
-              //Delete anything previously stored
-              if (this.stlURL) {
-                URL.revokeObjectURL(this.stlURL); // Clean up the previous URL
-              }
-              this.stlURL = URL.createObjectURL(result); // Store the STL URL
-              GlobalVariables.cad.getBoundingBox(this.uniqueID+1).then((bounds) => {
-                this.center = [
-                  (bounds.max[0] + bounds.min[0]) / 2,
-                  (bounds.max[1] + bounds.min[1]) / 2,
-                  (bounds.max[2] + bounds.min[2]) / 2,
-                ];
-                if(window.location.pathname.includes('/run/')) {
-                  this._generateGcode();
-                }
-              });
-            });
-        })
-        .catch((err) => {
-          console.error("Error creating STL for gcode:", err);
+  compute(inputs) {
+    return GlobalVariables.cad
+      .visExport(this.uniqueID + 1, inputs.geometry, "STL") //What a hack, we shouldn't be using uniqueID+1 here
+      .then((outputID) => {
+        GlobalVariables.cad.downExport(outputID, "STL").then((result) => {
+          //Delete anything previously stored
+          if (this.stlURL) {
+            URL.revokeObjectURL(this.stlURL); // Clean up the previous URL
+          }
+          this.stlURL = URL.createObjectURL(result); // Store the STL URL
+          GlobalVariables.cad.getBoundingBox(outputID).then((bounds) => {
+            this.center = [
+              (bounds.max[0] + bounds.min[0]) / 2,
+              (bounds.max[1] + bounds.min[1]) / 2,
+              (bounds.max[2] + bounds.min[2]) / 2,
+            ];
+            if (window.location.pathname.includes("/run/")) {
+              this._generateGcode();
+            }
+          });
         });
-    } catch (err) {
-      this.setError(err);
-    }
-
+        return outputID;
+      });
   }
 
   createLevaInputs() {
@@ -219,7 +220,8 @@ export default class Gcode extends Atom {
     inputParams[`Download Gcode - ${partName}`] = button(() => {
       if (this.gcodeGenerated && this.gcodeString) {
         // Get the current part name dynamically when button is clicked
-        const currentPartName = this.findIOValue("Part Name") || this.partName || "output";
+        const currentPartName =
+          this.findIOValue("Part Name") || this.partName || "output";
         downloadGcode(this.gcodeString, `${currentPartName}.gcode`);
       } else {
         console.warn("No G-code available. Please generate G-code first.");
@@ -240,5 +242,4 @@ export default class Gcode extends Atom {
 
     return superSerialObject;
   }
-
 }
