@@ -92,7 +92,11 @@ export default class Input extends Atom {
       );
     }
 
-    this.setReady(this.value);
+    if (this.value) {
+      this.setReady(this.value);
+    } else {
+      this.setWaiting();
+    }
   }
 
   onUpstreamChange() {

@@ -117,18 +117,18 @@ export default class Code extends Atom {
 
     //This loads any inputs which this atom had when last saved.
     const inputArgs = [];
-    if (typeof this.ioValues !== "undefined") {
+    /*if (typeof this.ioValues !== "undefined") {
       this.ioValues.forEach((ioValue) => {
         inputArgs.push({ name: ioValue.name, valueType: "geometry" });
       });
-    }
+    }*/
     inputArgs.push({ name: "output", valueType: "geometry", type: "output" });
     this.addAllIOs(inputArgs);
 
     this.setValues();
     this.code = values.code || this.code;
 
-    this.parseInputs(false);
+    this.parseInputs();
   }
 
   /**
@@ -216,7 +216,6 @@ export default class Code extends Atom {
    * Grab the code as a text string and execute it.
    */
   compute(argumentsArray) {
-    console.log("reevaluating code atom with inputs: ", argumentsArray);
     return GlobalVariables.cad.code(this.uniqueID, this.code, argumentsArray);
   }
 

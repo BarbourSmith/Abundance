@@ -108,7 +108,6 @@ export default class Tag extends Atom {
    * Compute the tagged geometry.
    */
   compute(inputs) {
-    console.trace(`${this.uniqueID} compute called with inputs:`, inputs);
     const inputID = inputs.geometry;
     const tags = this.tags;
     return GlobalVariables.cad.tag(this.uniqueID, inputID, tags);
