@@ -146,6 +146,23 @@ export default class Import extends Atom {
         if (this.type == "SVG") {
           this.addIO("input", "SVG Width", this, "number", 5, true);
         }
+      }).catch((error) => {
+        // Handle file not found error - reset atom state to allow re-upload
+        if (error.status === 404) {
+          console.log(`File not found in repository: ${this.fileName}. Resetting import atom to allow re-upload.`);
+          this.fileName = null;
+          this.type = null;
+          this.sha = null;
+          this.processing = false;
+        } else {
+          // For other errors, show error message but don't reset state
+          console.error(`Error retrieving file: ${error.message || error}`);
+          // Only show alert in browser environment (not during tests)
+          if (typeof alert !== 'undefined') {
+            alert(`Error retrieving file: ${error.message || error}`);
+          }
+          this.processing = false;
+        }
       });
     }
   }
