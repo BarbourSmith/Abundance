@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minimal G-code Generator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .section {
+            margin-bottom: 25px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #555;
+        }
+        
+        input[type="file"] {
+            width: 100%;
+            padding: 10px;
+            border: 2px dashed #ddd;
+            border-radius: 4px;
+            background: #fafafa;
+        }
+        
+        input[type="number"], input[type="range"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        
+        .range-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .range-container input[type="range"] {
+            flex: 1;
+        }
+        
+        .range-value {
+            min-width: 40px;
+            text-align: center;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            width: 100%;
+            margin-top: 10px;
+        }
+        
+        button:hover:not(:disabled) {
+            background: #0056b3;
+        }
+        
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .progress-container {
+            margin-top: 20px;
+            display: none;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: #007bff;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        
+        .progress-text {
+            text-align: center;
+            margin-top: 10px;
+            color: #666;
+        }
+        
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            border-radius: 4px;
+            display: none;
+        }
+        
+        .error {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            border-radius: 4px;
+            color: #721c24;
+            display: none;
+        }
+        
+        .parameters {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        @media (max-width: 600px) {
+            .parameters {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .file-info {
+            margin-top: 10px;
+            padding: 10px;
+            background: #e9ecef;
+            border-radius: 4px;
+            font-size: 14px;
+            color: #666;
+            display: none;
+        }
+        
+        .info-box {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
+            border-radius: 4px;
+            color: #0c5460;
+        }
+        
+        .gcode-preview {
+            margin-top: 15px;
+            max-height: 200px;
+            overflow-y: auto;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Minimal G-code Generator</h1>
+        
+        <div class="info-box">
+            <strong>Simple STL to G-code Converter</strong><br>
+            This is a minimal example that demonstrates basic G-code generation from STL files. 
+            It creates outline cutting paths with configurable pass depths.
+        </div>
+        
+        <div class="section">
+            <label for="stlFile">Select STL File:</label>
+            <input type="file" id="stlFile" accept=".stl" />
+            <div id="fileInfo" class="file-info"></div>
+        </div>
+        
+        <div class="parameters">
+            <div class="section">
+                <label for="passes">Number of Passes:</label>
+                <div class="range-container">
+                    <input type="range" id="passes" min="1" max="10" value="2" />
+                    <span class="range-value" id="passesValue">2</span>
+                </div>
+                <small>More passes = shallower cuts per pass</small>
+            </div>
+            
+            <div class="section">
+                <label for="toolSize">Tool Size (mm):</label>
+                <input type="number" id="toolSize" value="6.35" step="0.1" min="0.1" max="50" />
+                <small>Diameter of the cutting tool</small>
+            </div>
+            
+            <div class="section">
+                <label for="speed">Feed Rate (mm/min):</label>
+                <input type="number" id="speed" value="1500" step="100" min="100" max="5000" />
+                <small>How fast the tool moves</small>
+            </div>
+            
+            <div class="section">
+                <label for="cutThrough">Cut Through (mm):</label>
+                <input type="number" id="cutThrough" value="1.5" step="0.1" min="0" max="10" />
+                <small>Extra depth to ensure complete cut</small>
+            </div>
+        </div>
+        
+        <button id="generateBtn" disabled>Generate G-code</button>
+        
+        <div id="progressContainer" class="progress-container">
+            <div class="progress-bar">
+                <div id="progressFill" class="progress-fill"></div>
+            </div>
+            <div id="progressText" class="progress-text">Preparing...</div>
+        </div>
+        
+        <div id="result" class="result">
+            <h3>G-code Generated Successfully!</h3>
+            <p>Your G-code has been generated and will download automatically.</p>
+            <button id="downloadBtn">Download G-code</button>
+            <div id="gcodePreview" class="gcode-preview"></div>
+        </div>
+        
+        <div id="error" class="error">
+            <h3>Error</h3>
+            <p id="errorMessage"></p>
+        </div>
+    </div>
+    
+    <script>
+        // Simple STL parser and G-code generator
+        class MinimalGcodeGenerator {
+            constructor() {
+                this.vertices = [];
+                this.bounds = { min: {x: 0, y: 0, z: 0}, max: {x: 0, y: 0, z: 0} };
+            }
+            
+            // Parse STL file (basic ASCII STL support)
+            parseSTL(stlContent) {
+                const lines = stlContent.split('\n');
+                const vertices = [];
+                let currentTriangle = [];
+                
+                for (let line of lines) {
+                    line = line.trim();
+                    if (line.startsWith('vertex')) {
+                        const coords = line.replace('vertex', '').trim().split(/\s+/);
+                        const vertex = {
+                            x: parseFloat(coords[0]),
+                            y: parseFloat(coords[1]),
+                            z: parseFloat(coords[2])
+                        };
+                        currentTriangle.push(vertex);
+                        
+                        if (currentTriangle.length === 3) {
+                            vertices.push(...currentTriangle);
+                            currentTriangle = [];
+                        }
+                    }
+                }
+                
+                this.vertices = vertices;
+                this.calculateBounds();
+                return vertices.length > 0;
+            }
+            
+            // Calculate bounding box
+            calculateBounds() {
+                if (this.vertices.length === 0) return;
+                
+                let minX = this.vertices[0].x, maxX = this.vertices[0].x;
+                let minY = this.vertices[0].y, maxY = this.vertices[0].y;
+                let minZ = this.vertices[0].z, maxZ = this.vertices[0].z;
+                
+                for (let vertex of this.vertices) {
+                    minX = Math.min(minX, vertex.x);
+                    maxX = Math.max(maxX, vertex.x);
+                    minY = Math.min(minY, vertex.y);
+                    maxY = Math.max(maxY, vertex.y);
+                    minZ = Math.min(minZ, vertex.z);
+                    maxZ = Math.max(maxZ, vertex.z);
+                }
+                
+                this.bounds = {
+                    min: { x: minX, y: minY, z: minZ },
+                    max: { x: maxX, y: maxY, z: maxZ }
+                };
+            }
+            
+            // Generate basic outline G-code
+            generateGcode(toolSize, passes, feedRate, cutThrough) {
+                if (this.vertices.length === 0) {
+                    throw new Error('No STL data loaded');
+                }
+                
+                const totalDepth = (this.bounds.max.z - this.bounds.min.z) + cutThrough;
+                const depthPerPass = totalDepth / passes;
+                const safeHeight = this.bounds.max.z + 5; // 5mm above part
+                const toolRadius = toolSize / 2;
+                
+                // Create outline rectangle (simplified for demonstration)
+                const outline = {
+                    minX: this.bounds.min.x - toolRadius,
+                    maxX: this.bounds.max.x + toolRadius,
+                    minY: this.bounds.min.y - toolRadius,
+                    maxY: this.bounds.max.y + toolRadius
+                };
+                
+                let gcode = [];
+                
+                // Header
+                gcode.push('; Generated by Minimal G-code Generator');
+                gcode.push('; File: STL Part');
+                gcode.push(`; Tool Size: ${toolSize}mm`);
+                gcode.push(`; Passes: ${passes}`);
+                gcode.push(`; Feed Rate: ${feedRate}mm/min`);
+                gcode.push(`; Total Depth: ${totalDepth.toFixed(2)}mm`);
+                gcode.push('');
+                gcode.push('G21 ; Set units to millimeters');
+                gcode.push('G90 ; Absolute positioning');
+                gcode.push('G17 ; XY plane');
+                gcode.push('');
+                gcode.push(`G0 Z${safeHeight.toFixed(2)} ; Move to safe height`);
+                gcode.push('M3 S1000 ; Start spindle');
+                gcode.push('G4 P2000 ; Wait 2 seconds for spindle');
+                gcode.push('');
+                
+                // Generate passes
+                for (let pass = 1; pass <= passes; pass++) {
+                    const currentDepth = this.bounds.max.z - (depthPerPass * pass);
+                    
+                    gcode.push(`; === Pass ${pass} of ${passes} ===`);
+                    gcode.push(`; Cutting to depth: ${currentDepth.toFixed(2)}mm`);
+                    
+                    // Move to start position
+                    gcode.push(`G0 X${outline.minX.toFixed(3)} Y${outline.minY.toFixed(3)}`);
+                    gcode.push(`G1 Z${currentDepth.toFixed(3)} F${feedRate/2}`); // Slower plunge
+                    
+                    // Cut outline (rectangular path)
+                    gcode.push(`G1 X${outline.maxX.toFixed(3)} F${feedRate}`); // Right
+                    gcode.push(`G1 Y${outline.maxY.toFixed(3)}`);             // Up
+                    gcode.push(`G1 X${outline.minX.toFixed(3)}`);             // Left
+                    gcode.push(`G1 Y${outline.minY.toFixed(3)}`);             // Down (close)
+                    
+                    // Retract to safe height
+                    gcode.push(`G0 Z${safeHeight.toFixed(2)}`);
+                    gcode.push('');
+                }
+                
+                // Footer
+                gcode.push('M5 ; Stop spindle');
+                gcode.push(`G0 Z${safeHeight.toFixed(2)} ; Final safe height`);
+                gcode.push('G0 X0 Y0 ; Return to origin');
+                gcode.push('M30 ; Program end');
+                
+                return gcode.join('\n');
+            }
+        }
+        
+        // Application logic
+        let generator = new MinimalGcodeGenerator();
+        let generatedGcode = '';
+        let stlFile = null;
+        
+        // Get DOM elements
+        const stlFileInput = document.getElementById('stlFile');
+        const fileInfo = document.getElementById('fileInfo');
+        const passesSlider = document.getElementById('passes');
+        const passesValue = document.getElementById('passesValue');
+        const toolSizeInput = document.getElementById('toolSize');
+        const speedInput = document.getElementById('speed');
+        const cutThroughInput = document.getElementById('cutThrough');
+        const generateBtn = document.getElementById('generateBtn');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressFill = document.getElementById('progressFill');
+        const progressText = document.getElementById('progressText');
+        const resultDiv = document.getElementById('result');
+        const errorDiv = document.getElementById('error');
+        const errorMessage = document.getElementById('errorMessage');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const gcodePreview = document.getElementById('gcodePreview');
+        
+        // Update passes value display
+        passesSlider.addEventListener('input', (e) => {
+            passesValue.textContent = e.target.value;
+        });
+        
+        // Handle file selection
+        stlFileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                stlFile = file;
+                generateBtn.disabled = false;
+                
+                // Show file info
+                fileInfo.style.display = 'block';
+                fileInfo.innerHTML = `
+                    <strong>File:</strong> ${file.name}<br>
+                    <strong>Size:</strong> ${(file.size / 1024 / 1024).toFixed(2)} MB<br>
+                    <strong>Type:</strong> ${file.type || 'application/octet-stream'}
+                `;
+            } else {
+                stlFile = null;
+                generateBtn.disabled = true;
+                fileInfo.style.display = 'none';
+            }
+            hideMessages();
+        });
+        
+        // Hide result and error messages
+        function hideMessages() {
+            resultDiv.style.display = 'none';
+            errorDiv.style.display = 'none';
+        }
+        
+        // Show error message
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorDiv.style.display = 'block';
+            resultDiv.style.display = 'none';
+            progressContainer.style.display = 'none';
+        }
+        
+        // Show success message
+        function showSuccess() {
+            resultDiv.style.display = 'block';
+            errorDiv.style.display = 'none';
+            progressContainer.style.display = 'none';
+        }
+        
+        // Update progress
+        function updateProgress(progress, text = '') {
+            const percentage = Math.round(progress * 100);
+            progressFill.style.width = `${percentage}%`;
+            progressText.textContent = text || `Processing... ${percentage}%`;
+        }
+        
+        // Generate G-code
+        generateBtn.addEventListener('click', async () => {
+            if (!stlFile) {
+                showError('Please select an STL file first.');
+                return;
+            }
+            
+            hideMessages();
+            progressContainer.style.display = 'block';
+            generateBtn.disabled = true;
+            
+            try {
+                updateProgress(0.1, 'Reading STL file...');
+                
+                // Read file content
+                const fileContent = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = e => resolve(e.target.result);
+                    reader.onerror = reject;
+                    reader.readAsText(stlFile);
+                });
+                
+                updateProgress(0.3, 'Parsing STL data...');
+                
+                // Parse STL
+                const parseSuccess = generator.parseSTL(fileContent);
+                if (!parseSuccess) {
+                    throw new Error('Failed to parse STL file. Please ensure it is a valid ASCII STL file.');
+                }
+                
+                updateProgress(0.6, 'Generating G-code...');
+                
+                // Get parameters
+                const passes = parseInt(passesSlider.value);
+                const toolSize = parseFloat(toolSizeInput.value);
+                const speed = parseInt(speedInput.value);
+                const cutThrough = parseFloat(cutThroughInput.value);
+                
+                // Generate G-code
+                generatedGcode = generator.generateGcode(toolSize, passes, speed, cutThrough);
+                
+                updateProgress(1, 'G-code generation complete!');
+                
+                // Show preview (first 20 lines)
+                const previewLines = generatedGcode.split('\n').slice(0, 20).join('\n');
+                gcodePreview.textContent = previewLines + '\n... (showing first 20 lines)';
+                
+                showSuccess();
+                
+                // Auto-download the G-code
+                downloadGcode();
+                
+            } catch (error) {
+                console.error('Error generating G-code:', error);
+                showError(`Error generating G-code: ${error.message}`);
+            } finally {
+                generateBtn.disabled = false;
+            }
+        });
+        
+        // Download G-code
+        function downloadGcode() {
+            if (!generatedGcode) {
+                showError('No G-code available to download.');
+                return;
+            }
+            
+            const blob = new Blob([generatedGcode], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `gcode-${Date.now()}.nc`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+        
+        // Download button click handler
+        downloadBtn.addEventListener('click', downloadGcode);
+        
+        // Reset generate button when parameters change
+        [passesSlider, toolSizeInput, speedInput, cutThroughInput].forEach(input => {
+            input.addEventListener('change', () => {
+                if (stlFile) {
+                    generateBtn.disabled = false;
+                }
+                hideMessages();
+            });
+        });
+    </script>
+</body>
+</html>
