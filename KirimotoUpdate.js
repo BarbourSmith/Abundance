@@ -161,24 +161,23 @@ const generateGcode = (
         camOriginOffZ: 0,
         camToolInit: true,
         
-        // Operation definitions - Use multiple operations approach
-        // The single operation with steps parameter doesn't work in Kiri:Moto
+        // Operation definitions - Create one operation per pass for explicit control
         ops: (() => {
           const operations = [];
           const totalDepth = z + extra;
           const depthPerPass = totalDepth / passes;
           
-          // Create separate operations for each pass to avoid the steps parameter bug
-          for (let pass = 1; pass <= passes; pass++) {
-            const currentDepth = depthPerPass * pass; // Cumulative depth for this pass
+          // Create one operation for each pass
+          for (let i = 1; i <= passes; i++) {
+            const currentDepth = depthPerPass * i;
             
             operations.push({
               type: "outline",
               tool: 1000,
               spindle: 1000,
-              step: currentDepth,       // Total depth to cut for this operation
-              steps: 1,                 // Only one step per operation
-              down: currentDepth,       // Total depth for this operation
+              step: depthPerPass,           // Depth for this specific pass
+              steps: 1,                     // Single step per operation
+              down: currentDepth,           // Cumulative depth for this pass
               rate: speed,
               plunge: 250,
               dogbones: true,
@@ -188,8 +187,8 @@ const generateGcode = (
               inside: false,
               wide: false,
               top: true,
-              ov_topz: pass === 1 ? 0 : -(depthPerPass * (pass - 1)), // Start depth
-              ov_botz: -currentDepth,   // End depth
+              ov_topz: 0,
+              ov_botz: 0,
               ov_conv: false,
             });
           }
