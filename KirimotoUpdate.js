@@ -161,38 +161,33 @@ const generateGcode = (
         camOriginOffZ: 0,
         camToolInit: true,
         
-        // Operation definitions - Create separate operations with non-overlapping depths
+        // Operation definitions - Use single operation with steps parameter
         ops: (() => {
           const operations = [];
           const totalDepth = z + extra;
           const depthPerPass = totalDepth / passes;
           
-          // Create one operation for each pass with proper depth control
-          for (let i = 1; i <= passes; i++) {
-            const previousDepth = depthPerPass * (i - 1);
-            const currentDepth = depthPerPass * i;
-            
-            operations.push({
-              type: "outline",
-              tool: 1000,
-              spindle: 1000,
-              step: depthPerPass,           // Depth for this specific pass
-              steps: 1,                     // Single step per operation
-              down: depthPerPass,           // Incremental depth (not cumulative)
-              rate: speed,
-              plunge: 250,
-              dogbones: true,
-              omitvoid: false,
-              omitthru: false,
-              outside: true,
-              inside: false,
-              wide: false,
-              top: true,
-              ov_topz: -previousDepth,      // Start at the end of the previous pass
-              ov_botz: -currentDepth,       // End at the target depth for this pass
-              ov_conv: false,
-            });
-          }
+          // Single operation that tells Kiri:Moto exactly how many passes to make
+          operations.push({
+            type: "outline",
+            tool: 1000,
+            spindle: 1000,
+            step: depthPerPass,     // Depth per pass
+            steps: passes,          // Number of passes to make
+            down: totalDepth,       // Total depth to cut
+            rate: speed,
+            plunge: 250,
+            dogbones: true,
+            omitvoid: false,
+            omitthru: false,
+            outside: true,
+            inside: false,
+            wide: false,
+            top: true,
+            ov_topz: 0,
+            ov_botz: 0,
+            ov_conv: false,
+          });
           
           // Add separator
           operations.push({
