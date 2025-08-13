@@ -1,14 +1,48 @@
-import { Engine } from "/engine.js";
 import GlobalVariables from "./src/js/globalvariables.js";
 
 const display_message = (message) => {
   console.log(message);
 };
 
-const kiriEngine = new Engine({ workURL: "/worker.js" });
-console.log(kiriEngine);
+// Initialize the Kiri engine with correct base path resolution
+let kiriEngine;
 
-const generateGcode = (
+// Get the base URL from current script location and handle deployment base path
+const baseUrl = (() => {
+  const isDev = import.meta.env.DEV;
+  const baseEnv = import.meta.env.BASE_URL || "/";
+  
+  // For production deployment on GitHub Pages or other subdirectory deployments
+  if (!isDev && baseEnv !== "/") {
+    return baseEnv;
+  }
+  
+  // For development or root deployment
+  return "/";
+})();
+
+async function initializeKiriEngine() {
+  try {
+    const { Engine } = await import(`${baseUrl}engine.js`);
+    kiriEngine = new Engine({ workURL: `${baseUrl}worker.js` });
+    console.log("Kiri engine initialized successfully:", kiriEngine);
+  } catch (error) {
+    console.error("Failed to load Kiri engine:", error);
+    // Fallback to try absolute paths
+    try {
+      const { Engine } = await import("/engine.js");
+      kiriEngine = new Engine({ workURL: "/worker.js" });
+      console.log("Kiri engine initialized with fallback paths:", kiriEngine);
+    } catch (fallbackError) {
+      console.error("Failed to load Kiri engine with fallback paths:", fallbackError);
+    }
+  }
+}
+
+// Initialize the engine
+initializeKiriEngine();
+
+const generateGcode = async (
   stlUrl,
   centerPos,
   toolSize,
@@ -20,6 +54,12 @@ const generateGcode = (
 ) => {
   if (!stlUrl) {
     console.error("STL URL is not available.");
+    return;
+  }
+
+  // Ensure kiriEngine is initialized
+  if (!kiriEngine) {
+    console.error("Kiri engine not initialized yet");
     return;
   }
 
