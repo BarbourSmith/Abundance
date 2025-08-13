@@ -1,11 +1,11 @@
-import { Engine } from "./engine.js";
+import { Engine } from "/engine.js";
 import GlobalVariables from "./src/js/globalvariables.js";
 
 const display_message = (message) => {
   console.log(message);
 };
 
-const kiriEngine = new Engine({ workURL: "./worker.js" });
+const kiriEngine = new Engine({ workURL: "/worker.js" });
 console.log(kiriEngine);
 
 const generateGcode = (
