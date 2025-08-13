@@ -161,33 +161,38 @@ const generateGcode = (
         camOriginOffZ: 0,
         camToolInit: true,
         
-        // Operation definitions - Use single operation with steps parameter
+        // Operation definitions - Use multiple operations approach
+        // The single operation with steps parameter doesn't work in Kiri:Moto
         ops: (() => {
           const operations = [];
           const totalDepth = z + extra;
           const depthPerPass = totalDepth / passes;
           
-          // Single operation that tells Kiri:Moto exactly how many passes to make
-          operations.push({
-            type: "outline",
-            tool: 1000,
-            spindle: 1000,
-            step: depthPerPass,     // Depth per pass
-            steps: passes,          // Number of passes to make
-            down: totalDepth,       // Total depth to cut
-            rate: speed,
-            plunge: 250,
-            dogbones: true,
-            omitvoid: false,
-            omitthru: false,
-            outside: true,
-            inside: false,
-            wide: false,
-            top: true,
-            ov_topz: 0,
-            ov_botz: 0,
-            ov_conv: false,
-          });
+          // Create separate operations for each pass to avoid the steps parameter bug
+          for (let pass = 1; pass <= passes; pass++) {
+            const currentDepth = depthPerPass * pass; // Cumulative depth for this pass
+            
+            operations.push({
+              type: "outline",
+              tool: 1000,
+              spindle: 1000,
+              step: currentDepth,       // Total depth to cut for this operation
+              steps: 1,                 // Only one step per operation
+              down: currentDepth,       // Total depth for this operation
+              rate: speed,
+              plunge: 250,
+              dogbones: true,
+              omitvoid: false,
+              omitthru: false,
+              outside: true,
+              inside: false,
+              wide: false,
+              top: true,
+              ov_topz: pass === 1 ? 0 : -(depthPerPass * (pass - 1)), // Start depth
+              ov_botz: -currentDepth,   // End depth
+              ov_conv: false,
+            });
+          }
           
           // Add separator
           operations.push({
