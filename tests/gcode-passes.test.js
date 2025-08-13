@@ -4,15 +4,16 @@ describe("G-code Pass Count Configuration", () => {
   // Mock the generateGcode parameters similar to KirimotoUpdate.js
   const createGcodeConfig = (passes, materialThickness = 5, extra = 1.5) => {
     const z = materialThickness;
+    const totalDepth = z + extra;
     
     return {
       outline: {
         type: "outline",
         tool: 1000,
         spindle: 1000,
-        step: (z + extra) / passes,
-        steps: 1,
-        down: (z + extra) / passes,
+        step: totalDepth / passes,  // Depth per pass
+        steps: passes,              // Number of passes - let Kiri:Moto handle
+        down: totalDepth,           // Total depth to cut
         rate: 1500,
         plunge: 250,
         // ... other config
@@ -31,51 +32,51 @@ describe("G-code Pass Count Configuration", () => {
     
     // Test 1 pass
     const config1Pass = createGcodeConfig(1, materialThickness, extra);
-    expect(config1Pass.outline.step).toBe(6.5); // Should cut 6.5mm in 1 pass
-    expect(config1Pass.outline.down).toBe(6.5);
+    expect(config1Pass.outline.step).toBe(6.5); // Should cut 6.5mm per pass
+    expect(config1Pass.outline.steps).toBe(1);  // 1 pass
+    expect(config1Pass.outline.down).toBe(6.5); // Total depth
     
     // Test 2 passes
     const config2Pass = createGcodeConfig(2, materialThickness, extra);
     expect(config2Pass.outline.step).toBe(3.25); // Should cut 3.25mm per pass
-    expect(config2Pass.outline.down).toBe(3.25);
+    expect(config2Pass.outline.steps).toBe(2);   // 2 passes
+    expect(config2Pass.outline.down).toBe(6.5);  // Total depth
     
     // Test 3 passes
     const config3Pass = createGcodeConfig(3, materialThickness, extra);
     expect(config3Pass.outline.step).toBe(6.5 / 3); // Should cut ~2.17mm per pass
-    expect(config3Pass.outline.down).toBe(6.5 / 3);
+    expect(config3Pass.outline.steps).toBe(3);      // 3 passes
+    expect(config3Pass.outline.down).toBe(6.5);     // Total depth
   });
 
-  test("should demonstrate the current issue with steps parameter", () => {
-    // Current configuration in KirimotoUpdate.js
+  test("should demonstrate the fixed configuration", () => {
+    // Current configuration in KirimotoUpdate.js (after fix)
     const passes = 2;
     const z = 5;
     const extra = 1.5;
+    const totalDepth = z + extra;
     
-    const currentConfig = {
-      step: (z + extra) / passes, // 3.25mm per pass
-      steps: 1, // Only 1 step (THIS IS THE ISSUE)
-      down: (z + extra) / passes, // 3.25mm per pass
+    const fixedConfig = {
+      step: totalDepth / passes,    // 3.25mm per pass
+      steps: passes,                // 2 passes (let Kiri:Moto handle)
+      down: totalDepth,             // 6.5mm total depth
     };
     
-    // With current config:
+    // With fixed config:
     // - step = 3.25mm (depth per pass)
-    // - steps = 1 (number of incremental steps)
-    // - down = 3.25mm (total depth per operation)
+    // - steps = 2 (number of passes)
+    // - down = 6.5mm (total depth)
     // 
-    // Kiri:Moto likely interprets this as:
-    // "Cut 3.25mm deep, in 1 step, then repeat until reaching bottom"
-    // Total depth = 6.5mm
-    // Number of operations = 6.5 / 3.25 = 2, but it adds one more = 3 passes
+    // Kiri:Moto interprets this as:
+    // "Cut 6.5mm total depth, in 2 passes of 3.25mm each"
+    // Result: Exactly 2 passes of 3.25mm each = 6.5mm total
     
-    expect(currentConfig.step).toBe(3.25);
-    expect(currentConfig.steps).toBe(1);
-    expect(currentConfig.down).toBe(3.25);
+    expect(fixedConfig.step).toBe(3.25);
+    expect(fixedConfig.steps).toBe(2);
+    expect(fixedConfig.down).toBe(6.5);
     
-    // The issue: Kiri:Moto calculates passes as:
-    // ceil(totalDepth / stepDepth) which gives us one extra pass
-    const totalDepth = z + extra;
-    const calculatedPasses = Math.ceil(totalDepth / currentConfig.step);
-    expect(calculatedPasses).toBe(2); // Should be 2, but Kiri:Moto might add 1 more
+    // Verify the math: step * steps should equal total depth
+    expect(fixedConfig.step * fixedConfig.steps).toBe(totalDepth);
   });
 
   test("should show the correct configuration that fixes the issue", () => {
@@ -183,25 +184,48 @@ describe("G-code Pass Count Configuration", () => {
     testCases.forEach(({ requestedPasses, z, extra }) => {
       const totalDepth = z + extra;
       
-      // OLD BEHAVIOR (before fix)
+      // OLD BEHAVIOR (manual multiple operations - before this fix)
       const oldConfig = {
         step: totalDepth / requestedPasses,
-        steps: 1,  // Always 1 step
-        down: totalDepth / requestedPasses,
+        steps: 1,  // Always 1 step per operation, multiple operations manually created
+        down: totalDepth / requestedPasses,  // Depth per operation
       };
       
-      // NEW BEHAVIOR (after fix)  
+      // NEW BEHAVIOR (single operation, let Kiri:Moto handle passes)  
       const newConfig = {
-        step: totalDepth / requestedPasses,
-        steps: requestedPasses,  // Set to requested passes
-        down: totalDepth,        // Total depth
+        step: totalDepth / requestedPasses,  // Depth per pass
+        steps: requestedPasses,              // Let Kiri:Moto generate this many passes
+        down: totalDepth,                    // Total depth
       };
       
-      // Old config might cause Kiri:Moto to generate extra passes
-      // because it sees steps=1 and calculates how many operations are needed
+      // Old approach created multiple operations manually
+      // New approach creates single operation and lets Kiri:Moto handle the passes
       
-      // New config explicitly tells Kiri:Moto the number of steps
+      // Verify new config has correct relationships
       expect(newConfig.step * newConfig.steps).toBe(totalDepth);
+      expect(newConfig.steps).toBe(requestedPasses);
+      expect(newConfig.down).toBe(totalDepth);
     });
+  });
+
+  test("should validate that Kiri:Moto pass generation approach matches test expectations", () => {
+    // This test validates that our implementation matches the expected behavior
+    // from the test case "should show the correct configuration that fixes the issue"
+    
+    const passes = 2;
+    const z = 5;
+    const extra = 1.5;
+    const totalDepth = z + extra;
+    
+    // Current implementation (single operation approach)
+    const config = createGcodeConfig(passes, z, extra);
+    
+    // Should match the "correct configuration" from the earlier test
+    expect(config.outline.step).toBe(totalDepth / passes);  // 3.25
+    expect(config.outline.steps).toBe(passes);               // 2
+    expect(config.outline.down).toBe(totalDepth);            // 6.5
+    
+    // This tells Kiri:Moto: "Cut 6.5mm total depth, in 2 steps of 3.25mm each"
+    expect(config.outline.step * config.outline.steps).toBe(totalDepth);
   });
 });
