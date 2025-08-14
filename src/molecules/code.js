@@ -116,16 +116,19 @@ export default class Code extends Atom {
       ";
 
     //This loads any inputs which this atom had when last saved.
-    const inputArgs = [];
-    /*if (typeof this.ioValues !== "undefined") {
-      this.ioValues.forEach((ioValue) => {
-        inputArgs.push({ name: ioValue.name, valueType: "geometry" });
-      });
-    }*/
-    inputArgs.push({ name: "output", valueType: "geometry", type: "output" });
-    this.addAllIOs(inputArgs);
+    this.x = values.x || 0;
+    this.y = values.y || 0;
+    this.parent = values.parent || null;
+    this.uniqueID = values.uniqueID || GlobalVariables.generateUniqueID();
+    
+    // Special behavior for code atoms requires that ap's are explicitly set to ready
+    values.ioValues?.forEach((ioValue) => {
+      const ap = this.addIO(ioValue.name, "geometry");
+      ap.setReady(ioValue.ioValue);
+    });
+    this.addIO("output", "geometry", null, "output");
 
-    this.setValues();
+    this.setValues([]);
     this.code = values.code || this.code;
 
     this.parseInputs();
@@ -152,30 +155,28 @@ export default class Code extends Atom {
   createLevaInputs() {
     let inputParams = {};
     /** Runs through active atom inputs and adds IO parameters to default param*/
-    if (this.inputs.every((x) => x.ready)) {
-      this.inputs.map((input) => {
-        const checkConnector = () => {
-          return input.connectors.length > 0;
-        };
+    this.inputs.map((input) => {
+      const checkConnector = () => {
+        return input.connectors.length > 0;
+      };
 
-        inputParams[this.uniqueID + input.name] = {
-          value: input.value,
-          label: input.name,
-          disabled: checkConnector(),
-          step: 0.01,
-          onChange: (value) => {
-            if (input.value !== value) {
-              input.setValue(value);
-              //this.sendToRender();
-            }
-          },
-        };
-      });
-      inputParams["Edit Code"] = button(() => this.editCode());
-      inputParams["Save Code"] = button(() => this.saveCode());
-      inputParams["Close Editor"] = button(() => this.closeCode());
-      return inputParams;
-    }
+      inputParams[this.uniqueID + input.name] = {
+        value: input.value,
+        label: input.name,
+        disabled: checkConnector(),
+        step: 0.01,
+        onChange: (value) => {
+          if (input.value !== value) {
+            input.setValue(value);
+            //this.sendToRender();
+          }
+        },
+      };
+    });
+    inputParams["Edit Code"] = button(() => this.editCode());
+    inputParams["Save Code"] = button(() => this.saveCode());
+    inputParams["Close Editor"] = button(() => this.closeCode());
+    return inputParams;
   }
 
   /**
@@ -218,21 +219,6 @@ export default class Code extends Atom {
   compute(argumentsArray) {
     return GlobalVariables.cad.code(this.uniqueID, this.code, argumentsArray);
   }
-
-  /**
-   * Override the standard basic thread processing function to allow passing of numbers or geometry depending on what we have
-   
-  customThreadValueProcessing(returnedNumber) {
-    this.decreaseToProcessCountByOne();
-    this.clearAlert();
-    if (this.output) {
-      this.value = returnedNumber;
-      this.output.setValue(returnedNumber);
-      this.output.ready = true;
-    }
-    this.processing = false;
-  }
-    */
 
   /**
    * This function reads the string of inputs the user specifies and adds them to the atom.

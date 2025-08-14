@@ -1,7 +1,7 @@
 import Atom from "../prototypes/atom";
 import GlobalVariables from "../js/globalvariables.js";
 import { parse } from "mathjs";
-import { Status } from "../prototypes/subscribableEntity.js";
+import { Status } from "../prototypes/observableEntity.js";
 
 /**
  * This class creates the Equation atom.
@@ -118,56 +118,13 @@ export default class Equation extends Atom {
    * Add and remove inputs as needed from the atom
    */
   addAndRemoveInputs() {
-    //Find all the variables in this equation using word boundaries to avoid function names
-    var re = /\b[a-zA-Z]+\b/g;
-    const allMatches = this.currentEquation.match(re);
-
-    // Filter out common math function names to avoid treating them as variables
-    const mathFunctions = new Set([
-      "sin",
-      "cos",
-      "tan",
-      "asin",
-      "acos",
-      "atan",
-      "atan2",
-      "sinh",
-      "cosh",
-      "tanh",
-      "asinh",
-      "acosh",
-      "atanh",
-      "sqrt",
-      "cbrt",
-      "exp",
-      "log",
-      "log10",
-      "log2",
-      "abs",
-      "sign",
-      "ceil",
-      "floor",
-      "round",
-      "trunc",
-      "min",
-      "max",
-      "mean",
-      "median",
-      "mode",
-      "std",
-      "var",
-      "pi",
-      "e",
-      "i",
-      "true",
-      "false",
-      "null",
-      "undefined",
-    ]);
-
-    const variables = allMatches
-      ? allMatches.filter((match) => !mathFunctions.has(match.toLowerCase()))
-      : [];
+    // Use AST-based variable extraction
+    let variables = this._extractVariablesFromEquation();
+    // Only add inputs for variables NOT present in parent molecule's inputs
+    let moleculeInputs = [];
+    if (this.parentMolecule && this.parentMolecule.inputs) {
+      moleculeInputs = this.parentMolecule.inputs.map((input) => input.name);
+    }
 
     //Remove any inputs which are not needed
     const deleteExtraInputs = () => {
@@ -185,11 +142,14 @@ export default class Equation extends Atom {
     deleteExtraInputs();
     //Add any inputs which are needed and NOT molecule inputs
     if (variables.length > 0) {
-      const inputArgs = [];
-      for (var variable in variables) {
-        if (!this.inputs.some((input) => input.name === variables[variable])) {
+      let inputArgs = [];
+      for (var variable of variables) {
+        if (
+          !this.inputs.some((input) => input.name === variable) &&
+          !moleculeInputs.includes(variable)
+        ) {
           inputArgs.push({
-            name: variables[variable],
+            name: variable,
             valueType: "number",
             defaultValue: 1,
           });
@@ -210,70 +170,19 @@ export default class Equation extends Atom {
       var substitutedEquation = this.currentEquation;
       this.name = this.currentEquation;
 
-      // Find all the variables in this equation using word boundaries to avoid function names
-      var re = /\b[a-zA-Z]+\b/g;
-      const allMatches = this.currentEquation.match(re);
-
-      // Filter out common math function names to avoid treating them as variables
-      const mathFunctions = new Set([
-        "sin",
-        "cos",
-        "tan",
-        "asin",
-        "acos",
-        "atan",
-        "atan2",
-        "sinh",
-        "cosh",
-        "tanh",
-        "asinh",
-        "acosh",
-        "atanh",
-        "sqrt",
-        "cbrt",
-        "exp",
-        "log",
-        "log10",
-        "log2",
-        "abs",
-        "sign",
-        "ceil",
-        "floor",
-        "round",
-        "trunc",
-        "min",
-        "max",
-        "mean",
-        "median",
-        "mode",
-        "std",
-        "var",
-        "pi",
-        "e",
-        "i",
-        "true",
-        "false",
-        "null",
-        "undefined",
-      ]);
-
-      const variables = allMatches
-        ? allMatches.filter((match) => !mathFunctions.has(match.toLowerCase()))
-        : [];
+      // Use AST-based variable extraction for consistency
+      const variables = this._extractVariablesFromEquation();
 
       if (variables.length > 0) {
-        for (var variable in variables) {
-          for (var i = 0; i < this.inputs.length; i++) {
-            if (this.inputs[i].name == variables[variable]) {
-              // Use word boundaries in replacement to avoid partial matches
-              const variablePattern = new RegExp(
-                `\\b${this.inputs[i].name}\\b`,
-                "g"
-              );
-              substitutedEquation = substitutedEquation.replace(
-                variablePattern,
-                this.findIOValue(this.inputs[i].name)
-              );
+        for (var variable of variables) {
+          // First, try to find in parent molecule's inputs
+          let value = null;
+          if (this.parentMolecule && this.parentMolecule.inputs) {
+            for (var j = 0; j < this.parentMolecule.inputs.length; j++) {
+              if (this.parentMolecule.inputs[j].name == variable) {
+                value = this.parentMolecule.inputs[j].value;
+                break;
+              }
             }
           }
           // If not found, try to find in this atom's inputs
@@ -300,7 +209,6 @@ export default class Equation extends Atom {
       // Evaluate the substituted equation
       return GlobalVariables.limitedEvaluate(substitutedEquation);
     } catch (error) {
-      console.log(this);
       console.error("Error evaluating equation:", error);
       this.setError(error);
       return NaN;
@@ -325,8 +233,6 @@ export default class Equation extends Atom {
     let inputParams = {};
     /** Runs through active atom inputs and adds IO parameters to default param*/
     if (this.inputs) {
-      console.log("recreating inputs for equation atom: ");
-      console.log(this.inputs);
       this.inputs.map((input) => {
         const checkConnector = () => {
           return input.connectors.length > 0;
@@ -365,7 +271,6 @@ export default class Equation extends Atom {
         disabled: true,
       };
 
-      console.log(inputParams);
       return inputParams;
     }
   }
@@ -377,10 +282,9 @@ export default class Equation extends Atom {
     );
   }
 
-  compute(inputs) {
+  compute(_) {
     return new Promise((resolve, reject) => {
       this.value = this.evaluateEquation();
-      this.rerenderLevaInputs(); // Update the result in the leva panel
       resolve(this.value);
     });
   }

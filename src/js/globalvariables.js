@@ -144,11 +144,6 @@ class GlobalVariables {
         atomCategory: "Actions",
       },
       move: { creator: Move, atomType: "Move", atomCategory: "Actions" },
-      GeneticAlgorithm: {
-        creator: GeneticAlgorithm,
-        atomType: "GeneticAlgorithm",
-        atomCategory: "Actions",
-      },
       //nest:               {creator: Nest, atomType: 'Nest', atomCategory: 'Export'},
       gcode: {
         creator: Gcode,

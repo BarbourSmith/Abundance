@@ -22,7 +22,7 @@ export default class Readme extends Atom {
      * The text to appear in the README file
      * @type {string}
      */
-    this.readmeText = "Readme text here";
+    this.readMeText = "Readme text here";
     /**
      * This atom's type
      * @type {string}
@@ -86,7 +86,7 @@ export default class Readme extends Atom {
   }
 
   setReady(newText) {
-    this.readmeText = newText;
+    this.readMeText = newText;
     super.setReady(newText);
   }
 
@@ -97,11 +97,11 @@ export default class Readme extends Atom {
     let inputParams = {};
 
     inputParams[this.name + this.uniqueID] = {
-      value: this.readmeText,
+      value: this.readMeText,
       label: this.name,
       rows: 10,
       onChange: (value) => {
-        if (this.readmeText !== value) {
+        if (this.readMeText !== value) {
           this.setReady(value);
         }
       },
@@ -152,7 +152,7 @@ export default class Readme extends Atom {
    * This atom has no output, but compute must still be defined.
    */
   compute(inputs) {
-    return Promise.resolve(this.readmeText);
+    return Promise.resolve(this.readMeText);
   }
 
   /**
@@ -162,7 +162,7 @@ export default class Readme extends Atom {
     //Save the readme text to the serial stream
     var valuesObj = super.serialize(values);
 
-    valuesObj.readmeText = this.readmeText;
+    valuesObj.readMeText = this.readMeText;
     valuesObj.global = this.global;
 
     return valuesObj;

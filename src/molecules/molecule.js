@@ -1,11 +1,9 @@
 import Atom from "../prototypes/atom.js";
-import AttachmentPoint from "../prototypes/attachmentpoint.js";
 import Connector from "../prototypes/connector.js";
 import GlobalVariables from "../js/globalvariables.js";
 import { button } from "leva";
 import { Octokit } from "https://esm.sh/octokit@2.0.19";
 import { BOMEntry } from "../js/BOM";
-import globalvariables from "../js/globalvariables.js";
 import { LevaInputs } from "leva";
 import { Status } from "../prototypes/observableEntity.js";
 
@@ -109,17 +107,34 @@ export default class Molecule extends Atom {
     this.color;
   }
 
+  // TODO: recursive count of children - we can cache this value and refresh it only when
+  // the GlobalVariables.currentMolecule changes (unless we are the current molecule)
+
+  // Returns a tuple of [READY_child_count, total_child_count]
+  getCompletionTuple() {
+    const childCount = this.nodesOnTheScreen.length;
+    if (childCount === 0) {
+      return [1, 1]; // be nice about division by 0
+    }
+    switch (this.getState().status) {
+      case Status.READY:
+        return [childCount, childCount];
+      case Status.WAITING:
+        return [0, childCount];
+      case Status.PROCESSING:
+        const readyChildCount = this.nodesOnTheScreen.filter(
+          (node) => node.getState().status === Status.READY
+        ).length;
+        return [readyChildCount, childCount];
+      default:
+        return [0, childCount];
+    }
+  }
+
   /**
    * Add the center dot to the molecule
    */
   draw() {
-    const percentLoaded = 1 - this.toProcess / this.totalAtomCount;
-    if (this.toProcess > 1) {
-      this.processing = true;
-    } else {
-      this.processing = false;
-    }
-
     super.draw(); //Super call to draw the rest
 
     //draw the circle in the middle
@@ -134,7 +149,7 @@ export default class Molecule extends Atom {
       GlobalVariables.heightToPixels(this.y),
       GlobalVariables.widthToPixels(this.radius) / 2,
       0,
-      percentLoaded * Math.PI * 2,
+      1 * Math.PI * 2,
       false
     );
     GlobalVariables.c.closePath();
@@ -341,6 +356,7 @@ export default class Molecule extends Atom {
 
     if (distFromClick < this.radius * 2) {
       GlobalVariables.currentMolecule = this; //set this to be the currently displayed molecule
+      this.enableAllChildren();
 
       /**
        * Deselects Atom
@@ -351,6 +367,18 @@ export default class Molecule extends Atom {
     }
 
     return clickProcessed;
+  }
+
+  /**
+   * Enables all child nodes in this molecule. Should be called for the currentMolecule
+   * so onscreen nodes are always computed
+   */
+  enableAllChildren() {
+    this.nodesOnTheScreen.forEach((atom) => {
+      if (atom.status === Status.DISABLED) {
+        atom.enable();
+      }
+    });
   }
 
   /**
@@ -759,6 +787,10 @@ export default class Molecule extends Atom {
     );
   }
 
+  onChildError() {
+    this.setError("An error occurred in a child atom.");
+  }
+
   onUpstreamChange() {
     // No-op if this atom is disabled
     if (this.status === Status.DISABLED) {
@@ -793,7 +825,9 @@ export default class Molecule extends Atom {
           // All inputs are ready but our output isn't yet. check for an internal error
           // else we're in progress.
           if (outputAtom.status == Status.UPSTREAM_ERROR) {
-            this.setError("An error occurred in a child atom.");
+            this.onChildError();
+          } else if (outputAtom.inputs[0]?.connectors.length == 0) {
+            this.setWaiting(); // No connectors to our internal output means we're in a freshly initialized state.;
           } else {
             this.setProcessing();
           }
@@ -809,62 +843,10 @@ export default class Molecule extends Atom {
   }
 
   /**
-   * Reads molecule's output atom ID to recompute the molecule in worker
-   *
-  recomputeMolecule(outputID) {
-    // TODO: tristan a bunch of this needs to change but there's interesting cases highlighted.
-    try {
-      this.processing = true;
-      const loadingDiv = document.querySelector(".loading");
-      loadingDiv.style.display = "flex";
-
-      GlobalVariables.cad
-        .molecule(this.uniqueID, outputID)
-        .then(() => {
-          //If we're currently inside this molecule, we don't want to pass the update to the next level until we leave
-          if (GlobalVariables.currentMolecule !== this) {
-            this.basicThreadValueProcessing();
-          } else {
-            this.awaitingPropagationFlag = true;
-          }
-
-          // Compile BOM at the top level to capture the entire project
-          if (GlobalVariables.topLevelMolecule === this) {
-            GlobalVariables.topLevelMolecule
-              .compileBom()
-              .then((result) => {
-                GlobalVariables.topLevelMolecule.compiledBom = result;
-              })
-              .catch((err) => {
-                console.warn("Failed to compile BOM at top level:", err);
-              });
-          }
-
-          if (this.selected) {
-            this.sendToRender();
-          } else {
-            loadingDiv.style.display = "none"; // Hide loading if not selected
-          }
-        })
-        .catch((err) => {
-          this.setError(err);
-        });
-    } catch (err) {
-      // Hide loading dots if there's an error in the try block
-      const loadingDots = document.querySelector(".loading");
-      if (loadingDots) {
-        loadingDots.style.display = "none";
-      }
-      this.setError(err);
-    }
-  }*/
-
-  /**
    * Called when this molecules value changes
    */
   propagate() {
     try {
-      //      this.updateValue();
       const loadingDots = document.querySelector(".loading");
       loadingDots.style.display = "none";
     } catch (err) {
@@ -908,6 +890,7 @@ export default class Molecule extends Atom {
       }
 
       GlobalVariables.currentMolecule = GlobalVariables.currentMolecule.parent; //set parent this to be the currently displayed molecule
+      GlobalVariables.currentMolecule.enableAllChildren();
     }
   }
 
@@ -1051,6 +1034,7 @@ export default class Molecule extends Atom {
       if (GlobalVariables.currentMolecule === this) {
         const outputAtom = this.getOutputAtom();
         outputAtom.enable(); // This propagates through the DAG starting from our output atom.
+        this.enableAllChildren(); // Then enable all other children since they're visible on screen.
       }
     });
   }
@@ -1061,13 +1045,14 @@ export default class Molecule extends Atom {
     // The input atoms within our tree will push the enable call back up to the input
     // atoms at this level (ie to this.inputs).
     if (this.status !== Status.DISABLED) {
-      return;
+      return false;
     }
     this.setWaiting();
     const outputAtom = this.getOutputAtom();
     if (outputAtom) {
       outputAtom.enable();
     }
+    return true;
   }
 
   /**
@@ -1280,8 +1265,6 @@ export default class Molecule extends Atom {
       ap2ID: newAtom.uniqueID,
       ap2Name: geometryInput.name,
     });
-
-    sourceAtom.updateValue(); // Update the new atom's value after connecting
   }
 
   /**
@@ -1374,44 +1357,14 @@ export default class Molecule extends Atom {
           }
 
           if (unlock) {
-            //Make this molecule spawn with all of it's parent's inputs
-            if (atom.atomType == "Molecule") {
-              //Not GitHubMolecule
-
-              //Make begin propagation from an atom when it is placed. This is used when copy and pasting molecules.
-              if (promise != null) {
-                promise.then(() => {
-                  atom.beginPropagation();
-                });
-              } else {
-                atom.beginPropagation();
-              }
-            }
-
-            this.autoCreateConnector(atom);
-
-            atom.updateValue();
-
             const flowCanvas = document.querySelector("#flow-canvas");
             if (!flowCanvas) {
               console.warn("Flow canvas element not found");
               return;
             }
-            const mouseDownEvent = new MouseEvent("mousedown", {
-              bubbles: true,
-              cancelable: true,
-              clientX: GlobalVariables.widthToPixels(atom.x),
-              clientY: GlobalVariables.heightToPixels(atom.y),
-            });
-            flowCanvas.dispatchEvent(mouseDownEvent);
-
-            const mouseUpEvent = new MouseEvent("mouseup", {
-              bubbles: true,
-              cancelable: true,
-              clientX: GlobalVariables.widthToPixels(atom.x),
-              clientY: GlobalVariables.heightToPixels(atom.y),
-            });
-            flowCanvas.dispatchEvent(mouseUpEvent);
+            this.autoCreateConnector(atom);
+            atom.selected = true; // TODO: this feels hacky. probably should forward to it's children?
+            atom.enable(); // Enable the atom after placing it
           }
         }
       }

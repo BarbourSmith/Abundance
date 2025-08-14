@@ -118,7 +118,12 @@ export default class Join extends Atom {
 
   compute(inputs) {
     addOrDeletePorts(this); // clean up ports then check if we're in a ready state.
-    const nonnullInputIds = Object.values(inputs).filter((i) => i);
+    // Preserve input order. This isn't strictly required for fusion but it is done 1)
+    // for consistency with assembly and 2) to provide more stability for caching in the future.
+    const nonnullInputIds = this.inputs
+      .filter((io) => io.connectors.length > 0)
+      .map((io) => inputs[io.name])
+      .filter(Boolean);
     return GlobalVariables.cad.fusion(this.uniqueID, nonnullInputIds);
   }
 

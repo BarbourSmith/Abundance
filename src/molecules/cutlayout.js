@@ -195,6 +195,7 @@ export default class CutLayout extends Atom {
           inputID,
           placements,
           proxy((message) => {
+            // TODO(tristan): warnings get cleared whenever we setReady.
             this.setWarning(message);
           }),
           {
@@ -208,7 +209,9 @@ export default class CutLayout extends Atom {
           }
         )
         .then((result) => {
-          this.sendToRender();
+          if (this.selected) {
+            this.sendToRender();
+          }
           // Only update our status if this is the final placement
           if (isFinalPlacement) {
             this.setReady(result);
@@ -235,7 +238,14 @@ export default class CutLayout extends Atom {
     // If the upstream geometry has changed, we need to reset our status as stale
     // However, computation must be manually triggered via the "compute layout" button
     // so there's not much else to do here.
-    this.setWaiting();
+
+    // TODO: add logic for whether upstream changes have made the current
+    // placements stale.
+    if (this.placements?.length > 0) {
+      this.displayLayout(true);
+    } else {
+      this.setWaiting();
+    }
   }
 
   /**

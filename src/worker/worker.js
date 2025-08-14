@@ -456,11 +456,10 @@ function tag(targetID, inputID, TAG) {
 /**
  * Extracts and returns all tags from a geometry and its subassemblies.
  * @param {string} inputID - The library ID of the geometry to extract tags from
- * @param {string} tag - Currently unused parameter (kept for compatibility)
  * @returns {Promise<string[]>} A promise that resolves to an array of all unique tags, with "Select Tag" as the first element
  * @throws {Error} Throws an error if the geometry with the specified ID is not found in the library
  */
-function extractAllTags(inputID, tag) {
+function extractAllTags(inputID) {
   return started.then(() => {
     return tags.extractAllTags(getOrThrow(inputID));
   });
@@ -857,7 +856,7 @@ function getBoundingBox(inputID) {
  */
 async function isAssembly(inputID) {
   await started;
-  const geometry = library[inputID];
+  const geometry = getOrThrow(inputID);
   return util.isAssembly(geometry);
 }
 
@@ -1211,7 +1210,6 @@ if (
     resetView,
     visualizeGcode,
     getBoundingBox,
-    unset,
     isAssembly,
     extractParts,
   });
@@ -1256,7 +1254,6 @@ export {
   visExport,
   downExport,
   shrinkWrapSketches,
-  unset,
   isAssembly,
   extractParts,
 };

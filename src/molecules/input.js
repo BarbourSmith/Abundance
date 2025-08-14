@@ -98,7 +98,7 @@ export default class Input extends Atom {
     // Instead of the usual enable behavior, we want to push the propagation of
     // enable-ment up to our parent's attachment points if any.
     if (this.status !== Status.DISABLED) {
-      return;
+      return false;
     }
     let didPropagateUpstream = false;
     if (this.parentAP) {
@@ -108,15 +108,19 @@ export default class Input extends Atom {
           if (upstreamAtom && upstreamAtom !== this) {
             // Recursively enable the upstream atom
             this.setWaiting();
-            upstreamAtom.enable();
-            didPropagateUpstream = true;
+            didPropagateUpstream = upstreamAtom.enable();
           }
         });
       }
     }
     if (!didPropagateUpstream) {
-      this.setReady(this.value);
+      if (this.parentAP?.getValue()) {
+        this.setReady(this.parentAP.getValue());
+      } else {
+        this.setWaiting();
+      }
     }
+    return true;
   }
 
   onUpstreamChange() {
@@ -127,8 +131,6 @@ export default class Input extends Atom {
 
     // This is called when the parent attachment point changes
     // We need to update the value of this input atom
-    console.log("onUpstreamChange called on input atom.");
-    console.log(this.parentAP);
     if (this.parentAP) {
       const parentState = this.parentAP.getState();
       this.setStatus(parentState.status, parentState.value);

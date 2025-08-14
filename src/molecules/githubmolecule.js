@@ -4,6 +4,7 @@ import { Octokit } from "https://esm.sh/octokit@2.0.19";
 import { button } from "leva";
 import { re } from "mathjs";
 import { LevaInputs } from "leva";
+import { Status } from "../prototypes/observableEntity.js";
 
 /**
  * This class creates the GitHubMolecule atom.
@@ -59,6 +60,27 @@ export default class GitHubMolecule extends Molecule {
       clickProcessed = true;
     }
     return clickProcessed;
+  }
+
+  onChildError() {
+    // find the causal error.
+    let buffer = [this.getOutputAtom()];
+    while (buffer.length > 0) {
+      let atom = buffer.shift();
+      if (atom.getState().status === Status.ERROR) {
+        this.setError(atom.alert?.message);
+        return;
+      }
+      if (atom.getState().status === Status.UPSTREAM_ERROR) {
+        atom.inputs.forEach((input) => {
+          if (input.connectors.length > 0) {
+            buffer.push(input.connectors[0].attachmentPoint1.parentMolecule);
+          }
+        });
+      }
+    }
+    // Failed to find cause. set something generic.
+    this.setError("An unknown error occurred in a child atom.");
   }
 
   /**

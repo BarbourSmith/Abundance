@@ -85,7 +85,6 @@ export default class RegularPolygon extends Atom {
    * @returns promise containing the ID of the created geometry
    */
   compute(argsDict) {
-    console.log("computing new regular polygon with args:", argsDict);
     return GlobalVariables.cad.regularPolygon(
       this.uniqueID,
       argsDict.diameter / 2,

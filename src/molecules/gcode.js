@@ -59,7 +59,8 @@ export default class Gcode extends Atom {
      * @type {number}
      */
     this.progress = 1.0;
-    this.parent = values.parent;
+    this.parent = values?.parent;
+    this.partName = this.parent?.name ?? "output";
 
     this.addAllIOs([
       { name: "geometry", valueType: "geometry" },
@@ -80,7 +81,7 @@ export default class Gcode extends Atom {
       {
         name: "Part Name",
         valueType: "string",
-        defaultValue: this.parent.name,
+        defaultValue: this.partName,
       },
       {
         name: "output",
@@ -90,7 +91,7 @@ export default class Gcode extends Atom {
       },
     ]);
 
-    this.partName = this.parent.name;
+    this.setValues(values);
 
     this.stlURL = null; // Store the STL URL
 
@@ -173,10 +174,11 @@ export default class Gcode extends Atom {
     // Initialize progress tracking
     this.progress = 0.0;
     this.processing = true;
+    this.setProcessing();
 
     try {
       // Get the current input ID
-      let inputID = this.findIOValue("Geometry");
+      let inputID = this.findIOValue("geometry");
 
       // Check if the input is an assembly
       const isAssembly = await this._checkIfAssembly(inputID);
@@ -220,15 +222,20 @@ export default class Gcode extends Atom {
    * @param {string} inputID - The input geometry ID
    */
   async _handleGeometryInput(inputID) {
-    // Check if the input is an assembly
-    const isAssembly = await this._checkIfAssembly(inputID);
+    try {
+      // Check if the input is an assembly
+      const isAssembly = await this._checkIfAssembly(inputID);
 
-    if (isAssembly) {
-      // Process as assembly - extract parts and generate G-code sequentially
-      await this._processAssembly(inputID);
-    } else {
-      // Process as single part (original behavior)
-      await this._processSinglePart(inputID);
+      if (isAssembly) {
+        // Process as assembly - extract parts and generate G-code sequentially
+        await this._processAssembly(inputID);
+      } else {
+        // Process as single part (original behavior)
+        await this._processSinglePart(inputID);
+      }
+    } catch (err) {
+      console.error("Error handling geometry input:", err);
+      this.setError(err);
     }
   }
 
@@ -236,14 +243,10 @@ export default class Gcode extends Atom {
    * Check if the input geometry is an assembly
    * @param {string} inputID - The input geometry ID
    * @returns {Promise<boolean>} True if it's an assembly
+   * @throws {Error} If the input ID is not found
    */
   async _checkIfAssembly(inputID) {
-    return new Promise((resolve) => {
-      GlobalVariables.cad
-        .isAssembly(inputID)
-        .then(resolve)
-        .catch(() => resolve(false));
-    });
+    return GlobalVariables.cad.isAssembly(inputID);
   }
 
   /**

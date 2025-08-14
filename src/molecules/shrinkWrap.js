@@ -17,8 +17,6 @@ export default class shrinkWrap extends Atom {
   constructor(values) {
     super(values);
 
-    this.addIO("output", "geometry", this, "geometry", "");
-
     /**
      * This atom's name
      * @type {string}
@@ -99,7 +97,12 @@ export default class shrinkWrap extends Atom {
 
   compute(inputs) {
     addOrDeletePorts(this); // clean up ports then check if we're in a ready state.
-    const nonnullInputIds = Object.values(inputs).filter((i) => i);
+    // Preserve input order.
+    const nonnullInputIds = this.inputs
+      .filter((io) => io.connectors.length > 0)
+      .map((io) => inputs[io.name])
+      .filter(Boolean);
+
     return GlobalVariables.cad.shrinkWrapSketches(
       this.uniqueID,
       nonnullInputIds

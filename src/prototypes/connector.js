@@ -58,10 +58,12 @@ export default class Connector {
      */
     this.startY = this.attachmentPoint1.parentMolecule.y;
 
-    this.attachmentPoint1.attach(this);
     if (this.attachmentPoint2) {
+      this.endX = this.attachmentPoint2.parentMolecule.x;
+      this.endY = this.attachmentPoint2.parentMolecule.y;
       this.attachmentPoint2.attach(this);
     }
+    this.attachmentPoint1.attach(this);
   }
 
   /**
@@ -295,16 +297,6 @@ export default class Connector {
       this.attachmentPoint2.waitOnComingInformation();
     }
   }
-
-  // /**
-  //  * Pass the value of the attached output to the attached input
-  //  */
-  // propogate() {
-  //   //takes the input and passes it to the output
-  //   if (this.attachmentPoint1.ready && this.attachmentPoint2) {
-  //     this.attachmentPoint2.setValue(this.attachmentPoint1.getValue());
-  //   }
-  // }
 
   /**
    * Used to walk back out the tree generating a list of constants...used for evolve

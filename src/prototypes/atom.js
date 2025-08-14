@@ -43,7 +43,7 @@ export default class Atom extends ObservableEntity {
       case Status.ERROR:
         return "red";
       case Status.UPSTREAM_ERROR:
-        return "yellow";
+        return "#eed202";
       case Status.READY:
         return Atom.DEFAULT_COLOR;
     }
@@ -70,7 +70,7 @@ export default class Atom extends ObservableEntity {
      * This atom's unique ID. Often overwritten later when loading
      * @type {number}
      */
-    this.uniqueID = values?.uniqueID || GlobalVariables.cad.getUniqueID();
+    this.uniqueID = values?.uniqueID || GlobalVariables.cad.generateUniqueID();
 
     /**
      * A description of this atom
@@ -128,17 +128,21 @@ export default class Atom extends ObservableEntity {
       message: "",
     };
 
-    this.subscribe(() => {
-      if (
-        this.getState().status != Status.ERROR &&
-        this.getState().status != Status.UPSTREAM_ERROR
-      ) {
-        this.alert = {
-          type: AlertType.NONE,
-          message: "",
-        };
-      }
-    }, "self-clear-alert");
+    this.subscribe(this.selfSubscriber.bind(this), "self-clear-alert");
+  }
+
+  selfSubscriber() {
+    const status = this.getState().status;
+    if (status != Status.ERROR) {
+      this.alert = {
+        type: AlertType.NONE,
+        message: "",
+      };
+    }
+    if (status == Status.READY && this.selected) {
+      // if status just became ready and we're selected, update the render
+      this.sendToRender();
+    }
   }
 
   /**
@@ -184,7 +188,7 @@ export default class Atom extends ObservableEntity {
     GlobalVariables.c.beginPath();
     GlobalVariables.c.font = GlobalVariables.canvasFont;
 
-    this.color = Atom.statusAsColor(this.status, this.selected);
+    this.color = Atom.statusAsColor(this.getState().status, this.selected);
     GlobalVariables.c.fillStyle = this.color;
     GlobalVariables.c.strokeStyle = Atom.SELECTED_COLOR;
     let strokeColor = this.selected ? Atom.DEFAULT_COLOR : Atom.SELECTED_COLOR;
@@ -318,7 +322,6 @@ export default class Atom extends ObservableEntity {
         defaultValue: defaultValue,
         uniqueID: GlobalVariables.generateUniqueID(),
         atomType: "AttachmentPoint",
-        ready: true,
       });
       if (type == "input") {
         this.inputs.push(newAp);
@@ -439,13 +442,14 @@ export default class Atom extends ObservableEntity {
   }
 
   /**
-   * Enable this atom and set it to waiting status, allowing it to process upstream changes.
-   * Also recursively enables upstream connected atoms.
+   * Enable this atom and all it's upstream connections.
+   *
+   * Returns a boolean indicating if the atom became enabled (true) or was already enabled (false).
    */
   enable() {
-    // Case 1: This atom is already enabled - do nothing
-    if (this.status !== Status.DISABLED) {
-      return;
+    // Case 1: This atom is already enabled - this call is therefore a no-op. Return false.
+    if (this.isEnabled()) {
+      return false;
     }
 
     // Check if this atom has input connections
@@ -456,8 +460,7 @@ export default class Atom extends ObservableEntity {
     if (hasUpstreamConnections) {
       // Case 2: This atom has input connections - enable upstream atoms first
       this.setWaiting();
-      // no need to call onUpstreamChange in this case, our upstream atoms will call us back when
-      // they're ready.
+      const upstreamEnableResults = [];
       this.inputs.forEach((input) => {
         if (input.connectors && input.connectors.length > 0) {
           input.connectors.forEach((connector) => {
@@ -466,15 +469,22 @@ export default class Atom extends ObservableEntity {
             const upstreamAtom = connector.attachmentPoint1?.parentMolecule;
             if (upstreamAtom && upstreamAtom !== this) {
               // Recursively enable the upstream atom
-              upstreamAtom.enable();
+              upstreamEnableResults.push(upstreamAtom.enable());
             }
           });
         }
       });
+
+      // Special case where all our inputs were already enabled.
+      // Kick off propogation from here without delay
+      if (upstreamEnableResults.every((res) => res === false)) {
+        this.onUpstreamChange();
+      }
     } else {
-      this.setWaiting();
-      this.onUpstreamChange();
+      this.setWaiting(); // transition out of disabled.
+      this.onUpstreamChange(); // prompt atom to compute it's value and callback its subscribers.
     }
+    return true;
   }
 
   /**
@@ -742,8 +752,8 @@ export default class Atom extends ObservableEntity {
    *   as well.
    */
   onUpstreamChange() {
-    // No-op if this atom is disabled
-    if (this.status === Status.DISABLED) {
+    // No-op if this atom isn't enabled
+    if (!this.isEnabled()) {
       return;
     }
 
@@ -771,13 +781,6 @@ export default class Atom extends ObservableEntity {
         .deleteFromLibrary(this.uniqueID)
         .catch(this.alertingErrorHandler());
     }
-  }
-
-  /**
-   * Set's the output value and shows the atom output on the 3D view.
-   */
-  decreaseToProcessCountByOne() {
-    GlobalVariables.topLevelMolecule.census();
   }
 
   /**
@@ -848,7 +851,6 @@ export default class Atom extends ObservableEntity {
                 if (Number.isFinite(result)) {
                   if (result !== input.value) {
                     input.setValue(result);
-                    this.sendToRender();
                   }
                 }
               } catch (err) {
