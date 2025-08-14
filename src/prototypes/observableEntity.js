@@ -3,6 +3,7 @@ const Status = Object.freeze({
   WAITING: "waiting",
   PROCESSING: "processing",
   ERROR: "error",
+  UPSTREAM_ERROR: "upstream_error",
   READY: "ready",
 });
 
@@ -58,6 +59,10 @@ class ObservableEntity {
 
   setError() {
     this.setStatus(Status.ERROR);
+  }
+
+  setUpstreamError() {
+    this.setStatus(Status.UPSTREAM_ERROR);
   }
 
   setReady(value) {

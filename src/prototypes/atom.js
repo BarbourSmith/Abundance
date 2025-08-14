@@ -32,6 +32,8 @@ export default class Atom extends ObservableEntity {
         return "blue";
       case Status.ERROR:
         return "red";
+      case Status.UPSTREAM_ERROR:
+        return "yellow";
       case Status.READY:
         return Atom.DEFAULT_COLOR;
     }
@@ -117,7 +119,10 @@ export default class Atom extends ObservableEntity {
     };
 
     this.subscribe(() => {
-      if (this.getState().status != Status.ERROR) {
+      if (
+        this.getState().status != Status.ERROR &&
+        this.getState().status != Status.UPSTREAM_ERROR
+      ) {
         this.alert = {
           type: AlertType.NONE,
           message: "",
@@ -703,6 +708,16 @@ export default class Atom extends ObservableEntity {
   }
 
   /**
+   * Return true if any of our inputs have an error or upstream error.
+   */
+  inputsHaveErrors() {
+    return this.inputs.some((input) => {
+      const status = input.getState().status;
+      return status === Status.ERROR || status === Status.UPSTREAM_ERROR;
+    });
+  }
+
+  /**
    * This method defines the core logic for propagating changes in the DAG.
    *
    * Called any time an input to this atom changes (including an input
@@ -716,6 +731,12 @@ export default class Atom extends ObservableEntity {
   onUpstreamChange() {
     // No-op if this atom is disabled
     if (this.status === Status.DISABLED) {
+      return;
+    }
+
+    // Check for errors in inputs first
+    if (this.inputsHaveErrors()) {
+      this.setUpstreamError();
       return;
     }
 

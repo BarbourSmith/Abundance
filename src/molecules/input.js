@@ -100,7 +100,7 @@ export default class Input extends Atom {
     if (this.status !== Status.DISABLED) {
       return;
     }
-    const didPropagateUpstream = false;
+    let didPropagateUpstream = false;
     if (this.parentAP) {
       if (this.parentAP.connectors && this.parentAP.connectors.length > 0) {
         this.parentAP.connectors.forEach((connector) => {

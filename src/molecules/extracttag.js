@@ -135,6 +135,12 @@ export default class ExtractTag extends Atom {
       return;
     }
 
+    // Check for errors in inputs first
+    if (this.inputsHaveErrors()) {
+      this.setUpstreamError();
+      return;
+    }
+
     if (this.inputsAreReady()) {
       // Geometry input exists and is ready.
       const geomId = this.findIOValue("input");

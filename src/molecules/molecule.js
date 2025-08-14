@@ -717,6 +717,19 @@ export default class Molecule extends Atom {
       return;
     }
 
+    // If there's an upstream error in this context (ie the inputs to this molecule have an error),
+    // Set upstream error status to indicate that the issue is not within this molecule.
+    const hasErrorInputs = this.inputs.some((input) => {
+      return (
+        input.status === Status.ERROR || input.status === Status.UPSTREAM_ERROR
+      );
+    });
+
+    if (hasErrorInputs) {
+      this.setUpstreamError();
+      return;
+    }
+
     const outputAtom = this.getOutputAtom();
     if (outputAtom) {
       const state = outputAtom.getState();
@@ -728,16 +741,11 @@ export default class Molecule extends Atom {
           })
           .catch(this.alertingErrorHandler);
       } else {
-        const inputAps = this.inputs.filter((input) => input.type == "input");
-        if (inputAps.every((input) => input.status == Status.READY)) {
+        if (this.inputs.every((input) => input.status == Status.READY)) {
           // All inputs are ready but our output isn't yet. check for an internal error
           // else we're in progress.
-          if (
-            this.nodesOnTheScreen.some((atom) => {
-              atom.status == Status.ERROR;
-            })
-          ) {
-            this.setStatus(Status.ERROR, "An error occurred in a child atom.");
+          if (outputAtom.status == Status.UPSTREAM_ERROR) {
+            this.setError("An error occurred in a child atom.");
           } else {
             this.setProcessing();
           }
