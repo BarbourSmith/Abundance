@@ -2,7 +2,7 @@ import AttachmentPoint from "./attachmentpoint";
 import GlobalVariables from "../js/globalvariables.js";
 import showdown from "showdown";
 import globalvariables from "../js/globalvariables.js";
-import { ObservableEntity, Status } from "./subscribableEntity.js";
+import { ObservableEntity, Status } from "./observableEntity.js";
 
 // Make this an enum once we're using typescript
 const AlertType = Object.freeze({

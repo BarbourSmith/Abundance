@@ -7,7 +7,7 @@ import { Octokit } from "https://esm.sh/octokit@2.0.19";
 import { BOMEntry } from "../js/BOM";
 import globalvariables from "../js/globalvariables.js";
 import { LevaInputs } from "leva";
-import { Status } from "../prototypes/subscribableEntity.js";
+import { Status } from "../prototypes/observableEntity.js";
 
 /**
  * This class creates the Molecule atom.

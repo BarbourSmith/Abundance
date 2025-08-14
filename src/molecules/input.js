@@ -1,6 +1,6 @@
 import Atom from "../prototypes/atom";
 import GlobalVariables from "../js/globalvariables.js";
-import { Status } from "../prototypes/subscribableEntity.js";
+import { Status } from "../prototypes/observableEntity.js";
 
 /**
  * This class creates the input atom.

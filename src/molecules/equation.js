@@ -2,7 +2,7 @@ import Atom from "../prototypes/atom";
 import GlobalVariables from "../js/globalvariables.js";
 import { button } from "leva";
 import { or } from "mathjs";
-import { Status } from "../prototypes/subscribableEntity.js";
+import { Status } from "../prototypes/observableEntity.js";
 
 /**
  * This class creates the Equation atom.
