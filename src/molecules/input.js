@@ -115,7 +115,7 @@ export default class Input extends Atom {
       }
     }
     if (!didPropagateUpstream) {
-      this.setReady(this.value);
+      this.setReady(this.parentAP.getValue());
     }
     return true;
   }

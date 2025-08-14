@@ -1,11 +1,9 @@
 import Atom from "../prototypes/atom.js";
-import AttachmentPoint from "../prototypes/attachmentpoint.js";
 import Connector from "../prototypes/connector.js";
 import GlobalVariables from "../js/globalvariables.js";
 import { button } from "leva";
 import { Octokit } from "https://esm.sh/octokit@2.0.19";
 import { BOMEntry } from "../js/BOM";
-import globalvariables from "../js/globalvariables.js";
 import { LevaInputs } from "leva";
 import { Status } from "../prototypes/observableEntity.js";
 
@@ -326,6 +324,7 @@ export default class Molecule extends Atom {
 
     if (distFromClick < this.radius * 2) {
       GlobalVariables.currentMolecule = this; //set this to be the currently displayed molecule
+      this.enableAllChildren();
 
       /**
        * Deselects Atom
@@ -336,6 +335,18 @@ export default class Molecule extends Atom {
     }
 
     return clickProcessed;
+  }
+
+  /**
+   * Enables all child nodes in this molecule. Should be called for the currentMolecule
+   * so onscreen nodes are always computed
+   */
+  enableAllChildren() {
+    this.nodesOnTheScreen.forEach((atom) => {
+      if (atom.status === Status.DISABLED) {
+        atom.enable();
+      }
+    });
   }
 
   /**
@@ -746,6 +757,8 @@ export default class Molecule extends Atom {
           // else we're in progress.
           if (outputAtom.status == Status.UPSTREAM_ERROR) {
             this.setError("An error occurred in a child atom.");
+          } else if (outputAtom.inputs[0]?.connectors.length == 0) {
+            this.setWaiting(); // No connectors to our internal output means we're in a freshly initialized state.;
           } else {
             this.setProcessing();
           }
@@ -847,6 +860,7 @@ export default class Molecule extends Atom {
       }
 
       GlobalVariables.currentMolecule = GlobalVariables.currentMolecule.parent; //set parent this to be the currently displayed molecule
+      this.enableAllChildren(GlobalVariables.currentMolecule);
     }
   }
 
@@ -990,6 +1004,7 @@ export default class Molecule extends Atom {
       if (GlobalVariables.currentMolecule === this) {
         const outputAtom = this.getOutputAtom();
         outputAtom.enable(); // This propagates through the DAG starting from our output atom.
+        this.enableAllChildren(); // Then enable all other children since they're visible on screen.
       }
     });
   }
@@ -1255,6 +1270,7 @@ export default class Molecule extends Atom {
               clientY: GlobalVariables.heightToPixels(atom.y),
             });
             flowCanvas.dispatchEvent(mouseUpEvent);
+            atom.enable(); // Enable the atom after placing it
           }
         }
       }
