@@ -3,7 +3,7 @@ import GlobalVariables from "../js/globalvariables.js";
 //import GlobalVariables from '../js/globalvariables.js'
 import { proxy } from "comlink";
 import { button, LevaInputs } from "leva";
-import { Status } from "../prototypes/subscribableEntity.js";
+import { Status } from "../prototypes/observableEntity.js";
 
 /**
  * Rearrange all input geometries to fit on a sheet of material. Parts are packed
@@ -221,6 +221,17 @@ export default class CutLayout extends Atom {
   }
 
   onUpstreamChange() {
+    // No-op if this atom is disabled
+    if (this.status === Status.DISABLED) {
+      return;
+    }
+
+    // Check for errors in inputs first
+    if (this.inputsHaveErrors()) {
+      this.setUpstreamError();
+      return;
+    }
+
     // If the upstream geometry has changed, we need to reset our status as stale
     // However, computation must be manually triggered via the "compute layout" button
     // so there's not much else to do here.

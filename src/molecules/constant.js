@@ -61,8 +61,6 @@ export default class Constant extends Atom {
     this.addAllIOs([{ name: "number", valueType: "number", type: "output" }]);
 
     this.setValues(values); //This will overwrite the default value if one is loaded
-
-    this.setReady(this.value);
   }
 
   /**
@@ -122,13 +120,9 @@ export default class Constant extends Atom {
     return outputParams;
   }
 
-  /**
-   * Override onUpstreamChange for constants since they have no inputs
-   */
-  onUpstreamChange() {
-    throw new Error(
-      "Constant atoms have no upstream inputs. Yet recieved an onUpstreamChange call."
-    );
+  enable() {
+    // Enable the atom and set it to READY with the current value
+    this.setReady(this.value);
   }
 
   /**

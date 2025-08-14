@@ -70,7 +70,6 @@ export default class Import extends Atom {
     }
 
     this.setValues(values);
-    this.loadAndPropagate();
   }
 
   /**
@@ -91,6 +90,10 @@ export default class Import extends Atom {
     );
     GlobalVariables.c.fill();
     GlobalVariables.c.closePath();
+  }
+
+  compute(inputs) {
+    return this.loadAndPropagate();
   }
 
   /**
@@ -114,7 +117,7 @@ export default class Import extends Atom {
     this.setProcessing();
 
     if (this.fileName != null) {
-      this.getAFile()
+      return this.getAFile()
         .then((result) => {
           this.sha = result.data.sha;
           this.file = this.newBlobFromBase64(result);
@@ -139,6 +142,7 @@ export default class Import extends Atom {
         .then((result) => {
           this.setReady(result);
           this.sendToRender();
+          return result;
         })
         .catch(this.alertingErrorHandler());
     }

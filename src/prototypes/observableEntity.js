@@ -1,7 +1,9 @@
 const Status = Object.freeze({
+  DISABLED: "disabled",
   WAITING: "waiting",
   PROCESSING: "processing",
   ERROR: "error",
+  UPSTREAM_ERROR: "upstream_error",
   READY: "ready",
 });
 
@@ -10,7 +12,7 @@ const Status = Object.freeze({
  */
 class ObservableEntity {
   constructor() {
-    this.status = Status.WAITING;
+    this.status = Status.DISABLED;
     this.value = null;
     this.subscribers = {};
   }
@@ -18,8 +20,14 @@ class ObservableEntity {
   setStatus(status, value = null) {
     if (status == Status.READY && value === null) {
       throw new Error("Ready status must have a value");
-    } else if (status !== Status.READY && value !== null) {
-      throw new Error("Non-ready status must not have a value");
+    } else if (
+      status !== Status.READY &&
+      status !== Status.DISABLED &&
+      value !== null
+    ) {
+      throw new Error(
+        "Only READY or DISABLED status can have a value. Was: " + status
+      );
     }
     if (this.status != status || this.value !== value) {
       console.debug(
@@ -36,6 +44,11 @@ class ObservableEntity {
     }
   }
 
+  setDisabled() {
+    // Preserve value when making disabled.
+    this.setStatus(Status.DISABLED, this.value);
+  }
+
   setWaiting() {
     this.setStatus(Status.WAITING);
   }
@@ -46,6 +59,10 @@ class ObservableEntity {
 
   setError() {
     this.setStatus(Status.ERROR);
+  }
+
+  setUpstreamError() {
+    this.setStatus(Status.UPSTREAM_ERROR);
   }
 
   setReady(value) {

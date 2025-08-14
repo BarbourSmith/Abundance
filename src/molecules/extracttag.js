@@ -1,6 +1,6 @@
 import Atom from "../prototypes/atom.js";
 import GlobalVariables from "../js/globalvariables.js";
-import { ObservableEntity, Status } from "../prototypes/subscribableEntity.js";
+import { ObservableEntity, Status } from "../prototypes/observableEntity.js";
 
 /**
  * The cut away tag adds a tag to a part indicating that it should be cut away from the rest of the model in the next assembly. Essentially it creates a negitive version of itself.
@@ -130,6 +130,17 @@ export default class ExtractTag extends Atom {
    * the geometry input
    */
   onUpstreamChange() {
+    // No-op if this atom is disabled
+    if (this.status === Status.DISABLED) {
+      return;
+    }
+
+    // Check for errors in inputs first
+    if (this.inputsHaveErrors()) {
+      this.setUpstreamError();
+      return;
+    }
+
     if (this.inputsAreReady()) {
       // Geometry input exists and is ready.
       const geomId = this.findIOValue("input");

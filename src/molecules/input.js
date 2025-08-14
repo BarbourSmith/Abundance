@@ -1,5 +1,6 @@
 import Atom from "../prototypes/atom";
 import GlobalVariables from "../js/globalvariables.js";
+import { Status } from "../prototypes/observableEntity.js";
 
 /**
  * This class creates the input atom.
@@ -91,15 +92,39 @@ export default class Input extends Atom {
         "constructed an input with undefined parent. IDK what to do here"
       );
     }
+  }
 
-    if (this.value) {
+  enable() {
+    // Instead of the usual enable behavior, we want to push the propagation of
+    // enable-ment up to our parent's attachment points if any.
+    if (this.status !== Status.DISABLED) {
+      return;
+    }
+    let didPropagateUpstream = false;
+    if (this.parentAP) {
+      if (this.parentAP.connectors && this.parentAP.connectors.length > 0) {
+        this.parentAP.connectors.forEach((connector) => {
+          const upstreamAtom = connector.attachmentPoint1?.parentMolecule;
+          if (upstreamAtom && upstreamAtom !== this) {
+            // Recursively enable the upstream atom
+            this.setWaiting();
+            upstreamAtom.enable();
+            didPropagateUpstream = true;
+          }
+        });
+      }
+    }
+    if (!didPropagateUpstream) {
       this.setReady(this.value);
-    } else {
-      this.setWaiting();
     }
   }
 
   onUpstreamChange() {
+    // No-op if this atom is disabled
+    if (this.status === Status.DISABLED) {
+      return;
+    }
+
     // This is called when the parent attachment point changes
     // We need to update the value of this input atom
     console.log("onUpstreamChange called on input atom.");
@@ -107,6 +132,13 @@ export default class Input extends Atom {
     if (this.parentAP) {
       const parentState = this.parentAP.getState();
       this.setStatus(parentState.status, parentState.value);
+    } else {
+      // This is a top-level input atom. Set to our value and mark as ready
+      if (this.value) {
+        this.setReady(this.value);
+      } else {
+        this.setWaiting();
+      }
     }
   }
 
@@ -162,31 +194,11 @@ export default class Input extends Atom {
     }
 
     //Set colors
-    if (this.processing) {
-      GlobalVariables.c.fillStyle = "blue";
-    } else if (this.selected) {
-      GlobalVariables.c.fillStyle = Atom.SELECTED_COLOR;
-      GlobalVariables.c.strokeStyle = Atom.DEFAULT_COLOR;
-      /**
-       * This background color
-       * @type {string}
-       */
-      this.color = Atom.SELECTED_COLOR;
-    } else {
-      GlobalVariables.c.fillStyle = Atom.DEFAULT_COLOR;
-      GlobalVariables.c.strokeStyle = Atom.SELECTED_COLOR;
-      this.color = Atom.DEFAULT_COLOR;
-    }
-
-    // Draw the inputs
-    this.inputs.forEach((input) => {
-      input.draw();
-    });
-
-    // Draw the output
-    if (this.output) {
-      this.output.draw();
-    }
+    GlobalVariables.c.fillStyle = Atom.DEFAULT_COLOR;
+    this.color = Atom.statusAsColor(this.status, this.selected);
+    GlobalVariables.c.strokeStyle = this.selected
+      ? Atom.DEFAULT_COLOR
+      : Atom.SELECTED_COLOR;
 
     GlobalVariables.c.beginPath();
     GlobalVariables.c.moveTo(0, yInPixels + this.height / 2);
@@ -195,7 +207,9 @@ export default class Input extends Atom {
     GlobalVariables.c.lineTo(this.width, yInPixels - this.height / 2);
     GlobalVariables.c.lineTo(0, yInPixels - this.height / 2);
     GlobalVariables.c.lineWidth = 1;
+    GlobalVariables.c.fillStyle = this.color;
     GlobalVariables.c.fill();
+    GlobalVariables.c.fillStyle = Atom.DEFAULT_COLOR;
     GlobalVariables.c.closePath();
     GlobalVariables.c.stroke();
     GlobalVariables.c.font = GlobalVariables.fontSize;
@@ -209,6 +223,16 @@ export default class Input extends Atom {
       5,
       yInPixels + 3
     );
+
+    // Draw the inputs
+    this.inputs.forEach((input) => {
+      input.draw();
+    });
+
+    // Draw the output
+    if (this.output) {
+      this.output.draw();
+    }
   }
 
   /**

@@ -2,7 +2,7 @@ import Connector from "./connector.js";
 import GlobalVariables from "../js/globalvariables.js";
 import Atom from "../prototypes/atom.js";
 import { Global } from "@emotion/react";
-import { ObservableEntity, Status } from "./subscribableEntity.js";
+import { ObservableEntity, Status } from "./observableEntity.js";
 
 /**
  * This class creates a new attachmentPoint which are the input and output blobs on Atoms
@@ -520,7 +520,12 @@ export default class AttachmentPoint extends ObservableEntity {
       return;
     }
     const upstreamMolecule = this.connectors[0].attachmentPoint1.parentMolecule;
-    this.setStatus(upstreamMolecule.status, upstreamMolecule.value);
+    const state = upstreamMolecule.getState();
+    if (state.status === Status.READY) {
+      this.setStatus(Status.READY, state.value);
+    } else {
+      this.setStatus(upstreamMolecule.status); // No values for non-ready states
+    }
   }
 
   /**

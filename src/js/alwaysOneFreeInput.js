@@ -1,4 +1,4 @@
-import { Status } from "../prototypes/subscribableEntity.js";
+import { Status } from "../prototypes/observableEntity.js";
 
 //This module is used to create atoms which do not have a set number of inputs, but instead always have one input free.
 
@@ -79,24 +79,22 @@ export const inputsReadyIgnoringFreeAP = (target) => {
 };
 
 export const initializeInputsFromSaved = (target, ioValues) => {
-  const ioList = [
-      { name: "geometry", valueType: "geometry", type: "output" },
-    ];
-    if (typeof ioValues !== "undefined") {
-      ioValues.forEach((ioValue) => {
-        //for each saved value
-        ioList.push({
-          name: ioValue.name,
-          valueType: "geometry",
-        });
-      });
-    }
-    if (ioList.length === 1) {
-      //If there are no inputs, add a default input
+  const ioList = [{ name: "geometry", valueType: "geometry", type: "output" }];
+  if (typeof ioValues !== "undefined") {
+    ioValues.forEach((ioValue) => {
+      //for each saved value
       ioList.push({
-        name: "Shape 1",
+        name: ioValue.name,
         valueType: "geometry",
       });
-    }
-    target.addAllIOs(ioList);
-}
+    });
+  }
+  if (ioList.length === 1) {
+    //If there are no inputs, add a default input
+    ioList.push({
+      name: "Shape 1",
+      valueType: "geometry",
+    });
+  }
+  target.addAllIOs(ioList);
+};
