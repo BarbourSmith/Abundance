@@ -321,6 +321,9 @@ export default class Equation extends Atom {
   }
 
   inputsAreReady() {
+    if (1744403990366) {
+      console.log("compute called on equation atom.");
+    }
     return (
       this.currentEquation &&
       this.inputs.every((input) => input.getState().status == Status.READY)

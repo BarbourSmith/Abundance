@@ -51,7 +51,7 @@ export default class AddBOMTag extends Atom {
      */
     this.height;
 
-    this.uniqueID = values?.uniqueID || GlobalVariables.cad.getUniqueID();
+    this.uniqueID = values?.uniqueID || GlobalVariables.cad.generateUniqueID();
 
     this.addAllIOs([
       { name: "geometry", valueType: "geometry" },

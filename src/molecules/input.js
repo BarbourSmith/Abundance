@@ -98,7 +98,7 @@ export default class Input extends Atom {
     // Instead of the usual enable behavior, we want to push the propagation of
     // enable-ment up to our parent's attachment points if any.
     if (this.status !== Status.DISABLED) {
-      return;
+      return false;
     }
     let didPropagateUpstream = false;
     if (this.parentAP) {
@@ -117,6 +117,7 @@ export default class Input extends Atom {
     if (!didPropagateUpstream) {
       this.setReady(this.value);
     }
+    return true;
   }
 
   onUpstreamChange() {

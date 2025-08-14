@@ -1000,13 +1000,14 @@ export default class Molecule extends Atom {
     // The input atoms within our tree will push the enable call back up to the input
     // atoms at this level (ie to this.inputs).
     if (this.status !== Status.DISABLED) {
-      return;
+      return false;
     }
     this.setWaiting();
     const outputAtom = this.getOutputAtom();
     if (outputAtom) {
       outputAtom.enable();
     }
+    return true;
   }
 
   /**

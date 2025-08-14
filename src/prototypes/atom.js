@@ -33,7 +33,7 @@ export default class Atom extends ObservableEntity {
       case Status.ERROR:
         return "red";
       case Status.UPSTREAM_ERROR:
-        return "yellow";
+        return "#eed202";
       case Status.READY:
         return Atom.DEFAULT_COLOR;
     }
@@ -60,7 +60,7 @@ export default class Atom extends ObservableEntity {
      * This atom's unique ID. Often overwritten later when loading
      * @type {number}
      */
-    this.uniqueID = values?.uniqueID || GlobalVariables.cad.getUniqueID();
+    this.uniqueID = values?.uniqueID || GlobalVariables.cad.generateUniqueID();
 
     /**
      * A description of this atom
@@ -426,13 +426,14 @@ export default class Atom extends ObservableEntity {
   }
 
   /**
-   * Enable this atom and set it to waiting status, allowing it to process upstream changes.
-   * Also recursively enables upstream connected atoms.
+   * Enable this atom and all it's upstream connections.
+   *
+   * Returns a boolean indicating if the atom became enabled (true) or was already enabled (false).
    */
   enable() {
-    // Case 1: This atom is already enabled - do nothing
+    // Case 1: This atom is already enabled - this call is therefore a no-op. Return false.
     if (this.status !== Status.DISABLED) {
-      return;
+      return false;
     }
 
     // Check if this atom has input connections
@@ -443,8 +444,7 @@ export default class Atom extends ObservableEntity {
     if (hasUpstreamConnections) {
       // Case 2: This atom has input connections - enable upstream atoms first
       this.setWaiting();
-      // no need to call onUpstreamChange in this case, our upstream atoms will call us back when
-      // they're ready.
+      const upstreamEnableResults = [];
       this.inputs.forEach((input) => {
         if (input.connectors && input.connectors.length > 0) {
           input.connectors.forEach((connector) => {
@@ -453,15 +453,22 @@ export default class Atom extends ObservableEntity {
             const upstreamAtom = connector.attachmentPoint1?.parentMolecule;
             if (upstreamAtom && upstreamAtom !== this) {
               // Recursively enable the upstream atom
-              upstreamAtom.enable();
+              upstreamEnableResults.push(upstreamAtom.enable());
             }
           });
         }
       });
+
+      // Special case where all our inputs were already enabled.
+      // Kick off propogation from here without delay
+      if (upstreamEnableResults.every((res) => res === false)) {
+        this.onUpstreamChange();
+      }
     } else {
       this.setWaiting();
       this.onUpstreamChange();
     }
+    return true;
   }
 
   /**

@@ -1,5 +1,6 @@
 import Atom from "../prototypes/atom";
 import GlobalVariables from "../js/globalvariables.js";
+import { Status } from "../prototypes/observableEntity.js";
 
 /**
  * This class creates the constant atom instance which can be used to define a numerical constant.
@@ -121,8 +122,11 @@ export default class Constant extends Atom {
   }
 
   enable() {
-    // Enable the atom and set it to READY with the current value
-    this.setReady(this.value);
+    if (this.getState().status == Status.DISABLED) {
+      this.setReady(this.value);
+      return true;
+    }
+    return false;
   }
 
   /**
