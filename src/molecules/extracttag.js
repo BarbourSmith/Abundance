@@ -170,7 +170,6 @@ export default class ExtractTag extends Atom {
       if (this.tagList.source) {
         // there was a valid input geometry but it's been removed.
         this.tagList = { source: undefined, tags: [] };
-        this.tag = undefined;
       }
       this.setWaiting();
     }
