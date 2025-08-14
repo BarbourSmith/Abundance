@@ -24,6 +24,8 @@ export default class Atom extends ObservableEntity {
       return Atom.SELECTED_COLOR;
     }
     switch (status) {
+      case Status.DISABLED:
+        return "#CC00CC"; // light purple
       case Status.WAITING:
         return "#6bcfd6"; // light-blue
       case Status.PROCESSING:
@@ -419,6 +421,53 @@ export default class Atom extends ObservableEntity {
   }
 
   /**
+   * Enable this atom and set it to waiting status, allowing it to process upstream changes.
+   * Also recursively enables upstream connected atoms.
+   */
+  enable() {
+    // Case 1: This atom is already enabled - do nothing
+    if (this.status !== Status.DISABLED) {
+      return;
+    }
+
+    // Check if this atom has input connections
+    const hasUpstreamConnections = this.inputs.some(
+      (input) => input.connectors && input.connectors.length > 0
+    );
+
+    if (hasUpstreamConnections) {
+      // Case 2: This atom has input connections - enable upstream atoms first
+      this.setWaiting();
+      // no need to call onUpstreamChange in this case, our upstream atoms will call us back when
+      // they're ready.
+      this.inputs.forEach((input) => {
+        if (input.connectors && input.connectors.length > 0) {
+          input.connectors.forEach((connector) => {
+            // Find the upstream atom through the connector
+            // attachmentPoint1 is the output (upstream), attachmentPoint2 is the input (this atom)
+            const upstreamAtom = connector.attachmentPoint1?.parentMolecule;
+            if (upstreamAtom && upstreamAtom !== this) {
+              // Recursively enable the upstream atom
+              upstreamAtom.enable();
+            }
+          });
+        }
+      });
+    } else {
+      this.setWaiting();
+      this.onUpstreamChange();
+    }
+  }
+
+  /**
+   * Check if this atom is currently enabled (not in DISABLED status)
+   * @returns {boolean} true if enabled, false if disabled
+   */
+  isEnabled() {
+    return this.status !== Status.DISABLED;
+  }
+
+  /**
    * Set the atom's response to a mouse click. This usually means selecting the atom and displaying it's contents in 3D
    * @param {number} x - The X coordinate of the click
    * @param {number} y - The Y coordinate of the click
@@ -665,6 +714,11 @@ export default class Atom extends ObservableEntity {
    *   as well.
    */
   onUpstreamChange() {
+    // No-op if this atom is disabled
+    if (this.status === Status.DISABLED) {
+      return;
+    }
+
     if (this.inputsAreReady()) {
       const argsDict = Object.fromEntries(
         this.inputs.map((input) => [input.name, input.getState().value])

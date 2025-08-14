@@ -520,7 +520,12 @@ export default class AttachmentPoint extends ObservableEntity {
       return;
     }
     const upstreamMolecule = this.connectors[0].attachmentPoint1.parentMolecule;
-    this.setStatus(upstreamMolecule.status, upstreamMolecule.value);
+    const state = upstreamMolecule.getState();
+    if (state.status === Status.READY) {
+      this.setStatus(Status.READY, state.value);
+    } else {
+      this.setStatus(upstreamMolecule.status); // No values for non-ready states
+    }
   }
 
   /**

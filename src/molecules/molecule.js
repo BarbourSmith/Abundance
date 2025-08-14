@@ -712,6 +712,11 @@ export default class Molecule extends Atom {
   }
 
   onUpstreamChange() {
+    // No-op if this atom is disabled
+    if (this.status === Status.DISABLED) {
+      return;
+    }
+
     const outputAtom = this.getOutputAtom();
     if (outputAtom) {
       const state = outputAtom.getState();
@@ -973,8 +978,29 @@ export default class Molecule extends Atom {
           this.placeConnector(connector);
         });
       }
+
+      if (GlobalVariables.currentMolecule === this) {
+        const outputAtom = this.getOutputAtom();
+        outputAtom.enable(); // This propagates through the DAG starting from our output atom.
+      }
     });
   }
+
+  enable() {
+    // Override default enable behavior. Instead of propagating to our inputs, the molecule
+    // diverts enable calls into it's child tree of atoms.
+    // The input atoms within our tree will push the enable call back up to the input
+    // atoms at this level (ie to this.inputs).
+    if (this.status !== Status.DISABLED) {
+      return;
+    }
+    this.setWaiting();
+    const outputAtom = this.getOutputAtom();
+    if (outputAtom) {
+      outputAtom.enable();
+    }
+  }
+
   /**
    * Loads a project into this GitHub molecule from github based on the passed github ID. This function is async and execution time depends on project complexity, and network speed.
    * @param {number} id - The GitHub project ID for the project to be loaded.
@@ -1193,7 +1219,7 @@ export default class Molecule extends Atom {
 
           if (atom.atomType == "Output") {
             // Subscribe after atom has been added to the nodesOnTheScreen list so that
-            // it's findable
+            // we can find it from inside of onUpstreamChange.
             atom.subscribe(() => {
               this.onUpstreamChange();
             }, this.uniqueID);

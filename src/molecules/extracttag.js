@@ -130,6 +130,11 @@ export default class ExtractTag extends Atom {
    * the geometry input
    */
   onUpstreamChange() {
+    // No-op if this atom is disabled
+    if (this.status === Status.DISABLED) {
+      return;
+    }
+
     if (this.inputsAreReady()) {
       // Geometry input exists and is ready.
       const geomId = this.findIOValue("input");

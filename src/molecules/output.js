@@ -1,5 +1,6 @@
 import Atom from "../prototypes/atom";
 import GlobalVariables from "../js/globalvariables.js";
+import { Status } from "../prototypes/subscribableEntity.js";
 
 /**
  * This class creates the output atom. The goal is that the output atom is fully transparent to the molecule which contains it
@@ -67,6 +68,8 @@ export default class Output extends Atom {
     this.addAllIOs([{ name: "number or geometry", valueType: "geometry" }]);
 
     this.setValues(values);
+    console.log("new output created");
+    console.log(this);
   }
 
   compute(argsDict) {
@@ -102,6 +105,38 @@ export default class Output extends Atom {
     super.deleteNode(false, deletePath);
   }
 
+  inputsAreReady() {
+    return this.inputs.length > 0 && super.inputsAreReady();
+  }
+
+  setStatus(status, value = null) {
+    if (this.uniqueID == "9f9d507e-3da6-4de1-885d-f2896e8c8ff2") {
+      //console.trace(`setstatus with ${status}, ${value} from.. ${this.status}`);
+    }
+    super.setStatus(status, value);
+  }
+
+  onUpstreamChange() {
+    // No-op if this atom is disabled
+    if (this.status === Status.DISABLED) {
+      return;
+    }
+
+    if (this.uniqueID == "9f9d507e-3da6-4de1-885d-f2896e8c8ff2") {
+      console.log(
+        "update received. initial status: " +
+          this.status +
+          " input status: " +
+          this.inputs[0].status
+      );
+      const result = super.onUpstreamChange();
+      console.log("update received. final status: " + this.status);
+      return result;
+    } else {
+      return super.onUpstreamChange();
+    }
+  }
+
   /**
    * Draw the output shape on the screen.
    */
@@ -114,25 +149,11 @@ export default class Output extends Atom {
     this.height = radiusInPixels;
 
     //Set colors
-    if (this.processing) {
-      GlobalVariables.c.fillStyle = "blue";
-    } else if (this.selected) {
-      GlobalVariables.c.fillStyle = Atom.SELECTED_COLOR;
-      GlobalVariables.c.strokeStyle = Atom.DEFAULT_COLOR;
-      /**
-       * This background color
-       * @type {string}
-       */
-      this.color = Atom.SELECTED_COLOR;
-    } else {
-      GlobalVariables.c.fillStyle = Atom.DEFAULT_COLOR;
-      GlobalVariables.c.strokeStyle = Atom.SELECTED_COLOR;
-      this.color = Atom.DEFAULT_COLOR;
-    }
-
-    this.inputs.forEach((child) => {
-      child.draw();
-    });
+    GlobalVariables.c.fillStyle = Atom.DEFAULT_COLOR;
+    this.color = Atom.statusAsColor(this.status, this.selected);
+    GlobalVariables.c.strokeStyle = this.selected
+      ? Atom.DEFAULT_COLOR
+      : Atom.SELECTED_COLOR;
 
     GlobalVariables.c.beginPath();
     GlobalVariables.c.font = "10px Work Sans";
@@ -161,5 +182,9 @@ export default class Output extends Atom {
     GlobalVariables.c.lineJoin = "round";
     GlobalVariables.c.stroke();
     GlobalVariables.c.closePath();
+
+    this.inputs.forEach((child) => {
+      child.draw();
+    });
   }
 }

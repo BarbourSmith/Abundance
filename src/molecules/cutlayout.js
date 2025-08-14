@@ -221,6 +221,11 @@ export default class CutLayout extends Atom {
   }
 
   onUpstreamChange() {
+    // No-op if this atom is disabled
+    if (this.status === Status.DISABLED) {
+      return;
+    }
+
     // If the upstream geometry has changed, we need to reset our status as stale
     // However, computation must be manually triggered via the "compute layout" button
     // so there's not much else to do here.

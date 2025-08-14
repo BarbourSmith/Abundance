@@ -54,7 +54,11 @@ export default class Export extends Atom {
         valueType: "number",
         defaultValue: this.resolution,
       },
-      { name: "Part Name", valueType: "string", defaultValue: this.parent.name },
+      {
+        name: "Part Name",
+        valueType: "string",
+        defaultValue: this.parent.name,
+      },
     ]);
 
     this.setValues(values);
