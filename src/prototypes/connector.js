@@ -296,16 +296,6 @@ export default class Connector {
     }
   }
 
-  // /**
-  //  * Pass the value of the attached output to the attached input
-  //  */
-  // propogate() {
-  //   //takes the input and passes it to the output
-  //   if (this.attachmentPoint1.ready && this.attachmentPoint2) {
-  //     this.attachmentPoint2.setValue(this.attachmentPoint1.getValue());
-  //   }
-  // }
-
   /**
    * Used to walk back out the tree generating a list of constants...used for evolve
    */

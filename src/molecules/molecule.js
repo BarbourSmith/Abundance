@@ -774,44 +774,6 @@ export default class Molecule extends Atom {
   }
 
   /**
-   * Reads molecule's output atom ID to recompute the molecule in worker
-   *
-  recomputeMolecule(outputID) {
-    // TODO: tristan a bunch of this needs to change but there's interesting cases highlighted.
-    try {
-      this.processing = true;
-      const centeredText = document.querySelector(".loading");
-      centeredText.style.display = "flex";
-
-      GlobalVariables.cad.molecule(this.uniqueID, outputID).then(() => {
-        //If we're currently inside this molecule, we don't want to pass the update to the next level until we leave
-        if (GlobalVariables.currentMolecule !== this) {
-          this.basicThreadValueProcessing();
-        } else {
-          this.awaitingPropagationFlag = true;
-        }
-
-        // Compile BOM at the top level to capture the entire project
-        if (GlobalVariables.topLevelMolecule === this) {
-          GlobalVariables.topLevelMolecule
-            .compileBom()
-            .then((result) => {
-              GlobalVariables.topLevelMolecule.compiledBom = result;
-            })
-            .catch((err) => {
-              console.warn("Failed to compile BOM at top level:", err);
-            });
-        }
-        if (this.selected) {
-          this.sendToRender();
-        }
-      });
-    } catch (err) {
-      this.setError(err);
-    }
-  }*/
-
-  /**
    * Called when this molecules value changes
    */
   propagate() {
@@ -860,7 +822,7 @@ export default class Molecule extends Atom {
       }
 
       GlobalVariables.currentMolecule = GlobalVariables.currentMolecule.parent; //set parent this to be the currently displayed molecule
-      this.enableAllChildren(GlobalVariables.currentMolecule);
+      GlobalVariables.currentMolecule.enableAllChildren();
     }
   }
 

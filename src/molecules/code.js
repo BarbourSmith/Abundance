@@ -220,21 +220,6 @@ export default class Code extends Atom {
   }
 
   /**
-   * Override the standard basic thread processing function to allow passing of numbers or geometry depending on what we have
-   
-  customThreadValueProcessing(returnedNumber) {
-    this.decreaseToProcessCountByOne();
-    this.clearAlert();
-    if (this.output) {
-      this.value = returnedNumber;
-      this.output.setValue(returnedNumber);
-      this.output.ready = true;
-    }
-    this.processing = false;
-  }
-    */
-
-  /**
    * This function reads the string of inputs the user specifies and adds them to the atom.
    */
   parseInputs() {

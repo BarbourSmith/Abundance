@@ -30,6 +30,7 @@ class ObservableEntity {
       );
     }
     if (this.status != status || this.value !== value) {
+      // TODO: someday this debug should be replaced with a UI status update
       console.debug(
         "changing status for " +
           this.constructor.name +
@@ -129,8 +130,12 @@ class ObservableEntity {
 
   propagateChange() {
     // Notify all subscribers of this atom that it has changed
-    Object.values(this.subscribers).forEach((subscriber) => {
-      subscriber();
+    Object.entries(this.subscribers).forEach(([id, subscriber]) => {
+      try {
+        subscriber();
+      } catch (error) {
+        console.error(`Error notifying subscriber ${id}:`, error);
+      }
     });
   }
 }

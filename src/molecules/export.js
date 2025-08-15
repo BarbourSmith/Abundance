@@ -44,7 +44,8 @@ export default class Export extends Atom {
 
     this.resolution = 96;
 
-    this.parent = values.parent;
+    this.parent = values?.parent;
+    this.partName = this.parent?.name ?? "output";
 
     this.addAllIOs([
       { name: "geometry", valueType: "geometry" },
@@ -57,15 +58,13 @@ export default class Export extends Atom {
       {
         name: "Part Name",
         valueType: "string",
-        defaultValue: this.parent.name,
+        defaultValue: this.partName,
       },
     ]);
 
     this.setValues(values);
 
     this.importIndex = 0;
-
-    this.partName = this.parent.name;
   }
 
   /**

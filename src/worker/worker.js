@@ -194,6 +194,12 @@ async function rectangle(id, x, y) {
  */
 async function regularPolygon(id, radius, numberOfSides) {
   await started;
+  console.log(
+    "Regular polygon geometry created and stored to " +
+      id +
+      " prior val: " +
+      library[id]
+  );
   library[id] = await shapes.regularPolygon(radius, numberOfSides);
   return id;
 }
@@ -210,6 +216,9 @@ async function regularPolygon(id, radius, numberOfSides) {
 async function text(id, text, fontSize, fontFamily) {
   return started.then(async () => {
     const result = await shapes.text(text, fontSize, fontFamily);
+    console.log(
+      "Text geometry created and stored to " + id + " prior val: " + library[id]
+    );
     library[id] = result;
     return id;
   });
@@ -428,11 +437,10 @@ function tag(targetID, inputID, TAG) {
 /**
  * Extracts and returns all tags from a geometry and its subassemblies.
  * @param {string} inputID - The library ID of the geometry to extract tags from
- * @param {string} tag - Currently unused parameter (kept for compatibility)
  * @returns {Promise<string[]>} A promise that resolves to an array of all unique tags, with "Select Tag" as the first element
  * @throws {Error} Throws an error if the geometry with the specified ID is not found in the library
  */
-function extractAllTags(inputID, tag) {
+function extractAllTags(inputID) {
   return started.then(() => {
     return tags.extractAllTags(getOrThrow(inputID));
   });

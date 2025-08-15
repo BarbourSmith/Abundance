@@ -64,7 +64,6 @@ export const addOrDeletePorts = (target) => {
 /**
  * Determines if inputs are ready for an alwaysOneFreeInput atom.
  * Specifically, returns true iff:
- *  * there is one free input (ie an input with no connector) in the WAITING status
  *  * there is at least one other input with a connector
  *  * and all other inputs have a connection and are in the READY status.
  */

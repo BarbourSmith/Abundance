@@ -96,7 +96,7 @@ export default class Color extends Atom {
   }
 
   /**
-   * Compute the constant value.
+   * Compute & return a promise of the colored geometry
    */
   compute(inputs) {
     const color = Object.values(this.colorOptions)[this.selectedColorIndex];

@@ -68,8 +68,6 @@ export default class Output extends Atom {
     this.addAllIOs([{ name: "number or geometry", valueType: "geometry" }]);
 
     this.setValues(values);
-    console.log("new output created");
-    console.log(this);
   }
 
   compute(argsDict) {
@@ -107,13 +105,6 @@ export default class Output extends Atom {
 
   inputsAreReady() {
     return this.inputs.length > 0 && super.inputsAreReady();
-  }
-
-  setStatus(status, value = null) {
-    if (this.uniqueID == "9f9d507e-3da6-4de1-885d-f2896e8c8ff2") {
-      //console.trace(`setstatus with ${status}, ${value} from.. ${this.status}`);
-    }
-    super.setStatus(status, value);
   }
 
   onUpstreamChange() {

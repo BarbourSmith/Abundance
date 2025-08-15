@@ -250,7 +250,6 @@ export default class Equation extends Atom {
       // Evaluate the substituted equation
       return GlobalVariables.limitedEvaluate(substitutedEquation);
     } catch (error) {
-      console.log(this);
       console.error("Error evaluating equation:", error);
       this.setError(error);
       return NaN;
@@ -275,8 +274,6 @@ export default class Equation extends Atom {
     let inputParams = {};
     /** Runs through active atom inputs and adds IO parameters to default param*/
     if (this.inputs) {
-      console.log("recreating inputs for equation atom: ");
-      console.log(this.inputs);
       this.inputs.map((input) => {
         const checkConnector = () => {
           return input.connectors.length > 0;
@@ -315,25 +312,20 @@ export default class Equation extends Atom {
         disabled: true,
       };
 
-      console.log(inputParams);
       return inputParams;
     }
   }
 
   inputsAreReady() {
-    if (1744403990366) {
-      console.log("compute called on equation atom.");
-    }
     return (
       this.currentEquation &&
       this.inputs.every((input) => input.getState().status == Status.READY)
     );
   }
 
-  compute(inputs) {
+  compute(_) {
     return new Promise((resolve, reject) => {
       this.value = this.evaluateEquation();
-      this.rerenderLevaInputs(); // Update the result in the leva panel
       resolve(this.value);
     });
   }

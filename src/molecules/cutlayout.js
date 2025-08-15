@@ -195,6 +195,7 @@ export default class CutLayout extends Atom {
           inputID,
           placements,
           proxy((message) => {
+            // TODO(tristan): warnings get cleared whenever we setReady.
             this.setWarning(message);
           }),
           {
@@ -235,6 +236,8 @@ export default class CutLayout extends Atom {
     // If the upstream geometry has changed, we need to reset our status as stale
     // However, computation must be manually triggered via the "compute layout" button
     // so there's not much else to do here.
+    // TODO: when loading a saved project we should transition to READY if there were
+    // saved placements.
     this.setWaiting();
   }
 

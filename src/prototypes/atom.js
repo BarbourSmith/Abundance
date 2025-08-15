@@ -171,7 +171,7 @@ export default class Atom extends ObservableEntity {
     GlobalVariables.c.beginPath();
     GlobalVariables.c.font = GlobalVariables.canvasFont;
 
-    this.color = Atom.statusAsColor(this.status, this.selected);
+    this.color = Atom.statusAsColor(this.getState().status, this.selected);
     GlobalVariables.c.fillStyle = this.color;
     GlobalVariables.c.strokeStyle = Atom.SELECTED_COLOR;
     let strokeColor = this.selected ? Atom.DEFAULT_COLOR : Atom.SELECTED_COLOR;
@@ -305,7 +305,6 @@ export default class Atom extends ObservableEntity {
         defaultValue: defaultValue,
         uniqueID: GlobalVariables.generateUniqueID(),
         atomType: "AttachmentPoint",
-        ready: true,
       });
       if (type == "input") {
         this.inputs.push(newAp);
@@ -432,7 +431,7 @@ export default class Atom extends ObservableEntity {
    */
   enable() {
     // Case 1: This atom is already enabled - this call is therefore a no-op. Return false.
-    if (this.status !== Status.DISABLED) {
+    if (this.isEnabled()) {
       return false;
     }
 
@@ -465,8 +464,8 @@ export default class Atom extends ObservableEntity {
         this.onUpstreamChange();
       }
     } else {
-      this.setWaiting();
-      this.onUpstreamChange();
+      this.setWaiting(); // transition out of disabled.
+      this.onUpstreamChange(); // prompt atom to compute it's value and callback its subscribers.
     }
     return true;
   }
@@ -736,8 +735,8 @@ export default class Atom extends ObservableEntity {
    *   as well.
    */
   onUpstreamChange() {
-    // No-op if this atom is disabled
-    if (this.status === Status.DISABLED) {
+    // No-op if this atom isn't enabled
+    if (!this.isEnabled()) {
       return;
     }
 
@@ -765,13 +764,6 @@ export default class Atom extends ObservableEntity {
         .deleteFromLibrary(this.uniqueID)
         .catch(this.alertingErrorHandler());
     }
-  }
-
-  /**
-   * Set's the output value and shows the atom output on the 3D view.
-   */
-  decreaseToProcessCountByOne() {
-    GlobalVariables.topLevelMolecule.census();
   }
 
   /**
@@ -833,7 +825,7 @@ export default class Atom extends ObservableEntity {
             onChange: (value) => {
               if (input.value !== value) {
                 input.setValue(value);
-                this.sendToRender();
+                //this.sendToRender();
               }
             },
           };

@@ -122,7 +122,7 @@ export default class AttachmentPoint extends ObservableEntity {
 
     let radiusInPixels = GlobalVariables.widthToPixels(this.scaledRadius);
 
-    if (this.isTargetted) {
+    if (this.isTargeted) {
       radiusInPixels = radiusInPixels * AttachmentPoint.TARGET_SCALEUP;
     }
 
@@ -280,7 +280,7 @@ export default class AttachmentPoint extends ObservableEntity {
         this.x,
         this.y
       );
-      this.isTargetted = this.isCloseEnoughToTarget(x, y);
+      this.isTargeted = this.isCloseEnoughToTarget(x, y);
     } else {
       this.unexpand();
     }
@@ -296,7 +296,7 @@ export default class AttachmentPoint extends ObservableEntity {
    */
   unexpand() {
     this.isVisible = false;
-    this.isTargetted = false;
+    this.isTargeted = false;
     // Also restore this.x and this.x to be on the perimiter of parent module
     // since those values are used when rendering connectors.
     this.y = this.parentMolecule.y;
@@ -319,7 +319,9 @@ export default class AttachmentPoint extends ObservableEntity {
    * the parent molecule.
    */
   computePosition(boundary) {
-    const inputList = this.parentMolecule.inputs;
+    const inputList = this.parentMolecule.inputs.filter(
+      (ap) => ap.type == "input"
+    );
 
     if (this.type == "output") {
       if (this.parentMolecule.atomType == "Input") {
@@ -403,7 +405,9 @@ export default class AttachmentPoint extends ObservableEntity {
       let targetRadius = apRadiusInPixels * 2;
       // check if this creates overlapping target areas in the case where there's multiple inputs.
       // If so reduce the targetting radius.
-      const inputCount = this.parentMolecule.inputs.length;
+      const inputCount = this.parentMolecule.inputs.filter(
+        (ap) => ap.type == "input"
+      ).length;
 
       let hoverRadius = GlobalVariables.widthToPixels(
         AttachmentPoint.DIST_FROM_PARENT * this.parentMolecule.radius -
@@ -442,9 +446,9 @@ export default class AttachmentPoint extends ObservableEntity {
    * being removed from an assembly)
    */
   deleteSelf(silent = false) {
-    this.connectors.forEach((connector) => {
+    for (const connector of [...this.connectors]) {
       this.deleteConnector(connector, silent);
-    });
+    }
     this.connectors = [];
   }
 

@@ -53,7 +53,8 @@ export default class Gcode extends Atom {
      */
     this.gcodeGenerated = false;
 
-    this.parent = values.parent;
+    this.parent = values?.parent;
+    this.partName = this.parent?.name ?? "output";
 
     this.addAllIOs([
       { name: "geometry", valueType: "geometry" },
@@ -64,7 +65,7 @@ export default class Gcode extends Atom {
       {
         name: "Part Name",
         valueType: "string",
-        defaultValue: this.parent.name,
+        defaultValue: this.partName,
       },
       {
         name: "output",
@@ -75,8 +76,6 @@ export default class Gcode extends Atom {
     ]);
 
     this.setValues(values);
-
-    this.partName = this.parent.name;
 
     // Initialize Kiri:Moto if not already initialized
     if (!GlobalVariables.kirimotoInitialized) {

@@ -114,7 +114,12 @@ export default class Assembly extends Atom {
 
   compute(inputs) {
     addOrDeletePorts(this); // clean up ports then check if we're in a ready state.
-    const nonnullInputIds = Object.values(inputs).filter((i) => i);
+    // Preserve order from this.inputs since assembly behavior is highly order dependent and
+    // the inputs dict may not traverse in the same order by default.
+    const nonnullInputIds = this.inputs
+      .filter((io) => io.connectors.length > 0)
+      .map((io) => inputs[io.name])
+      .filter(Boolean);
     return GlobalVariables.cad.assembly(nonnullInputIds, this.uniqueID);
   }
 

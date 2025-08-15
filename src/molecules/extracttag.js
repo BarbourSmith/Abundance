@@ -120,14 +120,15 @@ export default class ExtractTag extends Atom {
   }
 
   compute(inputs) {
-    const inputID = inputs.geometry;
-    console.log("extracting tag", this.tag, "from geometry", inputID);
+    const inputID = inputs.input;
+    console.log("extracting tag", this.tag, "from input geom: ", inputID);
     return GlobalVariables.cad.extractTag(this.uniqueID, inputID, this.tag);
   }
 
   /**
-   * Override defautl behavior since tagList operates as both an input and is dependent on
-   * the geometry input
+   * Override default behavior since extractTag is a two-step process
+   * We first need to extract the list of candidate tags from the input geometry
+   * then wait on the user to select one before we can proceed with extraction.
    */
   onUpstreamChange() {
     // No-op if this atom is disabled
@@ -152,7 +153,7 @@ export default class ExtractTag extends Atom {
       if (!this.tagList.source || this.tagList.source != geomId) {
         this.setProcessing();
         GlobalVariables.cad
-          .extractAllTags(geomId, this.tag)
+          .extractAllTags(geomId)
           .then((result) => {
             // Implicit recursion since we're observing tagList with onUpstreamChange
             this.setWaiting();
@@ -165,7 +166,7 @@ export default class ExtractTag extends Atom {
         if (this.tag != "Select Tag") {
           // A legit tag has been selected and we're ready to go!
           this.setProcessing();
-          this.compute({ geometry: geomId })
+          this.compute({ input: geomId })
             .then((value) => {
               console.log(
                 `Extracted tag ${this.tag} from geometry ${geomId}, result:`,
