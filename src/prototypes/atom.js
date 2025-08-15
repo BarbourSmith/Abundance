@@ -118,17 +118,21 @@ export default class Atom extends ObservableEntity {
       message: "",
     };
 
-    this.subscribe(() => {
-      if (
-        this.getState().status != Status.ERROR &&
-        this.getState().status != Status.UPSTREAM_ERROR
-      ) {
-        this.alert = {
-          type: AlertType.NONE,
-          message: "",
-        };
-      }
-    }, "self-clear-alert");
+    this.subscribe(this.selfSubscriber.bind(this), "self-clear-alert");
+  }
+
+  selfSubscriber() {
+    const status = this.getState().status;
+    if (status != Status.ERROR) {
+      this.alert = {
+        type: AlertType.NONE,
+        message: "",
+      };
+    }
+    if (status == Status.READY && this.selected) {
+      // if status just became ready and we're selected, update the render
+      this.sendToRender();
+    }
   }
 
   /**

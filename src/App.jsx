@@ -91,6 +91,7 @@ export default function ReplicadApp() {
 
   useEffect(() => {
     GlobalVariables.writeToDisplay = (id, resetView = false) => {
+      console.trace(`sending ${id} to display`);
       setOutdatedMesh(true);
       if (resetView) {
         cad
