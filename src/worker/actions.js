@@ -44,14 +44,27 @@ function move(toMove, x, y, z) {
     return util.actOnLeafs(
       toMove,
       (leaf) => {
+        // For 2D shapes, we need to move the plane rather than the geometry
+        // The geometry stays the same relative to its plane
+        const plane = leaf.plane;
+        
+        // Calculate the world coordinates for the x,y movement in the plane's coordinate system
+        const worldOffsetX = x * plane.xDir.x + y * plane.yDir.x;
+        const worldOffsetY = x * plane.xDir.y + y * plane.yDir.y;
+        const worldOffsetZ = x * plane.xDir.z + y * plane.yDir.z;
+        
+        // Move the plane's origin by the calculated offset plus the z offset
+        const newPlane = plane.translate([worldOffsetX, worldOffsetY, worldOffsetZ + z]);
+        
         return {
-          geometry: [leaf.geometry[0].clone().translate([x, y])],
+          geometry: [leaf.geometry[0].clone()], // Geometry stays the same relative to plane
           tags: leaf.tags,
-          plane: leaf.plane.translate([0, 0, z]),
+          plane: newPlane,
           color: leaf.color,
           bom: leaf.bom,
         };
       },
+      // For the assembly plane, we only apply the Z translation since X,Y are handled per-leaf
       toMove.plane.translate([0, 0, z])
     );
   }

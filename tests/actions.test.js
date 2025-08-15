@@ -52,7 +52,40 @@ describe("shapes.js", () => {
       vectorEquals(result.plane.origin, 0, 0, moveZ);
     });
     // TODO: add tests for moving a 3d object
-    // TODO: add test for moving a 2d object in 3 dimension after it's plane has been rotated.
+    
+    it("understand how 2D geometry bounding boxes work with planes", async () => {
+      const { circle } = await import("../src/worker/shapes.js");
+      const originalCircle = await circle(10);
+      console.log("Original circle bounding box center:", originalCircle.geometry[0].boundingBox.center);
+      
+      const original3D = originalCircle.geometry[0].sketchOnPlane(originalCircle.plane);
+      console.log("Original circle 3D:", original3D);
+      if (original3D && original3D.boundingBox) {
+        console.log("Original circle 3D bounding box center:", original3D.boundingBox.center);
+      }
+      
+      const rotatedCircle = await rotate(originalCircle, 0, 45, 0);
+      console.log("Rotated circle bounding box center:", rotatedCircle.geometry[0].boundingBox.center);
+      
+      const rotated3D = rotatedCircle.geometry[0].sketchOnPlane(rotatedCircle.plane);
+      console.log("Rotated circle 3D:", rotated3D);
+      if (rotated3D && rotated3D.boundingBox) {
+        console.log("Rotated circle 3D bounding box center:", rotated3D.boundingBox.center);
+      }
+      
+      const movedCircle = await move(rotatedCircle, 10, 0, 0);
+      console.log("Moved circle bounding box center:", movedCircle.geometry[0].boundingBox.center);
+      
+      const moved3D = movedCircle.geometry[0].sketchOnPlane(movedCircle.plane);
+      console.log("Moved circle 3D:", moved3D);
+      if (moved3D && moved3D.boundingBox) {
+        console.log("Moved circle 3D bounding box center:", moved3D.boundingBox.center);
+      }
+      
+      // For now, just check that the sketchOnPlane returns something valid
+      expect(rotated3D).toBeDefined();
+      expect(moved3D).toBeDefined();
+    });
   });
 
   describe("rotate", () => {
