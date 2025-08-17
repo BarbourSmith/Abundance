@@ -127,10 +127,19 @@ const generateGcode = (
       // Add small epsilon to avoid floating point errors causing extra pass
       const epsilon = 0.0001;
       const validPasses = Math.max(1, Math.floor(Number(passes) || 1));
-      const down = Math.abs(zBottom) / validPasses + epsilon; // positive value per pass
+      const stepDepth = Math.abs(zBottom) / validPasses; // depth per pass
+      const totalDepth = Math.abs(zBottom); // total cutting depth
 
       // Debug logging for pass calculation
-      console.log("CAM pass debug:", { passes, z, zBottom, down });
+      console.log("CAM pass debug:", { 
+        passes, 
+        validPasses, 
+        z, 
+        zBottom, 
+        stepDepth, 
+        totalDepth,
+        "Fix applied": "steps set to validPasses, down set to totalDepth"
+      });
       return eng.setProcess({
         camEaseAngle: 10,
         camEaseDown: true,
@@ -144,9 +153,9 @@ const generateGcode = (
             type: "outline",
             tool: 1000,
             spindle: 13000,
-            step: 0.4,
-            steps: 1,
-            down: down, // correct depth per pass
+            step: stepDepth, // depth per pass (was fixed 0.4)
+            steps: validPasses, // number of passes (was always 1)
+            down: totalDepth, // total depth (was depth per pass)
             rate: 635,
             plunge: 51,
             dogbones: false,
