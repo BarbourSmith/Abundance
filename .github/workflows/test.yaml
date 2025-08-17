@@ -16,9 +16,9 @@ permissions:
   issues: write
   id-token: write
 
-# Allow one concurrent deployment
+# Allow one concurrent test run
 concurrency:
-  group: "pages"
+  group: "puppeteer-tests"
   cancel-in-progress: false
 
 jobs:
