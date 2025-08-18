@@ -4,6 +4,9 @@ import GlobalVariables from "./globalvariables.js";
 /**
  * Utility class for evaluating mathematical expressions in atom inputs
  * Extracted from equation.js to be reusable across all atoms
+ * 
+ * This enables any numeric input in any atom to accept and evaluate
+ * mathematical expressions like "4*2" or use variables like "diameter*2"
  */
 export class EquationEvaluator {
   /**

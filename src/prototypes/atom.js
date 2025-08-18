@@ -714,6 +714,7 @@ export default class Atom {
   }
   /**
    * Create Leva Menu Inputs - returns to ParameterEditor
+   * Enhanced to support equation evaluation in numeric inputs
    */
   createLevaInputs() {
     let inputParams = {};
@@ -734,7 +735,8 @@ export default class Atom {
             disabled: checkConnector(),
             onChange: (value) => {
               if (input.value !== value) {
-                // Check if the value is an equation and evaluate it
+                // Enhanced: Check if the value is an equation and evaluate it
+                // This enables inputs like Circle diameter to accept "4*2" or "diameter*2"
                 let finalValue = value;
                 if (input.valueType === "number" && EquationEvaluator.isEquation(value)) {
                   try {
