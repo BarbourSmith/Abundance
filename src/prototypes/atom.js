@@ -1,5 +1,6 @@
 import AttachmentPoint from "./attachmentpoint";
 import GlobalVariables from "../js/globalvariables.js";
+import { EquationEvaluator } from "../js/equationEvaluator.js";
 import showdown from "showdown";
 import globalvariables from "../js/globalvariables.js";
 
@@ -733,7 +734,24 @@ export default class Atom {
             disabled: checkConnector(),
             onChange: (value) => {
               if (input.value !== value) {
-                input.setValue(value);
+                // Check if the value is an equation and evaluate it
+                let finalValue = value;
+                if (input.valueType === "number" && EquationEvaluator.isEquation(value)) {
+                  try {
+                    finalValue = EquationEvaluator.evaluateEquation(value, this);
+                    // Store the original equation string for reference
+                    input._originalEquation = value;
+                  } catch (error) {
+                    console.warn("Equation evaluation failed:", error);
+                    // Fall back to the original value if evaluation fails
+                    finalValue = value;
+                  }
+                } else {
+                  // Clear any stored equation if we're back to a simple value
+                  delete input._originalEquation;
+                }
+                
+                input.setValue(finalValue);
                 //this.sendToRender();
               }
             },
