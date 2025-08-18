@@ -287,13 +287,8 @@ export default class Gcode extends Atom {
                   (bounds.max[1] + bounds.min[1]) / 2,
                   (bounds.max[2] + bounds.min[2]) / 2,
                 ];
-                // Generate gcode automatically if in run mode OR if output is connected
-                if (
-                  window.location.pathname.includes("/run/") ||
-                  (this.output && this.output.connectors.length > 0)
-                ) {
-                  this._generateGcode();
-                }
+                // Always generate gcode when geometry input is processed
+                this._generateGcode();
               });
           });
       })
@@ -316,14 +311,9 @@ export default class Gcode extends Atom {
       // Sort parts based on selected direction
       const sortedParts = await this._sortParts(parts);
 
-      // Generate G-code automatically if in run mode OR if output is connected
-      if (
-        window.location.pathname.includes("/run/") ||
-        (this.output && this.output.connectors.length > 0)
-      ) {
-        // Generate G-code for each part sequentially
-        await this._generateSequentialGcode(sortedParts);
-      }
+      // Always generate G-code when assembly is processed
+      // Generate G-code for each part sequentially
+      await this._generateSequentialGcode(sortedParts);
     } catch (err) {
       console.error("Error processing assembly:", err);
       this.setError(err);
@@ -640,16 +630,27 @@ export default class Gcode extends Atom {
   }
 
   /**
-   * Begin propagation from this gcode atom if its output is connected to something.
-   * This ensures gcode is automatically generated when needed for proper propagation.
+   * Begin propagation from this gcode atom.
+   * Like other atoms, trigger updateValue when inputs are not connected.
    */
   beginPropagation() {
-    // Check if the output is connected to something
-    if (this.output && this.output.connectors.length > 0) {
-      // Only trigger if gcode hasn't been generated yet
-      if (!this.gcodeGenerated) {
-        this.updateValue();
+    // If there are no inputs (shouldn't happen for gcode, but for consistency)
+    if (this.inputs.length == 0) {
+      this.updateValue();
+      return;
+    }
+
+    // If none of the geometry inputs are connected, don't auto-generate
+    var geometryInputConnected = false;
+    this.inputs.forEach((input) => {
+      if (input.name === "Geometry" && input.connectors.length > 0) {
+        geometryInputConnected = true;
       }
+    });
+    
+    // Only trigger if geometry is connected (main input for gcode generation)
+    if (geometryInputConnected && !this.gcodeGenerated) {
+      this.updateValue();
     }
   }
 
