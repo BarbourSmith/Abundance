@@ -37,6 +37,70 @@ function countCuttingPasses(gcode) {
 }
 
 /**
+ * Analyze G-code and provide detailed pass information
+ * @param {string} gcode - The G-code text to analyze
+ * @returns {Object} Detailed analysis of the G-code passes
+ */
+function analyzeGcodePasses(gcode) {
+  const passes = [];
+  let currentZ = 0;
+  let lineNumber = 0;
+  
+  const lines = gcode.split('\n');
+  
+  for (const line of lines) {
+    lineNumber++;
+    const cmd = line.trim().toUpperCase();
+    
+    if ((cmd.startsWith('G0') || cmd.startsWith('G1')) && cmd.includes('Z')) {
+      const zMatch = cmd.match(/Z([\d.-]+)/);
+      if (zMatch) {
+        const z = parseFloat(zMatch[1]);
+        
+        if (z < 0 && z !== currentZ) {
+          passes.push({
+            depth: z,
+            lineNumber,
+            command: line.trim()
+          });
+          currentZ = z;
+        }
+      }
+    }
+  }
+  
+  return {
+    totalPasses: passes.length,
+    passes: passes,
+    deepestCut: passes.length > 0 ? Math.min(...passes.map(p => p.depth)) : 0,
+    averageDepthPerPass: passes.length > 0 ? Math.abs(Math.min(...passes.map(p => p.depth))) / passes.length : 0
+  };
+}
+
+/**
+ * Verify that G-code pass count matches expected configuration
+ * @param {string} gcode - The G-code to verify
+ * @param {number} expectedPasses - Expected number of passes
+ * @param {Object} config - Optional configuration details for better error messages
+ * @returns {Object} Verification result
+ */
+function verifyGcodePassCount(gcode, expectedPasses, config = {}) {
+  const analysis = analyzeGcodePasses(gcode);
+  const actualPasses = analysis.totalPasses;
+  
+  return {
+    success: actualPasses === expectedPasses,
+    expectedPasses,
+    actualPasses,
+    analysis,
+    message: actualPasses === expectedPasses 
+      ? `✅ Pass count correct: ${actualPasses} passes`
+      : `❌ Pass count mismatch: expected ${expectedPasses}, got ${actualPasses}`,
+    config
+  };
+}
+
+/**
  * Generate mock G-code with specified number of passes
  * @param {number} passes - Number of cutting passes to simulate
  * @param {number} materialThickness - Thickness of material in mm
@@ -162,6 +226,42 @@ describe("G-code verification test", () => {
     expect(actualPasses).not.toBe(requestedPasses); // This should fail once the bug is fixed
   });
   
+  test("should provide detailed G-code pass analysis", () => {
+    const testGcode = generateMockGcode(3, 5, 1.5);
+    const analysis = analyzeGcodePasses(testGcode);
+    
+    expect(analysis.totalPasses).toBe(3);
+    expect(analysis.passes).toHaveLength(3);
+    expect(analysis.deepestCut).toBe(-6.5); // Total depth of 6.5mm
+    expect(analysis.averageDepthPerPass).toBeCloseTo(2.17, 1); // 6.5/3 ≈ 2.17
+    
+    // Check that each pass is deeper than the previous
+    for (let i = 1; i < analysis.passes.length; i++) {
+      expect(analysis.passes[i].depth).toBeLessThan(analysis.passes[i-1].depth);
+    }
+  });
+  
+  test("should verify G-code pass count with detailed feedback", () => {
+    const config = { materialThickness: 5, cutThrough: 1.5, toolSize: 6.35 };
+    
+    // Test correct pass count
+    const correctGcode = generateMockGcode(2, config.materialThickness, config.cutThrough);
+    const correctResult = verifyGcodePassCount(correctGcode, 2, config);
+    
+    expect(correctResult.success).toBe(true);
+    expect(correctResult.actualPasses).toBe(2);
+    expect(correctResult.message).toContain('✅ Pass count correct');
+    
+    // Test incorrect pass count (simulating the bug)
+    const buggyGcode = generateMockGcode(3, config.materialThickness, config.cutThrough);
+    const buggyResult = verifyGcodePassCount(buggyGcode, 2, config);
+    
+    expect(buggyResult.success).toBe(false);
+    expect(buggyResult.actualPasses).toBe(3);
+    expect(buggyResult.message).toContain('❌ Pass count mismatch');
+    expect(buggyResult.message).toContain('expected 2, got 3');
+  });
+
   test("should verify G-code parser handles various formats", () => {
     // Test different G-code formatting styles
     const variations = [
@@ -180,6 +280,9 @@ describe("G-code verification test", () => {
     }
   });
 });
+
+// Export the utility functions for use in other tests or integration
+export { countCuttingPasses, analyzeGcodePasses, verifyGcodePassCount };
 
 // TODO: Future enhancement - integrate with actual G-code generation
 // This test establishes the parsing infrastructure. Next steps would be:
