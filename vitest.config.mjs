@@ -22,7 +22,7 @@ export default defineConfig({
     },
   },
   test: {
-    environment: 'node', // Use 'jsdom' if you need browser APIs
+    environment: 'node', // Keep node environment for better compatibility
     globals: true,
     setupFiles: ['./tests/setupVitestMocks.mjs'], 
     include: ['tests/**/*.test.{js,mjs,ts}', 'tests/**/*.integration.{js,mjs,ts}'],
