@@ -824,7 +824,10 @@ export default class Molecule extends Atom {
         if (this.inputs.every((input) => input.status == Status.READY)) {
           // All inputs are ready but our output isn't yet. check for an internal error
           // else we're in progress.
-          if (outputAtom.status == Status.UPSTREAM_ERROR) {
+          if (
+            outputAtom.status == Status.UPSTREAM_ERROR ||
+            outputAtom.status == Status.ERROR
+          ) {
             this.onChildError();
           } else if (outputAtom.inputs[0]?.connectors.length == 0) {
             this.setWaiting(); // No connectors to our internal output means we're in a freshly initialized state.;
@@ -984,7 +987,7 @@ export default class Molecule extends Atom {
    * @param {object} json - A json representation of the molecule
    * @param {object} values - An array of values to apply to this molecule before de-serializing it's contents. Used by githubmolecules to set top level correctly
    */
-  deserialize(json, values = {}, forceBeginPropagation = false) {
+  deserialize(json, values = {}, forceEnable = false) {
     //Find the target molecule in the list
     let promiseArray = [];
 
@@ -1029,6 +1032,13 @@ export default class Molecule extends Atom {
         json.allConnectors.forEach((connector) => {
           this.placeConnector(connector);
         });
+      }
+
+      if (forceEnable) {
+        const outputAtom = this.getOutputAtom();
+        // For GH molecules and other non-current molecules, only enable the output atom
+        // and it's upstream dependencies.
+        outputAtom.enable();
       }
 
       if (GlobalVariables.currentMolecule === this) {
@@ -1350,10 +1360,15 @@ export default class Molecule extends Atom {
 
           if (atom.atomType == "Output") {
             // Subscribe after atom has been added to the nodesOnTheScreen list so that
-            // we can find it from inside of onUpstreamChange.
-            atom.subscribe(() => {
-              this.onUpstreamChange();
-            }, this.uniqueID);
+            // we can find it from inside of onUpstreamChange. No need for immediate
+            // callback since output is disabled at this point.
+            atom.subscribe(
+              () => {
+                this.onUpstreamChange();
+              },
+              this.uniqueID,
+              false
+            );
           }
 
           if (unlock) {
