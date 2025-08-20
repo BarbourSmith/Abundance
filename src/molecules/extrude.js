@@ -81,7 +81,7 @@ export default class Extrude extends Atom {
         .then(() => {
           this.basicThreadValueProcessing();
         })
-        .catch(this.alertingErrorHandler());
+        .catch((err) => this.alertingErrorHandler(err));
     }
   }
 }

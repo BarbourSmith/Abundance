@@ -114,7 +114,7 @@ export default class Color extends Atom {
         .then(() => {
           this.basicThreadValueProcessing();
         })
-        .catch(this.alertingErrorHandler());
+        .catch((err) => this.alertingErrorHandler(err));
     }
   }
 

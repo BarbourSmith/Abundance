@@ -136,7 +136,7 @@ export default class Join extends Atom {
         .then(() => {
           this.basicThreadValueProcessing();
         })
-        .catch(this.alertingErrorHandler());
+        .catch((err) => this.alertingErrorHandler(err));
 
       //Delete or add ports as needed
       addOrDeletePorts(this);

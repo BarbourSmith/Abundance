@@ -142,7 +142,7 @@ export default class Import extends Atom {
             })
             .catch((error) => {
               alert(`Error processing file: ${error.message || error}`);
-              this.alertingErrorHandler();
+              this.alertingErrorHandler(error);
             });
           if (this.type == "SVG") {
             this.addIO("input", "SVG Width", this, "number", 5, true);

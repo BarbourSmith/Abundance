@@ -12,7 +12,6 @@ export default class Difference extends Atom {
   constructor(values) {
     super(values);
 
-
     this.addIO("input", "geometry1", this, "geometry", "");
     this.addIO("input", "geometry2", this, "geometry", "");
     this.addIO("output", "geometry", this, "geometry", "");
@@ -84,7 +83,7 @@ export default class Difference extends Atom {
         .then(() => {
           this.basicThreadValueProcessing();
         })
-        .catch(this.alertingErrorHandler());
+        .catch((err) => this.alertingErrorHandler(err));
     }
   }
 }

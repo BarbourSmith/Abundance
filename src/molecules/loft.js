@@ -3,7 +3,7 @@ import { addOrDeletePorts } from "../js/alwaysOneFreeInput.js";
 import GlobalVariables from "../js/globalvariables.js";
 
 /**
- * This class creates the loft atom. 
+ * This class creates the loft atom.
  */
 export default class Loft extends Atom {
   /**
@@ -124,7 +124,7 @@ export default class Loft extends Atom {
         .then(() => {
           this.basicThreadValueProcessing();
         })
-        .catch(this.alertingErrorHandler());
+        .catch((err) => this.alertingErrorHandler(err));
 
       //Delete or add ports as needed
       addOrDeletePorts(this);

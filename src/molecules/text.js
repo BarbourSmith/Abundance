@@ -134,7 +134,7 @@ export default class Text extends Atom {
       .then(() => {
         this.basicThreadValueProcessing();
       })
-      .catch(this.alertingErrorHandler());
+      .catch((err) => this.alertingErrorHandler(err));
   }
 
   serialize(offset = { x: 0, y: 0 }) {

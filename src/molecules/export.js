@@ -94,7 +94,7 @@ export default class Export extends Atom {
         .then((result) => {
           this.basicThreadValueProcessing();
         })
-        .catch(this.alertingErrorHandler());
+        .catch((err) => this.alertingErrorHandler(err));
     }
   }
 
@@ -183,7 +183,7 @@ export default class Export extends Atom {
         console.log("File type");
         saveAs(result, partName + "." + fileType.toLowerCase());
       })
-      .catch(this.alertingErrorHandler());
+      .catch((err) => this.alertingErrorHandler(err));
   }
   /**
    * Add the file name to the object which is saved for this molecule

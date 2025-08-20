@@ -87,7 +87,7 @@ export default class Output extends Atom {
           //Recompute molecule gets called if we have successfully updated the value of output
           this.parent.recomputeMolecule(this.uniqueID);
         })
-        .catch(this.alertingErrorHandler());
+        .catch((err) => this.alertingErrorHandler(err));
 
       //Propagate passes the updated value on while parent.updateValue is called when one of the molecule inputs changes
       this.parent.propagate();

@@ -93,7 +93,10 @@ export default class Intersection extends Atom {
         .then(() => {
           this.basicThreadValueProcessing();
         })
-        .catch(this.alertingErrorHandler());
+        .catch((err) => {
+          console.error("Intersection atom error:", err);
+          this.alertingErrorHandler(err);
+        });
     }
   }
 }

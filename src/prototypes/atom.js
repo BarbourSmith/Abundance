@@ -354,13 +354,11 @@ export default class Atom {
    * an alert on this atom with the message of the error.
    * @returns
    */
-  alertingErrorHandler() {
-    return (err) => {
-      this.processing = false;
-      console.log("Error in atom: " + this.name);
-      console.log(err);
-      this.setError(err.message || "Unkown error occurred");
-    };
+  alertingErrorHandler(err) {
+    this.processing = false;
+    console.log("Error in atom: " + this.name);
+    console.log(err);
+    this.setError(err.message || "Unknown error occurred");
   }
 
   /**
