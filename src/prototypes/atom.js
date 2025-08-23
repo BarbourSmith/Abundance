@@ -452,6 +452,10 @@ export default class Atom extends ObservableEntity {
       return false;
     }
 
+    if (this.name == "Output") {
+      console.trace("enabling output atom: " + this.uniqueID);
+    }
+
     // Check if this atom has input connections
     const hasUpstreamConnections = this.inputs.some(
       (input) => input.connectors && input.connectors.length > 0
@@ -476,7 +480,7 @@ export default class Atom extends ObservableEntity {
       });
 
       // Special case where all our inputs were already enabled.
-      // Kick off propogation from here without delay
+      // Kick off propagation from here without delay
       if (upstreamEnableResults.every((res) => res === false)) {
         this.onUpstreamChange();
       }
@@ -840,11 +844,11 @@ export default class Atom extends ObservableEntity {
             step: 0.25,
             type: LevaInputs.STRING,
             disabled: checkConnector(),
-            onChange: async (value) => {
+            onChange: (value) => {
               let currentEquation = String(value).trim();
               input.currentEquation = currentEquation;
               try {
-                const result = await this.evaluateEquation(
+                const result = this.evaluateEquation(
                   currentEquation,
                   input.name
                 );
@@ -868,11 +872,9 @@ export default class Atom extends ObservableEntity {
   /**
    * Evaluate the equation
    */
-  async evaluateEquation(equation) {
+  evaluateEquation(equation) {
     let substitutedEquation = String(equation ?? "").trim();
-    const variables = await this.extractVariablesFromEquation(
-      substitutedEquation
-    );
+    const variables = this.extractVariablesFromEquation(substitutedEquation);
     const unresolved = [];
     const resolvedValues = {};
     if (variables.length > 0) {
@@ -928,7 +930,7 @@ export default class Atom extends ObservableEntity {
           String(resolvedValues[variable])
         );
       }
-      const result = await GlobalVariables.limitedEvaluate(substitutedEquation);
+      const result = GlobalVariables.limitedEvaluate(substitutedEquation);
       return result;
     }
   }
@@ -938,7 +940,7 @@ export default class Atom extends ObservableEntity {
    * Only true variables (not function names) are returned.
    * @returns {string[]} Array of variable names
    */
-  async extractVariablesFromEquation(equation) {
+  extractVariablesFromEquation(equation) {
     let variables = [];
     try {
       const node = parse(equation);

@@ -195,7 +195,7 @@ export default class Molecule extends Atom {
             label: input.name,
             type: LevaInputs.STRING,
             disabled: checkConnector(),
-            onChange: async (value) => {
+            onChange: (value) => {
               /* If the user has set the type as string don't evaluate as equation */
               if (input.type && input.valueType?.toUpperCase() === "STRING") {
                 input.setValue(value);
@@ -203,7 +203,7 @@ export default class Molecule extends Atom {
                 let currentEquation = String(value).trim();
                 input.currentEquation = currentEquation;
                 try {
-                  const result = await this.evaluateEquation(
+                  const result = this.evaluateEquation(
                     currentEquation,
                     input.name
                   );
@@ -656,12 +656,12 @@ export default class Molecule extends Atom {
   /**
    * Propagate input value changes to all IOs whose currentEquation references the changed input name
    */
-  async propagateInputChange(inputName) {
+  propagateInputChange(inputName) {
     for (const atom of this.nodesOnTheScreen) {
       for (const io of atom.inputs) {
         if (io.currentEquation && io.currentEquation.includes(inputName)) {
           try {
-            const result = await atom.evaluateEquation(io.currentEquation);
+            const result = atom.evaluateEquation(io.currentEquation);
             io.setValue(result);
           } catch (e) {
             // Error already handled in evaluateEquation
@@ -1046,6 +1046,8 @@ export default class Molecule extends Atom {
         outputAtom.enable(); // This propagates through the DAG starting from our output atom.
         this.enableAllChildren(); // Then enable all other children since they're visible on screen.
       }
+
+      return this;
     });
   }
 
@@ -1075,7 +1077,7 @@ export default class Molecule extends Atom {
   async loadGithubMoleculeByName(
     gitObj,
     oldObject = {},
-    oldParentObjectConnectors = {}
+    oldParentObjectConnectors = []
   ) {
     let octokit = new Octokit();
     try {
@@ -1129,10 +1131,10 @@ export default class Molecule extends Atom {
           GlobalVariables.currentMolecule
             .placeAtom(
               rawFileWithNewIds,
-              true,
+              false,
               valuesToOverwriteInLoadedVersion
             )
-            .then(() => {
+            .then((placedAtom) => {
               oldParentObjectConnectors.forEach((connector) => {
                 if (connector.ap1ID == oldObject.uniqueID) {
                   connector.ap1ID = newMoleculeUniqueID;
@@ -1143,6 +1145,8 @@ export default class Molecule extends Atom {
                   this.parent.placeConnector(connector);
                 }
               });
+              // Once placed and connected, enable
+              placedAtom.enable();
             });
         });
     } catch (error) {
@@ -1322,7 +1326,7 @@ export default class Molecule extends Atom {
             atom.atomType == "Molecule" ||
             atom.atomType == "GitHubMolecule"
           ) {
-            promise = atom.deserialize(newAtomObj, values, true);
+            promise = atom.deserialize(newAtomObj, values, false);
           }
 
           //reassign the name of the Inputs to preserve linking
@@ -1383,7 +1387,7 @@ export default class Molecule extends Atom {
           }
         }
       }
-      return promise;
+      return promise ? promise : Promise.resolve(atom);
     } catch (err) {
       console.error("Unable to place entity...");
       console.warn(newAtomObj);

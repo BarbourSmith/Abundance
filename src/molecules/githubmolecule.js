@@ -95,22 +95,47 @@ export default class GitHubMolecule extends Molecule {
         const checkConnector = () => {
           return input.connectors.length > 0;
         };
+        /*
+
+*/
         /* Makes inputs for Io's other than geometry */
+
+        inputParams[this.uniqueID + input.name] = {
+          value: input.value,
+          label: input.name,
+          disabled: checkConnector(),
+          step: 0.01,
+          onChange: (value) => {
+            if (input.value !== value) {
+              input.setValue(value);
+              //this.sendToRender();
+            }
+          },
+        };
+        if (input.type && input.valueType) {
+          inputParams[this.uniqueID + input.name].type =
+            LevaInputs[input.valueType.toUpperCase()];
+        }
+        if (input.valueType == "geometry") {
+          inputParams[this.uniqueID + input.name].disabled = true;
+        }
+
+        /*
         if (input.valueType !== "geometry") {
           inputParams[this.uniqueID + input.name] = {
             value: input.currentEquation ? input.currentEquation : input.value,
             label: input.name,
             type: LevaInputs.STRING,
             disabled: checkConnector(),
-            onChange: async (value) => {
+            onChange: (value) => {
               /* If the user has set the type as string don't evaluate as equation */
-              if (input.type && input.valueType?.toUpperCase() === "STRING") {
+        /*              if (input.type && input.valueType?.toUpperCase() === "STRING") {
                 input.setValue(value);
               } else {
                 let currentEquation = String(value).trim();
                 input.currentEquation = currentEquation;
                 try {
-                  const result = await this.evaluateEquation(
+                  const result = this.evaluateEquation(
                     currentEquation,
                     input.name
                   );
@@ -125,8 +150,7 @@ export default class GitHubMolecule extends Molecule {
                 }
               }
             },
-          };
-        }
+          };*/
       });
       inputParams["Reload From Github"] = button(() =>
         this.reloadMoleculeFromGithub()
