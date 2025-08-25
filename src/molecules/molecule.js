@@ -1033,20 +1033,21 @@ export default class Molecule extends Atom {
           this.placeConnector(connector);
         });
       }
-
-      if (forceEnable) {
-        const outputAtom = this.getOutputAtom();
-        // For GH molecules and other non-current molecules, only enable the output atom
-        // and it's upstream dependencies.
-        outputAtom.enable();
+      const outputAtom = this.getOutputAtom();
+      outputAtom.subscribe(
+        () => {
+          this.onUpstreamChange();
+        },
+        this.uniqueID,
+        false
+      );
+      if (GlobalVariables.currentMolecule === this || forceEnable) {
+        this.enable(); // Enable self and all child nodes upstream of output.
       }
-
       if (GlobalVariables.currentMolecule === this) {
-        const outputAtom = this.getOutputAtom();
-        outputAtom.enable(); // This propagates through the DAG starting from our output atom.
-        this.enableAllChildren(); // Then enable all other children since they're visible on screen.
+        this.enableAllChildren(); // For the currently rendered moleucle, also
+        // enable all children visible on the screen
       }
-
       return this;
     });
   }
@@ -1361,19 +1362,6 @@ export default class Molecule extends Atom {
 
           // Add the atom to the list to display
           this.nodesOnTheScreen.push(atom);
-
-          if (atom.atomType == "Output") {
-            // Subscribe after atom has been added to the nodesOnTheScreen list so that
-            // we can find it from inside of onUpstreamChange. No need for immediate
-            // callback since output is disabled at this point.
-            atom.subscribe(
-              () => {
-                this.onUpstreamChange();
-              },
-              this.uniqueID,
-              false
-            );
-          }
 
           if (unlock) {
             const flowCanvas = document.querySelector("#flow-canvas");
