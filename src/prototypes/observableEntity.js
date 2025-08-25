@@ -84,7 +84,7 @@ class ObservableEntity {
   subscribe(subscriber, id, immediateCallback = true) {
     if (typeof subscriber === "function") {
       if (id in this.subscribers) {
-        console.trace(`Subscriber with id ${id} already exists. replacing.`);
+        console.debug(`Subscriber with id ${id} already exists. replacing.`);
       }
       this.subscribers[id] = subscriber;
       if (immediateCallback) {
