@@ -30,17 +30,14 @@ class ObservableEntity {
       );
     }
     if (this.status != status || this.value !== value) {
-      // TODO: someday this debug should be replaced with a UI status update
-      console.debug(
-        "changing status for " +
-          this.constructor.name +
-          " " +
-          this.uniqueID +
-          " from " +
-          this.status +
-          " to " +
-          status
-      );
+      if (this.status == Status.READY && status == Status.READY) {
+        // Special case for transitioning from READY to READY with a different value.
+        // Force all downstream subscribers into a WAITING status in between. For downstream
+        // components with multiple paths from this component, we need to ensure they wait
+        // for all long paths to be READY before they attempt to reprocess.
+        this.status = Status.PROCESSING;
+        this.propagateChange();
+      }
       this.status = status;
       this.value = value;
       this.propagateChange();
@@ -86,12 +83,11 @@ class ObservableEntity {
   subscribe(subscriber, id, immediateCallback = true) {
     if (typeof subscriber === "function") {
       if (id in this.subscribers) {
-        console.trace(`Subscriber with id ${id} already exists. no-op.`);
-      } else {
-        this.subscribers[id] = subscriber;
-        if (immediateCallback) {
-          subscriber(); // Call the callback immediately to notify the subscriber of the current state
-        }
+        console.trace(`Subscriber with id ${id} already exists. replacing.`);
+      }
+      this.subscribers[id] = subscriber;
+      if (immediateCallback) {
+        subscriber(); // Call the callback immediately to notify the subscriber of the current state
       }
     } else {
       throw new Error("Observer must be a function");
