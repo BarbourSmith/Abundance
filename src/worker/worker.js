@@ -10,7 +10,7 @@ import * as tags from "./tags.js";
 import * as codeLib from "./code.js";
 
 var library = {};
-
+let defaultMesh = undefined;
 const started = util.init();
 
 function getOrThrow(id) {
@@ -974,13 +974,23 @@ let colorOptions = {
   White: "#FFFCF7",
   "Keep Out": "#E0E0E0",
 };
+
 /**
- * Generates a default mesh for display when no output is available.
+ * Generates and memoizes default mesh for display when no output is available.
  * @param {string} id - The unique identifier to store the default mesh in the library
  * @returns {Promise} A promise that resolves to the default text mesh
  */
-async function generateDefaultMesh(id) {
-  return await text(id, "No output to display", 28, "ROBOTO");
+async function generateDefaultMesh() {
+  if (defaultMesh == undefined) {
+    const libId = await text(
+      "default-mesh",
+      "No output to display",
+      28,
+      "ROBOTO"
+    );
+    defaultMesh = await generateDisplayMesh(libId);
+  }
+  return defaultMesh;
 }
 
 /**
@@ -1095,9 +1105,7 @@ function generateDisplayMesh(id) {
   return started.then(() => {
     if (library[id] == undefined || id == undefined) {
       //throw new Error("ID not found in library");
-      generateDefaultMesh(id).then((result) => {
-        // Default mesh generated
-      });
+      return generateDefaultMesh();
     }
     let meshArray = [];
 
@@ -1160,7 +1168,6 @@ function generateDisplayMesh(id) {
         throw new Error("Error generating display mesh" + e);
       }
     });
-
     return finalMeshes;
   });
 }
