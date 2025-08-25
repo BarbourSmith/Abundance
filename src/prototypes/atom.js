@@ -452,17 +452,13 @@ export default class Atom extends ObservableEntity {
       return false;
     }
 
-    if (this.name == "Output") {
-      console.trace("enabling output atom: " + this.uniqueID);
-    }
-
     // Check if this atom has input connections
     const hasUpstreamConnections = this.inputs.some(
       (input) => input.connectors && input.connectors.length > 0
     );
 
     if (hasUpstreamConnections) {
-      // Case 2: This atom has input connections - enable upstream atoms first
+      // Case 2: This atom has input connections - switch to waiting then enable upstream atoms.
       this.setWaiting();
       const upstreamEnableResults = [];
       this.inputs.forEach((input) => {

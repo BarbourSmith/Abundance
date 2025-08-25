@@ -36,6 +36,7 @@ class ObservableEntity {
         // components with multiple paths from this component, we need to ensure they wait
         // for all long paths to be READY before they attempt to reprocess.
         this.status = Status.PROCESSING;
+        this.value = null;
         this.propagateChange();
       }
       this.status = status;

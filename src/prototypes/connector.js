@@ -263,11 +263,11 @@ export default class Connector {
    */
   deleteSelf(silent = false) {
     //Remove this connector from the output it is attached to
-    this.attachmentPoint1.deleteConnector(silent, this);
+    this.attachmentPoint1.deleteConnector(this, silent);
 
     //Free up the input to which this was attached
     if (this.attachmentPoint2 != null) {
-      this.attachmentPoint2.deleteConnector(silent, this);
+      this.attachmentPoint2.deleteConnector(this, silent);
       if (!silent) {
         this.attachmentPoint2.setDefault();
       }
