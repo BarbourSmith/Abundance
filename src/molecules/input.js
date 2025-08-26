@@ -115,10 +115,11 @@ export default class Input extends Atom {
     }
     if (!didPropagateUpstream) {
       if (this.parentAP) {
-        this.setStatus(
-          this.parentAP.getState().status,
-          this.parentAP.getValue()
-        );
+        const apState = this.parentAP.getState();
+        if (apState.value !== null && apState.value !== undefined) {
+          this.setStatus(Status.READY, apState.value);
+          return true;
+        }
       } else {
         this.setWaiting();
       }
