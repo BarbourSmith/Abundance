@@ -1420,6 +1420,23 @@ export default class Molecule extends Atom {
     }
   }
 
+  logState() {
+    const state = {};
+    this.nodesOnTheScreen.forEach((atom) => {
+      if (atom.atomType == "Molecule" || atom.atomType == "GitHubMolecule") {
+        state[atom.uniqueID] = atom.logState();
+      } else {
+        state[atom.uniqueID] = {
+          type: atom.atomType,
+          status: atom.status,
+          value: atom.value,
+          subs: Object.keys(atom.subscribers),
+        };
+      }
+    });
+    return state;
+  }
+
   sendToRender() {
     //Send code to JSxCAD to render
     //console.log(this);
