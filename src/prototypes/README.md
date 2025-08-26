@@ -25,6 +25,7 @@ Available statuses:
 3. `WAITING` - light blue - not all inputs are ready yet, either in a PROCESSING or WAITING state.
 4. `ERROR` - red - our inputs are ready but something went wrong in this entity and it could not complete a computation.
 5. `UPSTREAM_ERROR` - yellow - this entity cannot be computed because one or more input is in `ERROR` or `UPSTREAM_ERROR` status.
+6. `DISABLED` - purple - an unresponsive state where updates are ignored. All atoms start in this state during construction, but should be changed to a different state before they become visible to the user.
 
 ## Example
 
