@@ -39,6 +39,9 @@ class ObservableEntity {
         this.value = null;
         this.propagateChange();
       }
+      console.debug(
+        `Status change for ${this.name} (${this.uniqueID}): ${this.status} -> ${status}`
+      );
       this.status = status;
       this.value = value;
       this.propagateChange();
