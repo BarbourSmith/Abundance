@@ -52,7 +52,7 @@ export default class ExtractTag extends Atom {
     this.tagList = { source: undefined, tags: [] };
 
     this.addAllIOs([
-      { name: "input", valueType: "geometry" },
+      { name: "geometry", valueType: "geometry" },
       { name: "output", valueType: "geometry", type: "output" },
     ]);
 
