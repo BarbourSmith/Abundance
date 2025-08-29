@@ -152,7 +152,11 @@ export default class Atom extends ObservableEntity {
           //Find the matching IO and set it to be the saved value
           if (ioValue.name == ap.name && ap.type == "input") {
             ap.value = ioValue.ioValue;
-            if ("currentEquation" in ioValue) {
+            if (
+              "currentEquation" in ioValue &&
+              !Number.isFinite(Number(ioValue.currentEquation))
+            ) {
+              // only load currentEquation if it exists and isn't a numeric literal
               ap.currentEquation = ioValue.currentEquation;
             }
           }

@@ -82,6 +82,8 @@ export default class AttachmentPoint extends ObservableEntity {
      */
     this.defaultValue = this.valueType == "number" ? 10 : null;
 
+    this.currentEquation = undefined;
+
     /**
      * This atom's parent, usually the molecule which contains this atom...how is this different from this.parent?
      * @type {object}
