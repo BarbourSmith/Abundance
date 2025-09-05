@@ -24,15 +24,10 @@ function getOrThrow(id) {
 }
 
 async function code(targetID, codeText, argumentsArray) {
-  try {
-    await started;
-    const result = await codeLib.executeCode(codeText, argumentsArray, library);
-    library[targetID] = result;
-    return targetID;
-  } catch (error) {
-    console.warn(`Error executing code (targetID: ${targetID}):`, error);
-    throw new Error(`Failed to execute code: ${error.message}`);
-  }
+  await started;
+  const result = await codeLib.executeCode(codeText, argumentsArray, library);
+  library[targetID] = result;
+  return targetID;
 }
 
 /**
@@ -65,35 +60,30 @@ async function layout(
   layoutConfig,
   priorPlacements
 ) {
-  try {
-    await started;
+  await started;
 
-    // Always clear the cache when layout is called because geometry input might have changed
-    const rotatedAssemblyKey = inputID + "_rotated";
-    delete library[rotatedAssemblyKey];
+  // Always clear the cache when layout is called because geometry input might have changed
+  const rotatedAssemblyKey = inputID + "_rotated";
+  delete library[rotatedAssemblyKey];
 
-    return cutlayout
-      .layout(
-        getOrThrow(inputID),
-        progressCallback,
-        warningCallback,
-        placementCallback,
-        layoutConfig,
-        priorPlacements
-      )
-      .then((resultArray) => {
-        const [layedOutAssembly, positions, rotatedAssembly] = resultArray;
-        library[targetID] = layedOutAssembly;
+  return cutlayout
+    .layout(
+      getOrThrow(inputID),
+      progressCallback,
+      warningCallback,
+      placementCallback,
+      layoutConfig,
+      priorPlacements
+    )
+    .then((resultArray) => {
+      const [layedOutAssembly, positions, rotatedAssembly] = resultArray;
+      library[targetID] = layedOutAssembly;
 
-        // Store the rotated assembly for reuse in displayLayout to avoid calling rotateForLayout again
-        library[rotatedAssemblyKey] = rotatedAssembly;
+      // Store the rotated assembly for reuse in displayLayout to avoid calling rotateForLayout again
+      library[rotatedAssemblyKey] = rotatedAssembly;
 
-        return positions;
-      });
-  } catch (error) {
-    console.warn(`Error performing layout (targetID: ${targetID}, inputID: ${inputID}):`, error);
-    throw new Error(`Failed to perform layout: ${error.message}`);
-  }
+      return positions;
+    });
 }
 
 /**
@@ -114,41 +104,36 @@ async function displayLayout(
   warningCallback,
   layoutConfig
 ) {
-  try {
-    await started;
-    // Check if we have a pre-rotated assembly from a previous layout call
-    const rotatedAssemblyKey = inputID + "_rotated";
-    const rotatedAssembly = library[rotatedAssemblyKey];
+  await started;
+  // Check if we have a pre-rotated assembly from a previous layout call
+  const rotatedAssemblyKey = inputID + "_rotated";
+  const rotatedAssembly = library[rotatedAssemblyKey];
 
-    if (rotatedAssembly) {
-      // Use the pre-rotated assembly to avoid calling rotateForLayout again
-      library[targetID] = await cutlayout.displayLayoutWithRotatedAssembly(
-        rotatedAssembly,
-        placements,
-        warningCallback,
-        layoutConfig
-      );
-    } else {
-      // Call expensive function and cache the rotated assembly for future use
-      const [result, newRotatedAssembly] = await cutlayout.displayLayout(
-        getOrThrow(inputID),
-        placements,
-        warningCallback,
-        layoutConfig
-      );
+  if (rotatedAssembly) {
+    // Use the pre-rotated assembly to avoid calling rotateForLayout again
+    library[targetID] = await cutlayout.displayLayoutWithRotatedAssembly(
+      rotatedAssembly,
+      placements,
+      warningCallback,
+      layoutConfig
+    );
+  } else {
+    // Call expensive function and cache the rotated assembly for future use
+    const [result, newRotatedAssembly] = await cutlayout.displayLayout(
+      getOrThrow(inputID),
+      placements,
+      warningCallback,
+      layoutConfig
+    );
 
-      // Cache the rotated assembly for future displayLayout calls
-      library[rotatedAssemblyKey] = newRotatedAssembly;
+    // Cache the rotated assembly for future displayLayout calls
+    library[rotatedAssemblyKey] = newRotatedAssembly;
 
-      // Store the final result
-      library[targetID] = result;
-    }
-
-    return targetID;
-  } catch (error) {
-    console.warn(`Error displaying layout (targetID: ${targetID}, inputID: ${inputID}):`, error);
-    throw new Error(`Failed to display layout: ${error.message}`);
+    // Store the final result
+    library[targetID] = result;
   }
+
+  return targetID;
 }
 
 /**
@@ -186,12 +171,7 @@ function toGeometry(input, name = "geometry") {
  */
 function deleteFromLibrary(inputID) {
   return started.then(() => {
-    try {
-      delete library[inputID];
-    } catch (error) {
-      console.warn(`Error deleting geometry from library (inputID: ${inputID}):`, error);
-      throw new Error(`Failed to delete geometry from library: ${error.message}`);
-    }
+    delete library[inputID];
   });
 }
 
@@ -202,14 +182,9 @@ function deleteFromLibrary(inputID) {
  */
 function createMesh(thickness) {
   return started.then(() => {
-    try {
-      // This is how you get the data structure that the replica-three-helper
-      // can synchronize with three BufferGeometry
-      return [];
-    } catch (error) {
-      console.warn(`Error creating mesh (thickness: ${thickness}):`, error);
-      throw new Error(`Failed to create mesh: ${error.message}`);
-    }
+    // This is how you get the data structure that the replica-three-helper
+    // can synchronize with three BufferGeometry
+    return [];
   });
 }
 
@@ -220,15 +195,9 @@ function createMesh(thickness) {
  * @returns {Promise<boolean>} A promise that resolves to true when the circle is created successfully
  */
 async function circle(id, diameter) {
-  try {
-    await started;
-    library[id] = await shapes.circle(diameter);
-    return id;
-  } catch (error) {
-    console.warn(`Error creating circle with id ${id}, diameter ${diameter}:`, error);
-    // Return a default error state or re-throw with more context
-    throw new Error(`Failed to create circle: ${error.message}`);
-  }
+  await started;
+  library[id] = await shapes.circle(diameter);
+  return id;
 }
 
 /**
@@ -239,14 +208,9 @@ async function circle(id, diameter) {
  * @returns {Promise<boolean>} A promise that resolves to true when the rectangle is created successfully
  */
 async function rectangle(id, x, y) {
-  try {
-    await started;
-    library[id] = await shapes.rectangle(x, y);
-    return id;
-  } catch (error) {
-    console.warn(`Error creating rectangle with id ${id}, dimensions ${x}x${y}:`, error);
-    throw new Error(`Failed to create rectangle: ${error.message}`);
-  }
+  await started;
+  library[id] = await shapes.rectangle(x, y);
+  return id;
 }
 
 /**
@@ -257,14 +221,9 @@ async function rectangle(id, x, y) {
  * @returns {Promise<boolean>} A promise that resolves to true when the polygon is created successfully
  */
 async function regularPolygon(id, radius, numberOfSides) {
-  try {
-    await started;
-    library[id] = await shapes.regularPolygon(radius, numberOfSides);
-    return id;
-  } catch (error) {
-    console.warn(`Error creating regular polygon with id ${id}, radius ${radius}, sides ${numberOfSides}:`, error);
-    throw new Error(`Failed to create regular polygon: ${error.message}`);
-  }
+  await started;
+  library[id] = await shapes.regularPolygon(radius, numberOfSides);
+  return id;
 }
 
 /**
@@ -277,15 +236,11 @@ async function regularPolygon(id, radius, numberOfSides) {
  * @throws {Error} Throws an error if the font fails to load
  */
 async function text(id, text, fontSize, fontFamily) {
-  try {
-    await started;
+  return started.then(async () => {
     const result = await shapes.text(text, fontSize, fontFamily);
     library[id] = result;
     return id;
-  } catch (error) {
-    console.warn(`Error creating text geometry with id ${id}, text "${text}", fontSize ${fontSize}, fontFamily ${fontFamily}:`, error);
-    throw new Error(`Failed to create text geometry: ${error.message}`);
-  }
+  });
 }
 
 /**
@@ -296,16 +251,11 @@ async function text(id, text, fontSize, fontFamily) {
  * @throws {Error} Throws an error if input parts are not sketches or contain interior geometries
  */
 async function loftShapes(targetID, inputsIDs) {
-  try {
-    await started;
-    library[targetID] = await interaction.loftShapes(
-      (inputsIDs || []).map(getOrThrow)
-    );
-    return targetID;
-  } catch (error) {
-    console.warn(`Error creating loft shapes (targetID: ${targetID}, inputsIDs: ${JSON.stringify(inputsIDs)}):`, error);
-    throw new Error(`Failed to create loft shapes: ${error.message}`);
-  }
+  await started;
+  library[targetID] = await interaction.loftShapes(
+    (inputsIDs || []).map(getOrThrow)
+  );
+  return targetID;
 }
 
 /**
@@ -316,19 +266,14 @@ async function loftShapes(targetID, inputsIDs) {
  * @returns {Promise<boolean>} A promise that resolves to true when the extrusion is completed successfully
  */
 async function extrude(targetID, inputID, height) {
-  try {
-    await started;
-    library[targetID] = await actions.extrude(getOrThrow(inputID), height);
-    return targetID;
-  } catch (error) {
-    console.warn(`Error extruding geometry (targetID: ${targetID}, inputID: ${inputID}, height: ${height}):`, error);
-    throw new Error(`Failed to extrude geometry: ${error.message}`);
-  }
+  await started;
+  library[targetID] = await actions.extrude(getOrThrow(inputID), height);
+  return targetID;
 }
 
 /**
  * Moves a geometry by the specified x, y, and z distances.
- * @param {Object|string} geom - The geometry to move, or library ID for same
+ * @param {string} geom - The library ID of the geometry to move
  * @param {number} x - The distance to move along the x-axis
  * @param {number} y - The distance to move along the y-axis
  * @param {number} z - The distance to move along the z-axis
@@ -336,24 +281,19 @@ async function extrude(targetID, inputID, height) {
  * @returns {Promise<boolean|Object>} A promise that resolves to the moved geometry, or true if targetID is provided
  */
 async function move(geom, x, y, z, targetID = null) {
-  try {
-    await started;
-    const result = await actions.move(toGeometry(geom, "move-geometry"), x, y, z);
-    if (targetID) {
-      library[targetID] = result;
-      return targetID;
-    } else {
-      return result;
-    }
-  } catch (error) {
-    console.warn(`Error moving geometry (targetID: ${targetID}, x: ${x}, y: ${y}, z: ${z}):`, error);
-    throw new Error(`Failed to move geometry: ${error.message}`);
+  await started;
+  const result = await actions.move(toGeometry(geom, "move-geometry"), x, y, z);
+  if (targetID) {
+    library[targetID] = result;
+    return targetID;
+  } else {
+    return result;
   }
 }
 
 /**
  * Function to rotate a geometry around the x, y, and z axis
- * @param {Object|string} geom - The geometry to rotate or id for same
+ * @param {string} inputId - Library ID of the geometry to rotate
  * @param {number} x - The angle to rotate around the x axis
  * @param {number} y - The angle to rotate around the y axis
  * @param {number} z - The angle to rotate around the z axis
@@ -361,72 +301,57 @@ async function move(geom, x, y, z, targetID = null) {
  * @returns {Promise<boolean|Object>} A promise that resolves to the rotated geometry or true if targetID is provided
  **/
 async function rotate(geom, x, y, z, targetID = null) {
-  try {
-    await started;
-    
-    const asGeom = toGeometry(geom, "rotate-geometry"); // TODO(tristan): I'd love to deprecate use of this method here.
-    const result = await actions.rotate(asGeom, x, y, z);
-    if (targetID) {
-      library[targetID] = result;
-      return targetID;
-    } else {
-      return result;
-    }
-  } catch (error) {
-    console.warn(`Error rotating geometry (targetID: ${targetID}, x: ${x}, y: ${y}, z: ${z}):`, error);
-    throw new Error(`Failed to rotate geometry: ${error.message}`);
+  await started;
+
+  const asGeom = toGeometry(geom, "rotate-geometry"); // TODO(tristan): I'd love to deprecate use of this method here.
+  const result = await actions.rotate(asGeom, x, y, z);
+  if (targetID) {
+    library[targetID] = result;
+    return targetID;
+  } else {
+    return result;
   }
 }
 
 /**
  * Scales a geometry by the specified scale factor.
- * @param {Object|string} geom - The geometry to scale, or library ID for same
+ * @param {string} inputId - libraryId of the geometry to scale
  * @param {number} scaleFactor - The scale factor to apply (1.0 = no change, 2.0 = double size, 0.5 = half size)
  * @param {string|null} targetID - The ID to store the result in the library. If null, the result is returned
  * @returns {Promise<boolean|Object>} A promise that resolves to the scaled geometry, or true if targetID is provided
  */
 async function scale(geom, scaleFactor, targetID = null) {
-  try {
-    await started;
+  await started;
 
-    geom = toGeometry(geom, "scale-geometry");
-    const result = await actions.scale(geom, scaleFactor);
-    if (targetID) {
-      library[targetID] = result;
-      return targetID;
-    } else {
-      return result;
-    }
-  } catch (error) {
-    console.warn(`Error scaling geometry (targetID: ${targetID}, scaleFactor: ${scaleFactor}):`, error);
-    throw new Error(`Failed to scale geometry: ${error.message}`);
+  geom = toGeometry(geom, "scale-geometry");
+  const result = await actions.scale(geom, scaleFactor);
+  if (targetID) {
+    library[targetID] = result;
+    return targetID;
+  } else {
+    return result;
   }
 }
 
 /**
  * Applies a fillet (rounded edge) to the input geometry.
- * @param {Object|string} geom - The geometry to fillet, or library ID for same
+ * @param {string} inputId - inputId of the geometry to fillet
  * @param {number} radius - The radius of the fillet
  * @param {string|null} targetID - The ID to store the result in the library. If null, the result is returned
  * @returns {Promise<boolean|Object>} A promise that resolves to the filleted geometry or true if targetID is provided
  */
 async function fillet(geom, radius, targetID = null) {
-  try {
-    await started;
+  await started;
 
-    const result = await actions.fillet(
-      toGeometry(geom, "fillet-geometry"),
-      radius
-    );
-    if (targetID) {
-      library[targetID] = result;
-      return targetID;
-    } else {
-      return result;
-    }
-  } catch (error) {
-    console.warn(`Error applying fillet to geometry (targetID: ${targetID}, radius: ${radius}):`, error);
-    throw new Error(`Failed to apply fillet: ${error.message}`);
+  const result = await actions.fillet(
+    toGeometry(geom, "fillet-geometry"),
+    radius
+  );
+  if (targetID) {
+    library[targetID] = result;
+    return targetID;
+  } else {
+    return result;
   }
 }
 
@@ -438,22 +363,17 @@ async function fillet(geom, radius, targetID = null) {
  * @returns {Promise<boolean|Object>} A promise that resolves to the chamfered geometry or true if targetID is provided
  */
 async function chamfer(geom, size, targetID = null) {
-  try {
-    await started;
+  await started;
 
-    const result = await actions.chamfer(
-      toGeometry(geom, "chamfer-geometry"),
-      size
-    );
-    if (targetID) {
-      library[targetID] = result;
-      return targetID;
-    } else {
-      return result;
-    }
-  } catch (error) {
-    console.warn(`Error applying chamfer to geometry (targetID: ${targetID}, size: ${size}):`, error);
-    throw new Error(`Failed to apply chamfer: ${error.message}`);
+  const result = await actions.chamfer(
+    toGeometry(geom, "chamfer-geometry"),
+    size
+  );
+  if (targetID) {
+    library[targetID] = result;
+    return targetID;
+  } else {
+    return result;
   }
 }
 
@@ -473,16 +393,11 @@ async function chamfer(geom, size, targetID = null) {
  */
 function difference(targetID, input1ID, input2ID) {
   return started.then(async () => {
-    try {
-      library[targetID] = await interaction.difference(
-        getOrThrow(input1ID),
-        getOrThrow(input2ID)
-      );
-      return targetID;
-    } catch (error) {
-      console.warn(`Error performing difference operation (targetID: ${targetID}, input1ID: ${input1ID}, input2ID: ${input2ID}):`, error);
-      throw new Error(`Failed to perform difference operation: ${error.message}`);
-    }
+    library[targetID] = await interaction.difference(
+      getOrThrow(input1ID),
+      getOrThrow(input2ID)
+    );
+    return targetID;
   });
 }
 
@@ -495,15 +410,10 @@ function difference(targetID, input1ID, input2ID) {
  */
 function shrinkWrapSketches(targetID, inputIDs) {
   return started.then(async () => {
-    try {
-      library[targetID] = await interaction.shrinkWrapSketches(
-        inputIDs.map(getOrThrow)
-      );
-      return targetID;
-    } catch (error) {
-      console.warn(`Error shrink wrapping sketches (targetID: ${targetID}, inputIDs: ${JSON.stringify(inputIDs)}):`, error);
-      throw new Error(`Failed to shrink wrap sketches: ${error.message}`);
-    }
+    library[targetID] = await interaction.shrinkWrapSketches(
+      inputIDs.map(getOrThrow)
+    );
+    return targetID;
   });
 }
 
@@ -516,20 +426,15 @@ function shrinkWrapSketches(targetID, inputIDs) {
  */
 function intersect(input1ID, input2ID, targetID = null) {
   return started.then(async () => {
-    try {
-      const result = await interaction.intersect(
-        getOrThrow(input1ID),
-        getOrThrow(input2ID)
-      );
-      if (targetID) {
-        library[targetID] = result;
-        return targetID;
-      } else {
-        return result;
-      }
-    } catch (error) {
-      console.warn(`Error performing intersect operation (input1ID: ${input1ID}, input2ID: ${input2ID}, targetID: ${targetID}):`, error);
-      throw new Error(`Failed to perform intersect operation: ${error.message}`);
+    const result = await interaction.intersect(
+      getOrThrow(input1ID),
+      getOrThrow(input2ID)
+    );
+    if (targetID) {
+      library[targetID] = result;
+      return targetID;
+    } else {
+      return result;
     }
   });
 }
@@ -543,13 +448,8 @@ function intersect(input1ID, input2ID, targetID = null) {
  */
 function tag(targetID, inputID, TAG) {
   return started.then(() => {
-    try {
-      library[targetID] = tags.tag(getOrThrow(inputID), TAG);
-      return targetID;
-    } catch (error) {
-      console.warn(`Error adding tags to geometry (targetID: ${targetID}, inputID: ${inputID}, TAG: ${JSON.stringify(TAG)}):`, error);
-      throw new Error(`Failed to add tags: ${error.message}`);
-    }
+    library[targetID] = tags.tag(getOrThrow(inputID), TAG);
+    return targetID;
   });
 }
 
@@ -561,12 +461,7 @@ function tag(targetID, inputID, TAG) {
  */
 function extractAllTags(inputID) {
   return started.then(() => {
-    try {
-      return tags.extractAllTags(getOrThrow(inputID));
-    } catch (error) {
-      console.warn(`Error extracting all tags from geometry (inputID: ${inputID}):`, error);
-      throw new Error(`Failed to extract all tags: ${error.message}`);
-    }
+    return tags.extractAllTags(getOrThrow(inputID));
   });
 }
 
@@ -580,13 +475,8 @@ function extractAllTags(inputID) {
  */
 function color(targetID, inputID, color) {
   return started.then(() => {
-    try {
-      library[targetID] = tags.color(getOrThrow(inputID), color);
-      return targetID;
-    } catch (error) {
-      console.warn(`Error applying color to geometry (targetID: ${targetID}, inputID: ${inputID}, color: ${color}):`, error);
-      throw new Error(`Failed to apply color: ${error.message}`);
-    }
+    library[targetID] = tags.color(getOrThrow(inputID), color);
+    return targetID;
   });
 }
 
@@ -599,13 +489,8 @@ function color(targetID, inputID, color) {
  */
 function bom(targetID, inputID, BOM) {
   return started.then(() => {
-    try {
-      library[targetID] = tags.bom(getOrThrow(inputID), BOM);
-      return targetID;
-    } catch (error) {
-      console.warn(`Error adding BOM to geometry (targetID: ${targetID}, inputID: ${inputID}):`, error);
-      throw new Error(`Failed to add BOM: ${error.message}`);
-    }
+    library[targetID] = tags.bom(getOrThrow(inputID), BOM);
+    return targetID;
   });
 }
 
@@ -618,14 +503,9 @@ function bom(targetID, inputID, BOM) {
  * @throws {Error} Throws an error if the specified tag is not found in the geometry
  */
 async function extractTag(targetID, inputID, TAG) {
-  try {
-    await started;
-    library[targetID] = tags.extractTag(getOrThrow(inputID), TAG);
-    return targetID;
-  } catch (error) {
-    console.warn(`Error extracting tag from geometry (targetID: ${targetID}, inputID: ${inputID}, TAG: ${TAG}):`, error);
-    throw new Error(`Failed to extract tag: ${error.message}`);
-  }
+  await started;
+  library[targetID] = tags.extractTag(getOrThrow(inputID), TAG);
+  return targetID;
 }
 
 /**
@@ -637,18 +517,13 @@ async function extractTag(targetID, inputID, TAG) {
  */
 function output(targetID, inputID) {
   return started.then(() => {
-    try {
-      if (library[inputID] != undefined) {
-        library[targetID] = library[inputID];
-      } else {
-        throw new Error("Nothing is connected to the output");
-      }
-
-      return targetID;
-    } catch (error) {
-      console.warn(`Error copying geometry for output (targetID: ${targetID}, inputID: ${inputID}):`, error);
-      throw new Error(`Failed to create output: ${error.message}`);
+    if (library[inputID] != undefined) {
+      library[targetID] = library[inputID];
+    } else {
+      throw new Error("Nothing is connected to the output");
     }
+
+    return targetID;
   });
 }
 
@@ -661,17 +536,12 @@ function output(targetID, inputID) {
  */
 function molecule(targetID, inputID) {
   return started.then(() => {
-    try {
-      if (library[inputID] != undefined) {
-        library[targetID] = library[inputID];
-      } else {
-        throw new Error("output ID is undefined");
-      }
-      return targetID;
-    } catch (error) {
-      console.warn(`Error copying geometry for molecule (targetID: ${targetID}, inputID: ${inputID}):`, error);
-      throw new Error(`Failed to create molecule: ${error.message}`);
+    if (library[inputID] != undefined) {
+      library[targetID] = library[inputID];
+    } else {
+      throw new Error("output ID is undefined");
     }
+    return targetID;
   });
 }
 
@@ -681,12 +551,7 @@ function molecule(targetID, inputID) {
  * @returns {Array|boolean} The BOM array if it exists, or false if BOM is undefined
  */
 function extractBomList(inputID) {
-  try {
-    return tags.extractBomList(getOrThrow(inputID));
-  } catch (error) {
-    console.warn(`Error extracting BOM list from geometry (inputID: ${inputID}):`, error);
-    throw new Error(`Failed to extract BOM list: ${error.message}`);
-  }
+  return tags.extractBomList(getOrThrow(inputID));
 }
 
 /**
@@ -697,41 +562,40 @@ function extractBomList(inputID) {
  * @returns {Promise<targetID>} A promise that resolves to ID of the result when the export preparation is completed successfully
  */
 function visExport(targetID, inputID, fileType) {
+  // TODO
   return started.then(() => {
-    try {
-      let geometryToExport = tags.extractKeepOut(library[inputID]);
-      let fusedGeometry = interaction.digFuse(geometryToExport);
-      let displayColor =
-        fileType == "STL"
-          ? "#91C8D5"
-          : fileType == "STEP"
-          ? "#ACAFDD"
-          : "#3C3C3C";
-      let finalGeometry;
-      if (fileType == "SVG") {
-        /** Fuses input geometry, draws a top view projection*/
-        if (util.is3D(library[inputID])) {
-          finalGeometry = [
-            util.replicad.drawProjection(fusedGeometry, "top").visible,
-          ];
-        } else {
-          finalGeometry = [fusedGeometry];
-        }
+    let geometryToExport = tags.extractKeepOut(library[inputID]);
+    let fusedGeometry = interaction.digFuse(geometryToExport);
+    let displayColor =
+      fileType == "STL"
+        ? "#91C8D5"
+        : fileType == "STEP"
+        ? "#ACAFDD"
+        : "#3C3C3C";
+    let finalGeometry;
+    if (fileType == "SVG") {
+      /** Fuses input geometry, draws a top view projection*/
+      if (util.is3D(library[inputID])) {
+        finalGeometry = [
+          util.replicad.drawProjection(
+            util.geometryProvider.get(fusedGeometry),
+            "top"
+          ).visible,
+        ];
       } else {
         finalGeometry = [fusedGeometry];
       }
-      if (targetID) {
-        library[targetID] = {
-          geometry: finalGeometry,
-          color: displayColor,
-          plane: library[inputID].plane,
-        };
-      }
-      return targetID;
-    } catch (error) {
-      console.warn(`Error preparing geometry for export (targetID: ${targetID}, inputID: ${inputID}, fileType: ${fileType}):`, error);
-      throw new Error(`Failed to prepare geometry for export: ${error.message}`);
+    } else {
+      finalGeometry = [fusedGeometry];
     }
+    if (targetID) {
+      library[targetID] = {
+        geometry: finalGeometry,
+        color: displayColor,
+        plane: library[inputID].plane,
+      };
+    }
+    return targetID;
   });
 }
 
@@ -745,22 +609,18 @@ function visExport(targetID, inputID, fileType) {
  */
 function downExport(ID, fileType, svgResolution, units) {
   return started.then(() => {
-    try {
-      let scaleUnit = units == "Inches" ? 1 : units == "MM" ? 25.4 : 1;
-      let scaling = svgResolution / scaleUnit;
-      if (fileType == "SVG") {
-        let svg = library[ID].geometry[0].clone().scale(scaling).toSVG(scaling);
-        var blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
+    const geom = util.geometryProvider.get(library[ID].geometry[0]);
+    let scaleUnit = units == "Inches" ? 1 : units == "MM" ? 25.4 : 1;
+    let scaling = svgResolution / scaleUnit;
+    if (fileType == "SVG") {
+      let svg = geom.clone().scale(scaling).toSVG(scaling);
+      var blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
 
-        return blob;
-      } else if (fileType == "STL") {
-        return library[ID].geometry[0].clone().blobSTL({ tolerance: 0.1 });
-      } else {
-        return library[ID].geometry[0].clone().blobSTEP();
-      }
-    } catch (error) {
-      console.warn(`Error exporting geometry (ID: ${ID}, fileType: ${fileType}, svgResolution: ${svgResolution}, units: ${units}):`, error);
-      throw new Error(`Failed to export geometry: ${error.message}`);
+      return blob;
+    } else if (fileType == "STL") {
+      return geom.clone().blobSTL();
+    } else {
+      return geom.clone().blobSTEP();
     }
   });
 }
@@ -772,20 +632,15 @@ function downExport(ID, fileType, svgResolution, units) {
  * @returns {Promise<boolean>} A promise that resolves to true when the import is completed successfully
  */
 async function importingSTEP(targetID, file) {
-  try {
-    let STEPresult = await util.replicad.importSTEP(file);
+  let STEPresult = await util.replicad.importSTEP(file);
 
-    library[targetID] = {
-      geometry: [STEPresult],
-      tags: [],
-      color: util.defaultColor,
-      bom: [],
-    };
-    return targetID;
-  } catch (error) {
-    console.warn(`Error importing STEP file (targetID: ${targetID}):`, error);
-    throw new Error(`Failed to import STEP file: ${error.message}`);
-  }
+  library[targetID] = {
+    geometry: [util.geometryProvider.addSingularToCache(STEPresult)],
+    tags: [],
+    color: util.defaultColor,
+    bom: [],
+  };
+  return targetID;
 }
 
 /**
@@ -795,20 +650,15 @@ async function importingSTEP(targetID, file) {
  * @returns {Promise<boolean>} A promise that resolves to true when the import is completed successfully
  */
 async function importingSTL(targetID, file) {
-  try {
-    let STLresult = await util.replicad.importSTL(file);
+  let STLresult = await util.replicad.importSTL(file);
 
-    library[targetID] = {
-      geometry: [STLresult],
-      tags: [],
-      color: util.defaultColor,
-      bom: [],
-    };
-    return targetID;
-  } catch (error) {
-    console.warn(`Error importing STL file (targetID: ${targetID}):`, error);
-    throw new Error(`Failed to import STL file: ${error.message}`);
-  }
+  library[targetID] = {
+    geometry: [util.geometryProvider.addSingularToCache(STLresult)],
+    tags: [],
+    color: util.defaultColor,
+    bom: [],
+  };
+  return targetID;
 }
 
 /**
@@ -839,7 +689,11 @@ async function importingSVG(targetID, svg, width) {
     let center = drawnSVG.boundingBox.center;
 
     library[targetID] = {
-      geometry: [drawnSVG.clone().translate(-center[0], -center[1])],
+      geometry: [
+        util.geometryProvider.addSingularToCache(
+          drawnSVG.clone().translate(-center[0], -center[1])
+        ),
+      ],
       tags: [],
       plane: new Plane().pivot(0, "Y"),
       color: util.defaultColor,
@@ -898,26 +752,16 @@ function visualizeGcode(targetID, gcode) {
     }
   });
   // Create a wire from the edges
-  if (edges.length === 0) {
-    // Nothing to visualize; avoid assembling an empty wire
-    library[targetID] = {
-      geometry: [],
-      tags: [],
-      plane: new Plane().pivot(0, "Y"),
-      color: util.defaultColor,
-      bom: [],
-    };
-  } else {
-    const wire = util.replicad.assembleWire(edges);
-    library[targetID] = {
-      geometry: [wire],
-      tags: [],
-      plane: new Plane().pivot(0, "Y"),
-      color: util.defaultColor,
-      bom: [],
-    };
-  }
-  return targetID;
+
+  const wire = util.replicad.assembleWire(edges);
+  library[targetID] = {
+    // TODO: we could probably use a hash of the gcode string as an ID here.
+    geometry: [util.geometryProvider.addSingularToCache(wire)],
+    tags: [],
+    plane: new Plane().pivot(0, "Y"),
+    color: util.defaultColor,
+    bom: [],
+  };
 }
 
 /**
@@ -947,34 +791,26 @@ const prettyProjection = (shape) => {
  */
 function generateThumbnail(inputID) {
   return started.then(() => {
-    try {
-      if (library[inputID] != undefined) {
-        let fusedGeometry;
-        let projectionShape;
-        let svg;
-        if (util.is3D(library[inputID])) {
-          fusedGeometry = interaction.digFuse(library[inputID]);
-          projectionShape = prettyProjection(fusedGeometry);
-          svg = projectionShape.visible.toSVG();
-        } else {
-          fusedGeometry = interaction
-            .digFuse(library[inputID])
-            .sketchOnPlane("XY")
-            .extrude(0.0001);
-          projectionShape = util.replicad.drawProjection(
-            fusedGeometry,
-            "top"
-          ).visible;
-          svg = projectionShape.toSVG();
-        }
-        //let hiddenSvg = projectionShape.hidden.toSVGPaths();
-        return svg;
+    if (library[inputID] != undefined) {
+      const fusedGeometry = util.geometryProvider.get(
+        interaction.digFuse(library[inputID])
+      );
+      let projectionShape;
+      let svg;
+      if (util.is3D(library[inputID])) {
+        projectionShape = prettyProjection(fusedGeometry);
+        svg = projectionShape.visible.toSVG();
       } else {
-        throw new Error("can't generate thumbnail for undefined geometry");
+        projectionShape = util.replicad.drawProjection(
+          fusedGeometry.sketchOnPlane("XY").extrude(0.0001),
+          "top"
+        ).visible;
+        svg = projectionShape.toSVG();
       }
-    } catch (error) {
-      console.warn(`Error generating thumbnail for geometry (inputID: ${inputID}):`, error);
-      throw new Error(`Failed to generate thumbnail: ${error.message}`);
+      //let hiddenSvg = projectionShape.hidden.toSVGPaths();
+      return svg;
+    } else {
+      throw new Error("can't generate thumbnail for undefined geometry");
     }
   });
 }
@@ -994,7 +830,7 @@ function getBoundingBox(inputID) {
     maxZ = -Infinity;
 
   util.actOnLeafs(library[inputID], (leaf) => {
-    const bbox = leaf.geometry[0].boundingBox.bounds;
+    const bbox = util.geometryProvider.get(leaf.geometry[0]).boundingBox.bounds;
     minX = Math.min(minX, bbox[0][0]);
     minY = Math.min(minY, bbox[0][1]);
     minZ = Math.min(minZ, bbox[0][2]);
@@ -1015,14 +851,9 @@ function getBoundingBox(inputID) {
  * @returns {Promise<boolean>} True if it's an assembly, false otherwise
  */
 async function isAssembly(inputID) {
-  try {
-    await started;
-    const geometry = getOrThrow(inputID);
-    return util.isAssembly(geometry);
-  } catch (error) {
-    console.warn(`Error checking if geometry is assembly (inputID: ${inputID}):`, error);
-    throw new Error(`Failed to check if geometry is assembly: ${error.message}`);
-  }
+  await started;
+  const geometry = getOrThrow(inputID);
+  return util.isAssembly(geometry);
 }
 
 /**
@@ -1031,33 +862,28 @@ async function isAssembly(inputID) {
  * @returns {Promise<Array<string>>} Array of part IDs
  */
 async function extractParts(assemblyID) {
-  try {
-    await started;
-    const assembly = getOrThrow(assemblyID);
+  await started;
+  const assembly = getOrThrow(assemblyID);
 
-    if (!util.isAssembly(assembly)) {
-      // If it's not an assembly, return the original ID
-      return [assemblyID];
-    }
-
-    const parts = [];
-    let partIndex = 0;
-
-    // Extract each part from the assembly and store it in the library
-    util.actOnLeafs(assembly, (leaf) => {
-      if (leaf.geometry && leaf.geometry.length > 0) {
-        const partID = `${assemblyID}_part_${partIndex++}`;
-        library[partID] = leaf;
-        parts.push(partID);
-      }
-      return leaf;
-    });
-
-    return parts;
-  } catch (error) {
-    console.warn(`Error extracting parts from assembly (assemblyID: ${assemblyID}):`, error);
-    throw new Error(`Failed to extract parts from assembly: ${error.message}`);
+  if (!util.isAssembly(assembly)) {
+    // If it's not an assembly, return the original ID
+    return [assemblyID];
   }
+
+  const parts = [];
+  let partIndex = 0;
+
+  // Extract each part from the assembly and store it in the library
+  util.actOnLeafs(assembly, (leaf) => {
+    if (leaf.geometry && leaf.geometry.length > 0) {
+      const partID = `${assemblyID}_part_${partIndex++}`;
+      library[partID] = leaf;
+      parts.push(partID);
+    }
+    return leaf;
+  });
+
+  return parts;
 }
 
 /**
@@ -1066,18 +892,13 @@ async function extractParts(assemblyID) {
  * If the targetID is defined, the assembly will be stored in the library under that ID, otherwise it will be returned
  */
 async function assembly(inputIDs, targetID = null) {
-  try {
-    await started;
-    const result = await interaction.assembly(inputIDs.map(getOrThrow));
-    if (targetID != null) {
-      library[targetID] = result;
-      return targetID;
-    } else {
-      return result;
-    }
-  } catch (error) {
-    console.warn(`Error creating assembly (inputIDs: ${JSON.stringify(inputIDs)}, targetID: ${targetID}):`, error);
-    throw new Error(`Failed to create assembly: ${error.message}`);
+  await started;
+  const result = await interaction.assembly(inputIDs.map(getOrThrow));
+  if (targetID != null) {
+    library[targetID] = result;
+    return targetID;
+  } else {
+    return result;
   }
 }
 
@@ -1090,13 +911,8 @@ async function assembly(inputIDs, targetID = null) {
  */
 function fusion(targetID, inputIDs) {
   return started.then(async () => {
-    try {
-      library[targetID] = await interaction.fusion(inputIDs.map(getOrThrow));
-      return targetID;
-    } catch (error) {
-      console.warn(`Error performing fusion operation (targetID: ${targetID}, inputIDs: ${JSON.stringify(inputIDs)}):`, error);
-      throw new Error(`Failed to perform fusion operation: ${error.message}`);
-    }
+    library[targetID] = await interaction.fusion(inputIDs.map(getOrThrow));
+    return targetID;
   });
 }
 
@@ -1265,8 +1081,7 @@ function calculateZoom(boundingBox) {
     const zoom = (exampleZoom * exampleDiagonal) / diagonal;
     return zoom;
   } catch (e) {
-    console.warn("Error calculating zoom level:", e);
-    return 1; // Return default zoom instead of throwing
+    throw new Error("Error calculating zoom level");
   }
 }
 
@@ -1278,8 +1093,7 @@ function generateCameraPosition(meshArray) {
 
     return zoom;
   } catch (e) {
-    console.warn("Error generating camera position:", e);
-    return 1; // Return default zoom instead of throwing
+    throw new Error(e);
   }
 }
 
@@ -1292,7 +1106,13 @@ function generateDisplayMesh(id) {
     let meshArray = [];
 
     //Flatten the assembly to remove hierarchy
-    const flattened = flattenAssembly(library[id]);
+
+    const flattened = flattenAssembly(library[id]).map((item) => {
+      return {
+        geometry: util.geometryProvider.get(item.geometry),
+        color: item.color,
+      };
+    });
 
     flattened.forEach((displayObject) => {
       var cleanedGeometry = [];

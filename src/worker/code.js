@@ -62,21 +62,23 @@ function toGeometry(input, name = "geometry", library) {
   const raw_type = input?._wrapped?.$$?.ptrType?.name;
   if (raw_type && raw_type instanceof String && raw_type.startsWith("TopoDS")) {
     // If it's a raw geometry object, we wrap it in an abundance object
-    return {
+    return util.geometryProvider.addSingularToCache({
       geometry: [input],
       tags: [],
       color: util.defaultColor,
       bom: [],
-    };
+    });
   } else {
     // If it's something else, we throw an error
-    throw new Error(name + " value cannot be interpreted as geometry.");
+    throw new Error(
+      name + " value cannot be interpreted as geometry: " + input
+    );
   }
 }
 
 /**
  * Executes the given code with the provided arguments list.
- * 
+ *
  * Unusually this function requires library as context since the source code may reference library.
  */
 async function executeCode(code, argumentsArray, library) {
@@ -89,6 +91,16 @@ async function executeCode(code, argumentsArray, library) {
       throw new Error("Code too long (maximum 50,000 characters)");
     }
 
+    // Make a copy of the necessary entries in the library where all geometries are de-cached.
+    // This library copy will be in focus for the user. Has the side effect that direct assignments
+    // to the library by the user code will not affect the main library.
+    const userLib = {};
+    for (const [key, value] of Object.entries(argumentsArray)) {
+      if (value in library) {
+        userLib[value] = util.realizeAssembly(library[value]);
+      }
+    }
+
     // Validate code for dangerous patterns
     // TODO: we probably want to allow some of these but still need to warn about them before executing
     // the code molecule.
@@ -96,40 +108,58 @@ async function executeCode(code, argumentsArray, library) {
 
     // Create wrapper functions that handle library ID to geometry conversion
     const wrappedMove = async (geom, x, y, z) => {
-      return await move(toGeometry(geom, "move-geometry", library), x, y, z);
+      return util.realizeAssembly(
+        await move(toGeometry(geom, "move-geometry", library), x, y, z)
+      );
     };
 
     const wrappedRotate = async (geom, x, y, z) => {
-      return await rotate(toGeometry(geom, "rotate-geometry", library), x, y, z);
+      return util.realizeAssembly(
+        await rotate(toGeometry(geom, "rotate-geometry", library), x, y, z)
+      );
     };
 
     const wrappedScale = async (geom, scaleFactor) => {
-      return await scale(toGeometry(geom, "scale-geometry", library), scaleFactor);
+      return util.realizeAssembly(
+        await scale(toGeometry(geom, "scale-geometry", library), scaleFactor)
+      );
     };
 
     const wrappedFillet = async (geom, radius) => {
-      return await fillet(toGeometry(geom, "fillet-geometry", library), radius);
+      return util.realizeAssembly(
+        await fillet(toGeometry(geom, "fillet-geometry", library), radius)
+      );
     };
 
     const wrappedChamfer = async (geom, size) => {
-      return await chamfer(toGeometry(geom, "chamfer-geometry", library), size);
+      return util.realizeAssembly(
+        await chamfer(toGeometry(geom, "chamfer-geometry", library), size)
+      );
     };
 
     const wrappedIntersect = async (input1, input2) => {
-      return await intersect(
-        toGeometry(input1, "intersect-geometry1", library),
-        toGeometry(input2, "intersect-geometry2", library)
+      return util.realizeAssembly(
+        await intersect(
+          toGeometry(input1, "intersect-geometry1", library),
+          toGeometry(input2, "intersect-geometry2", library)
+        )
       );
     };
 
     const wrappedAssembly = async (inputIDs) => {
-      return await assembly(inputIDs.map(id => toGeometry(id, "assembly-geometry", library)));
+      const ids = inputIDs.map((id) =>
+        toGeometry(id, "assembly-geometry", library)
+      );
+      const res = await assembly(ids);
+      return util.realizeAssembly(res);
     };
 
     const wrappedCutAssembly = async (input1, input2Array) => {
-      return await cutAssembly(
-        toGeometry(input1, "cut-geometry1", library),
-        input2Array.map(id => toGeometry(id, "cut-geometry", library))
+      return util.realizeAssembly(
+        await cutAssembly(
+          toGeometry(input1, "cut-geometry1", library),
+          input2Array.map((id) => toGeometry(id, "cut-geometry", library))
+        )
       );
     };
 
@@ -164,7 +194,7 @@ async function executeCode(code, argumentsArray, library) {
       wrappedGetBounds,
       wrappedFillet,
       wrappedChamfer,
-      library, // TODO(tristan): I think we should deprecate this but it'll require passing the actual geom.
+      userLib, // TODO(tristan): I think we should deprecate this but it'll require passing the actual geom.
       util.replicad,
     ];
     for (const [key, value] of Object.entries(argumentsArray)) {
@@ -175,7 +205,6 @@ async function executeCode(code, argumentsArray, library) {
       keys1.push(key);
       inputValues.push(value);
     }
-
     // Use Function constructor instead of eval - still allows code execution but safer than eval
     const userFunction = new Function(
       ...keys1,
@@ -187,7 +216,12 @@ async function executeCode(code, argumentsArray, library) {
       setTimeout(() => reject(new Error("Code execution timed out")), 60000); // 1 min timeout
     });
 
-    return await Promise.race([userFunction(...inputValues), timeoutPromise]);
+    return await Promise.race([
+      userFunction(...inputValues),
+      timeoutPromise,
+    ]).then((result) => {
+      return util.cacheAssembly(result);
+    });
   } catch (error) {
     console.error("Code execution error:", error);
     throw new Error(`Code execution failed: ${error.message}`);
@@ -282,8 +316,8 @@ function logError(error, context) {
   if (error.columnNumber) {
     console.error("Column number:", error.columnNumber);
   }
-  console.log("full error:");
-  console.log(error);
+  console.error("full error:");
+  console.error(error);
 }
 
 export { executeCode };

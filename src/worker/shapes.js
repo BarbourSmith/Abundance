@@ -16,7 +16,7 @@ import { Plane } from "replicad";
 function circle(diameter) {
   const newPlane = new Plane().pivot(0, "Y");
   return {
-    geometry: [util.replicad.drawCircle(diameter / 2)],
+    geometry: [util.geometryProvider.drawCircle(diameter / 2)],
     tags: [],
     plane: newPlane,
     color: util.defaultColor,
@@ -33,7 +33,7 @@ function circle(diameter) {
 function rectangle(x, y) {
   const newPlane = new Plane().pivot(0, "Y");
   return {
-    geometry: [util.replicad.drawRectangle(x, y)],
+    geometry: [util.geometryProvider.drawRectangle(x, y)],
     tags: [],
     plane: newPlane,
     color: util.defaultColor,
@@ -56,7 +56,7 @@ function regularPolygon(radius, numberOfSides) {
     throw new Error("Number of sides must be an integer.");
   }
   return {
-    geometry: [util.replicad.drawPolysides(radius, numberOfSides)],
+    geometry: [util.geometryProvider.drawPolysides(radius, numberOfSides)],
     tags: [],
     plane: newPlane,
     color: util.defaultColor,
@@ -78,7 +78,7 @@ async function text(text, fontSize, fontFamily) {
     .then(() => {
       const newPlane = new Plane().pivot(0, "Y");
 
-      const textGeometry = util.replicad.drawText(text, {
+      const textGeometry = util.geometryProvider.drawText(text, {
         startX: 0,
         startY: 0,
         fontSize: fontSize,

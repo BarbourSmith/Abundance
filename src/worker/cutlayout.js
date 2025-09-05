@@ -11,6 +11,9 @@ function layout(
   layoutConfig,
   previousPlacements = null
 ) {
+  // Abandon caching for now.
+  assembly = util.realizeAssembly(assembly);
+
   var [rotatedAssembly, shapesForLayout] = rotateForLayout(
     assembly,
     layoutConfig,
@@ -26,10 +29,8 @@ function layout(
   );
   return positionsPromise.then((positions) => {
     //This does the actual layout of the parts.
-    const layedOutAssembly = applyLayout(
-      rotatedAssembly,
-      positions,
-      layoutConfig
+    const layedOutAssembly = util.cacheAssembly(
+      applyLayout(rotatedAssembly, positions, layoutConfig)
     );
 
     if (positions.length == 0) {
@@ -58,25 +59,30 @@ function layout(
  * Returns both the result and the rotatedAssembly for caching purposes
  */
 function displayLayout(assembly, positions, warningCallback, layoutConfig) {
+  assembly = util.realizeAssembly(assembly);
   const [rotatedAssembly, shapesForLayout] = rotateForLayout(
     assembly,
     layoutConfig,
     warningCallback
   );
-
-  const result = applyLayout(rotatedAssembly, positions, layoutConfig);
-  
-  return [result, rotatedAssembly];
+  return util.cacheAssembly(
+    applyLayout(rotatedAssembly, positions, layoutConfig)
+  );
 }
 
 /**
  * Apply the transformations to display already-rotated geometry.
- * This function is used when we already have a pre-rotated assembly 
+ * This function is used when we already have a pre-rotated assembly
  * to avoid calling rotateForLayout again for performance.
  */
-function displayLayoutWithRotatedAssembly(rotatedAssembly, positions, warningCallback, layoutConfig) {
+function displayLayoutWithRotatedAssembly(
+  rotatedAssembly,
+  positions,
+  warningCallback,
+  layoutConfig
+) {
   const result = applyLayout(rotatedAssembly, positions, layoutConfig);
-  
+
   return result;
 }
 
@@ -346,7 +352,7 @@ function applyLayout(rotatedAssembly, positions, layoutConfig) {
       id: leaf.id,
     };
   });
-  
+
   return result;
 }
 
@@ -401,7 +407,6 @@ function computePositions(
   layoutConfig,
   previousPlacements = null
 ) {
-
   const tolerance = 0.2;
   const runtimeMs = 120000;
   const config = {
@@ -490,7 +495,9 @@ function computePositions(
           resolve(bestPlacement);
         } else {
           packer.stop(true);
-          console.log("No placement found within time limit, using default placement at origin.");
+          console.log(
+            "No placement found within time limit, using default placement at origin."
+          );
           const defaultPlacements = createDefaultPlacements(shapesForLayout);
           resolve(defaultPlacements);
         }
@@ -711,4 +718,9 @@ function areaApprox(bounds) {
   return (bounds.uMax - bounds.uMin) * (bounds.vMax - bounds.vMin);
 }
 
-export { layout, displayLayout, displayLayoutWithRotatedAssembly, createDefaultPlacements };
+export {
+  layout,
+  displayLayout,
+  displayLayoutWithRotatedAssembly,
+  createDefaultPlacements,
+};
