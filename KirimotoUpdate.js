@@ -114,7 +114,7 @@ const generateGcode = (
           id: 1000,
           number: 1,
           type: "endmill",
-          name: "end 1/4",
+          name: "endmill",
           metric: isMetric, // Match tool units to project/G-code units
           shaft_diam: toolSize,
           shaft_len: 1,
