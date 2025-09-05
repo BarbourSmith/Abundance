@@ -104,14 +104,18 @@ const generateGcode = (
       eng.moveTo(centerPos[0], centerPos[1], 0); // move part so top is at Z=0
       return eng;
     })
-    .then((eng) =>
-      eng.setTools([
+    .then((eng) => {
+      // Determine if project uses metric units  
+      const projectUnits = GlobalVariables.topLevelMolecule?.unitsKey || "MM";
+      const isMetric = projectUnits === "MM";
+      
+      return eng.setTools([
         {
           id: 1000,
           number: 1,
           type: "endmill",
           name: "end 1/4",
-          metric: false,
+          metric: isMetric, // Match tool units to project/G-code units
           shaft_diam: toolSize,
           shaft_len: 1,
           flute_diam: toolSize,
@@ -119,8 +123,8 @@ const generateGcode = (
           taper_tip: 0,
           order: 5,
         },
-      ])
-    )
+      ]);
+    })
     .then((eng) => {
       if (progressCallback) progressCallback(0.25); // 25% - Tools set
       const bounds = eng.widget.getBoundingBox();
@@ -208,6 +212,12 @@ const generateGcode = (
       });
     })
     .then((eng) => {
+      // Determine G-code units command based on project units
+      const projectUnits = GlobalVariables.topLevelMolecule?.unitsKey || "MM";
+      const unitsCommand = projectUnits === "MM" 
+        ? "G21 ; set units to MM (required)"
+        : "G20 ; set units to inches (required)";
+      
       return eng.setDevice({
         mode: "CAM",
         internal: 0,
@@ -218,7 +228,7 @@ const generateGcode = (
         originCenter: false,
         spindleMax: 24000,
         gcodePre: [
-          "G21 ; set units to MM (required)",
+          unitsCommand,
           "G90 ; absolute position mode (required)",
           "G0 F3000 ; set default rapid move feedrate",
           "G1 F1000 ; set default cutting feedrate",
