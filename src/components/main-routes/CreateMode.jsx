@@ -562,6 +562,39 @@ function CreateMode({
   /**
    * Saves project by making a commit to the Github repository.
    */
+  /**
+   * Handle login redirect by showing confirmation and redirecting to GitHub OAuth
+   */
+  const loginRedirect = () => {
+    // the client id from github
+    const client_id = import.meta.env.VITE_GH_OAUTH_CLIENT_ID;
+
+    // create a CSRF token and store it locally
+    const csrfToken = window.crypto
+      .getRandomValues(new Uint8Array(16))
+      .reduce((acc, byte) => acc + byte.toString(16).padStart(2, "0"), "");
+    localStorage.setItem("latestCSRFToken", csrfToken);
+    
+    const repo =
+      GlobalVariables.currentRepo.owner +
+      "/" +
+      GlobalVariables.currentRepo.repoName;
+    
+    // include currentRepo in the state parameter
+    const state = JSON.stringify({
+      csrfToken: csrfToken,
+      currentRepo: repo,
+      forking: false,
+      liking: false,
+    });
+
+    // redirect the user to github
+    const link = `https://github.com/login/oauth/authorize?client_id=${client_id}&response_type=code&scope=repo&redirect_uri=${
+      import.meta.env.VITE_REDIRECT_URI
+    }callback&state=${encodeURIComponent(state)}`;
+    window.location.assign(link);
+  };
+
   const saveProject = async (setState, typeSave) => {
     //We only want to save if something has actually changed since the last save
     var jsonRepOfProject = GlobalVariables.topLevelMolecule.serialize();
@@ -876,9 +909,7 @@ function CreateMode({
       .then((result) => {
         GlobalVariables.currentRepoName = result.data.name;
         GlobalVariables.currentRepo = result.data;
-        navigate(
-          `/run/${GlobalVariables.currentRepo.owner.login}/${GlobalVariables.currentRepoName}`
-        );
+        
         const loginConfirm = confirm(
           "You are not logged in. Would you like to log in?"
         );
@@ -887,6 +918,9 @@ function CreateMode({
           loginRedirect();
         } else {
           // user clicked cancel and is redirected to the run mode
+          navigate(
+            `/run/${GlobalVariables.currentRepo.owner.login}/${GlobalVariables.currentRepoName}`
+          );
         }
       });
   }
