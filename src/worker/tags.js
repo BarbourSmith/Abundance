@@ -45,12 +45,12 @@ function bom(geom, BOM) {
   if (geom.bom != []) {
     BOM = [...geom.bom, BOM];
   }
-  // TODO(tristan): this drops "plane"
   return {
     geometry: geom.geometry,
     tags: [...geom.tags],
     bom: BOM,
     color: geom.color,
+    plane: geom.plane,
   };
 }
 
@@ -77,6 +77,7 @@ function extractTag(geometry, TAG) {
       geometry: taggedGeometry.geometry,
       tags: taggedGeometry.tags,
       color: taggedGeometry.color,
+      plane: taggedGeometry.plane,
     };
   } else {
     throw new Error("Tag not found");
@@ -131,6 +132,7 @@ function extractTags(inputGeometry, TAG) {
         tags: inputGeometry.tags,
         color: inputGeometry.color,
         bom: inputGeometry.bom,
+        plane: inputGeometry.plane,
       };
     } else {
       return false;
@@ -163,6 +165,7 @@ function extractKeepOut(inputGeometry) {
         tags: inputGeometry.tags,
         color: inputGeometry.color,
         bom: inputGeometry.bom,
+        plane: inputGeometry.plane,
       };
       return thethingtoreturn;
     } else {

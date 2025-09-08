@@ -1,6 +1,7 @@
 import * as util from "./util.js";
 import Fonts from "../js/fonts.js";
 import { Plane } from "replicad";
+import { XYPlane } from "./geometryProvider.js";
 
 /**
  * Methods in this file create a new geometry from non-geometric inputs. Eg:
@@ -14,11 +15,10 @@ import { Plane } from "replicad";
  * @returns Assembly containing a circle on the XY plane
  */
 function circle(diameter) {
-  const newPlane = new Plane().pivot(0, "Y");
   return {
     geometry: [util.geometryProvider.drawCircle(diameter / 2)],
     tags: [],
-    plane: newPlane,
+    plane: XYPlane,
     color: util.defaultColor,
     bom: [],
   };
@@ -31,11 +31,10 @@ function circle(diameter) {
  * @returns Assembly containing a rectangle on the XY plane
  */
 function rectangle(x, y) {
-  const newPlane = new Plane().pivot(0, "Y");
   return {
     geometry: [util.geometryProvider.drawRectangle(x, y)],
     tags: [],
-    plane: newPlane,
+    plane: XYPlane,
     color: util.defaultColor,
     bom: [],
   };
@@ -48,7 +47,6 @@ function rectangle(x, y) {
  * @returns Assembly containing a regular polygon on the XY plane
  */
 function regularPolygon(radius, numberOfSides) {
-  const newPlane = new Plane().pivot(0, "Y");
   if (numberOfSides < 3) {
     throw new Error("Number of sides must be at least 3 for a polygon.");
   }
@@ -58,7 +56,7 @@ function regularPolygon(radius, numberOfSides) {
   return {
     geometry: [util.geometryProvider.drawPolysides(radius, numberOfSides)],
     tags: [],
-    plane: newPlane,
+    plane: XYPlane,
     color: util.defaultColor,
     bom: [],
   };
@@ -76,8 +74,6 @@ async function text(text, fontSize, fontFamily) {
   return util.replicad
     .loadFont(Fonts[fontFamily])
     .then(() => {
-      const newPlane = new Plane().pivot(0, "Y");
-
       const textGeometry = util.geometryProvider.drawText(text, {
         startX: 0,
         startY: 0,
@@ -87,7 +83,7 @@ async function text(text, fontSize, fontFamily) {
       return {
         geometry: [textGeometry],
         tags: [],
-        plane: newPlane,
+        plane: XYPlane,
         color: util.defaultColor,
         bom: [],
       };

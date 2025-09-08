@@ -1,3 +1,4 @@
+import { Plane } from "./geometryProvider.js";
 import * as util from "./util.js";
 
 /**
@@ -47,12 +48,16 @@ function move(toMove, x, y, z) {
         return {
           geometry: [util.geometryProvider.move(leaf.geometry[0], x, y)],
           tags: leaf.tags,
-          plane: leaf.plane.translate([0, 0, z]),
+          plane: Plane.fromReplicadPlane(
+            leaf.plane.asReplicadPlane().translate([0, 0, z])
+          ),
           color: leaf.color,
           bom: leaf.bom,
         };
       },
-      toMove.plane.translate([0, 0, z])
+      Plane.fromReplicadPlane(
+        toMove.plane.asReplicadPlane().translate([0, 0, z])
+      )
     );
   }
 }
@@ -77,7 +82,9 @@ async function rotate(toRotate, x, y, z) {
       return {
         geometry: [util.geometryProvider.rotate(leaf.geometry[0], 0, 0, z)],
         tags: leaf.tags,
-        plane: leaf.plane.pivot(x, "X").pivot(y, "Y"),
+        plane: Plane.fromReplicadPlane(
+          leaf.plane.asReplicadPlane().pivot(x, "X").pivot(y, "Y")
+        ),
         color: leaf.color,
         bom: leaf.bom,
       };

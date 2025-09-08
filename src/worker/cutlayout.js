@@ -11,9 +11,6 @@ function layout(
   layoutConfig,
   previousPlacements = null
 ) {
-  // Abandon caching for now.
-  assembly = util.realizeAssembly(assembly);
-
   var [rotatedAssembly, shapesForLayout] = rotateForLayout(
     assembly,
     layoutConfig,
@@ -59,7 +56,7 @@ function layout(
  * Returns both the result and the rotatedAssembly for caching purposes
  */
 function displayLayout(assembly, positions, warningCallback, layoutConfig) {
-  assembly = util.realizeAssembly(assembly);
+  //assembly = util.realizeAssembly(assembly);
   const [rotatedAssembly, shapesForLayout] = rotateForLayout(
     assembly,
     layoutConfig,
@@ -99,210 +96,221 @@ function displayLayoutWithRotatedAssembly(
  *    d) face should have minimal number of interior voids and have the largest bounding box
  */
 function rotateForLayout(assembly, layoutConfig, warningCallback) {
-  var THICKNESS_TOLLERANCE = 0.001;
+  const id = util.geometryProvider._makeId(
+    "rotateForLayout",
+    JSON.stringify(assembly),
+    JSON.stringify(layoutConfig)
+  );
 
-  function equalThickness(a, b) {
-    return Math.abs(a - b) < THICKNESS_TOLLERANCE;
-  }
+  // use cache if possible
+  return util.geometryProvider._getOrCreate(id, () => {
+    assembly = util.realizeAssembly(assembly);
 
-  // Get geometry and remove any empty leafs.
-  let geometryToLayout = util.actOnLeafs(assembly, (leaf) => {
-    if (leaf.geometry.length > 0 && leaf.geometry[0].faces.length > 0) {
-      return leaf;
-    } else {
-      return undefined;
+    var THICKNESS_TOLLERANCE = 0.001;
+
+    function equalThickness(a, b) {
+      return Math.abs(a - b) < THICKNESS_TOLLERANCE;
     }
-  });
 
-  let localId = 0;
-  let shapesForLayout = [];
-
-  // Algo overview:
-  // collect all prospective orientations for all parts
-  // come up with a best-guess material thickness or n/a
-  // select among candidates for each part based on either good fit to the
-  //    estimated material thickness, or just take thinnest orientation.
-
-  // get candidates as {leaf_id: "abc", [candidate 1, candidate 2 etc]}
-  const all_candidates = {};
-  const intermediate = util.actOnLeafs(geometryToLayout, (leaf) => {
-    // For each face, consider it as the underside of the shape on the CNC bed.
-    // In order to be considered, a face must be...
-    //  1) a flat PLANE, not a cylinder, or sphere or other curved face type.
-    //  2) there must be no parts of the shape which protrude "below" this face
-    const candidates = [];
-    let faceIndex = 0;
-    leaf.geometry[0].faces.forEach((face) => {
-      let prospectiveGoem = moveFaceToCuttingPlane(leaf.geometry[0], face);
-      let offset = 0;
-      if (
-        prospectiveGoem.boundingBox.bounds[0][2] <
-        -1 * THICKNESS_TOLLERANCE
-      ) {
-        // this face causes protrusions below the XY plane, move the prospective geometry so that
-        // all points are above the XY plane. Record this movement, since it's a red flag for
-        // this candidate.
-        offset = -1 * prospectiveGoem.boundingBox.bounds[0][2];
-        prospectiveGoem = prospectiveGoem.translate(0, 0, offset);
+    // Get geometry and remove any empty leafs.
+    let geometryToLayout = util.actOnLeafs(assembly, (leaf) => {
+      if (leaf.geometry.length > 0 && leaf.geometry[0].faces.length > 0) {
+        return leaf;
+      } else {
+        return undefined;
       }
-      candidates.push({
-        face: face,
-        offset: offset,
-        geom: prospectiveGoem,
-        faceIndex: faceIndex,
-        thickness: prospectiveGoem.boundingBox.depth,
-      });
-      faceIndex++;
     });
 
-    all_candidates[localId] = candidates;
-    const newLeaf = {
-      geometry: leaf.geometry,
-      id: localId,
-      tags: leaf.tags,
-      color: leaf.color,
-      plane: leaf.plane,
-      bom: leaf.bom,
-    };
-    localId++;
-    return newLeaf;
-  });
+    let localId = 0;
+    let shapesForLayout = [];
 
-  // Heuristic here is... for each part get it's minimum thickness. If the largest of these is
-  // <= 1" then it's credibly the size of stock being used, so set that as our material
-  // thickness and select among candidates for each part.
+    // Algo overview:
+    // collect all prospective orientations for all parts
+    // come up with a best-guess material thickness or n/a
+    // select among candidates for each part based on either good fit to the
+    //    estimated material thickness, or just take thinnest orientation.
 
-  let material_thickness = -1;
-  if (layoutConfig.units) {
-    const LARGEST_PLAUSIBLE_STOCK = layoutConfig.units == "MM" ? 25.4 : 1;
-    const min_thickness_per_part = Object.values(all_candidates).map((s) =>
-      Math.min(...s.map((c) => c.thickness))
-    );
-    if (
-      Math.max(...min_thickness_per_part) <=
-      LARGEST_PLAUSIBLE_STOCK + THICKNESS_TOLLERANCE
-    ) {
-      material_thickness = Math.max(...min_thickness_per_part);
-    }
-  }
-
-  const layoutWarnList = [];
-
-  const rotatedAssembly = util.actOnLeafs(intermediate, (leaf) => {
-    let candidates = all_candidates[leaf.id];
-    if (candidates == undefined || candidates.length == 0) {
-      // This should be impossible.
-      throw new Error("Failed to filter unplacable part. id: " + leaf.id);
-    }
-    let selected;
-    if (candidates.length == 1) {
-      selected = candidates[0];
-    } else {
-      // For each candidate generate a descriptive struct with the properties we care about.
-      // namely:
-      //  - is planar face
-      //  - offset (how much the of the object is below the face)
-      //  - thickness
-      //  - area (approx)
-      //  - number of interior wires (if any)
-      const scores = candidates.map((c, index) => {
-        return {
-          candidate_index: index,
-          is_planar: c.face.geomType == "PLANE",
-          offset: c.offset,
-          thickness: c.thickness,
-          area: areaApprox(c.face.UVBounds),
-          interiorWires: c.face.clone().innerWires().length,
-        };
+    // get candidates as {leaf_id: "abc", [candidate 1, candidate 2 etc]}
+    const all_candidates = {};
+    const intermediate = util.actOnLeafs(geometryToLayout, (leaf) => {
+      // For each face, consider it as the underside of the shape on the CNC bed.
+      // In order to be considered, a face must be...
+      //  1) a flat PLANE, not a cylinder, or sphere or other curved face type.
+      //  2) there must be no parts of the shape which protrude "below" this face
+      const candidates = [];
+      let faceIndex = 0;
+      leaf.geometry[0].faces.forEach((face) => {
+        let prospectiveGoem = moveFaceToCuttingPlane(leaf.geometry[0], face);
+        let offset = 0;
+        if (
+          prospectiveGoem.boundingBox.bounds[0][2] <
+          -1 * THICKNESS_TOLLERANCE
+        ) {
+          // this face causes protrusions below the XY plane, move the prospective geometry so that
+          // all points are above the XY plane. Record this movement, since it's a red flag for
+          // this candidate.
+          offset = -1 * prospectiveGoem.boundingBox.bounds[0][2];
+          prospectiveGoem = prospectiveGoem.translate(0, 0, offset);
+        }
+        candidates.push({
+          face: face,
+          offset: offset,
+          geom: prospectiveGoem,
+          faceIndex: faceIndex,
+          thickness: prospectiveGoem.boundingBox.depth,
+        });
+        faceIndex++;
       });
 
-      // Sort in order of preference (scores[0] being best).
-      scores.sort((a, b) => {
-        // Planar faces are preferred because typical cnc machines won't be able to reach the
-        // underside face to make cuts.
-        if (a.is_planar != b.is_planar) {
-          return a.is_planar ? -1 : 1; // prefer planar faces
-        }
+      all_candidates[localId] = candidates;
+      const newLeaf = {
+        geometry: leaf.geometry,
+        id: localId,
+        tags: leaf.tags,
+        color: leaf.color,
+        plane: leaf.plane,
+        bom: leaf.bom,
+      };
+      localId++;
+      return newLeaf;
+    });
 
-        // offset == 0 is preferred since it means our face is flush with the xy plane.
-        if (a.offset != b.offset) {
-          return a.offset - b.offset; // prefer candidates with no offset
-        }
+    // Heuristic here is... for each part get it's minimum thickness. If the largest of these is
+    // <= 1" then it's credibly the size of stock being used, so set that as our material
+    // thickness and select among candidates for each part.
 
-        // Next, prefer thickness that matches material if possible, else pick thinnest
-        // orientation. Or defer if thickness is equal.
-        if (!equalThickness(a.thickness, b.thickness)) {
-          // Candidates with thickness exactly equal to material thickness always win.
-          if (equalThickness(a.thickness, material_thickness)) {
-            return -1;
-          } else if (equalThickness(b.thickness, material_thickness)) {
-            return 1;
-          } else {
-            // Neither candidate is equal to material thickness. Prefer thinnest
-            // candidate.
-            return a.thickness - b.thickness;
+    let material_thickness = -1;
+    if (layoutConfig.units) {
+      const LARGEST_PLAUSIBLE_STOCK = layoutConfig.units == "MM" ? 25.4 : 1;
+      const min_thickness_per_part = Object.values(all_candidates).map((s) =>
+        Math.min(...s.map((c) => c.thickness))
+      );
+      if (
+        Math.max(...min_thickness_per_part) <=
+        LARGEST_PLAUSIBLE_STOCK + THICKNESS_TOLLERANCE
+      ) {
+        material_thickness = Math.max(...min_thickness_per_part);
+      }
+    }
+
+    const layoutWarnList = [];
+
+    const rotatedAssembly = util.actOnLeafs(intermediate, (leaf) => {
+      let candidates = all_candidates[leaf.id];
+      if (candidates == undefined || candidates.length == 0) {
+        // This should be impossible.
+        throw new Error("Failed to filter unplacable part. id: " + leaf.id);
+      }
+      let selected;
+      if (candidates.length == 1) {
+        selected = candidates[0];
+      } else {
+        // For each candidate generate a descriptive struct with the properties we care about.
+        // namely:
+        //  - is planar face
+        //  - offset (how much the of the object is below the face)
+        //  - thickness
+        //  - area (approx)
+        //  - number of interior wires (if any)
+        const scores = candidates.map((c, index) => {
+          return {
+            candidate_index: index,
+            is_planar: c.face.geomType == "PLANE",
+            offset: c.offset,
+            thickness: c.thickness,
+            area: areaApprox(c.face.UVBounds),
+            interiorWires: c.face.clone().innerWires().length,
+          };
+        });
+
+        // Sort in order of preference (scores[0] being best).
+        scores.sort((a, b) => {
+          // Planar faces are preferred because typical cnc machines won't be able to reach the
+          // underside face to make cuts.
+          if (a.is_planar != b.is_planar) {
+            return a.is_planar ? -1 : 1; // prefer planar faces
           }
-        }
 
-        // Tie brakes for candidates of equal thickness.
+          // offset == 0 is preferred since it means our face is flush with the xy plane.
+          if (a.offset != b.offset) {
+            return a.offset - b.offset; // prefer candidates with no offset
+          }
 
-        // First, look for interior wires, if unequal we prefer candidates with fewer since
-        // interior wires *might* indicate carve-outs which are unreachable on the underside of the sheet.
-        if (a.interiorWires != b.interiorWires) {
-          return a.interiorWires - b.interiorWires;
-        }
+          // Next, prefer thickness that matches material if possible, else pick thinnest
+          // orientation. Or defer if thickness is equal.
+          if (!equalThickness(a.thickness, b.thickness)) {
+            // Candidates with thickness exactly equal to material thickness always win.
+            if (equalThickness(a.thickness, material_thickness)) {
+              return -1;
+            } else if (equalThickness(b.thickness, material_thickness)) {
+              return 1;
+            } else {
+              // Neither candidate is equal to material thickness. Prefer thinnest
+              // candidate.
+              return a.thickness - b.thickness;
+            }
+          }
 
-        // Second (finally), prefer candidates with larger area.
-        if (Math.abs(a.area - b.area) > THICKNESS_TOLLERANCE) {
-          return b.area - a.area;
-        }
+          // Tie brakes for candidates of equal thickness.
 
-        return 0; // we can't decide.
+          // First, look for interior wires, if unequal we prefer candidates with fewer since
+          // interior wires *might* indicate carve-outs which are unreachable on the underside of the sheet.
+          if (a.interiorWires != b.interiorWires) {
+            return a.interiorWires - b.interiorWires;
+          }
+
+          // Second (finally), prefer candidates with larger area.
+          if (Math.abs(a.area - b.area) > THICKNESS_TOLLERANCE) {
+            return b.area - a.area;
+          }
+
+          return 0; // we can't decide.
+        });
+        selected = candidates[scores[0].candidate_index];
+      }
+      if (
+        selected.face.geomType != "PLANE" ||
+        selected.offset > THICKNESS_TOLLERANCE
+      ) {
+        layoutWarnList.push(leaf.id);
+      }
+      //move so center of bounding box is at (0, 0, 0)
+      const boundingBoxCenter = selected.geom.boundingBox.center;
+      const newGeom = selected.geom
+        .clone()
+        .translate(-1 * boundingBoxCenter[0], -1 * boundingBoxCenter[1], 0);
+
+      let newLeaf = {
+        geometry: [newGeom],
+        id: leaf.id,
+        referencePoint: selected.face.center,
+        tags: leaf.tags,
+        color: leaf.color,
+        plane: leaf.plane,
+        bom: leaf.bom,
+      };
+      // Retrieve face from the re-positioned shape so that we get the shape of the face after
+      // it's been moved to the xy cutting plane. Otherwise we can get weird skewed projections
+      // of the face shape.
+      shapesForLayout.push({
+        id: leaf.id,
+        shape: newLeaf.geometry[0].faces[selected.faceIndex],
       });
-      selected = candidates[scores[0].candidate_index];
-    }
-    if (
-      selected.face.geomType != "PLANE" ||
-      selected.offset > THICKNESS_TOLLERANCE
-    ) {
-      layoutWarnList.push(leaf.id);
-    }
-    //move so center of bounding box is at (0, 0, 0)
-    const boundingBoxCenter = selected.geom.boundingBox.center;
-    const newGeom = selected.geom
-      .clone()
-      .translate(-1 * boundingBoxCenter[0], -1 * boundingBoxCenter[1], 0);
 
-    let newLeaf = {
-      geometry: [newGeom],
-      id: leaf.id,
-      referencePoint: selected.face.center,
-      tags: leaf.tags,
-      color: leaf.color,
-      plane: leaf.plane,
-      bom: leaf.bom,
-    };
-    // Retrieve face from the re-positioned shape so that we get the shape of the face after
-    // it's been moved to the xy cutting plane. Otherwise we can get weird skewed projections
-    // of the face shape.
-    shapesForLayout.push({
-      id: leaf.id,
-      shape: newLeaf.geometry[0].faces[selected.faceIndex],
+      return newLeaf;
     });
 
-    return newLeaf;
+    // If we have a warning, pass it to the callback
+    if (layoutWarnList.length > 0 && warningCallback) {
+      warningCallback(
+        `Part(s) ${layoutWarnList.join(
+          ", "
+        )} have no orientation suitable for layout.`
+      );
+    }
+
+    return [rotatedAssembly, shapesForLayout];
   });
-
-  // If we have a warning, pass it to the callback
-  if (layoutWarnList.length > 0 && warningCallback) {
-    warningCallback(
-      `Part(s) ${layoutWarnList.join(
-        ", "
-      )} have no orientation suitable for layout.`
-    );
-  }
-
-  return [rotatedAssembly, shapesForLayout];
 }
 
 /**

@@ -1,3 +1,4 @@
+import { XYPlane } from "./geometryProvider.js";
 import * as util from "./util.js";
 import { Plane, Solid } from "replicad";
 
@@ -22,7 +23,7 @@ function loftShapes(sketches) {
     let partToLoft = digFuse(sketch);
     let sketchedpart = util.geometryProvider
       .get(partToLoft)
-      .sketchOnPlane(sketch.plane);
+      .sketchOnPlane(sketch.plane.asReplicadPlane());
     if (!sketchedpart.sketches) {
       arrayOfSketchedGeometry.push(sketchedpart);
     } else {
@@ -30,7 +31,6 @@ function loftShapes(sketches) {
     }
   });
   let startGeometry = arrayOfSketchedGeometry.shift();
-  const newPlane = new Plane().pivot(0, "Y");
 
   return {
     geometry: [
@@ -39,7 +39,7 @@ function loftShapes(sketches) {
       ),
     ],
     tags: [],
-    plane: newPlane,
+    plane: XYPlane,
     color: util.defaultColor,
     bom: [],
   };
@@ -90,12 +90,11 @@ function shrinkWrapSketches(sketches) {
     // shrinkWrap below... To optimize we could prefer to match inputs to the public API?
     // OTOH caching intervening states might allow for more hits between different operations (eg: the digfuse above)
     let geometryToWrap = util.geometryProvider.fuse(inputsToFuse);
-    const newPlane = new Plane().pivot(0, "Y");
     return {
       geometry: [util.geometryProvider.shrinkWrap(geometryToWrap, 50)],
       tags: [],
       color: util.defaultColor,
-      plane: newPlane,
+      plane: XYPlane,
       bom: BOM,
     };
   } else {
@@ -141,12 +140,11 @@ function fusion(shapes) {
       bomAssembly.push(...shape.bom);
     }
   });
-  const newPlane = new Plane().pivot(0, "Y");
   return {
     geometry: [util.geometryProvider.fuse(fusedGeometry)],
     tags: [],
     bom: bomAssembly,
-    plane: newPlane,
+    plane: XYPlane,
     color: util.defaultColor,
   };
 }
@@ -190,11 +188,9 @@ async function assembly(geometries) {
     }
   }
 
-  const newPlane = new Plane().pivot(0, "Y");
-  // TODO(tristan): color isn't defined at the top level here. is that a problem?
   return {
     geometry: assembly,
-    plane: newPlane,
+    plane: XYPlane,
     tags: [],
     bom: bomAssembly,
   };

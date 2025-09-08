@@ -8,6 +8,7 @@ import * as actions from "./actions.js";
 import * as interaction from "./interaction.js";
 import * as tags from "./tags.js";
 import * as codeLib from "./code.js";
+import { XYPlane } from "./geometryProvider.js";
 
 var library = {};
 let defaultMesh = undefined;
@@ -695,7 +696,7 @@ async function importingSVG(targetID, svg, width) {
         ),
       ],
       tags: [],
-      plane: new Plane().pivot(0, "Y"),
+      plane: XYPlane,
       color: util.defaultColor,
       bom: [],
     };
@@ -758,7 +759,7 @@ function visualizeGcode(targetID, gcode) {
     // TODO: we could probably use a hash of the gcode string as an ID here.
     geometry: [util.geometryProvider.addSingularToCache(wire)],
     tags: [],
-    plane: new Plane().pivot(0, "Y"),
+    plane: XYPlane,
     color: util.defaultColor,
     bom: [],
   };
@@ -1117,7 +1118,7 @@ function generateDisplayMesh(id) {
     flattened.forEach((displayObject) => {
       var cleanedGeometry = [];
       if (displayObject.geometry.mesh == undefined) {
-        let sketchPlane = library[id].plane;
+        let sketchPlane = library[id].plane.asReplicadPlane();
         let sketches = displayObject.geometry.clone();
         cleanedGeometry = sketches.sketchOnPlane(sketchPlane).extrude(0.0001);
       } else {
@@ -1139,7 +1140,7 @@ function generateDisplayMesh(id) {
     meshArray.forEach((meshgeometry) => {
       try {
         //Try extruding if there is no 3d shape
-        let sketchPlane = library[id].plane;
+        let sketchPlane = library[id].plane.asReplicadPlane();
         if (meshgeometry.geometry.mesh == undefined) {
           const threeDShape = meshgeometry
             .sketchOnPlane(sketchPlane)
