@@ -782,7 +782,7 @@ export default class Atom extends ObservableEntity {
   sendToRender() {
     //Send code to JSxCAD to render
     try {
-      GlobalVariables.writeToDisplay(this.uniqueID);
+      GlobalVariables.writeToDisplay(this.value);
     } catch (err) {
       this.setError(err);
     }
@@ -870,8 +870,9 @@ export default class Atom extends ObservableEntity {
 
     // Handle empty or whitespace-only equations gracefully
     if (!substitutedEquation) {
-      // If the equation is empty, treat it as zero
-      substitutedEquation = "0";
+      throw new Error(
+        "Empty mathematical expression. Please enter a valid expression."
+      );
     }
 
     const variables = this.extractVariablesFromEquation(substitutedEquation);
