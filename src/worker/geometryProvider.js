@@ -12,31 +12,115 @@ import shrinkWrap from "replicad-shrink-wrap";
  */
 class GeometryProvider {
   constructor() {
-    this._cache = {}; // dictionary of string to geom. Acts as standin for indexeddb + serialized geoms
-    this._nextId = 0;
+    this._dbPromise = this._initDB(); // Initialize IndexedDB
     this._cacheHitMetrics = {};
     this._evictionCount = 0;
 
-    this._finalizers = new FinalizationRegistry((geomKey) => {
-      if (this._cache[geomKey.value]) {
-        delete this._cache[geomKey.value];
-        this._evictionCount++;
-        // This is where we'd delete the file from indexeddb or similar
-        console.log("Geometry gc'd: ", geomKey.value);
-      }
+    /*    this._finalizers = new FinalizationRegistry((geomKey) => {
+      this._deleteFromDB(geomKey.value);
+      this._evictionCount++;
+      console.log("Geometry gc'd: ", geomKey.value);
     });
-
+*/
     setInterval(() => {
       console.log(this._cacheHitMetrics);
-      console.log(
-        `cache size: ${Object.keys(this._cache).length} and evictions so far: ${
-          this._evictionCount
-        }`
-      );
+      this._dbPromise.then((db) => {
+        const transaction = db.transaction("geometries", "readonly");
+        const store = transaction.objectStore("geometries");
+        store.count().onsuccess = (event) => {
+          console.log(
+            `cache size: ${event.target.result} and evictions so far: ${this._evictionCount}`
+          );
+        };
+      });
     }, 10000);
   }
 
-  // TODO: these 4 are simple memoize wrappers. Should we refactor in some way?
+  async _initDB() {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open("geometryCache", 1);
+
+      request.onupgradeneeded = (event) => {
+        const db = event.target.result;
+        if (!db.objectStoreNames.contains("geometries")) {
+          db.createObjectStore("geometries", { keyPath: "id" });
+        }
+      };
+
+      request.onsuccess = (event) => {
+        resolve(event.target.result);
+      };
+
+      request.onerror = (event) => {
+        reject(event.target.error);
+      };
+    });
+  }
+
+  async _getFromDB(id) {
+    const db = await this._dbPromise;
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction("geometries", "readonly");
+      const store = transaction.objectStore("geometries");
+      const request = store.get(id);
+
+      request.onsuccess = (event) => {
+        // TODO: Deserialize the geometry value after retrieving from DB
+        const result = event.target.result;
+        resolve(result ? result.value : undefined);
+      };
+
+      request.onerror = (event) => {
+        reject(event.target.error);
+      };
+    });
+  }
+
+  async _saveToDB(id, value) {
+    const db = await this._dbPromise;
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction("geometries", "readwrite");
+      const store = transaction.objectStore("geometries");
+
+      // Check if the key already exists
+      const getRequest = store.get(id);
+      getRequest.onsuccess = (event) => {
+        if (event.target.result) {
+          // Key already exists, skip writing
+          resolve();
+        } else {
+          // Key does not exist, proceed with writing
+          const putRequest = store.put({ id, value });
+          putRequest.onsuccess = () => resolve();
+          putRequest.onerror = (event) => reject(event.target.error);
+        }
+      };
+
+      getRequest.onerror = (event) => reject(event.target.error);
+    });
+  }
+
+  async _deleteFromDB(id) {
+    const db = await this._dbPromise;
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction("geometries", "readwrite");
+      const store = transaction.objectStore("geometries");
+      const request = store.delete(id);
+
+      request.onsuccess = () => resolve();
+      request.onerror = (event) => reject(event.target.error);
+    });
+  }
+
+  async _getOrCreate(id, builder) {
+    let value = await this._getFromDB(id.value);
+    if (!value) {
+      value = builder();
+      // TODO: Serialize the geometry value before saving to DB
+      await this._saveToDB(id.value, value);
+    }
+    return value;
+  }
 
   drawRectangle(x, y) {
     const id = this._makeId("rectangle", x, y);
@@ -229,15 +313,17 @@ class GeometryProvider {
     return id;
   }
 
-  get(geomKey) {
+  async get(geomKey) {
     if (typeof geomKey === "string") {
       geomKey = new GeomKey(geomKey);
     }
     if (geomKey instanceof GeomKey) {
-      if (this._cache[geomKey.value] === undefined) {
+      const value = await this._getFromDB(geomKey.value);
+      if (value === undefined) {
         throw new Error(`Geometry with ID ${geomKey.value} not found in cache`);
       }
-      return this._cache[geomKey.value];
+      // TODO: Deserialize the geometry value after retrieving from DB
+      return value;
     } else {
       console.trace("geometryProvider.get called with non-GeomKey:", geomKey);
       return geomKey;
@@ -249,13 +335,6 @@ class GeometryProvider {
     this._incrementCounter(type, key);
     this._finalizers.register(this, key);
     return key;
-  }
-
-  _getOrCreate(id, builder) {
-    if (!this._cache[id.value]) {
-      this._cache[id.value] = builder();
-    }
-    return this._cache[id.value];
   }
 
   _incrementCounter(type, id) {
