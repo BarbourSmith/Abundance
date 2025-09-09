@@ -1,5 +1,5 @@
-import { XYPlane } from "./geometryProvider.js";
-import * as util from "./util.js";
+import { GeometryProvider } from "./geometryProvider.js";
+import * as util from "./util.ts";
 import { Plane, Solid } from "replicad";
 
 /**
@@ -23,7 +23,7 @@ function loftShapes(sketches) {
     let partToLoft = digFuse(sketch);
     let sketchedpart = util.geometryProvider
       .get(partToLoft)
-      .sketchOnPlane(sketch.plane.asReplicadPlane());
+      .sketchOnPlane(util.asReplicadPlane(sketch.plane));
     if (!sketchedpart.sketches) {
       arrayOfSketchedGeometry.push(sketchedpart);
     } else {
@@ -39,7 +39,7 @@ function loftShapes(sketches) {
       ),
     ],
     tags: [],
-    plane: XYPlane,
+    plane: util.XYPlane,
     color: util.defaultColor,
     bom: [],
   };
@@ -94,7 +94,7 @@ function shrinkWrapSketches(sketches) {
       geometry: [util.geometryProvider.shrinkWrap(geometryToWrap, 50)],
       tags: [],
       color: util.defaultColor,
-      plane: XYPlane,
+      plane: util.XYPlane,
       bom: BOM,
     };
   } else {
@@ -144,7 +144,7 @@ function fusion(shapes) {
     geometry: [util.geometryProvider.fuse(fusedGeometry)],
     tags: [],
     bom: bomAssembly,
-    plane: XYPlane,
+    plane: util.XYPlane,
     color: util.defaultColor,
   };
 }
@@ -190,7 +190,7 @@ async function assembly(geometries) {
 
   return {
     geometry: assembly,
-    plane: XYPlane,
+    plane: util.XYPlane,
     tags: [],
     bom: bomAssembly,
   };

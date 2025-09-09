@@ -2,13 +2,13 @@ import { expose } from "comlink";
 import { Plane } from "replicad";
 import { drawSVG } from "replicad-decorate";
 import * as cutlayout from "./cutlayout.js";
-import * as util from "./util.js";
+import * as util from "./util.ts";
 import * as shapes from "./shapes.js";
 import * as actions from "./actions.js";
 import * as interaction from "./interaction.js";
 import * as tags from "./tags.js";
 import * as codeLib from "./code.js";
-import { XYPlane } from "./geometryProvider.js";
+import { GeometryProvider } from "./geometryProvider.js";
 
 var library = {};
 let defaultMesh = undefined;
@@ -203,15 +203,14 @@ async function circle(id, diameter) {
 
 /**
  * Creates a rectangle geometry with the specified dimensions and stores it in the library.
- * @param {string} id - The unique identifier to store the rectangle geometry in the library
  * @param {number} x - The width of the rectangle
  * @param {number} y - The height of the rectangle
  * @returns {Promise<boolean>} A promise that resolves to true when the rectangle is created successfully
  */
-async function rectangle(id, x, y) {
+async function rectangle(x, y) {
   await started;
-  library[id] = await shapes.rectangle(x, y);
-  return id;
+  const result = shapes.rectangle(x, y);
+  return result;
 }
 
 /**
@@ -266,10 +265,11 @@ async function loftShapes(targetID, inputsIDs) {
  * @param {number} height - The height to extrude the sketch
  * @returns {Promise<boolean>} A promise that resolves to true when the extrusion is completed successfully
  */
-async function extrude(targetID, inputID, height) {
+async function extrude(input, height) {
   await started;
-  library[targetID] = await actions.extrude(getOrThrow(inputID), height);
-  return targetID;
+  const result = await actions.extrude(input, height);
+
+  return result;
 }
 
 /**
@@ -696,7 +696,7 @@ async function importingSVG(targetID, svg, width) {
         ),
       ],
       tags: [],
-      plane: XYPlane,
+      plane: util.XYPlane,
       color: util.defaultColor,
       bom: [],
     };
@@ -759,7 +759,7 @@ function visualizeGcode(targetID, gcode) {
     // TODO: we could probably use a hash of the gcode string as an ID here.
     geometry: [util.geometryProvider.addSingularToCache(wire)],
     tags: [],
-    plane: XYPlane,
+    plane: util.XYPlane,
     color: util.defaultColor,
     bom: [],
   };
@@ -917,35 +917,6 @@ function fusion(targetID, inputIDs) {
   });
 }
 
-/**
- * Recursively flattens an assembly tree into a flat array of geometry objects with colors.
- * @param {Object} assembly - The assembly to flatten
- * @returns {Array} An array of objects containing geometry and color properties
- */
-function flattenAssembly(assembly) {
-  var flattened = [];
-  if (assembly == undefined || assembly.geometry == undefined) {
-    console.trace("attempted to flatten empty assembly");
-    return flattened;
-  }
-
-  //This is a leaf
-  if (
-    assembly.geometry.length == 1 &&
-    assembly.geometry[0].geometry == undefined
-  ) {
-    flattened.push({ geometry: assembly.geometry[0], color: assembly.color });
-    return flattened;
-  }
-  //This is a branch
-  else {
-    assembly.geometry.forEach((subAssembly) => {
-      flattened.push(...flattenAssembly(subAssembly));
-    });
-    return flattened;
-  }
-}
-
 let colorOptions = {
   Default: util.defaultColor,
   Red: "#FF9065",
@@ -1100,15 +1071,22 @@ function generateCameraPosition(meshArray) {
 
 function generateDisplayMesh(id) {
   return started.then(() => {
-    if (library[id] == undefined || id == undefined) {
-      //throw new Error("ID not found in library");
-      return generateDefaultMesh();
+    let geom = undefined;
+    if (util.isAbundanceObject(id)) {
+      geom = id;
+    } else {
+      if (library[id] != undefined && id != undefined) {
+        geom = library[id];
+      } else {
+        return generateDefaultMesh();
+      }
     }
+
     let meshArray = [];
 
     //Flatten the assembly to remove hierarchy
 
-    const flattened = flattenAssembly(library[id]).map((item) => {
+    const flattened = util.flattenAssembly(geom).map((item) => {
       return {
         geometry: util.geometryProvider.get(item.geometry),
         color: item.color,
@@ -1118,7 +1096,7 @@ function generateDisplayMesh(id) {
     flattened.forEach((displayObject) => {
       var cleanedGeometry = [];
       if (displayObject.geometry.mesh == undefined) {
-        let sketchPlane = library[id].plane.asReplicadPlane();
+        let sketchPlane = util.asReplicadPlane(geom.plane);
         let sketches = displayObject.geometry.clone();
         cleanedGeometry = sketches.sketchOnPlane(sketchPlane).extrude(0.0001);
       } else {
@@ -1140,7 +1118,7 @@ function generateDisplayMesh(id) {
     meshArray.forEach((meshgeometry) => {
       try {
         //Try extruding if there is no 3d shape
-        let sketchPlane = library[id].plane.asReplicadPlane();
+        let sketchPlane = util.asReplicadPlane(geom.plane);
         if (meshgeometry.geometry.mesh == undefined) {
           const threeDShape = meshgeometry
             .sketchOnPlane(sketchPlane)

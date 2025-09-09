@@ -1,5 +1,5 @@
-import { Plane } from "./geometryProvider.js";
-import * as util from "./util.js";
+import { GeometryProvider } from "./geometryProvider.js";
+import * as util from "./util.ts";
 
 /**
  * Methods in this file act on a single geometry and return a modified copy of it.
@@ -11,12 +11,14 @@ import * as util from "./util.js";
 function extrude(toExtrude, height) {
   return util.actOnLeafs(toExtrude, (leaf) => {
     return {
-      geometry: [
-        util.geometryProvider.extrude(leaf.geometry[0], leaf.plane, height),
-      ],
-      tags: leaf.tags,
+      geometry: util.geometryProvider.extrude(
+        leaf.geometry,
+        util.asReplicadPlane(leaf.plane),
+        height
+      )._value,
       plane: leaf.plane,
       color: leaf.color,
+      tags: leaf.tags,
       bom: leaf.bom,
     };
   });
@@ -42,22 +44,23 @@ function move(toMove, x, y, z) {
       toMove.plane
     );
   } else {
+    const zTranslate = (plane, z) => {
+      return util.asSimplePlane(
+        util.asReplicadPlane(plane).translate([0, 0, z])
+      );
+    };
     return util.actOnLeafs(
       toMove,
       (leaf) => {
         return {
           geometry: [util.geometryProvider.move(leaf.geometry[0], x, y)],
           tags: leaf.tags,
-          plane: Plane.fromReplicadPlane(
-            leaf.plane.asReplicadPlane().translate([0, 0, z])
-          ),
+          plane: zTranslate(leaf.plane, z),
           color: leaf.color,
           bom: leaf.bom,
         };
       },
-      Plane.fromReplicadPlane(
-        toMove.plane.asReplicadPlane().translate([0, 0, z])
-      )
+      zTranslate(toMove.plane, z)
     );
   }
 }
@@ -82,8 +85,8 @@ async function rotate(toRotate, x, y, z) {
       return {
         geometry: [util.geometryProvider.rotate(leaf.geometry[0], 0, 0, z)],
         tags: leaf.tags,
-        plane: Plane.fromReplicadPlane(
-          leaf.plane.asReplicadPlane().pivot(x, "X").pivot(y, "Y")
+        plane: util.asSimplePlane(
+          util.asReplicadPlane(leaf.plane).rotate(z, "X").rotate(y, "Y")
         ),
         color: leaf.color,
         bom: leaf.bom,

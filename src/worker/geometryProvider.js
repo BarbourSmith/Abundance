@@ -75,10 +75,7 @@ class GeometryProvider {
     const extrudedId = this._makeId("extrude", inputId, plane, height);
     this._getOrCreate(extrudedId, () => {
       const geometry = this.get(inputId);
-      return geometry
-        .clone()
-        .sketchOnPlane(plane.asReplicadPlane())
-        .extrude(height);
+      return geometry.clone().sketchOnPlane(plane).extrude(height);
     });
     return extrudedId;
   }
@@ -233,6 +230,9 @@ class GeometryProvider {
   }
 
   get(geomKey) {
+    if (typeof geomKey === "string") {
+      geomKey = new GeomKey(geomKey);
+    }
     if (geomKey instanceof GeomKey) {
       if (this._cache[geomKey.value] === undefined) {
         throw new Error(`Geometry with ID ${geomKey.value} not found in cache`);
@@ -255,7 +255,7 @@ class GeometryProvider {
     if (!this._cache[id.value]) {
       this._cache[id.value] = builder();
     }
-    return this._cache[id.value]
+    return this._cache[id.value];
   }
 
   _incrementCounter(type, id) {
@@ -269,45 +269,6 @@ class GeometryProvider {
     }
   }
 }
-
-/** Simple serializable representation of a Plane */
-class Plane {
-  constructor(origin, xDir, normal) {
-    this.origin = origin;
-    this.xDir = xDir;
-    this.normal = normal;
-    this.replicadRepr = null;
-  }
-
-  asReplicadPlane() {
-    if (!this.replicadRepr) {
-      this.replicadRepr = new replicad.Plane(
-        [this.origin[0], this.origin[1], this.origin[2]],
-        [this.xDir[0], this.xDir[1], this.xDir[2]],
-        [this.normal[0], this.normal[1], this.normal[2]]
-      );
-    }
-    return this.replicadRepr;
-  }
-
-  static fromReplicadPlane(plane) {
-    return new Plane(
-      plane.origin.toTuple(),
-      plane.xDir.toTuple(),
-      plane.zDir.toTuple()
-    );
-  }
-
-  toJSON() {
-    return {
-      origin: this.origin,
-      xDir: this.xDir,
-      normal: this.normal,
-    };
-  }
-}
-
-const XYPlane = new Plane([0, 0, 0], [1, 0, 0], [0, 1, 0]);
 
 /**
  * GeomKey is a class which specifies a particular geometry. All
@@ -375,4 +336,4 @@ class GeomKey {
   }
 }
 
-export { GeometryProvider, GeomKey, Plane, XYPlane };
+export { GeometryProvider, GeomKey };

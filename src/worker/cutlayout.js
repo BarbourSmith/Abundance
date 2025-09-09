@@ -1,6 +1,6 @@
 import { PolygonPacker, PlacementWrapper } from "polygon-packer";
 import { Plane, Solid, Wire } from "replicad";
-import * as util from "./util.js";
+import * as util from "./util.ts";
 import { proxy } from "comlink"; // TODO: this should ideally be moved to worker somehow
 
 function layout(

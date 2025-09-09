@@ -1,4 +1,4 @@
-import { isAssembly, actOnLeafs } from "./util";
+import { isAssembly, actOnLeafs } from "./util.ts";
 
 /**
  * Methods in this file act on the metadata of a geometry or assembly,

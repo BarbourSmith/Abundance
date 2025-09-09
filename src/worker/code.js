@@ -1,4 +1,4 @@
-import * as util from "./util.js";
+import * as util from "./util.ts";
 import { rotate, move, scale, fillet, chamfer } from "./actions.js";
 import { intersect, assembly, cutAssembly } from "./interaction.js";
 

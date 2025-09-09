@@ -61,13 +61,8 @@ export default class Rectangle extends Atom {
    * Compute the rectangle geometry.
    */
   compute(inputs) {
-    // TODO: TRISTAN this is definitely borked
-    //super.updateValue()
-    //    var xVal = this.findIOValue("x length");
-    //    var yVal = this.findIOValue("y length");
-
     const xVal = inputs["x length"];
     const yVal = inputs["y length"];
-    return GlobalVariables.cad.rectangle(this.uniqueID, xVal, yVal);
+    return GlobalVariables.cad.rectangle(xVal, yVal);
   }
 }

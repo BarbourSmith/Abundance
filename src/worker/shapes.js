@@ -1,7 +1,6 @@
-import * as util from "./util.js";
+import * as util from "./util.ts";
 import Fonts from "../js/fonts.js";
 import { Plane } from "replicad";
-import { XYPlane } from "./geometryProvider.js";
 
 /**
  * Methods in this file create a new geometry from non-geometric inputs. Eg:
@@ -18,7 +17,7 @@ function circle(diameter) {
   return {
     geometry: [util.geometryProvider.drawCircle(diameter / 2)],
     tags: [],
-    plane: XYPlane,
+    plane: util.XYPlane,
     color: util.defaultColor,
     bom: [],
   };
@@ -32,10 +31,10 @@ function circle(diameter) {
  */
 function rectangle(x, y) {
   return {
-    geometry: [util.geometryProvider.drawRectangle(x, y)],
-    tags: [],
-    plane: XYPlane,
+    geometry: util.geometryProvider.drawRectangle(x, y)._value,
+    plane: util.XYPlane,
     color: util.defaultColor,
+    tags: [],
     bom: [],
   };
 }
@@ -56,7 +55,7 @@ function regularPolygon(radius, numberOfSides) {
   return {
     geometry: [util.geometryProvider.drawPolysides(radius, numberOfSides)],
     tags: [],
-    plane: XYPlane,
+    plane: util.XYPlane,
     color: util.defaultColor,
     bom: [],
   };
@@ -81,9 +80,9 @@ async function text(text, fontSize, fontFamily) {
         font: fontFamily,
       });
       return {
-        geometry: [textGeometry],
+        geometry: textGeometry,
         tags: [],
-        plane: XYPlane,
+        plane: util.XYPlane,
         color: util.defaultColor,
         bom: [],
       };
