@@ -1069,88 +1069,85 @@ function generateCameraPosition(meshArray) {
   }
 }
 
-function generateDisplayMesh(id) {
-  return started.then(() => {
-    let geom = undefined;
-    if (util.isAbundanceObject(id)) {
-      geom = id;
+async function generateDisplayMesh(id) {
+  await started;
+  let geom = undefined;
+  if (util.isAbundanceObject(id)) {
+    geom = id;
+  } else {
+    if (library[id] != undefined && id != undefined) {
+      geom = library[id];
     } else {
-      if (library[id] != undefined && id != undefined) {
-        geom = library[id];
-      } else {
-        return generateDefaultMesh();
-      }
+      return generateDefaultMesh();
     }
+  }
 
-    let meshArray = [];
+  // Flatten the assembly to remove hierarchy
+  const flattened = util.flattenAssembly(geom);
 
-    //Flatten the assembly to remove hierarchy
+  let meshArray = [];
 
-    const flattened = util.flattenAssembly(geom).map((item) => {
-      return {
-        geometry: util.geometryProvider.get(item.geometry),
-        color: item.color,
-      };
+  for (let i = 0; i < flattened.length; i++) {
+    const displayObject = flattened[i];
+    let cleanedGeometry;
+    if (displayObject.geometry.mesh == undefined) {
+      let sketchPlane = util.asReplicadPlane(displayObject.plane);
+      let sketch = await util.geometryProvider.get(displayObject.geometry);
+      cleanedGeometry = sketch.sketchOnPlane(sketchPlane).extrude(0.0001);
+    } else {
+      cleanedGeometry = displayObject.geometry;
+    }
+    meshArray.push({
+      color: displayObject.color,
+      geometry: cleanedGeometry,
     });
+  }
 
-    flattened.forEach((displayObject) => {
-      var cleanedGeometry = [];
-      if (displayObject.geometry.mesh == undefined) {
-        let sketchPlane = util.asReplicadPlane(geom.plane);
-        let sketches = displayObject.geometry.clone();
-        cleanedGeometry = sketches.sketchOnPlane(sketchPlane).extrude(0.0001);
-      } else {
-        cleanedGeometry = displayObject.geometry;
-      }
-      meshArray.push({
-        color: displayObject.color,
-        geometry: cleanedGeometry,
-      });
-    });
-    let cameraZoom;
+  let cameraZoom;
+  try {
+    cameraZoom = generateCameraPosition(meshArray);
+  } catch (e) {
+    cameraZoom = 1;
+  }
+
+  let finalMeshes = [];
+  // Iterate through the meshArray and create final meshes with faces, edges and color to pass to display
+  for (const meshObj of meshArray) {
     try {
-      cameraZoom = generateCameraPosition(meshArray);
-    } catch (e) {
-      cameraZoom = 1;
-    }
-    let finalMeshes = [];
-    //Iterate through the meshArray and create final meshes with faces, edges and color to pass to display
-    meshArray.forEach((meshgeometry) => {
-      try {
-        //Try extruding if there is no 3d shape
-        let sketchPlane = util.asReplicadPlane(geom.plane);
-        if (meshgeometry.geometry.mesh == undefined) {
-          const threeDShape = meshgeometry
-            .sketchOnPlane(sketchPlane)
-            .clone()
-            .extrude(0.0001);
-          return {
-            faces: threeDShape.mesh({ tolerance: 0.1, angularTolerance: 0.5 }),
-            edges: threeDShape.meshEdges({
-              tolerance: 0.1,
-              angularTolerance: 0.5,
-            }),
-          };
-        } else {
-          finalMeshes.push({
-            cameraZoom: cameraZoom,
-            faces: meshgeometry.geometry.mesh({
-              tolerance: 0.1,
-              angularTolerance: 0.5,
-            }),
-            edges: meshgeometry.geometry.meshEdges({
-              tolerance: 0.1,
-              angularTolerance: 0.5,
-            }),
-            color: meshgeometry.color,
-          });
-        }
-      } catch (e) {
-        throw new Error("Error generating display mesh" + e);
+      let sketchPlane = util.asReplicadPlane(geom.plane);
+      if (meshObj.geometry.mesh == undefined) {
+        const threeDShape = meshObj.geometry
+          .sketchOnPlane(sketchPlane)
+          .clone()
+          .extrude(0.0001);
+        finalMeshes.push({
+          cameraZoom: cameraZoom,
+          faces: threeDShape.mesh({ tolerance: 0.1, angularTolerance: 0.5 }),
+          edges: threeDShape.meshEdges({
+            tolerance: 0.1,
+            angularTolerance: 0.5,
+          }),
+          color: meshObj.color,
+        });
+      } else {
+        finalMeshes.push({
+          cameraZoom: cameraZoom,
+          faces: meshObj.geometry.mesh({
+            tolerance: 0.1,
+            angularTolerance: 0.5,
+          }),
+          edges: meshObj.geometry.meshEdges({
+            tolerance: 0.1,
+            angularTolerance: 0.5,
+          }),
+          color: meshObj.color,
+        });
       }
-    });
-    return finalMeshes;
-  });
+    } catch (e) {
+      throw new Error("Error generating display mesh" + e);
+    }
+  }
+  return finalMeshes;
 }
 
 if (
