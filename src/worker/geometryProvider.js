@@ -66,8 +66,25 @@ class GeometryProvider {
 
       request.onsuccess = (event) => {
         // TODO: Deserialize the geometry value after retrieving from DB
-        const result = event.target.result;
-        resolve(result ? result.value : undefined);
+        let result = event.target.result;
+        result = result ? result.value : undefined;
+
+        if (!result) {
+          reject("Found no geometry for id " + id);
+        } else {
+          // TODO: consider storing a sentinel so we don't have to guess and check
+          try {
+            result = replicad.deserializeShape(result);
+            resolve(result);
+          } catch (error) {
+            try {
+              result = replicad.deserializeDrawing(result);
+              resolve(result);
+            } catch (error) {
+              reject("Failed to deserialize geometry for id " + id);
+            }
+          }
+        }
       };
 
       request.onerror = (event) => {
@@ -112,12 +129,30 @@ class GeometryProvider {
     });
   }
 
+  cacheHit(id) {
+    const type = id.split("-")[0];
+    if (!this._cacheHitMetrics[type]) {
+      this._cacheHitMetrics[type] = [0, 0];
+    }
+    this._cacheHitMetrics[type][0]++;
+  }
+
+  cacheMiss(id) {
+    const type = id.split("-")[0];
+    if (!this._cacheHitMetrics[type]) {
+      this._cacheHitMetrics[type] = [0, 0];
+    }
+    this._cacheHitMetrics[type][1]++;
+  }
+
   async _getOrCreate(id, builder) {
     let value = await this._getFromDB(id.value);
     if (!value) {
       value = builder();
-      // TODO: Serialize the geometry value before saving to DB
-      await this._saveToDB(id.value, value);
+      await this._saveToDB(id.value, value.serialize());
+      this.cacheMiss(id);
+    } else {
+      this.cacheHit(id);
     }
     return value;
   }
@@ -332,20 +367,7 @@ class GeometryProvider {
 
   _makeId(type, ...args) {
     const key = GeomKey.from(type, ...args);
-    this._incrementCounter(type, key);
-    this._finalizers.register(this, key);
     return key;
-  }
-
-  _incrementCounter(type, id) {
-    if (!this._cacheHitMetrics[type]) {
-      this._cacheHitMetrics[type] = [0, 0];
-    }
-    if (this._cache[id]) {
-      this._cacheHitMetrics[type][0]++;
-    } else {
-      this._cacheHitMetrics[type][1]++;
-    }
   }
 }
 
