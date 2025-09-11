@@ -302,22 +302,6 @@ export default class Connector {
   }
 
   /**
-   * Passes a lock call to the connected input.
-   */
-  waitOnComingInformation() {
-    if (this.attachmentPoint2) {
-      this.attachmentPoint2.waitOnComingInformation();
-    }
-  }
-
-  /**
-   * Used to walk back out the tree generating a list of constants...used for evolve
-   */
-  walkBackForConstants(callback) {
-    this.attachmentPoint1.parentMolecule.walkBackForConstants(callback);
-  }
-
-  /**
    * Computes the connectors position and draw it to the screen.
    */
   update() {

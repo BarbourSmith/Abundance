@@ -59,7 +59,7 @@ export default class Atom extends ObservableEntity {
      * This atom's unique ID. Often overwritten later when loading
      * @type {number}
      */
-    this.uniqueID = values?.uniqueID || GlobalVariables.cad.generateUniqueID();
+    this.uniqueID = values?.uniqueID || GlobalVariables.generateUniqueID();
 
     /**
      * A description of this atom
@@ -774,31 +774,6 @@ export default class Atom extends ObservableEntity {
         .deleteFromLibrary(this.uniqueID)
         .catch(this.alertingErrorHandler());
     }
-  }
-
-  /**
-   * Used to walk back out the tree generating a list of constants...used for evolve
-   */
-  walkBackForConstants(callback) {
-    //Pass the call further up the chain
-    this.inputs.forEach((input) => {
-      input.connectors.forEach((connector) => {
-        connector.walkBackForConstants(callback);
-      });
-    });
-  }
-
-  /**
-   * Returns an array of length two indicating that this is one atom and if it is waiting to be computed
-   */
-  census() {
-    var waiting = 0;
-    this.inputs.forEach((input) => {
-      if (input.ready != true) {
-        waiting = 1;
-      }
-    });
-    return [1, waiting];
   }
 
   /**

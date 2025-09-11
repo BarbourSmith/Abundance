@@ -108,12 +108,11 @@ export default class Molecule extends Atom {
     this.color;
   }
 
-  // TODO: recursive count of children - we can cache this value and refresh it only when
-  // the GlobalVariables.currentMolecule changes (unless we are the current molecule)
-
   // Returns a tuple of [READY_child_count, total_child_count]
   getCompletionTuple() {
-    const childCount = this.nodesOnTheScreen.length;
+    let childCount = this.nodesOnTheScreen.filter(
+      (atom) => atom.status !== Status.DISABLED
+    ).length;
     if (childCount === 0) {
       return [1, 1]; // be nice about division by 0
     }
@@ -122,11 +121,27 @@ export default class Molecule extends Atom {
         return [childCount, childCount];
       case Status.WAITING:
         return [0, childCount];
-      case Status.PROCESSING:
-        const readyChildCount = this.nodesOnTheScreen.filter(
-          (node) => node.getState().status === Status.READY
-        ).length;
+      case Status.PROCESSING: {
+        let readyChildCount = 0;
+        this.nodesOnTheScreen.forEach((atom) => {
+          const status = atom.getState().status;
+          if (status === Status.DISABLED) {
+            // Skip disabled children entirely (and their subtrees)
+            return;
+          }
+          if (
+            atom.atomType === "Molecule" ||
+            atom.atomType === "GitHubMolecule"
+          ) {
+            const [ready, total] = atom.getCompletionTuple();
+            childCount += total - 1; // exclude the nested molecule node itself
+            readyChildCount += ready;
+          } else if (status === Status.READY) {
+            readyChildCount++;
+          }
+        });
         return [readyChildCount, childCount];
+      }
       default:
         return [0, childCount];
     }
@@ -145,12 +160,15 @@ export default class Molecule extends Atom {
       GlobalVariables.widthToPixels(this.x),
       GlobalVariables.heightToPixels(this.y)
     );
+
+    const [ready, total] = this.getCompletionTuple();
+
     GlobalVariables.c.arc(
       GlobalVariables.widthToPixels(this.x),
       GlobalVariables.heightToPixels(this.y),
       GlobalVariables.widthToPixels(this.radius) / 2,
       0,
-      1 * Math.PI * 2,
+      (ready / total) * Math.PI * 2,
       false
     );
     GlobalVariables.c.closePath();
@@ -636,39 +654,6 @@ export default class Molecule extends Atom {
     this.selected = false;
   }
 
-  /**
-   * Grab values from the inputs and push them out to the input atoms.
-   */
-  updateValue(targetName) {
-    //Molecules are fully transparent so we don't wait for all of the inputs to begin processing the things inside
-    this.nodesOnTheScreen.forEach((atom) => {
-      //Scan all the input atoms
-      if (atom.atomType == "Input" && atom.name == targetName) {
-        atom.updateValue(); //Tell that input to update it's value
-      }
-    });
-    // Propagate input change to dependent IOs
-    if (targetName) {
-      this.propagateInputChange(targetName);
-    }
-  }
-  /**
-   * Propagate input value changes to all IOs whose currentEquation references the changed input name
-   */
-  propagateInputChange(inputName) {
-    for (const atom of this.nodesOnTheScreen) {
-      for (const io of atom.inputs) {
-        if (io.currentEquation && io.currentEquation.includes(inputName)) {
-          try {
-            const result = atom.evaluateEquation(io.currentEquation);
-            io.setValue(result);
-          } catch (e) {
-            // Error already handled in evaluateEquation
-          }
-        }
-      }
-    }
-  }
   compileBom() {
     let compiled = this.extractBomTags().then((result) => {
       let bomList = [];
@@ -856,34 +841,6 @@ export default class Molecule extends Atom {
     }
   }
 
-  /**
-   * Called when this molecules value changes
-   */
-  propagate() {
-    try {
-      const loadingDots = document.querySelector(".loading");
-      loadingDots.style.display = "none";
-    } catch (err) {
-      this.setError(err);
-    }
-  }
-
-  /**
-   * Walks through each of the atoms in this molecule and takes a census of how many there are and how many are currently waiting to be processed.
-   */
-  census() {
-    this.totalAtomCount = 0;
-    this.toProcess = 0;
-
-    this.nodesOnTheScreen.forEach((atom) => {
-      const newInformation = atom.census();
-      this.totalAtomCount = this.totalAtomCount + newInformation[0];
-      this.toProcess = this.toProcess + newInformation[1];
-    });
-
-    return [this.totalAtomCount, this.toProcess];
-  }
-
   changeUnits(newUnitsIndex) {
     this.unitsIndex = newUnitsIndex;
   }
@@ -1034,8 +991,6 @@ export default class Molecule extends Atom {
 
       if (this.topLevel) {
         GlobalVariables.totalAtomCount = GlobalVariables.numberOfAtomsToLoad;
-
-        this.census();
       }
 
       //Place the connectors
