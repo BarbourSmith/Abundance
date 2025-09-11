@@ -1,4 +1,4 @@
-import { GeometryProvider } from "./geometryProvider.js";
+import { GeometryProvider } from "./geometryProvider.ts";
 import * as util from "./util.ts";
 import { Plane, Solid } from "replicad";
 

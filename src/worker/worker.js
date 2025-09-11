@@ -8,7 +8,7 @@ import * as actions from "./actions.js";
 import * as interaction from "./interaction.js";
 import * as tags from "./tags.js";
 import * as codeLib from "./code.js";
-import { GeometryProvider } from "./geometryProvider.js";
+import { GeometryProvider } from "./geometryProvider.ts";
 
 var library = {};
 let defaultMesh = undefined;
@@ -205,11 +205,11 @@ async function circle(id, diameter) {
  * Creates a rectangle geometry with the specified dimensions and stores it in the library.
  * @param {number} x - The width of the rectangle
  * @param {number} y - The height of the rectangle
- * @returns {Promise<boolean>} A promise that resolves to true when the rectangle is created successfully
+ * @returns {Promise<AbundanceObject>} A promise that resolves to the created rectangle geometry
  */
 async function rectangle(x, y) {
   await started;
-  const result = shapes.rectangle(x, y);
+  const result = await shapes.rectangle(x, y);
   return result;
 }
 
@@ -1091,9 +1091,9 @@ async function generateDisplayMesh(id) {
     const displayObject = flattened[i];
     let cleanedGeometry;
     if (displayObject.geometry.mesh == undefined) {
-      let sketchPlane = util.asReplicadPlane(displayObject.plane);
-      let sketch = await util.geometryProvider.get(displayObject.geometry);
-      cleanedGeometry = sketch.sketchOnPlane(sketchPlane).extrude(0.0001);
+      cleanedGeometry = await util.geometryProvider.get(
+        await util.geometryProvider.extrude(displayObject.geometry, 0.0001)
+      );
     } else {
       cleanedGeometry = displayObject.geometry;
     }

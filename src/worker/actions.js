@@ -1,4 +1,4 @@
-import { GeometryProvider } from "./geometryProvider.js";
+import { GeometryProvider } from "./geometryProvider.ts";
 import * as util from "./util.ts";
 
 /**
@@ -9,11 +9,11 @@ import * as util from "./util.ts";
  * Extrudes a 2D sketch to create a 3D geometry with the specified height and returns the result.
  */
 function extrude(toExtrude, height) {
-  return util.actOnLeafs(toExtrude, (leaf) => {
+  return util.actOnLeafs(toExtrude, async (leaf) => {
     return {
-      geometry: util.geometryProvider.extrude(
+      geometry: await util.geometryProvider.extrude(
         leaf.geometry,
-        util.asReplicadPlane(leaf.plane),
+        leaf.plane,
         height
       )._value,
       plane: leaf.plane,

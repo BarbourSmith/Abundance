@@ -2,7 +2,7 @@ import opencascade from "replicad-opencascadejs/src/replicad_single.js";
 import opencascadeWasm from "replicad-opencascadejs/src/replicad_single.wasm?url";
 import * as replicad from "replicad";
 import { v4 as uuidv4 } from "uuid";
-import { GeometryProvider } from "./geometryProvider.js";
+import { GeometryProvider } from "./geometryProvider.ts";
 
 let defaultColor: string = "#aad7f2";
 let loaded: boolean = false;

@@ -2,6 +2,9 @@ import * as replicad from "replicad";
 import * as crypto from "crypto";
 import { number } from "mathjs";
 import shrinkWrap from "replicad-shrink-wrap";
+import { AbundanceObject, asReplicadPlane } from "./util";
+
+type ReplicadObject = replicad.Shape3D | replicad.Drawing | replicad.Wire;
 
 /**
  * Manages a cache of geometries. Making a new geometry with identical arguments will
@@ -11,68 +14,56 @@ import shrinkWrap from "replicad-shrink-wrap";
  * or retrieve the geometry via `get(id)`.
  */
 class GeometryProvider {
+  private _dbPromise: Promise<IDBDatabase>;
+  private _cacheHitMetrics: Record<string, [number, number]>;
+  private _nextId: number;
+
   constructor() {
     this._dbPromise = this._initDB(); // Initialize IndexedDB
     this._cacheHitMetrics = {};
-    this._evictionCount = 0;
+    this._nextId = 0;
 
-    /*    this._finalizers = new FinalizationRegistry((geomKey) => {
-      this._deleteFromDB(geomKey.value);
-      this._evictionCount++;
-      console.log("Geometry gc'd: ", geomKey.value);
-    });
-*/
     setInterval(() => {
       console.log(this._cacheHitMetrics);
-      this._dbPromise.then((db) => {
-        const transaction = db.transaction("geometries", "readonly");
-        const store = transaction.objectStore("geometries");
-        store.count().onsuccess = (event) => {
-          console.log(
-            `cache size: ${event.target.result} and evictions so far: ${this._evictionCount}`
-          );
-        };
-      });
     }, 10000);
   }
 
-  async _initDB() {
+  private async _initDB(): Promise<IDBDatabase> {
     return new Promise((resolve, reject) => {
       const request = indexedDB.open("geometryCache", 1);
 
-      request.onupgradeneeded = (event) => {
-        const db = event.target.result;
+      request.onupgradeneeded = (event: IDBVersionChangeEvent) => {
+        const db = (event.target as IDBOpenDBRequest).result;
         if (!db.objectStoreNames.contains("geometries")) {
           db.createObjectStore("geometries", { keyPath: "id" });
         }
       };
 
-      request.onsuccess = (event) => {
-        resolve(event.target.result);
+      request.onsuccess = (event: Event) => {
+        resolve((event.target as IDBOpenDBRequest).result);
       };
 
-      request.onerror = (event) => {
-        reject(event.target.error);
+      request.onerror = (event: Event) => {
+        reject((event.target as IDBOpenDBRequest).error);
       };
     });
   }
 
-  async _getFromDB(id) {
+  private async _getFromDB(id: string): Promise<any> {
     const db = await this._dbPromise;
     return new Promise((resolve, reject) => {
       const transaction = db.transaction("geometries", "readonly");
       const store = transaction.objectStore("geometries");
       const request = store.get(id);
 
-      request.onsuccess = (event) => {
+      request.onsuccess = (event: Event) => {
         // TODO: Deserialize the geometry value after retrieving from DB
-        let result = event.target.result;
+        let result = (event.target as IDBRequest).result;
         result = result ? result.value : undefined;
 
         if (!result) {
-          reject("Found no geometry for id " + id);
+          resolve(undefined);
         } else {
-          // TODO: consider storing a sentinel so we don't have to guess and check
           try {
             result = replicad.deserializeShape(result);
             resolve(result);
@@ -87,13 +78,13 @@ class GeometryProvider {
         }
       };
 
-      request.onerror = (event) => {
-        reject(event.target.error);
+      request.onerror = (event: Event) => {
+        reject((event.target as IDBRequest).error);
       };
     });
   }
 
-  async _saveToDB(id, value) {
+  private async _saveToDB(id: string, value: any): Promise<void> {
     const db = await this._dbPromise;
     return new Promise((resolve, reject) => {
       const transaction = db.transaction("geometries", "readwrite");
@@ -101,23 +92,23 @@ class GeometryProvider {
 
       // Check if the key already exists
       const getRequest = store.get(id);
-      getRequest.onsuccess = (event) => {
-        if (event.target.result) {
-          // Key already exists, skip writing
+      getRequest.onsuccess = (event: Event) => {
+        if ((event.target as IDBRequest).result) {
           resolve();
         } else {
-          // Key does not exist, proceed with writing
           const putRequest = store.put({ id, value });
           putRequest.onsuccess = () => resolve();
-          putRequest.onerror = (event) => reject(event.target.error);
+          putRequest.onerror = (event: Event) =>
+            reject((event.target as IDBRequest).error);
         }
       };
 
-      getRequest.onerror = (event) => reject(event.target.error);
+      getRequest.onerror = (event: Event) =>
+        reject((event.target as IDBRequest).error);
     });
   }
 
-  async _deleteFromDB(id) {
+  private async _deleteFromDB(id: string): Promise<void> {
     const db = await this._dbPromise;
     return new Promise((resolve, reject) => {
       const transaction = db.transaction("geometries", "readwrite");
@@ -125,11 +116,12 @@ class GeometryProvider {
       const request = store.delete(id);
 
       request.onsuccess = () => resolve();
-      request.onerror = (event) => reject(event.target.error);
+      request.onerror = (event: Event) =>
+        reject((event.target as IDBRequest).error);
     });
   }
 
-  cacheHit(id) {
+  private cacheHit(id: string): void {
     const type = id.split("-")[0];
     if (!this._cacheHitMetrics[type]) {
       this._cacheHitMetrics[type] = [0, 0];
@@ -137,7 +129,7 @@ class GeometryProvider {
     this._cacheHitMetrics[type][0]++;
   }
 
-  cacheMiss(id) {
+  private cacheMiss(id: string): void {
     const type = id.split("-")[0];
     if (!this._cacheHitMetrics[type]) {
       this._cacheHitMetrics[type] = [0, 0];
@@ -145,11 +137,14 @@ class GeometryProvider {
     this._cacheHitMetrics[type][1]++;
   }
 
-  async _getOrCreate(id, builder) {
-    let value = await this._getFromDB(id.value);
+  private async _createIfAbsent(
+    id: string,
+    builder: () => Promise<ReplicadObject>
+  ): Promise<string> {
+    let value = await this._getFromDB(id);
     if (!value) {
-      value = builder();
-      await this._saveToDB(id.value, value.serialize());
+      value = await builder();
+      await this._saveToDB(id, value.serialize());
       this.cacheMiss(id);
     } else {
       this.cacheHit(id);
@@ -157,69 +152,75 @@ class GeometryProvider {
     return value;
   }
 
-  drawRectangle(x, y) {
+  /**
+   * Draws a rectangle with the given dimensions.
+   * @param x - The width of the rectangle
+   * @param y - The height of the rectangle
+   * @returns The ID of the created rectangle
+   */
+  async drawRectangle(x: number, y: number): Promise<string> {
     const id = this._makeId("rectangle", x, y);
-    this._getOrCreate(id, () => {
-      return replicad.drawRectangle(x, y);
+    await this._createIfAbsent(id, () => {
+      return Promise.resolve(replicad.drawRectangle(x, y));
     });
     return id;
   }
 
-  drawCircle(radius) {
+  drawCircle(radius: number) {
     const id = this._makeId("circle", radius);
-    this._getOrCreate(id, () => {
+    this._createIfAbsent(id, () => {
       return replicad.drawCircle(radius);
     });
     return id;
   }
 
-  drawPolysides(radius, numberOfSides) {
+  drawPolysides(radius: number, numberOfSides: number) {
     const id = this._makeId("polysides", radius, numberOfSides);
-    this._getOrCreate(id, () => {
+    this._createIfAbsent(id, () => {
       return replicad.drawPolysides(radius, numberOfSides);
     });
     return id;
   }
 
-  drawText(text, options) {
+  async drawText(text: string, options: any): Promise<string> {
     const id = this._makeId("text", text, options);
-    this._getOrCreate(id, () => {
-      return replicad.drawText(text, options);
+    this._createIfAbsent(id, async () => {
+      return Promise.resolve(replicad.drawText(text, options));
     });
     return id;
   }
 
-  extrude(inputId, plane, height) {
-    // todo we need a stringifyer for planes or they need ids themselves
+  /**
+   * Extrudes a 2D shape into a 3D volume.
+   * @param inputId - The ID of the 2D geometry to extrude
+   * @param plane - The plane to sketch the shape on
+   * @param height - The height of the extrusion
+   * @returns The ID of the created extruded geometry
+   */
+  async extrude(inputId: string, plane: any, height: number): Promise<string> {
     const extrudedId = this._makeId("extrude", inputId, plane, height);
-    this._getOrCreate(extrudedId, () => {
-      const geometry = this.get(inputId);
-      return geometry.clone().sketchOnPlane(plane).extrude(height);
+    await this._createIfAbsent(extrudedId, async () => {
+      const geometry = await this.get(inputId);
+      return geometry
+        .clone()
+        .sketchOnPlane(asReplicadPlane(plane))
+        .extrude(height);
     });
     return extrudedId;
   }
 
-  move(id, dx, dy, dz) {
+  move(id: string, dx: number, dy: number, dz: number = 0) {
     const movedId = this._makeId("move", id, dx, dy, dz);
-    this._getOrCreate(movedId, () => {
+    this._createIfAbsent(movedId, () => {
       const geometry = this.get(id);
       return geometry.clone().translate(dx, dy, dz);
     });
     return movedId;
   }
 
-  move(id, dx, dy) {
-    const movedId = this._makeId("move", id, dx, dy);
-    this._getOrCreate(movedId, () => {
-      const geometry = this.get(id);
-      return geometry.clone().translate(dx, dy);
-    });
-    return movedId;
-  }
-
-  rotate(id, x, y, z) {
+  rotate(id: string, x: number, y: number, z: number) {
     const rotateId = this._makeId("rotate", id, x, y, z);
-    this._getOrCreate(rotateId, () => {
+    this._createIfAbsent(rotateId, () => {
       return this.get(id)
         .clone()
         .rotate(x, [0, 0, 0], [1, 0, 0]) // TODO: consider explicit no-op for each arg which is 0
@@ -229,34 +230,34 @@ class GeometryProvider {
     return rotateId;
   }
 
-  scale(id, scaleFactor) {
+  scale(id: string, scaleFactor: number) {
     const scaleId = this._makeId("scale", id, scaleFactor);
-    this._getOrCreate(scaleId, () => {
+    this._createIfAbsent(scaleId, () => {
       return this.get(id).clone().scale(scaleFactor);
     });
     return scaleId;
   }
 
-  fillet(id, radius) {
+  fillet(id: string, radius: number) {
     const filletId = this._makeId("fillet", id, radius);
-    this._getOrCreate(filletId, () => {
+    this._createIfAbsent(filletId, () => {
       const geometry = this.get(id);
       return geometry.clone().fillet(radius);
     });
     return filletId;
   }
 
-  chamfer(id, size) {
+  chamfer(id: string, size: number) {
     const chamferId = this._makeId("chamfer", id, size);
-    this._getOrCreate(chamferId, () => {
+    this._createIfAbsent(chamferId, () => {
       return this.get(id).clone().chamfer(size);
     });
     return chamferId;
   }
 
-  intersect(input1ID, inputID2) {
+  intersect(input1ID: string, inputID2: string) {
     const id = this._makeId("intersect", input1ID, inputID2);
-    this._getOrCreate(id, () => {
+    this._createIfAbsent(id, () => {
       const geometry1 = this.get(input1ID);
       const geometry2 = this.get(inputID2);
       return geometry1.clone().intersect(geometry2);
@@ -265,7 +266,7 @@ class GeometryProvider {
   }
 
   // Fuse 1 or more geometries together.
-  fuse(...ids) {
+  fuse(...ids: string[]) {
     ids = ids.flat(Infinity);
     if (ids.length == 0) {
       throw new Error("At least one ID is required for fusion");
@@ -274,7 +275,7 @@ class GeometryProvider {
     } else {
       // More than one ID, perform fusion
       const id = this._makeId("fuse", ...ids);
-      this._getOrCreate(id, () => {
+      this._createIfAbsent(id, () => {
         let geometry = this.get(ids[0]).clone();
         for (let i = 1; i < ids.length; i++) {
           geometry = geometry.fuse(this.get(ids[i]));
@@ -291,7 +292,7 @@ class GeometryProvider {
    * any parts which are wires, and will be considered cache-equivalent to any other
    * cut operations with the same set (and order) of non-wire cutters.
    */
-  cut(toCut, ...cutterIds) {
+  cut(toCut: string, ...cutterIds: string[]) {
     cutterIds = cutterIds.flat(Infinity);
     const toCutGeom = this.get(toCut);
     if (toCutGeom instanceof replicad.Wire) {
@@ -313,7 +314,7 @@ class GeometryProvider {
       return toCut;
     } else {
       const resultId = this._makeId("cut", toCut, ...affectingCutterIds);
-      this._getOrCreate(resultId, () => {
+      this._createIfAbsent(resultId, () => {
         let result = toCutGeom;
         affectingCutterIds.forEach((cutterId) => {
           const cutter = this.get(cutterId);
@@ -325,9 +326,9 @@ class GeometryProvider {
     }
   }
 
-  shrinkWrap(inputShapeId, points) {
+  shrinkWrap(inputShapeId: string, points: number) {
     const shrinkWrapId = this._makeId("shrinkWrap", inputShapeId, points);
-    this._getOrCreate(shrinkWrapId, () => {
+    this._createIfAbsent(shrinkWrapId, () => {
       const geometry = this.get(inputShapeId);
       return shrinkWrap(geometry, points);
     });
@@ -342,99 +343,33 @@ class GeometryProvider {
    * @param {*} geometry - geometry to be added to cache.
    * @returns key for this geometry.
    */
-  addSingularToCache(geometry, id = undefined) {
+  addSingularToCache(geometry: any, id: string | undefined = undefined) {
     id = id || this._makeId("singular", this._nextId++);
-    this._getOrCreate(id, () => geometry);
+    this._createIfAbsent(id, () => geometry);
     return id;
   }
 
-  async get(geomKey) {
-    if (typeof geomKey === "string") {
-      geomKey = new GeomKey(geomKey);
-    }
-    if (geomKey instanceof GeomKey) {
-      const value = await this._getFromDB(geomKey.value);
+  async get(key: string) {
+    if (typeof key === "string") {
+      const value = await this._getFromDB(key);
       if (value === undefined) {
-        throw new Error(`Geometry with ID ${geomKey.value} not found in cache`);
+        console.warn("Cache miss for id:", key);
+        throw new Error(`Geometry with ID ${key} not found in cache`);
       }
-      // TODO: Deserialize the geometry value after retrieving from DB
       return value;
     } else {
-      console.trace("geometryProvider.get called with non-GeomKey:", geomKey);
-      return geomKey;
+      console.trace("geometryProvider.get called with non-string:", key);
+      return key;
     }
   }
 
-  _makeId(type, ...args) {
-    const key = GeomKey.from(type, ...args);
+  _makeId(type: string, ...args: any[]) {
+    args = args.map((arg) => {
+      return JSON.stringify(arg);
+    });
+    const key = [type, ...args].flat(Infinity).join("-");
     return key;
   }
 }
 
-/**
- * GeomKey is a class which specifies a particular geometry. All
- * GeometryProvider operations return a GeomKey which can be used to
- * perform further operations, or retrieve the geometry via `get(geomKey)`.
- *
- * Implementation note: This is thin wrapper around a string value. However, it
- * needs to be an object so that it gets correct garbage collection behavior.
- */
-class GeomKey {
-  constructor(value) {
-    this._value = String(value);
-  }
-
-  get value() {
-    return this._value;
-  }
-
-  equals(other) {
-    return other instanceof GeomKey && this._value === other._value;
-  }
-
-  toString() {
-    return this._value;
-  }
-
-  valueOf() {
-    return this._value;
-  }
-
-  // For use with JSON.stringify
-  toJSON() {
-    return this._value;
-  }
-
-  hashCode() {
-    let hash = 0;
-    if (this._value.length === 0) return hash;
-    for (let i = 0; i < this._value.length; i++) {
-      const char = this._value.charCodeAt(i);
-      hash = (hash << 5) - hash + char;
-      hash = hash & hash; // Convert to 32-bit integer
-    }
-    return hash;
-  }
-
-  // Static factory which returns a new GeomKey based on the type of geometry being
-  // created and the args used to create it. Note that some of the args may themselves
-  // be GeomKey strings.
-  static from(type, ...args) {
-    // TODO: add some type specific serializations here, esp for planes
-    for (let i = 0; i < args.length; i++) {
-      if (args[i] instanceof replicad.Plane) {
-        // Convert Plane to a string representation
-        args[i] =
-          "plane(" +
-          args[i].origin.repr +
-          "-" +
-          args[i].xDir.repr +
-          args[i].zDir.repr +
-          ")";
-      }
-    }
-    return new GeomKey(type + "-" + args.join("-"));
-  }
-}
-
-export { GeometryProvider, GeomKey };
+export { GeometryProvider };

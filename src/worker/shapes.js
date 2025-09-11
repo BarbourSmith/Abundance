@@ -29,9 +29,9 @@ function circle(diameter) {
  * @param {number} y - The height of the rectangle
  * @returns Assembly containing a rectangle on the XY plane
  */
-function rectangle(x, y) {
+async function rectangle(x, y) {
   return {
-    geometry: util.geometryProvider.drawRectangle(x, y)._value,
+    geometry: await util.geometryProvider.drawRectangle(x, y),
     plane: util.XYPlane,
     color: util.defaultColor,
     tags: [],
