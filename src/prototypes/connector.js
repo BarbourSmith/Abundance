@@ -177,6 +177,16 @@ export default class Connector {
                   atom
                 );
 
+                // Determine the type for the new input based on the source
+                let inputType;
+                if (this.attachmentPoint1.parentMolecule.atomType === "Input") {
+                  // If source is an Input atom, inherit its type
+                  inputType = this.attachmentPoint1.parentMolecule.type || this.attachmentPoint1.valueType;
+                } else {
+                  // Otherwise, use the attachment point's valueType
+                  inputType = this.attachmentPoint1.valueType;
+                }
+
                 // Create a new Input atom within the target molecule
                 const newInputAtom =
                   new GlobalVariables.availableTypes.input.creator({
@@ -187,7 +197,7 @@ export default class Connector {
                     x: atom.x - 0.15, // Position to the left of the molecule
                     y: atom.y,
                     uniqueID: GlobalVariables.generateUniqueID(),
-                    type: "geometry", // Default type, can be changed later
+                    type: inputType, // Inherit type from source attachment point
                   });
 
                 // Add the new input atom to the molecule's nodes
