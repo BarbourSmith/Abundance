@@ -160,6 +160,7 @@ function AppContent() {
             setOutdatedMesh(false);
           })
           .catch((e) => {
+            console.error(e);
             console.error("Can't display Mesh " + e);
             activeAtom.setError("Can't display Mesh " + e);
           });
@@ -176,6 +177,7 @@ function AppContent() {
               }
             })
             .catch((e) => {
+              console.error(e);
               console.error("Can't compute Wireframe/No output " + e);
               // Create div even on error for top-level molecule to prevent hanging
               if (id === GlobalVariables.topLevelMolecule?.uniqueID) {

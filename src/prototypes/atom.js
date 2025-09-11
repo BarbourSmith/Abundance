@@ -767,6 +767,14 @@ export default class Atom extends ObservableEntity {
         .then((value) => {
           this.setReady(value);
         })
+        .then(() => {
+          console.log("state snapshot");
+          this.parent.nodesOnTheScreen.forEach((node) => {
+            console.log(
+              node.name + " " + JSON.stringify(node.getState().value)
+            );
+          });
+        })
         .catch(this.alertingErrorHandler());
     } else {
       this.setWaiting();

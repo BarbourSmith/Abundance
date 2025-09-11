@@ -209,8 +209,15 @@ async function circle(id, diameter) {
  */
 async function rectangle(x, y) {
   await started;
-  const result = await shapes.rectangle(x, y);
-  return result;
+  return shapes
+    .rectangle(x, y)
+    .catch((err) => {
+      console.error("Error creating rectangle: ", err);
+    })
+    .finally((v) => {
+      console.log("rectangle finished with: ", v);
+      return v;
+    });
 }
 
 /**
@@ -267,9 +274,7 @@ async function loftShapes(targetID, inputsIDs) {
  */
 async function extrude(input, height) {
   await started;
-  const result = await actions.extrude(input, height);
-
-  return result;
+  return actions.extrude(input, height);
 }
 
 /**
@@ -1071,12 +1076,14 @@ function generateCameraPosition(meshArray) {
 
 async function generateDisplayMesh(id) {
   await started;
+  console.log("Generating display mesh for ID:", JSON.stringify(id));
   let geom = undefined;
   if (util.isAbundanceObject(id)) {
     geom = id;
   } else {
     if (library[id] != undefined && id != undefined) {
       geom = library[id];
+      console.log("resolved to: " + JSON.stringify(geom));
     } else {
       return generateDefaultMesh();
     }
@@ -1092,7 +1099,11 @@ async function generateDisplayMesh(id) {
     let cleanedGeometry;
     if (displayObject.geometry.mesh == undefined) {
       cleanedGeometry = await util.geometryProvider.get(
-        await util.geometryProvider.extrude(displayObject.geometry, 0.0001)
+        await util.geometryProvider.extrude(
+          displayObject.geometry,
+          displayObject.plane,
+          0.0001
+        )
       );
     } else {
       cleanedGeometry = displayObject.geometry;

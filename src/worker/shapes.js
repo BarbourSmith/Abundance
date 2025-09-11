@@ -72,7 +72,7 @@ function regularPolygon(radius, numberOfSides) {
 async function text(text, fontSize, fontFamily) {
   return util.replicad
     .loadFont(Fonts[fontFamily])
-    .then(() => {
+    .then(async () => {
       const textGeometry = util.geometryProvider.drawText(text, {
         startX: 0,
         startY: 0,
@@ -80,7 +80,7 @@ async function text(text, fontSize, fontFamily) {
         font: fontFamily,
       });
       return {
-        geometry: textGeometry,
+        geometry: await textGeometry,
         tags: [],
         plane: util.XYPlane,
         color: util.defaultColor,

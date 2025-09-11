@@ -15,7 +15,7 @@ function extrude(toExtrude, height) {
         leaf.geometry,
         leaf.plane,
         height
-      )._value,
+      ),
       plane: leaf.plane,
       color: leaf.color,
       tags: leaf.tags,
