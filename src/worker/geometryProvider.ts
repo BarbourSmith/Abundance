@@ -335,4 +335,4 @@ class GeometryProvider {
   }
 }
 
-export { GeometryProvider };
+export { GeometryProvider, ReplicadObject };

@@ -1,6 +1,6 @@
 import * as util from "./util.ts";
 import { rotate, move, scale, fillet, chamfer } from "./actions.js";
-import { intersect, assembly, cutAssembly } from "./interaction.js";
+import { intersect, assembly, cutAssembly } from "./interaction.ts";
 
 /**
  * A best-effort check for exploits in user provided code. Checks for a series of known bad patterns.

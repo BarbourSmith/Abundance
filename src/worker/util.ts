@@ -31,15 +31,9 @@ interface SimplePlane {
 
 type AbundanceObject = AbundanceLeaf | AbundanceBranch;
 
-enum Dimension {
-  "2D" = "2D",
-  "3D" = "3D",
-  "Wire" = "Wire",
-}
-
 interface AbundanceBranch {
   geometry: AbundanceObject[];
-  dimension: Dimension;
+  dimension: "2D" | "3D" | "Wire";
   plane: SimplePlane;
   color?: string;
   tags?: string[];
@@ -48,20 +42,8 @@ interface AbundanceBranch {
 
 interface AbundanceLeaf {
   geometry: string;
-  dimension: Dimension;
+  dimension: "2D" | "3D" | "Wire";
   plane: SimplePlane;
-  color?: string;
-  tags?: string[];
-  bom?: string[];
-}
-
-/**
- * TODO: comments to explain what this is.
- */
-interface LeafOverrides {
-  geometry?: string;
-  dimension?: Dimension;
-  plane?: SimplePlane;
   color?: string;
   tags?: string[];
   bom?: string[];
@@ -189,7 +171,7 @@ function isWireGeometry(inputs: AbundanceObject): boolean {
   if (isAssembly(inputs)) {
     return inputs.geometry.some((input: any) => isWireGeometry(input));
   } else {
-    return inputs.dimension === Dimension.Wire;
+    return inputs.dimension === "Wire";
   }
 }
 
@@ -262,7 +244,7 @@ function asSimplePlane(plane: replicad.Plane): SimplePlane {
   };
 }
 
-const XYPlane = {
+const XYPlane: SimplePlane = {
   origin: [0, 0, 0],
   xDir: [1, 0, 0],
   normal: [0, 0, 1],
@@ -282,6 +264,7 @@ export {
   realizeAssembly,
   cacheAssembly,
   AbundanceObject,
+  AbundanceLeaf,
   SimplePlane,
   asReplicadPlane,
   asSimplePlane,

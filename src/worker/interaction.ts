@@ -1,6 +1,7 @@
-import { GeometryProvider } from "./geometryProvider.ts";
-import * as util from "./util.ts";
-import { Plane, Solid } from "replicad";
+import { GeometryProvider, ReplicadObject } from "./geometryProvider";
+import * as util from "./util";
+import { Sketches, Shape3D, Solid, Drawing } from "replicad";
+import { AbundanceObject, AbundanceLeaf } from "./util";
 
 /**
  * All methods in this file take multiple geometries and combine them in some way.
@@ -13,18 +14,21 @@ import { Plane, Solid } from "replicad";
 /**
  * Create and return a lofted shape which blends between multiple 2D profile sketches.
  */
-function loftShapes(sketches) {
-  let arrayOfSketchedGeometry = [];
+function loftShapes(sketches: AbundanceObject[]): any {
+  let arrayOfSketchedGeometry: any[] = [];
 
-  sketches.forEach((sketch) => {
+  sketches.forEach(async (sketch) => {
     if (util.is3D(sketch)) {
       throw new Error("Parts to be lofted must be sketches");
     }
-    let partToLoft = digFuse(sketch);
-    let sketchedpart = util.geometryProvider
-      .get(partToLoft)
-      .sketchOnPlane(util.asReplicadPlane(sketch.plane));
-    if (!sketchedpart.sketches) {
+    let partToLoft = await digFuse(sketch);
+    let partObj = (await util.geometryProvider!.get(
+      partToLoft.geometry
+    )) as Drawing;
+    let sketchedpart = partObj.sketchOnPlane(
+      util.asReplicadPlane(sketch.plane)
+    );
+    if (!(sketchedpart instanceof Sketches)) {
       arrayOfSketchedGeometry.push(sketchedpart);
     } else {
       throw new Error("Sketches to be lofted can't have interior geometries");
@@ -34,7 +38,7 @@ function loftShapes(sketches) {
 
   return {
     geometry: [
-      util.geometryProvider.addSingularToCache(
+      util.geometryProvider!.addSingularToCache(
         startGeometry.loftWith([...arrayOfSketchedGeometry])
       ),
     ],
@@ -50,15 +54,15 @@ function loftShapes(sketches) {
  * Performs a boolean difference operation between two geometries.
  * This function subtracts the second geometry (cutter) from the first geometry (target).
  */
-function difference(target, cutter) {
+function difference(target: AbundanceObject, cutter: AbundanceObject): any {
   if (
     (util.is3D(target) && util.is3D(cutter)) ||
     (!util.is3D(target) && !util.is3D(cutter))
   ) {
     // Process each leaf of target independently
-    return util.actOnLeafs(target, (leaf) => {
+    return util.actOnLeafs(target, async (leaf: AbundanceLeaf) => {
       return {
-        geometry: recursiveCut(leaf, cutter),
+        geometry: await recursiveCut(leaf, cutter),
         tags: leaf.tags,
         color: leaf.color,
         plane: leaf.plane,
@@ -74,44 +78,62 @@ function difference(target, cutter) {
 /**
  * Creates a shrink-wrapped boundary around multiple 2D sketches and stores it in the library.
  */
-function shrinkWrapSketches(sketches) {
-  let BOM = [];
-  if (sketches.every((sketch) => !util.is3D(sketch))) {
-    let inputsToFuse = [];
-    sketches.forEach((sketch) => {
-      let fusedInput = digFuse(sketch);
-      inputsToFuse.push(fusedInput);
-      if (util.geometryProvider.get(fusedInput).innerShape.blueprints) {
-        throw new Error(
-          "Sketches to be shrink wrapped can't have interior geometries"
-        );
-      }
-      BOM.push(fusedInput.bom);
-    });
-    let geometryToWrap = util.geometryProvider.fuse(inputsToFuse);
-    return {
-      geometry: [util.geometryProvider.shrinkWrapSketches(geometryToWrap, 50)],
-      dimension: "2D",
-      tags: [],
-      color: util.defaultColor,
-      plane: util.XYPlane,
-      bom: BOM,
-    };
-  } else {
-    throw new Error("All inputs must be sketches");
+async function shrinkWrapSketches(
+  sketches: AbundanceObject[]
+): Promise<AbundanceLeaf> {
+  let BOM: any[] = [];
+  if (sketches.some((sketch) => util.is3D(sketch))) {
+    throw new Error("Parts to be shrink wrapped must be sketches");
   }
+
+  if (sketches.length == 0) {
+    throw new Error("No sketches provided for shrink wrap");
+  }
+
+  let geometryToWrap = await digFuse(sketches[0]);
+  for (let i = 1; i < sketches.length; i++) {
+    let fusedInput = await digFuse(sketches[i]);
+    let fusedObj = (await util.geometryProvider!.get(
+      fusedInput.geometry
+    )) as Drawing;
+    //@ts-ignore - ignore access of private innerShape field
+    if (fusedObj.innerShape && fusedObj.innerShape.blueprints) {
+      throw new Error(
+        "Sketches to be shrink wrapped can't have interior geometries"
+      );
+    }
+    BOM.push(fusedInput.bom);
+    geometryToWrap.geometry = await util.geometryProvider!.fuse(
+      geometryToWrap.geometry,
+      fusedInput.geometry
+    );
+  }
+  return {
+    geometry: await util.geometryProvider!.shrinkWrapSketches(
+      geometryToWrap.geometry,
+      50
+    ),
+    dimension: "2D",
+    tags: [],
+    color: util.defaultColor,
+    plane: util.XYPlane,
+    bom: BOM,
+  };
 }
 
 /**
  * Return the intersection between shape1 and shape2.
  */
-async function intersect(shape1, shape2) {
-  return util.actOnLeafs(shape1, async (leaf) => {
-    const shapeToIntersectWith = digFuse(shape2);
+async function intersect(
+  shape1: AbundanceObject,
+  shape2: AbundanceObject
+): Promise<any> {
+  return util.actOnLeafs(shape1, async (leaf: AbundanceLeaf) => {
+    const shapeToIntersectWith = await digFuse(shape2);
     return {
-      geometry: await util.geometryProvider.intersect(
+      geometry: await util.geometryProvider!.intersect(
         leaf.geometry,
-        shapeToIntersectWith
+        shapeToIntersectWith.geometry
       ),
       tags: leaf.tags,
       color: leaf.color,
@@ -125,9 +147,7 @@ async function intersect(shape1, shape2) {
 /**
  * Return the boolean union between all entries in shapes.
  */
-async function fusion(shapes) {
-  let fusedGeometry = [];
-  let bomAssembly = [];
+async function fusion(shapes: AbundanceObject[]): Promise<AbundanceObject> {
   const all2D = shapes.every((shape) => !util.is3D(shape));
   const all3D = shapes.every((shape) => util.is3D(shape));
   if (!all2D && !all3D) {
@@ -136,19 +156,29 @@ async function fusion(shapes) {
     );
   }
 
-  shapes.forEach((shape) => {
-    fusedGeometry.push(digFuse(shape));
-    if (shape.bom.length > 0) {
-      bomAssembly.push(...shape.bom);
-    }
-  });
+  if (shapes.length === 0) {
+    throw new Error("No shapes provided for fusion");
+  }
+
+  let fusedGeometry = (await digFuse(shapes[0])).geometry;
+  let bomAssembly = shapes[0].bom ? shapes[0].bom.slice() : [];
+  for (let i = 1; i < shapes.length; i++) {
+    fusedGeometry = await util.geometryProvider!.fuse(
+      fusedGeometry,
+      (
+        await digFuse(shapes[i])
+      ).geometry
+    );
+    bomAssembly.push(...(shapes[i].bom || []));
+  }
   return {
-    geometry: await util.geometryProvider.fuse(fusedGeometry),
+    // TODO: requires a real fix.
+    geometry: fusedGeometry,
     tags: [],
     bom: bomAssembly,
     plane: util.XYPlane,
     color: util.defaultColor,
-    dimension: all3D ? "3D" : "2D",
+    dimension: shapes[0].dimension,
   };
 }
 
@@ -157,23 +187,27 @@ async function fusion(shapes) {
  * Geometries will cut all geometries below them in the list to make sure that no parts intersect
  * If the targetID is defined, the assembly will be stored in the library under that ID, otherwise it will be returned
  */
-async function assembly(geometries) {
+async function assembly(
+  geometries: AbundanceObject[]
+): Promise<AbundanceObject> {
   if (!Array.isArray(geometries) || geometries.length === 0) {
     throw new Error("inputIDs must be a non-empty array");
   }
 
-  let assembly = [];
-  let bomAssembly = [];
+  let assembly: AbundanceObject[] = [];
+  let bomAssembly: any[] = [];
 
+  let all3D = false;
+  let all2D = false;
   if (geometries.length > 1) {
-    const all3D = geometries.every((geom) => util.is3D(geom));
-    const all2D = geometries.every((geom) => !util.is3D(geom));
+    all3D = geometries.every((geom) => util.is3D(geom));
+    all2D = geometries.every((geom) => !util.is3D(geom));
 
     if (all3D || all2D) {
       for (let i = 0; i < geometries.length; i++) {
         const geometry = geometries[i];
         assembly.push(await cutAssembly(geometry, geometries.slice(i + 1)));
-        if (geometry.bom.length > 0) {
+        if (geometry.bom && geometry.bom.length > 0) {
           bomAssembly.push(...geometry.bom);
         }
       }
@@ -186,7 +220,7 @@ async function assembly(geometries) {
   } else {
     const geometry = geometries[0];
     assembly.push(geometry);
-    if (geometry.bom.length > 0) {
+    if (geometry.bom) {
       bomAssembly.push(...geometry.bom);
     }
   }
@@ -196,7 +230,7 @@ async function assembly(geometries) {
     plane: util.XYPlane,
     tags: [],
     bom: bomAssembly,
-    dimension: all3D ? "3D" : "2D",
+    dimension: geometries[0].dimension,
   };
 }
 
@@ -207,16 +241,24 @@ async function assembly(geometries) {
  * @param {Object} assembly - The assembly or leaf geometry to process
  * @returns {Object} A single fused geometry combining all leaves in the assembly
  */
-async function digFuse(assembly) {
+async function digFuse(assembly: AbundanceObject): Promise<AbundanceLeaf> {
   var flattened = util.flattenAssembly(assembly);
   if (flattened.length === 0) {
     throw new Error("No geometries found to fuse");
   }
-  let result = flattened[0];
+  let result = flattened[0].geometry;
   for (let i = 1; i < flattened.length; i++) {
-    result = await util.geometryProvider.fuse([result, flattened[i]]);
+    result = await util.geometryProvider!.fuse(result, flattened[i].geometry);
   }
-  return result;
+  // TODO: should this be the union of all tags on all leafs?
+  return {
+    geometry: result,
+    dimension: assembly.dimension,
+    tags: assembly.tags,
+    plane: assembly.plane,
+    color: assembly.color,
+    bom: assembly.bom,
+  };
 }
 
 /**
@@ -233,16 +275,19 @@ async function digFuse(assembly) {
  * - Avoids unnecessary operations by checking bounding box intersections
  * - Preserves the original assembly structure while applying cuts
  */
-async function cutAssembly(partToCut, cuttingParts) {
+async function cutAssembly(
+  partToCut: AbundanceObject,
+  cuttingParts: AbundanceObject[]
+): Promise<AbundanceObject> {
   try {
     //If the partToCut is an assembly pass each part back into cutAssembly function to be cut separately
     if (util.isAssembly(partToCut)) {
       let assemblyToCut = partToCut.geometry;
-      let assemblyCut = [];
-      assemblyToCut.forEach((part) => {
+      let assemblyCut: any[] = [];
+      for (const part of assemblyToCut) {
         // make new assembly from cut parts
-        assemblyCut.push(cutAssembly(part, cuttingParts));
-      });
+        assemblyCut.push(await cutAssembly(part, cuttingParts));
+      }
 
       //returns new assembly that has been cut
       const newAssembly = {
@@ -250,6 +295,9 @@ async function cutAssembly(partToCut, cuttingParts) {
         geometry: assemblyCut,
         tags: partToCut.tags,
         bom: partToCut.bom,
+        plane: partToCut.plane,
+        color: partToCut.color,
+        dimension: partToCut.dimension,
       };
       return newAssembly;
     } else {
@@ -259,25 +307,28 @@ async function cutAssembly(partToCut, cuttingParts) {
       }
 
       // if part to cut is a single part send to cutting function with cutting parts
-      var partCutCopy = partToCut.geometry;
+      let partCutCopy = partToCut.geometry;
       for (const cuttingPart of cuttingParts) {
         // for each cutting part cut the part
         partCutCopy = await recursiveCut(partToCut, cuttingPart);
       }
       /*   if the part is a compound return each solid as a new assembly */
-      function getSolids(compound) {
+      async function getSolids(compound: any): Promise<Solid[]> {
+        const compoundObj = (await util.geometryProvider!.get(
+          compound
+        )) as Shape3D;
         return Array.from(
-          util.replicad.iterTopo(
-            util.geometryProvider.get(compound).wrapped,
-            "solid"
-          ),
+          util.replicad.iterTopo(compoundObj.wrapped, "solid"),
           (s) => new Solid(s)
         );
       }
-      if (util.geometryProvider.get(partCutCopy).wrapped) {
-        let solids = getSolids(partCutCopy);
+      const partCutCopyObj = (await util.geometryProvider!.get(
+        partCutCopy
+      )) as Shape3D;
+      if (partCutCopyObj.wrapped) {
+        let solids = await getSolids(partCutCopy);
         if (solids.length > 1) {
-          let newAssembly = [];
+          let newAssembly: any[] = [];
           solids.forEach((solid) => {
             newAssembly.push({
               geometry: solid,
@@ -309,7 +360,7 @@ async function cutAssembly(partToCut, cuttingParts) {
         dimension: partToCut.dimension,
       };
     }
-  } catch (e) {
+  } catch (e: any) {
     console.log(e);
     console.log(e.trace);
     throw new Error("Cut Assembly failed", e);
@@ -333,40 +384,37 @@ async function cutAssembly(partToCut, cuttingParts) {
  * The function is a core part of the boolean difference system and is designed
  * to efficiently handle complex hierarchical structures.
  */
-async function recursiveCut(partToCut, cuttingParts) {
-  let toCutGeom = await util.geometryProvider.get(partToCut.geometry);
-
-  if (util.isWireGeometry(toCutGeom)) {
-    return partToCut;
+async function recursiveCut(
+  partToCut: AbundanceLeaf,
+  cuttingParts: AbundanceObject
+): Promise<string> {
+  if (util.isWireGeometry(partToCut)) {
+    return partToCut.geometry;
   }
 
+  let resultGeomId: string = partToCut.geometry;
   for (const cuttingPart of util.flattenAssembly(cuttingParts)) {
+    let toCutGeom = await util.geometryProvider!.get(resultGeomId);
     if (partToCut.dimension != cuttingPart.dimension) {
       continue;
       // skip this leaf. can't cut 2D with 3D or vice versa
     }
-    const cuttingPartGeom = await util.geometryProvider.get(
+    const cuttingPartGeom = await util.geometryProvider!.get(
       cuttingPart.geometry
     );
+    // @ts-ignore
     if (toCutGeom.boundingBox.isOut(cuttingPartGeom.boundingBox)) {
       continue;
       // skip this leaf. bounding boxes don't intersect
     }
 
-    toCutGeom = util.geometryProvider.cut(partToCut.geometry, cuttingPartGeom);
+    resultGeomId = await util.geometryProvider!.cut(
+      resultGeomId,
+      cuttingPart.geometry
+    );
   }
-}
-
-function simpleHash(str) {
-  let hash = 0;
-  if (str.length === 0) return hash;
-
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = (hash << 5) - hash + char; // A common non-cryptographic hash algorithm
-    hash |= 0; // Convert to 32bit integer
-  }
-  return hash;
+  // TODO: Should this return toCutGeom or partToCut?
+  return resultGeomId;
 }
 
 export {

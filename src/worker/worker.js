@@ -5,7 +5,7 @@ import * as cutlayout from "./cutlayout.js";
 import * as util from "./util.ts";
 import * as shapes from "./shapes.js";
 import * as actions from "./actions.js";
-import * as interaction from "./interaction.js";
+import * as interaction from "./interaction.ts";
 import * as tags from "./tags.js";
 import * as codeLib from "./code.js";
 import { GeometryProvider } from "./geometryProvider.ts";
