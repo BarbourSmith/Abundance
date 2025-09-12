@@ -73,10 +73,10 @@ class GeometryProvider {
   async get(id: string): Promise<ReplicadObject> {
     const value = this.cache.get(id);
     if (value == undefined) {
-      console.warn("Cache miss for id:", id);
+      console.trace("Cache miss for id:", id);
       throw new Error(`Geometry with ID ${id} not found in cache`);
     }
-    return Promise.resolve(value);
+    return Promise.resolve(value.clone());
   }
 
   /**
@@ -257,101 +257,49 @@ class GeometryProvider {
   }
 
   // Fuse 1 or more geometries together.
-  async fuse(...ids: string[]): Promise<string> {
-    ids = ids.flat(Infinity);
-    if (ids.length == 0) {
-      throw new Error("At least one ID is required for fusion");
-    } else if (ids.length == 1) {
-      return ids[0]; // No fusion needed, return the single ID
-    } else {
-      // More than one ID, perform fusion or get from cache.
+  async fuse(input1ID: string, inputID2: string): Promise<string> {
+    const sortedArgs = [input1ID, inputID2].sort();
+    const resultId = this._makeId("fuse", sortedArgs[0], sortedArgs[1]);
 
-      const fuseBuilder = async () => {
-        let args: ReplicadObject[] = await Promise.all(
-          ids.map((id) => this.get(id))
+    await this.createIfAbsent(resultId, async () => {
+      const args = [await this.get(input1ID), await this.get(inputID2)];
+      // Fuse only allowed between matching types. 2 drawings or 2 3d shapes.
+      if (this.areAllDrawings(args)) {
+        return args[0].fuse(args[1]);
+      } else if (this.areAll3DShapes(args)) {
+        return this.as3dShapeOrThrow(args[0].fuse(args[1]));
+      } else {
+        throw new Error(
+          "Invalid types for fusion: " +
+            typeof args[0] +
+            " and " +
+            typeof args[1]
         );
-        if (!this.areAllDrawings(args) || !this.areAll3DShapes(args)) {
-          throw new Error(
-            "Received a mix of 2D and 3D types for fusion. All must be the same."
-          );
-        }
-        let geometry: replicad.Drawing | replicad.Shape3D = args[0];
-        for (let i = 1; i < args.length; i++) {
-          geometry = geometry.fuse(args[i]);
-        }
-        return geometry;
-      };
-
-      const id = this._makeId("fuse", ...ids);
-      this.createIfAbsent(id, fuseBuilder);
-
-      return id;
-    }
+      }
+    });
+    return resultId;
   }
 
-  /**
-   * Cuts `toCut` with each entry in `cutterIds` in order. Note that will ignore
-   * any parts which are wires, and will be considered cache-equivalent to any other
-   * cut operations with the same set (and order) of non-wire cutters.
-   */
-  async cut(toCut: string, ...cutterIds: string[]) {
-    cutterIds = cutterIds.flat(Infinity);
+  async cut(toCut: string, cutter: string): Promise<string> {
     const toCutGeom = await this.get(toCut);
     if (toCutGeom instanceof replicad.Wire) {
-      return toCut; // cutting wire is a no-op. Maybe should be an error?
+      return toCut; // cutting wire is a no-op.
     }
-    const toCutBB: replicad.BoundingBox | replicad.BoundingBox2d =
-      toCutGeom.boundingBox;
+    const cutterGeom = await this.get(cutter);
+    if (cutterGeom instanceof replicad.Wire) {
+      return toCut; // cutting with a wire is a no-op.
+    }
 
-    // TODO(tristan): I'm not sure if this is actually a good optimization since
-    // it requires materializing all the cutter geometries. Might just be better
-    // to take the input ids as gospel?
-    let cutterGeoms = await Promise.all(
-      cutterIds.map(async (id) => [id, await this.get(id)])
-    );
-
-    // only include cutters which aren't wires and actually affect the result
-    const affectingCutters = cutterGeoms.filter(
-      async ([cutterId, cutterGeom]) => {
-        if (cutterGeom instanceof replicad.Wire) return false;
-
-        // if we're cutting a 2d shape then only include cutters which are also 2d
-        // and whose bounding boxes overlap.
-        if (toCutBB instanceof replicad.BoundingBox2d) {
-          return (
-            cutterGeom instanceof replicad.Drawing &&
-            !toCutBB.isOut(cutterGeom.boundingBox as replicad.BoundingBox2d)
-          );
-        } else {
-          // toCutBB is 3d
-          return (
-            this.isShape3D(cutterGeom) &&
-            !toCutBB.isOut(cutterGeom.boundingBox as replicad.BoundingBox)
-          );
-        }
-      }
-    );
-
-    if (affectingCutters.length == 0) {
-      // This cut is actually a no-op, return original geometry
-      return toCut;
-    } else {
-      const resultId = this._makeId(
-        "cut",
-        toCut,
-        ...affectingCutters.map(([id, _]) => id)
-      );
+    let args = [toCutGeom, cutterGeom];
+    const resultId = this._makeId("cut", toCut, cutter);
+    if (this.areAllDrawings(args) || this.areAll3DShapes(args)) {
       this.createIfAbsent(resultId, async () => {
-        let result = toCutGeom;
-        for (const [cutterId, cutter] of affectingCutters) {
-          // @ts-ignore - TODO: restructuring this code will be required to fix the ts compilers
-          // confusion here.
-          result = result.clone().cut(cutter);
-        }
-        return result;
+        //@ts-ignore
+        return args[0].cut(args[1]);
       });
       return resultId;
     }
+    return toCut;
   }
 
   async shrinkWrapSketches(compositeSketchId: string, points: number) {

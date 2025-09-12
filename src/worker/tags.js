@@ -15,6 +15,7 @@ function tag(geom, TAG) {
     tags: [...TAG, ...geom.tags],
     color: geom.color,
     plane: geom.plane,
+    dimension: geom.dimension,
   };
 }
 
@@ -34,6 +35,7 @@ function color(geom, color) {
       color: color,
       bom: leaf.bom,
       plane: leaf.plane,
+      dimension: leaf.dimension,
     };
   });
 }
@@ -51,6 +53,7 @@ function bom(geom, BOM) {
     bom: BOM,
     color: geom.color,
     plane: geom.plane,
+    dimension: geom.dimension,
   };
 }
 
@@ -78,6 +81,7 @@ function extractTag(geometry, TAG) {
       tags: taggedGeometry.tags,
       color: taggedGeometry.color,
       plane: taggedGeometry.plane,
+      dimension: taggedGeometry.dimension,
     };
   } else {
     throw new Error("Tag not found");
@@ -133,6 +137,7 @@ function extractTags(inputGeometry, TAG) {
         color: inputGeometry.color,
         bom: inputGeometry.bom,
         plane: inputGeometry.plane,
+        dimension: inputGeometry.dimension,
       };
     } else {
       return false;
@@ -166,6 +171,7 @@ function extractKeepOut(inputGeometry) {
         color: inputGeometry.color,
         bom: inputGeometry.bom,
         plane: inputGeometry.plane,
+        dimension: inputGeometry.dimension,
       };
       return thethingtoreturn;
     } else {

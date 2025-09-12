@@ -38,6 +38,7 @@ function loftShapes(sketches) {
         startGeometry.loftWith([...arrayOfSketchedGeometry])
       ),
     ],
+    dimension: "3D",
     tags: [],
     plane: util.XYPlane,
     color: util.defaultColor,
@@ -57,11 +58,12 @@ function difference(target, cutter) {
     // Process each leaf of target independently
     return util.actOnLeafs(target, (leaf) => {
       return {
-        geometry: [recursiveCut(leaf.geometry[0], cutter)],
+        geometry: recursiveCut(leaf, cutter),
         tags: leaf.tags,
         color: leaf.color,
         plane: leaf.plane,
         bom: leaf.bom,
+        dimension: leaf.dimension,
       };
     });
   } else {
@@ -89,6 +91,7 @@ function shrinkWrapSketches(sketches) {
     let geometryToWrap = util.geometryProvider.fuse(inputsToFuse);
     return {
       geometry: [util.geometryProvider.shrinkWrapSketches(geometryToWrap, 50)],
+      dimension: "2D",
       tags: [],
       color: util.defaultColor,
       plane: util.XYPlane,
@@ -102,17 +105,19 @@ function shrinkWrapSketches(sketches) {
 /**
  * Return the intersection between shape1 and shape2.
  */
-function intersect(shape1, shape2) {
-  return util.actOnLeafs(shape1, (leaf) => {
+async function intersect(shape1, shape2) {
+  return util.actOnLeafs(shape1, async (leaf) => {
     const shapeToIntersectWith = digFuse(shape2);
     return {
-      geometry: [
-        util.geometryProvider.intersect(leaf.geometry[0], shapeToIntersectWith),
-      ],
+      geometry: await util.geometryProvider.intersect(
+        leaf.geometry,
+        shapeToIntersectWith
+      ),
       tags: leaf.tags,
       color: leaf.color,
       plane: leaf.plane,
       bom: leaf.bom,
+      dimension: leaf.dimension,
     };
   });
 }
@@ -120,7 +125,7 @@ function intersect(shape1, shape2) {
 /**
  * Return the boolean union between all entries in shapes.
  */
-function fusion(shapes) {
+async function fusion(shapes) {
   let fusedGeometry = [];
   let bomAssembly = [];
   const all2D = shapes.every((shape) => !util.is3D(shape));
@@ -138,11 +143,12 @@ function fusion(shapes) {
     }
   });
   return {
-    geometry: [util.geometryProvider.fuse(fusedGeometry)],
+    geometry: await util.geometryProvider.fuse(fusedGeometry),
     tags: [],
     bom: bomAssembly,
     plane: util.XYPlane,
     color: util.defaultColor,
+    dimension: all3D ? "3D" : "2D",
   };
 }
 
@@ -166,7 +172,7 @@ async function assembly(geometries) {
     if (all3D || all2D) {
       for (let i = 0; i < geometries.length; i++) {
         const geometry = geometries[i];
-        assembly.push(cutAssembly(geometry, geometries.slice(i + 1)));
+        assembly.push(await cutAssembly(geometry, geometries.slice(i + 1)));
         if (geometry.bom.length > 0) {
           bomAssembly.push(...geometry.bom);
         }
@@ -190,6 +196,7 @@ async function assembly(geometries) {
     plane: util.XYPlane,
     tags: [],
     bom: bomAssembly,
+    dimension: all3D ? "3D" : "2D",
   };
 }
 
@@ -200,24 +207,16 @@ async function assembly(geometries) {
  * @param {Object} assembly - The assembly or leaf geometry to process
  * @returns {Object} A single fused geometry combining all leaves in the assembly
  */
-function digFuse(assembly) {
-  var flattened = [];
-
-  if (util.isAssembly(assembly)) {
-    assembly.geometry.forEach((subAssembly) => {
-      if (!util.isAssembly(subAssembly)) {
-        //if it's not an assembly hold on add it to the fusion list
-        flattened.push(subAssembly.geometry[0]);
-      } else {
-        // if it is an assembly keep digging
-        // add the fused things in
-        flattened.push(digFuse(subAssembly));
-      }
-    });
-    return util.geometryProvider.fuse(flattened);
-  } else {
-    return assembly.geometry[0];
+async function digFuse(assembly) {
+  var flattened = util.flattenAssembly(assembly);
+  if (flattened.length === 0) {
+    throw new Error("No geometries found to fuse");
   }
+  let result = flattened[0];
+  for (let i = 1; i < flattened.length; i++) {
+    result = await util.geometryProvider.fuse([result, flattened[i]]);
+  }
+  return result;
 }
 
 /**
@@ -234,7 +233,7 @@ function digFuse(assembly) {
  * - Avoids unnecessary operations by checking bounding box intersections
  * - Preserves the original assembly structure while applying cuts
  */
-function cutAssembly(partToCut, cuttingParts) {
+async function cutAssembly(partToCut, cuttingParts) {
   try {
     //If the partToCut is an assembly pass each part back into cutAssembly function to be cut separately
     if (util.isAssembly(partToCut)) {
@@ -260,11 +259,11 @@ function cutAssembly(partToCut, cuttingParts) {
       }
 
       // if part to cut is a single part send to cutting function with cutting parts
-      var partCutCopy = partToCut.geometry[0];
-      cuttingParts.forEach((cuttingPart) => {
+      var partCutCopy = partToCut.geometry;
+      for (const cuttingPart of cuttingParts) {
         // for each cutting part cut the part
-        partCutCopy = recursiveCut(partCutCopy, cuttingPart);
-      });
+        partCutCopy = await recursiveCut(partToCut, cuttingPart);
+      }
       /*   if the part is a compound return each solid as a new assembly */
       function getSolids(compound) {
         return Array.from(
@@ -281,11 +280,12 @@ function cutAssembly(partToCut, cuttingParts) {
           let newAssembly = [];
           solids.forEach((solid) => {
             newAssembly.push({
-              geometry: [solid],
+              geometry: solid,
               tags: partToCut.tags,
               color: partToCut.color,
               bom: partToCut.bom,
               plane: partToCut.plane,
+              dimension: partToCut.dimension,
             });
           });
           // return new cut part
@@ -295,16 +295,18 @@ function cutAssembly(partToCut, cuttingParts) {
             color: partToCut.color,
             bom: partToCut.bom,
             plane: partToCut.plane,
+            dimension: partToCut.dimension,
           };
         }
       }
       // return new cut part
       return {
-        geometry: [partCutCopy],
+        geometry: partCutCopy,
         tags: partToCut.tags,
         color: partToCut.color,
         bom: partToCut.bom,
         plane: partToCut.plane,
+        dimension: partToCut.dimension,
       };
     }
   } catch (e) {
@@ -331,19 +333,27 @@ function cutAssembly(partToCut, cuttingParts) {
  * The function is a core part of the boolean difference system and is designed
  * to efficiently handle complex hierarchical structures.
  */
-function recursiveCut(partToCut, cuttingPart) {
-  try {
-    let cutGeometry = partToCut;
-    const cuttingParts = [];
-    util.actOnLeafs(cuttingPart, (leaf) => {
-      cuttingParts.push(leaf.geometry[0]);
-    });
+async function recursiveCut(partToCut, cuttingParts) {
+  let toCutGeom = await util.geometryProvider.get(partToCut.geometry);
 
-    return util.geometryProvider.cut(cutGeometry, cuttingParts);
-  } catch (e) {
-    console.log(e);
-    console.log(e.trace);
-    throw new Error("Recursive Cut failed", e);
+  if (util.isWireGeometry(toCutGeom)) {
+    return partToCut;
+  }
+
+  for (const cuttingPart of util.flattenAssembly(cuttingParts)) {
+    if (partToCut.dimension != cuttingPart.dimension) {
+      continue;
+      // skip this leaf. can't cut 2D with 3D or vice versa
+    }
+    const cuttingPartGeom = await util.geometryProvider.get(
+      cuttingPart.geometry
+    );
+    if (toCutGeom.boundingBox.isOut(cuttingPartGeom.boundingBox)) {
+      continue;
+      // skip this leaf. bounding boxes don't intersect
+    }
+
+    toCutGeom = util.geometryProvider.cut(partToCut.geometry, cuttingPartGeom);
   }
 }
 

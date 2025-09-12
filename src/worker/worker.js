@@ -10,7 +10,7 @@ import * as tags from "./tags.js";
 import * as codeLib from "./code.js";
 import { GeometryProvider } from "./geometryProvider.ts";
 
-library = {};
+const library = {};
 let defaultMesh = undefined;
 const started = util.init();
 
@@ -20,6 +20,9 @@ function getOrThrow(id) {
   }
   if (!library[id]) {
     throw new Error(`Library ID ${id} does not exist.`);
+  }
+  if (library[id] instanceof Promise) {
+    throw new Error("Someone put a promise into the library at: " + id);
   }
   return library[id];
 }
@@ -609,7 +612,8 @@ function visExport(targetID, inputID, fileType) {
  */
 function downExport(ID, fileType, svgResolution, units) {
   return started.then(() => {
-    const geom = util.geometryProvider.get(library[ID].geometry[0]);
+    // BUG: what if this is given an assembly?
+    const geom = util.geometryProvider.get(library[ID].geometry);
     let scaleUnit = units == "Inches" ? 1 : units == "MM" ? 25.4 : 1;
     let scaling = svgResolution / scaleUnit;
     if (fileType == "SVG") {
@@ -815,34 +819,8 @@ function generateThumbnail(inputID) {
   });
 }
 
-/**
- * Calculate the bounding box of the input geometry by walking through it and finding the min/max of
- * the bounding box of each leaf.
- */
-
 function getBoundingBox(inputID) {
-  // TODO(tristan): this is redundant with util.getBounds I think.
-  let minX = Infinity,
-    minY = Infinity,
-    minZ = Infinity;
-  let maxX = -Infinity,
-    maxY = -Infinity,
-    maxZ = -Infinity;
-
-  util.actOnLeafs(library[inputID], (leaf) => {
-    const bbox = util.geometryProvider.get(leaf.geometry[0]).boundingBox.bounds;
-    minX = Math.min(minX, bbox[0][0]);
-    minY = Math.min(minY, bbox[0][1]);
-    minZ = Math.min(minZ, bbox[0][2]);
-    maxX = Math.max(maxX, bbox[1][0]);
-    maxY = Math.max(maxY, bbox[1][1]);
-    maxZ = Math.max(maxZ, bbox[1][2]);
-  });
-
-  return {
-    min: [minX, minY, minZ],
-    max: [maxX, maxY, maxZ],
-  };
+  return util.getBounds(getOrThrow(inputID));
 }
 
 /**
@@ -1091,7 +1069,9 @@ async function generateDisplayMesh(id) {
   for (let i = 0; i < flattened.length; i++) {
     const displayObject = flattened[i];
     let cleanedGeometry;
-    if (displayObject.geometry.mesh == undefined) {
+    // TODO: would love a better way to check if geometry is 2D or 3D.
+    const geom = await util.geometryProvider.get(displayObject.geometry);
+    if (geom.mesh == undefined) {
       cleanedGeometry = await util.geometryProvider.get(
         await util.geometryProvider.extrude(
           displayObject.geometry,
@@ -1100,7 +1080,7 @@ async function generateDisplayMesh(id) {
         )
       );
     } else {
-      cleanedGeometry = displayObject.geometry;
+      cleanedGeometry = geom;
     }
     meshArray.push({
       color: displayObject.color,

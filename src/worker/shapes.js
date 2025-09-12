@@ -13,9 +13,10 @@ import { Plane } from "replicad";
  * @param {number} diameter - The diameter of the circle
  * @returns Assembly containing a circle on the XY plane
  */
-function circle(diameter) {
+async function circle(diameter) {
   return {
-    geometry: [util.geometryProvider.drawCircle(diameter / 2)],
+    geometry: await util.geometryProvider.drawCircle(diameter / 2),
+    dimension: "2D",
     tags: [],
     plane: util.XYPlane,
     color: util.defaultColor,
@@ -32,6 +33,7 @@ function circle(diameter) {
 async function rectangle(x, y) {
   return {
     geometry: await util.geometryProvider.drawRectangle(x, y),
+    dimension: "2D",
     plane: util.XYPlane,
     color: util.defaultColor,
     tags: [],
@@ -45,7 +47,7 @@ async function rectangle(x, y) {
  * @param {number} numberOfSides - The number of sides of the polygon
  * @returns Assembly containing a regular polygon on the XY plane
  */
-function regularPolygon(radius, numberOfSides) {
+async function regularPolygon(radius, numberOfSides) {
   if (numberOfSides < 3) {
     throw new Error("Number of sides must be at least 3 for a polygon.");
   }
@@ -53,7 +55,8 @@ function regularPolygon(radius, numberOfSides) {
     throw new Error("Number of sides must be an integer.");
   }
   return {
-    geometry: [util.geometryProvider.drawPolysides(radius, numberOfSides)],
+    geometry: await util.geometryProvider.drawPolysides(radius, numberOfSides),
+    dimension: "2D",
     tags: [],
     plane: util.XYPlane,
     color: util.defaultColor,
@@ -73,14 +76,14 @@ async function text(text, fontSize, fontFamily) {
   return util.replicad
     .loadFont(Fonts[fontFamily])
     .then(async () => {
-      const textGeometry = util.geometryProvider.drawText(text, {
-        startX: 0,
-        startY: 0,
-        fontSize: fontSize,
-        font: fontFamily,
-      });
       return {
-        geometry: await textGeometry,
+        geometry: await util.geometryProvider.drawText(text, {
+          startX: 0,
+          startY: 0,
+          fontSize: fontSize,
+          font: fontFamily,
+        }),
+        dimension: "2D",
         tags: [],
         plane: util.XYPlane,
         color: util.defaultColor,

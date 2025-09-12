@@ -29,31 +29,59 @@ interface SimplePlane {
   normal: [number, number, number];
 }
 
-interface AbundanceObject {
-  geometry: string | AbundanceObject[];
+type AbundanceObject = AbundanceLeaf | AbundanceBranch;
+
+enum Dimension {
+  "2D" = "2D",
+  "3D" = "3D",
+  "Wire" = "Wire",
+}
+
+interface AbundanceBranch {
+  geometry: AbundanceObject[];
+  dimension: Dimension;
   plane: SimplePlane;
   color?: string;
   tags?: string[];
   bom?: string[];
 }
 
-function is3D(inputs: any): boolean {
-  if (inputs === undefined || inputs.geometry === undefined) {
+interface AbundanceLeaf {
+  geometry: string;
+  dimension: Dimension;
+  plane: SimplePlane;
+  color?: string;
+  tags?: string[];
+  bom?: string[];
+}
+
+/**
+ * TODO: comments to explain what this is.
+ */
+interface LeafOverrides {
+  geometry?: string;
+  dimension?: Dimension;
+  plane?: SimplePlane;
+  color?: string;
+  tags?: string[];
+  bom?: string[];
+}
+
+function is3D(part: AbundanceObject): boolean {
+  if (part === undefined || part.geometry === undefined) {
     return false;
   }
-  if (isAssembly(inputs)) {
-    return inputs.geometry.some((input: any) => is3D(input));
-  } else if (
-    geometryProvider!.get(inputs.geometry[0]).mesh !== undefined ||
-    geometryProvider!.get(inputs.geometry[0]) instanceof replicad.Wire
-  ) {
-    return true;
+  if (isAssembly(part)) {
+    return part.geometry.some((input: any) => is3D(input));
   } else {
-    return false;
+    // leaf
+    return part.dimension === "3D";
   }
 }
 
-function getBounds(geometry: any): { min: number[]; max: number[] } {
+async function getBounds(
+  geometry: AbundanceObject
+): Promise<{ min: number[]; max: number[] }> {
   try {
     let minX = Infinity,
       minY = Infinity,
@@ -62,42 +90,23 @@ function getBounds(geometry: any): { min: number[]; max: number[] } {
       maxY = -Infinity,
       maxZ = -Infinity;
 
-    if (isAssembly(geometry)) {
-      actOnLeafs(geometry, (leaf: AbundanceObject) => {
-        if (
-          leaf.geometry &&
-          leaf.geometry[0] &&
-          geometryProvider!.get(leaf.geometry[0]).boundingBox
-        ) {
-          const bbox = geometryProvider!.get(leaf.geometry[0]).boundingBox
-            .bounds;
-          minX = Math.min(minX, bbox[0][0]);
-          minY = Math.min(minY, bbox[0][1]);
-          minZ = Math.min(minZ, bbox[0][2]);
-          maxX = Math.max(maxX, bbox[1][0]);
-          maxY = Math.max(maxY, bbox[1][1]);
-          maxZ = Math.max(maxZ, bbox[1][2]);
-        }
-        return leaf;
-      });
-    } else {
-      if (
-        geometry.geometry &&
-        geometry.geometry[0] &&
-        geometryProvider!.get(geometry.geometry[0]).boundingBox
-      ) {
-        const bbox = geometryProvider!.get(geometry.geometry[0]).boundingBox
-          .bounds;
-        minX = bbox[0][0];
-        minY = bbox[0][1];
-        minZ = bbox[0][2];
-        maxX = bbox[1][0];
-        maxY = bbox[1][1];
-        maxZ = bbox[1][2];
-      } else {
-        throw new Error("Invalid geometry: missing boundingBox");
+    actOnLeafs(geometry, async (leaf: AbundanceLeaf) => {
+      const replicadbox = (await geometryProvider!.get(leaf.geometry))
+        .boundingBox;
+      let bbox = replicadbox.bounds;
+      minX = Math.min(minX, bbox[0][0]);
+      minY = Math.min(minY, bbox[0][1]);
+      maxX = Math.max(maxX, bbox[1][0]);
+      maxY = Math.max(maxY, bbox[1][1]);
+
+      if (replicadbox instanceof replicad.BoundingBox) {
+        // BoundingBox is 3D
+        bbox = replicadbox.bounds;
+        minZ = Math.min(minZ, bbox[0][2]);
+        maxZ = Math.max(maxZ, bbox[1][2]);
       }
-    }
+      return leaf;
+    });
 
     return {
       min: [minX, minY, minZ],
@@ -113,48 +122,47 @@ function isAbundanceObject(obj: any): obj is AbundanceObject {
   return obj && typeof obj === "object" && "geometry" in obj && "plane" in obj;
 }
 
-function isLeaf(assembly: AbundanceObject): boolean {
-  return assembly !== undefined && !isAbundanceObject(assembly.geometry[0]);
+function isLeaf(obj: AbundanceObject): obj is AbundanceLeaf {
+  return obj !== undefined && !isAbundanceObject(obj.geometry[0]);
 }
 
-function actOnLeafs(
+async function actOnLeafs(
   assembly: AbundanceObject,
-  action: (leaf: AbundanceObject) => AbundanceObject,
+  action: (leaf: AbundanceLeaf) => AbundanceObject | Promise<AbundanceObject>,
   plane?: SimplePlane
-): AbundanceObject {
+): Promise<AbundanceObject> {
   if (!isAbundanceObject(assembly)) {
     return assembly;
   }
   plane = plane || assembly.plane;
 
   if (isLeaf(assembly)) {
-    return action(assembly);
+    return await action(assembly);
   } else {
     let children = assembly.geometry as AbundanceObject[];
     let transformedAssembly: any[] = [];
-    children.forEach((subAssembly: any) => {
-      const result = actOnLeafs(subAssembly, action);
+    for (const subAssembly of children) {
+      const result = await actOnLeafs(subAssembly, action);
       if (result != undefined) {
         transformedAssembly.push(result);
       }
-    });
+    }
     return {
       geometry: transformedAssembly,
       plane: plane,
       color: assembly.color,
       tags: assembly.tags,
       bom: assembly.bom,
+      dimension: assembly.dimension,
     };
   }
 }
 
 /**
- * Recursively flattens an assembly tree into a flat array of geometry objects with colors.
- * @param {Object} assembly - The assembly to flatten
- * @returns {Array} An array of objects containing geometry and color properties
+ * Gets all leafs from an assembly as a flat list.
  */
-function flattenAssembly(assembly: AbundanceObject): AbundanceObject[] {
-  var flattened: AbundanceObject[] = [];
+function flattenAssembly(assembly: AbundanceObject): AbundanceLeaf[] {
+  var flattened: AbundanceLeaf[] = [];
   if (assembly == undefined || assembly.geometry == undefined) {
     console.trace("attempted to flatten empty assembly");
     return flattened;
@@ -177,20 +185,15 @@ function generateUniqueID(): string {
   return uuidv4();
 }
 
-function isWireGeometry(inputs: any): boolean {
+function isWireGeometry(inputs: AbundanceObject): boolean {
   if (isAssembly(inputs)) {
     return inputs.geometry.some((input: any) => isWireGeometry(input));
-  } else if (
-    inputs.geometry &&
-    geometryProvider!.get(inputs.geometry[0]) instanceof replicad.Wire
-  ) {
-    return true;
   } else {
-    return false;
+    return inputs.dimension === Dimension.Wire;
   }
 }
 
-function isAssembly(part: any): boolean {
+function isAssembly(part: any): part is AbundanceBranch {
   if (part == undefined || part.geometry == undefined) {
     return false;
   }
@@ -205,10 +208,11 @@ function isAssembly(part: any): boolean {
   }
 }
 
+// BUG(tristan): this is broken
 function realizeAssembly(assembly: any): any {
   return actOnLeafs(assembly, (leaf: any) => {
     if (leaf && leaf.geometry && leaf.geometry[0]) {
-      const realizedGeometry = geometryProvider!.get(leaf.geometry[0]);
+      const realizedGeometry = geometryProvider!.get(leaf.geometry);
       return {
         geometry: [realizedGeometry],
         tags: leaf.tags,
