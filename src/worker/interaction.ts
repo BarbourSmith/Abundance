@@ -54,7 +54,7 @@ function loftShapes(sketches: AbundanceObject[]): any {
  * Performs a boolean difference operation between two geometries.
  * This function subtracts the second geometry (cutter) from the first geometry (target).
  */
-function difference(target: AbundanceObject, cutter: AbundanceObject): any {
+function difference(target: AbundanceObject, cutter: AbundanceObject): Promise<AbundanceObject> {
   if (
     (util.is3D(target) && util.is3D(cutter)) ||
     (!util.is3D(target) && !util.is3D(cutter))

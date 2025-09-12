@@ -49,7 +49,7 @@ class GeometryProvider {
     id: string,
     builder: () => Promise<ReplicadObject>
   ): Promise<string> {
-    if (!(id in this.cache)) {
+    if (!this.cache.has(id)) {
       let value = await builder();
       this.cache.set(id, value);
       this.cacheMiss(id);
