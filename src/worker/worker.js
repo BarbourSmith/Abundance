@@ -3,7 +3,7 @@ import { Plane } from "replicad";
 import { drawSVG } from "replicad-decorate";
 import * as cutlayout from "./cutlayout.js";
 import * as util from "./util.ts";
-import * as shapes from "./shapes.js";
+import * as shapes from "./shapes.ts";
 import * as actions from "./actions.js";
 import * as interaction from "./interaction.ts";
 import * as tags from "./tags.js";
@@ -539,6 +539,9 @@ function output(targetID, inputID) {
  */
 function molecule(targetID, inputID) {
   return started.then(() => {
+    if (inputID instanceof Promise) {
+      throw new Error("inputID was passed a promise: " + inputID);
+    }
     if (library[inputID] != undefined) {
       library[targetID] = library[inputID];
     } else {
