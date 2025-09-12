@@ -10,7 +10,7 @@ import * as tags from "./tags.js";
 import * as codeLib from "./code.js";
 import { GeometryProvider } from "./geometryProvider.ts";
 
-var library = {};
+library = {};
 let defaultMesh = undefined;
 const started = util.init();
 
@@ -207,17 +207,10 @@ async function circle(id, diameter) {
  * @param {number} y - The height of the rectangle
  * @returns {Promise<AbundanceObject>} A promise that resolves to the created rectangle geometry
  */
-async function rectangle(x, y) {
+async function rectangle(targetID, x, y) {
   await started;
-  return shapes
-    .rectangle(x, y)
-    .catch((err) => {
-      console.error("Error creating rectangle: ", err);
-    })
-    .finally((v) => {
-      console.log("rectangle finished with: ", v);
-      return v;
-    });
+  library[targetID] = await shapes.rectangle(x, y);
+  return targetID;
 }
 
 /**
@@ -272,9 +265,10 @@ async function loftShapes(targetID, inputsIDs) {
  * @param {number} height - The height to extrude the sketch
  * @returns {Promise<boolean>} A promise that resolves to true when the extrusion is completed successfully
  */
-async function extrude(input, height) {
+async function extrude(targetID, inputID, height) {
   await started;
-  return actions.extrude(input, height);
+  library[targetID] = await actions.extrude(getOrThrow(inputID), height);
+  return targetID;
 }
 
 /**

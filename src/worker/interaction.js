@@ -80,18 +80,15 @@ function shrinkWrapSketches(sketches) {
       let fusedInput = digFuse(sketch);
       inputsToFuse.push(fusedInput);
       if (util.geometryProvider.get(fusedInput).innerShape.blueprints) {
-        throw new Error("Sketches to be lofted can't have interior geometries");
+        throw new Error(
+          "Sketches to be shrink wrapped can't have interior geometries"
+        );
       }
       BOM.push(fusedInput.bom);
     });
-    // TODO: (tristan): I think there is a cache staleness issue with transient geometries like this one
-    // since we tie cache eviction to GC.. there's a chance that if shrinkWrapSketches is called
-    // again with the same sketches we'll get a cache miss for this fuse operation then get a hit with
-    // shrinkWrap below... To optimize we could prefer to match inputs to the public API?
-    // OTOH caching intervening states might allow for more hits between different operations (eg: the digfuse above)
     let geometryToWrap = util.geometryProvider.fuse(inputsToFuse);
     return {
-      geometry: [util.geometryProvider.shrinkWrap(geometryToWrap, 50)],
+      geometry: [util.geometryProvider.shrinkWrapSketches(geometryToWrap, 50)],
       tags: [],
       color: util.defaultColor,
       plane: util.XYPlane,
