@@ -1,8 +1,6 @@
 import * as replicad from "replicad";
-import * as crypto from "crypto";
-import { number } from "mathjs";
 import shrinkWrap from "replicad-shrink-wrap";
-import { AbundanceObject, asReplicadPlane } from "./util";
+import { asReplicadPlane } from "./util";
 
 type ReplicadObject = replicad.Shape3D | replicad.Drawing | replicad.Wire;
 
@@ -14,152 +12,68 @@ type ReplicadObject = replicad.Shape3D | replicad.Drawing | replicad.Wire;
  * or retrieve the geometry via `get(id)`.
  */
 class GeometryProvider {
-  private _dbPromise: Promise<IDBDatabase>;
-  private _cacheHitMetrics: Record<string, [number, number]>;
-  private _nextId: number;
+  private cache = new Map<string, ReplicadObject>();
+  private cacheHitMetrics: Record<string, [number, number]>;
+  private nextId: number;
 
   constructor() {
-    this._dbPromise = this._initDB(); // Initialize IndexedDB
-    this._cacheHitMetrics = {};
-    this._nextId = 0;
+    this.cacheHitMetrics = {};
+    this.nextId = 0;
 
     setInterval(() => {
-      console.log(this._cacheHitMetrics);
+      console.log(this.cacheHitMetrics);
     }, 10000);
-  }
-
-  private async _initDB(): Promise<IDBDatabase> {
-    return new Promise((resolve, reject) => {
-      const request = indexedDB.open("geometryCache", 1);
-
-      request.onupgradeneeded = (event: IDBVersionChangeEvent) => {
-        const db = (event.target as IDBOpenDBRequest).result;
-        if (!db.objectStoreNames.contains("geometries")) {
-          db.createObjectStore("geometries", { keyPath: "id" });
-        }
-      };
-
-      request.onsuccess = (event: Event) => {
-        resolve((event.target as IDBOpenDBRequest).result);
-      };
-
-      request.onerror = (event: Event) => {
-        console.error(
-          "Error opening IndexedDB:",
-          (event.target as IDBOpenDBRequest).error
-        );
-        reject((event.target as IDBOpenDBRequest).error);
-      };
-    });
-  }
-
-  private async _getFromDB(id: string): Promise<any> {
-    const db = await this._dbPromise;
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction("geometries", "readonly");
-      transaction.onerror = (event: Event) => {
-        console.error("Transaction error");
-        reject((event.target as IDBRequest).error);
-      };
-      const store = transaction.objectStore("geometries");
-      const request = store.get(id);
-
-      request.onsuccess = (event: Event) => {
-        console.log("got onsuccess callback from the db");
-        // TODO: Deserialize the geometry value after retrieving from DB
-        let result = (event.target as IDBRequest).result;
-        result = result ? result.value : undefined;
-
-        if (!result) {
-          resolve(undefined);
-        } else {
-          try {
-            result = replicad.deserializeShape(result);
-            resolve(result);
-          } catch (error) {
-            try {
-              result = replicad.deserializeDrawing(result);
-              resolve(result);
-            } catch (error) {
-              reject("Failed to deserialize geometry for id " + id);
-            }
-          }
-        }
-      };
-
-      request.onerror = (event: Event) => {
-        console.error("failed to get id");
-        reject((event.target as IDBRequest).error);
-      };
-    });
-  }
-
-  private async _saveToDB(id: string, value: any): Promise<void> {
-    const db = await this._dbPromise;
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction("geometries", "readwrite");
-      const store = transaction.objectStore("geometries");
-
-      // Check if the key already exists
-      const getRequest = store.get(id);
-      getRequest.onsuccess = (event: Event) => {
-        if ((event.target as IDBRequest).result) {
-          resolve();
-        } else {
-          const putRequest = store.put({ id, value });
-          putRequest.onsuccess = () => resolve();
-          putRequest.onerror = (event: Event) =>
-            reject((event.target as IDBRequest).error);
-        }
-      };
-
-      getRequest.onerror = (event: Event) =>
-        reject((event.target as IDBRequest).error);
-    });
-  }
-
-  private async _deleteFromDB(id: string): Promise<void> {
-    const db = await this._dbPromise;
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction("geometries", "readwrite");
-      const store = transaction.objectStore("geometries");
-      const request = store.delete(id);
-
-      request.onsuccess = () => resolve();
-      request.onerror = (event: Event) =>
-        reject((event.target as IDBRequest).error);
-    });
   }
 
   private cacheHit(id: string): void {
     const type = id.split("-")[0];
-    if (!this._cacheHitMetrics[type]) {
-      this._cacheHitMetrics[type] = [0, 0];
+    if (!this.cacheHitMetrics[type]) {
+      this.cacheHitMetrics[type] = [0, 0];
     }
-    this._cacheHitMetrics[type][0]++;
+    this.cacheHitMetrics[type][0]++;
   }
 
   private cacheMiss(id: string): void {
     const type = id.split("-")[0];
-    if (!this._cacheHitMetrics[type]) {
-      this._cacheHitMetrics[type] = [0, 0];
+    if (!this.cacheHitMetrics[type]) {
+      this.cacheHitMetrics[type] = [0, 0];
     }
-    this._cacheHitMetrics[type][1]++;
+    this.cacheHitMetrics[type][1]++;
   }
 
+  // Returns the id of the geometry once it's been added to the cache.
   private async _createIfAbsent(
     id: string,
     builder: () => Promise<ReplicadObject>
   ): Promise<string> {
-    let value = await this._getFromDB(id);
-    if (!value) {
-      value = await builder();
-      await this._saveToDB(id, value.serialize());
+    if (!(id in this.cache)) {
+      let value = await builder();
+      this.cache.set(id, value);
       this.cacheMiss(id);
     } else {
       this.cacheHit(id);
     }
-    return value;
+    // TODO: faking async behavior here because this will
+    // eventually be an indexedDB call, which is async by necessity.
+    return Promise.resolve(id);
+  }
+
+  /**
+   * Retrieves a real geometry from the cache. This should only be used when
+   * the caller needs to perform operations which aren't supported by this class,
+   * or wants to perform a series of operations whose intervening values won't
+   * be cached (this is atypical).
+   *
+   * @param id - ID of the geometry to retrieve
+   * @returns The geometry object itself (ie ReplicadObject)
+   */
+  async get(id: string): Promise<ReplicadObject> {
+    const value = this.cache.get(id);
+    if (value == undefined) {
+      console.warn("Cache miss for id:", id);
+      throw new Error(`Geometry with ID ${id} not found in cache`);
+    }
+    return Promise.resolve(value);
   }
 
   /**
@@ -383,21 +297,12 @@ class GeometryProvider {
    * @returns key for this geometry.
    */
   addSingularToCache(geometry: any, id: string | undefined = undefined) {
-    id = id || this._makeId("singular", this._nextId++);
+    id = id || this._makeId("singular", this.nextId++);
     this._createIfAbsent(id, () => geometry);
     return id;
   }
 
-  async get(key: string): Promise<ReplicadObject> {
-    const value = await this._getFromDB(key);
-    if (value === undefined) {
-      console.warn("Cache miss for id:", key);
-      throw new Error(`Geometry with ID ${key} not found in cache`);
-    }
-    return value;
-  }
-
-  _makeId(type: string, ...args: any[]) {
+  private _makeId(type: string, ...args: any[]) {
     args = args.map((arg) => {
       return JSON.stringify(arg);
     });
