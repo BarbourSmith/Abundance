@@ -7,7 +7,7 @@ import * as shapes from "./shapes.ts";
 import * as actions from "./actions.ts";
 import * as interaction from "./interaction.ts";
 import * as tags from "./tags.ts";
-import * as codeLib from "./code.js";
+import * as codeLib from "./code.ts";
 import { GeometryProvider } from "./geometryProvider.ts";
 
 const library = {};

@@ -1,13 +1,31 @@
-import * as util from "./util.ts";
-import { rotate, move, scale, fillet, chamfer } from "./actions.ts";
-import { intersect, assembly, cutAssembly } from "./interaction.ts";
+import * as util from "./util";
+import { rotate, move, scale, fillet, chamfer } from "./actions";
+import { intersect, assembly, cutAssembly } from "./interaction";
+import { AbundanceObject } from "./util";
+import { ReplicadObject } from "./geometryProvider";
+import { Plane } from "replicad";
+
+/**
+ * For backward compatibility reasons we allow users to call functions with
+ * any of the UserGeometryObj types.
+ */
+type UserGeometryObj = string | RealizedAssembly | ReplicadObject;
+
+type RealizedAssembly = {
+  geometry: ReplicadObject | RealizedAssembly[];
+  plane: Plane;
+  dimension: "2D" | "3D" | "Wire";
+  color: string;
+  tags: string[];
+  bom: string[];
+};
 
 /**
  * A best-effort check for exploits in user provided code. Checks for a series of known bad patterns.
  * @param {string} code - The JavaScript code string to validate
  * @returns {boolean} True if code appears safe, throws error if dangerous patterns detected
  */
-function validateUserCode(code) {
+function validateUserCode(code: string): boolean {
   const dangerousPatterns = [
     /eval\s*\(/,
     /import\s*\(/,
@@ -45,29 +63,38 @@ function validateUserCode(code) {
  * A function which converts any input into Abundance style geometry. Input can be a library ID, an abundance object, or a single geometry object.
  * This is useful for allowing our functions to work within the Code atom or within the flow canvas.
  */
-function toGeometry(input, name = "geometry", library) {
-  //If the input is a library ID we look it up
-  if (typeof input === "string" || typeof input === "number") {
-    if (!library[input]) {
-      throw new Error(`Library ID ${input} does not exist.`);
-    }
-    return library[input];
-  }
-  //If the input is already an abundance object we return it
-  else if (input && input.geometry) {
-    return input;
+async function toGeometry(
+  input: UserGeometryObj,
+  name = "geometry",
+  userLib: { [key: string]: RealizedAssembly }
+): Promise<AbundanceObject> {
+  if (input === undefined || input === null) {
+    throw new Error(name + " value is undefined or null");
   }
 
-  // else check if it's a raw geometry object
+  if (typeof input === "string" || typeof input === "number") {
+    if (!userLib[input]) {
+      throw new Error(`Library ID ${input} does not exist.`);
+    }
+    return cacheAssembly(userLib[input]);
+  } else if ("geometry" in input) {
+    return cacheAssembly(input as RealizedAssembly);
+  }
+
+  // @ts-ignore - using _wrapped to detect if this is a raw replicad object
   const raw_type = input?._wrapped?.$$?.ptrType?.name;
   if (raw_type && raw_type instanceof String && raw_type.startsWith("TopoDS")) {
     // If it's a raw geometry object, we wrap it in an abundance object
-    return util.geometryProvider.addSingularToCache({
-      geometry: [input],
-      tags: [],
+    return {
+      dimension: "3D",
+      plane: util.XYPlane,
       color: util.defaultColor,
+      tags: [],
       bom: [],
-    });
+      geometry: await util.geometryProvider!.addSingularToCache(
+        input as ReplicadObject
+      ),
+    };
   } else {
     // If it's something else, we throw an error
     throw new Error(
@@ -81,7 +108,11 @@ function toGeometry(input, name = "geometry", library) {
  *
  * Unusually this function requires library as context since the source code may reference library.
  */
-async function executeCode(code, argumentsArray, library) {
+async function executeCode(
+  code: string,
+  argumentsArray: { [key: string]: any },
+  fullLibrary: { [key: string]: AbundanceObject }
+): Promise<AbundanceObject> {
   try {
     // Validate input parameters
     if (typeof code !== "string") {
@@ -94,10 +125,10 @@ async function executeCode(code, argumentsArray, library) {
     // Make a copy of the necessary entries in the library where all geometries are de-cached.
     // This library copy will be in focus for the user. Has the side effect that direct assignments
     // to the library by the user code will not affect the main library.
-    const userLib = {};
+    const userLib: { [key: string]: RealizedAssembly } = {};
     for (const [key, value] of Object.entries(argumentsArray)) {
-      if (value in library) {
-        userLib[value] = util.realizeAssembly(library[value]);
+      if (value in fullLibrary) {
+        userLib[value] = await realizeAssembly(fullLibrary[value]);
       }
     }
 
@@ -107,64 +138,94 @@ async function executeCode(code, argumentsArray, library) {
     validateUserCode(code);
 
     // Create wrapper functions that handle library ID to geometry conversion
-    const wrappedMove = async (geom, x, y, z) => {
-      return util.realizeAssembly(
-        await move(toGeometry(geom, "move-geometry", library), x, y, z)
+    const wrappedMove = async (
+      geom: UserGeometryObj,
+      x: number,
+      y: number,
+      z: number
+    ) => {
+      return realizeAssembly(
+        await move(await toGeometry(geom, "move-geometry", userLib), x, y, z)
       );
     };
 
-    const wrappedRotate = async (geom, x, y, z) => {
-      return util.realizeAssembly(
-        await rotate(toGeometry(geom, "rotate-geometry", library), x, y, z)
-      );
-    };
-
-    const wrappedScale = async (geom, scaleFactor) => {
-      return util.realizeAssembly(
-        await scale(toGeometry(geom, "scale-geometry", library), scaleFactor)
-      );
-    };
-
-    const wrappedFillet = async (geom, radius) => {
-      return util.realizeAssembly(
-        await fillet(toGeometry(geom, "fillet-geometry", library), radius)
-      );
-    };
-
-    const wrappedChamfer = async (geom, size) => {
-      return util.realizeAssembly(
-        await chamfer(toGeometry(geom, "chamfer-geometry", library), size)
-      );
-    };
-
-    const wrappedIntersect = async (input1, input2) => {
-      return util.realizeAssembly(
-        await intersect(
-          toGeometry(input1, "intersect-geometry1", library),
-          toGeometry(input2, "intersect-geometry2", library)
+    const wrappedRotate = async (
+      geom: string | RealizedAssembly,
+      x: number,
+      y: number,
+      z: number
+    ) => {
+      return realizeAssembly(
+        await rotate(
+          await toGeometry(geom, "rotate-geometry", userLib),
+          x,
+          y,
+          z
         )
       );
     };
 
-    const wrappedAssembly = async (inputIDs) => {
-      const ids = inputIDs.map((id) =>
-        toGeometry(id, "assembly-geometry", library)
+    const wrappedScale = async (geom: UserGeometryObj, scaleFactor: number) => {
+      return realizeAssembly(
+        await scale(
+          await toGeometry(geom, "scale-geometry", userLib),
+          scaleFactor
+        )
+      );
+    };
+
+    const wrappedFillet = async (geom: UserGeometryObj, radius: number) => {
+      return realizeAssembly(
+        await fillet(await toGeometry(geom, "fillet-geometry", userLib), radius)
+      );
+    };
+
+    const wrappedChamfer = async (geom: UserGeometryObj, size: number) => {
+      return realizeAssembly(
+        await chamfer(await toGeometry(geom, "chamfer-geometry", userLib), size)
+      );
+    };
+
+    const wrappedIntersect = async (
+      input1: UserGeometryObj,
+      input2: UserGeometryObj
+    ) => {
+      return realizeAssembly(
+        await intersect(
+          await toGeometry(input1, "intersect-geometry1", userLib),
+          await toGeometry(input2, "intersect-geometry2", userLib)
+        )
+      );
+    };
+
+    const wrappedAssembly = async (inputIDs: UserGeometryObj[]) => {
+      const ids = await Promise.all(
+        inputIDs.map(
+          async (id) => await toGeometry(id, "assembly-geometry", userLib)
+        )
       );
       const res = await assembly(ids);
-      return util.realizeAssembly(res);
+      return realizeAssembly(res);
     };
 
-    const wrappedCutAssembly = async (input1, input2Array) => {
-      return util.realizeAssembly(
+    const wrappedCutAssembly = async (
+      input1: UserGeometryObj,
+      input2Array: UserGeometryObj[]
+    ) => {
+      return realizeAssembly(
         await cutAssembly(
-          toGeometry(input1, "cut-geometry1", library),
-          input2Array.map((id) => toGeometry(id, "cut-geometry", library))
+          await toGeometry(input1, "cut-geometry1", userLib),
+          await Promise.all(
+            input2Array.map(
+              async (id) => await toGeometry(id, "cut-geometry", userLib)
+            )
+          )
         )
       );
     };
 
-    const wrappedGetBounds = (geom) => {
-      return util.getBounds(toGeometry(geom, "bounds-geometry", library));
+    const wrappedGetBounds = async (geom: UserGeometryObj) => {
+      return util.getBounds(await toGeometry(geom, "bounds-geometry", userLib));
     };
 
     let keys1 = [
@@ -220,11 +281,11 @@ async function executeCode(code, argumentsArray, library) {
       userFunction(...inputValues),
       timeoutPromise,
     ]).then((result) => {
-      return util.cacheAssembly(result);
+      return cacheAssembly(result);
     });
   } catch (error) {
     console.error("Code execution error:", error);
-    throw new Error(`Code execution failed: ${error.message}`);
+    throw new Error(`Code execution failed: ${(error as Error).message}`);
   }
 }
 
@@ -241,20 +302,23 @@ async function executeCode(code, argumentsArray, library) {
  * but where each leaf is the result of applying callbackFn to the
  * corresponding leaf in the input assembly.
  */
-async function assemblyMap(assembly, callbackFn) {
+async function assemblyMap(
+  assembly: RealizedAssembly,
+  callbackFn: (
+    node: RealizedAssembly,
+    depth: number
+  ) => RealizedAssembly | Promise<RealizedAssembly>
+): Promise<RealizedAssembly> {
   try {
     // Helper function to process nodes recursively
-    async function processNode(node, depth) {
-      // If this is a leaf node
-      if (
-        node.geometry.length === 1 &&
-        node.geometry[0].geometry === undefined
-      ) {
-        // Apply callback and return result
-        let result = await callbackFn(node, depth);
-        return result;
+    async function processNode(
+      node: RealizedAssembly,
+      depth: number
+    ): Promise<RealizedAssembly> {
+      if (Array.isArray(node.geometry) === false) {
+        return callbackFn(node, depth);
       }
-      // This is a branch node (an assembly)
+      // This is a branch node
       else {
         const newGeometry = await Promise.all(
           node.geometry.map(async (child) => {
@@ -274,6 +338,7 @@ async function assemblyMap(assembly, callbackFn) {
           color: node.color,
           plane: node.plane,
           bom: node.bom || [],
+          dimension: node.dimension,
         };
       }
     }
@@ -282,21 +347,25 @@ async function assemblyMap(assembly, callbackFn) {
     const result = await processNode(assembly, 0);
     return result;
   } catch (error) {
-    logError(error, "AssemblyMap");
+    logError(error as Error, "AssemblyMap");
     throw error;
   }
 }
 
-async function assemblyAsIterable(assembly) {
-  const result = [];
-  util.actOnLeafs(assembly, (leaf) => {
-    result.push(leaf);
-  });
-  // TODO: when we typescriptify things, this should be a read-only list.
+async function assemblyAsIterable(assembly: RealizedAssembly) {
+  const result: RealizedAssembly[] = [];
+  const helper = (assembly: RealizedAssembly) => {
+    if (Array.isArray(assembly.geometry) === false) {
+      result.push(assembly);
+    } else {
+      assembly.geometry.forEach((child) => helper(child));
+    }
+  };
+  helper(assembly);
   return result;
 }
 
-function logError(error, context) {
+function logError(error: Error, context: string) {
   console.warn("error from context: ", context);
   if (error instanceof SyntaxError) {
     console.error("SyntaxError encountered:", error.message);
@@ -310,14 +379,62 @@ function logError(error, context) {
   if (error.stack) {
     console.error("Stack trace:", error.stack);
   }
-  if (error.lineNumber) {
+  if ("lineNumber" in error) {
     console.error("Line number:", error.lineNumber);
   }
-  if (error.columnNumber) {
+  if ("columnNumber" in error) {
     console.error("Column number:", error.columnNumber);
   }
   console.error("full error:");
   console.error(error);
+}
+
+async function realizeAssembly(
+  assembly: AbundanceObject
+): Promise<RealizedAssembly> {
+  if (util.isLeaf(assembly)) {
+    return {
+      ...assembly,
+      geometry: await util.geometryProvider!.get(assembly.geometry),
+      plane: util.asReplicadPlane(assembly.plane),
+    };
+  } else {
+    const children = await Promise.all(
+      (assembly.geometry as AbundanceObject[]).map(async (child) => {
+        return await realizeAssembly(child);
+      })
+    );
+    return {
+      ...assembly,
+      geometry: children,
+      plane: util.asReplicadPlane(assembly.plane),
+    };
+  }
+}
+
+async function cacheAssembly(
+  assembly: RealizedAssembly
+): Promise<AbundanceObject> {
+  if (Array.isArray(assembly.geometry) === false) {
+    return {
+      ...assembly,
+      geometry: await util.geometryProvider!.addSingularToCache(
+        assembly.geometry
+      ),
+      plane: util.asSimplePlane(assembly.plane),
+    };
+  } else {
+    const children = await Promise.all(
+      (assembly.geometry as RealizedAssembly[]).map(async (child) => {
+        return await cacheAssembly(child);
+      })
+    );
+    return {
+      ...assembly,
+      geometry: children,
+      plane: util.asSimplePlane(assembly.plane),
+    };
+  }
 }
 
 export { executeCode };

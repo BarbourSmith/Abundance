@@ -320,9 +320,12 @@ class GeometryProvider {
    * @param {*} geometry - geometry to be added to cache.
    * @returns key for this geometry.
    */
-  addSingularToCache(geometry: any, id: string | undefined = undefined) {
+  addSingularToCache(
+    geometry: ReplicadObject,
+    id: string | undefined = undefined
+  ) {
     id = id || this._makeId("singular", this.nextId++);
-    this.createIfAbsent(id, () => geometry);
+    this.createIfAbsent(id, () => Promise.resolve(geometry));
     return id;
   }
 

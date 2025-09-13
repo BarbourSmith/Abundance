@@ -207,41 +207,6 @@ function isAssembly(part: any): part is AbundanceBranch {
   }
 }
 
-// BUG(tristan): this is broken
-function realizeAssembly(assembly: any): any {
-  return actOnLeafs(assembly, (leaf: any) => {
-    if (leaf && leaf.geometry && leaf.geometry[0]) {
-      const realizedGeometry = geometryProvider!.get(leaf.geometry);
-      return {
-        geometry: [realizedGeometry],
-        tags: leaf.tags,
-        color: leaf.color,
-        bom: leaf.bom,
-        plane: leaf.plane,
-      };
-    } else {
-      return leaf;
-    }
-  });
-}
-
-function cacheAssembly(assembly: any): any {
-  return actOnLeafs(assembly, (leaf: any) => {
-    if (leaf.geometry && leaf.geometry[0]) {
-      const geomKey = geometryProvider!.addSingularToCache(leaf.geometry[0]);
-      return {
-        geometry: [geomKey],
-        tags: leaf.tags,
-        color: leaf.color,
-        bom: leaf.bom,
-        plane: leaf.plane,
-      };
-    } else {
-      return leaf;
-    }
-  });
-}
-
 // Translate string representation to a replicad plane
 function asReplicadPlane(plane: SimplePlane): replicad.Plane {
   return new replicad.Plane(
