@@ -14,34 +14,36 @@ import { AbundanceObject, AbundanceLeaf } from "./util";
 /**
  * Create and return a lofted shape which blends between multiple 2D profile sketches.
  */
-function loftShapes(sketches: AbundanceObject[]): any {
-  let arrayOfSketchedGeometry: any[] = [];
+async function loftShapes(sketches: AbundanceObject[]): Promise<any> {
+  let arrayOfSketchedGeometry = await Promise.all(
+    sketches.map(async (sketch) => {
+      if (util.is3D(sketch)) {
+        throw new Error("Parts to be lofted must be sketches");
+      }
+      let partToLoft = await digFuse(sketch);
+      let partObj = (await util.geometryProvider!.get(
+        partToLoft.geometry
+      )) as Drawing;
+      let sketchedpart = partObj.sketchOnPlane(
+        util.asReplicadPlane(sketch.plane)
+      );
+      if (!("sketches" in sketchedpart)) {
+        return sketchedpart;
+      } else {
+        throw new Error("Sketches to be lofted can't have interior geometries");
+      }
+    })
+  );
+  if (arrayOfSketchedGeometry.length == 0) {
+    throw new Error("No sketches provided for loft");
+  }
 
-  sketches.forEach(async (sketch) => {
-    if (util.is3D(sketch)) {
-      throw new Error("Parts to be lofted must be sketches");
-    }
-    let partToLoft = await digFuse(sketch);
-    let partObj = (await util.geometryProvider!.get(
-      partToLoft.geometry
-    )) as Drawing;
-    let sketchedpart = partObj.sketchOnPlane(
-      util.asReplicadPlane(sketch.plane)
-    );
-    if (!("sketches" in sketchedpart)) {
-      arrayOfSketchedGeometry.push(sketchedpart);
-    } else {
-      throw new Error("Sketches to be lofted can't have interior geometries");
-    }
-  });
   let startGeometry = arrayOfSketchedGeometry.shift();
 
   return {
-    geometry: [
-      util.geometryProvider!.addSingularToCache(
-        startGeometry.loftWith([...arrayOfSketchedGeometry])
-      ),
-    ],
+    geometry: await util.geometryProvider!.addSingularToCache(
+      startGeometry.loftWith([...arrayOfSketchedGeometry])
+    ),
     dimension: "3D",
     tags: [],
     plane: util.XYPlane,
