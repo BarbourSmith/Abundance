@@ -108,6 +108,23 @@ function isLeaf(obj: AbundanceObject): obj is AbundanceLeaf {
   return obj !== undefined && !isAbundanceObject(obj.geometry[0]);
 }
 
+function actOnLeafsSync(
+  assembly: AbundanceObject,
+  action: (leaf: AbundanceLeaf) => AbundanceObject
+): AbundanceObject {
+  if (isLeaf(assembly)) {
+    return action(assembly);
+  } else {
+    const newChildren = (assembly.geometry as AbundanceObject[]).map((child) =>
+      actOnLeafsSync(child, action)
+    );
+    return {
+      ...assembly,
+      geometry: newChildren,
+    };
+  }
+}
+
 async function actOnLeafs(
   assembly: AbundanceObject,
   action: (leaf: AbundanceLeaf) => AbundanceObject | Promise<AbundanceObject>,
@@ -272,4 +289,5 @@ export {
   isAbundanceObject,
   flattenAssembly,
   isLeaf,
+  actOnLeafsSync,
 };

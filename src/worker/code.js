@@ -1,5 +1,5 @@
 import * as util from "./util.ts";
-import { rotate, move, scale, fillet, chamfer } from "./actions.js";
+import { rotate, move, scale, fillet, chamfer } from "./actions.ts";
 import { intersect, assembly, cutAssembly } from "./interaction.ts";
 
 /**

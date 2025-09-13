@@ -1,4 +1,4 @@
-import { isAssembly, actOnLeafs, isLeaf } from "./util";
+import { actOnLeafsSync, isLeaf } from "./util";
 import { AbundanceObject, AbundanceLeaf } from "./util";
 
 /**
@@ -9,10 +9,7 @@ import { AbundanceObject, AbundanceLeaf } from "./util";
 /**
  * Return a copy of `geom` with the specified tag(s)
  */
-async function tag(
-  geom: AbundanceObject,
-  TAG: string[]
-): Promise<AbundanceObject> {
+function tag(geom: AbundanceObject, TAG: string[]): AbundanceObject {
   return {
     ...geom,
     tags: [...new Set([...geom.tags, ...TAG])],
@@ -23,11 +20,8 @@ async function tag(
  * Return a copy of `geom` with the specified color.
  * @note If the color is "#D9544D", a "keepout" tag is automatically added to the geometry
  */
-async function color(
-  geom: AbundanceObject,
-  color: string
-): Promise<AbundanceObject> {
-  return actOnLeafs(geom, (leaf: AbundanceLeaf) => {
+function color(geom: AbundanceObject, color: string): Promise<AbundanceObject> {
+  return actOnLeafsSync(geom, (leaf: AbundanceLeaf) => {
     // keep out color add tag
     if (color == "#D9544D") {
       leaf.tags.push("keepout");
@@ -43,10 +37,7 @@ async function color(
 /**
  * Return new assembly with BOM attached.
  */
-async function bom(
-  geom: AbundanceObject,
-  BOM: string
-): Promise<AbundanceObject> {
+function bom(geom: AbundanceObject, BOM: string): AbundanceObject {
   return {
     ...geom,
     bom: [...(geom.bom || []), BOM],
@@ -56,7 +47,7 @@ async function bom(
 /**
  * Gets bom list for the given assembly
  */
-async function extractBomList(assembly: AbundanceObject): Promise<string[]> {
+function extractBomList(assembly: AbundanceObject): string[] {
   const bomList: string[] = [];
   walkAssembly(assembly, (leaf: AbundanceObject) => {
     if (leaf.bom !== undefined) {
@@ -69,10 +60,7 @@ async function extractBomList(assembly: AbundanceObject): Promise<string[]> {
 /**
  * Extracts and returns all assembly components with the given tag.
  */
-async function extractTag(
-  geometry: AbundanceObject,
-  TAG: string
-): Promise<AbundanceObject> {
+function extractTag(geometry: AbundanceObject, TAG: string): AbundanceObject {
   const result = filterAssembly(geometry, (leaf) => leaf.tags.includes(TAG));
   if (result === undefined) {
     throw new Error("Tag not found");
@@ -108,7 +96,7 @@ function extractKeepOut(
   } else {
     // We're on a branch which isn't tagged keepout. check the children. Drop this
     // branch if all children are keepout.
-    const filteredChildren = inputGeometry.geometry
+    const filteredChildren = (inputGeometry.geometry as AbundanceObject[])
       .map((child) => extractKeepOut(child))
       .filter((child) => child !== false);
     if (filteredChildren.length === 0) {
@@ -155,7 +143,7 @@ function filterAssembly(
   if (isLeaf(assembly)) {
     return undefined;
   }
-  const filteredChildren = assembly.geometry
+  const filteredChildren = (assembly.geometry as AbundanceObject[])
     .map((child) => filterAssembly(child, predicate))
     .filter((child) => child !== undefined);
 

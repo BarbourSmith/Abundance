@@ -505,10 +505,11 @@ function bom(targetID, inputID, BOM) {
  * @returns {Promise<boolean>} A promise that resolves to true when the extraction is completed successfully
  * @throws {Error} Throws an error if the specified tag is not found in the geometry
  */
-async function extractTag(targetID, inputID, TAG) {
-  await started;
-  library[targetID] = tags.extractTag(getOrThrow(inputID), TAG);
-  return targetID;
+function extractTag(targetID, inputID, TAG) {
+  return started.then(() => {
+    library[targetID] = tags.extractTag(getOrThrow(inputID), TAG);
+    return targetID;
+  });
 }
 
 /**
@@ -696,11 +697,9 @@ async function importingSVG(targetID, svg, width) {
     let center = drawnSVG.boundingBox.center;
 
     library[targetID] = {
-      geometry: [
-        util.geometryProvider.addSingularToCache(
-          drawnSVG.clone().translate(-center[0], -center[1])
-        ),
-      ],
+      geometry: await util.geometryProvider.addSingularToCache(
+        drawnSVG.clone().translate(-center[0], -center[1])
+      ),
       tags: [],
       plane: util.XYPlane,
       color: util.defaultColor,
