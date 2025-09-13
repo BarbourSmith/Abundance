@@ -643,7 +643,7 @@ async function importingSTEP(targetID, file) {
   let STEPresult = await util.replicad.importSTEP(file);
 
   library[targetID] = {
-    geometry: [util.geometryProvider.addSingularToCache(STEPresult)],
+    geometry: await util.geometryProvider.addSingularToCache(STEPresult),
     tags: [],
     color: util.defaultColor,
     bom: [],
@@ -661,7 +661,7 @@ async function importingSTL(targetID, file) {
   let STLresult = await util.replicad.importSTL(file);
 
   library[targetID] = {
-    geometry: [util.geometryProvider.addSingularToCache(STLresult)],
+    geometry: await util.geometryProvider.addSingularToCache(STLresult),
     tags: [],
     color: util.defaultColor,
     bom: [],
