@@ -6,7 +6,7 @@ import * as util from "./util.ts";
 import * as shapes from "./shapes.ts";
 import * as actions from "./actions.ts";
 import * as interaction from "./interaction.ts";
-import * as tags from "./tags.js";
+import * as tags from "./tags.ts";
 import * as codeLib from "./code.js";
 import { GeometryProvider } from "./geometryProvider.ts";
 

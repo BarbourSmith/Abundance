@@ -35,18 +35,18 @@ interface AbundanceBranch {
   geometry: AbundanceObject[];
   dimension: "2D" | "3D" | "Wire";
   plane: SimplePlane;
-  color?: string;
-  tags?: string[];
-  bom?: string[];
+  color: string;
+  tags: string[];
+  bom: string[];
 }
 
 interface AbundanceLeaf {
   geometry: string;
   dimension: "2D" | "3D" | "Wire";
   plane: SimplePlane;
-  color?: string;
-  tags?: string[];
-  bom?: string[];
+  color: string;
+  tags: string[];
+  bom: string[];
 }
 
 function is3D(part: AbundanceObject): boolean {
@@ -271,4 +271,5 @@ export {
   XYPlane,
   isAbundanceObject,
   flattenAssembly,
+  isLeaf,
 };

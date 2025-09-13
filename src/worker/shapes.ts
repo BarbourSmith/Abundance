@@ -1,7 +1,6 @@
 import * as util from "./util";
 import Fonts from "../js/fonts.js";
-import { Plane } from "replicad";
-import { AbundanceObject, AbundanceLeaf } from "./util";
+import { AbundanceLeaf } from "./util";
 
 /**
  * Methods in this file create a new geometry from non-geometric inputs. Eg:
