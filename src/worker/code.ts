@@ -421,7 +421,7 @@ async function cacheAssembly(
       geometry: await util.geometryProvider!.addSingularToCache(
         assembly.geometry
       ),
-      plane: util.asSimplePlane(assembly.plane),
+      plane: assembly.plane ? util.asSimplePlane(assembly.plane) : util.XYPlane,
     };
   } else {
     const children = await Promise.all(
@@ -432,7 +432,7 @@ async function cacheAssembly(
     return {
       ...assembly,
       geometry: children,
-      plane: util.asSimplePlane(assembly.plane),
+      plane: assembly.plane ? util.asSimplePlane(assembly.plane) : util.XYPlane,
     };
   }
 }

@@ -28,7 +28,7 @@ function loftShapes(sketches: AbundanceObject[]): any {
     let sketchedpart = partObj.sketchOnPlane(
       util.asReplicadPlane(sketch.plane)
     );
-    if (!(sketchedpart instanceof Sketches)) {
+    if (!("sketches" in sketchedpart)) {
       arrayOfSketchedGeometry.push(sketchedpart);
     } else {
       throw new Error("Sketches to be lofted can't have interior geometries");
@@ -54,7 +54,10 @@ function loftShapes(sketches: AbundanceObject[]): any {
  * Performs a boolean difference operation between two geometries.
  * This function subtracts the second geometry (cutter) from the first geometry (target).
  */
-function difference(target: AbundanceObject, cutter: AbundanceObject): Promise<AbundanceObject> {
+function difference(
+  target: AbundanceObject,
+  cutter: AbundanceObject
+): Promise<AbundanceObject> {
   if (
     (util.is3D(target) && util.is3D(cutter)) ||
     (!util.is3D(target) && !util.is3D(cutter))

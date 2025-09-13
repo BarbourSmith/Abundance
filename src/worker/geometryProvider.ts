@@ -1,7 +1,6 @@
 import * as replicad from "replicad";
 import shrinkWrap from "replicad-shrink-wrap";
 import { asReplicadPlane, SimplePlane } from "./util";
-import { i } from "mathjs";
 
 type ReplicadObject = replicad.Shape3D | replicad.Drawing | replicad.Wire;
 
