@@ -1,5 +1,5 @@
-import { GeometryProvider } from "./geometryProvider.ts";
-import * as util from "./util.ts";
+import * as util from "./util";
+import { AbundanceObject, AbundanceLeaf } from "./util";
 
 /**
  * Methods in this file act on a single geometry and return a modified copy of it.
@@ -8,10 +8,13 @@ import * as util from "./util.ts";
 /**
  * Extrudes a 2D sketch to create a 3D geometry with the specified height and returns the result.
  */
-async function extrude(toExtrude, height) {
-  return util.actOnLeafs(toExtrude, async (leaf) => {
+async function extrude(
+  toExtrude: AbundanceObject,
+  height: number
+): Promise<AbundanceObject> {
+  return util.actOnLeafs(toExtrude, async (leaf: AbundanceLeaf) => {
     return {
-      geometry: await util.geometryProvider.extrude(
+      geometry: await util.geometryProvider!.extrude(
         leaf.geometry,
         leaf.plane,
         height
@@ -26,16 +29,21 @@ async function extrude(toExtrude, height) {
 }
 
 /**
- * Moves a geometry by the specified x, y, and z distances. If the geometry is 2D, then it's plane
+ * Moves a geometry by the specified x, y, and z distances. If the geometry is 2D, then its plane
  * will be translated by the specified z distance.
  */
-async function move(toMove, x, y, z) {
+async function move(
+  toMove: AbundanceObject,
+  x: number,
+  y: number,
+  z: number
+): Promise<AbundanceObject> {
   if (util.is3D(toMove)) {
     return util.actOnLeafs(
       toMove,
-      async (leaf) => {
+      async (leaf: AbundanceLeaf) => {
         return {
-          geometry: await util.geometryProvider.move(leaf.geometry, x, y, z),
+          geometry: await util.geometryProvider!.move(leaf.geometry, x, y, z),
           dimension: toMove.dimension,
           plane: leaf.plane,
           tags: leaf.tags,
@@ -46,16 +54,16 @@ async function move(toMove, x, y, z) {
       toMove.plane
     );
   } else {
-    const zTranslate = (plane, z) => {
+    const zTranslate = (plane: any, z: number) => {
       return util.asSimplePlane(
         util.asReplicadPlane(plane).translate([0, 0, z])
       );
     };
     return util.actOnLeafs(
       toMove,
-      async (leaf) => {
+      async (leaf: AbundanceLeaf) => {
         return {
-          geometry: await util.geometryProvider.move(leaf.geometry, x, y),
+          geometry: await util.geometryProvider!.move(leaf.geometry, x, y),
           dimension: toMove.dimension,
           tags: leaf.tags,
           plane: zTranslate(leaf.plane, z),
@@ -69,14 +77,19 @@ async function move(toMove, x, y, z) {
 }
 
 /**
- * Function to rotate a geometry around the x, y, and z axis. If toRotate is 2D, it's plane will be
+ * Function to rotate a geometry around the x, y, and z axis. If toRotate is 2D, its plane will be
  * rotated based on the x and y inputs, while it will be rotated within the plane according to the z input.
  **/
-async function rotate(toRotate, x, y, z) {
+async function rotate(
+  toRotate: AbundanceObject,
+  x: number,
+  y: number,
+  z: number
+): Promise<AbundanceObject> {
   if (util.is3D(toRotate)) {
-    return util.actOnLeafs(toRotate, async (leaf) => {
+    return util.actOnLeafs(toRotate, async (leaf: AbundanceLeaf) => {
       return {
-        geometry: await util.geometryProvider.rotate(leaf.geometry, x, y, z),
+        geometry: await util.geometryProvider!.rotate(leaf.geometry, x, y, z),
         dimension: toRotate.dimension,
         tags: leaf.tags,
         plane: leaf.plane,
@@ -85,9 +98,9 @@ async function rotate(toRotate, x, y, z) {
       };
     });
   } else {
-    return util.actOnLeafs(toRotate, async (leaf) => {
+    return util.actOnLeafs(toRotate, async (leaf: AbundanceLeaf) => {
       return {
-        geometry: await util.geometryProvider.rotate(leaf.geometry, 0, 0, z),
+        geometry: await util.geometryProvider!.rotate(leaf.geometry, 0, 0, z),
         dimension: toRotate.dimension,
         tags: leaf.tags,
         plane: util.asSimplePlane(
@@ -103,12 +116,18 @@ async function rotate(toRotate, x, y, z) {
 /**
  * Scale geom by the given factor and return the resulting geometry.
  */
-async function scale(geom, scaleFactor) {
+async function scale(
+  geom: AbundanceObject,
+  scaleFactor: number
+): Promise<AbundanceObject> {
   return util.actOnLeafs(
     geom,
-    async (leaf) => {
+    async (leaf: AbundanceLeaf) => {
       return {
-        geometry: await util.geometryProvider.scale(leaf.geometry, scaleFactor),
+        geometry: await util.geometryProvider!.scale(
+          leaf.geometry,
+          scaleFactor
+        ),
         plane: leaf.plane,
         tags: leaf.tags,
         color: leaf.color,
@@ -123,12 +142,15 @@ async function scale(geom, scaleFactor) {
 /**
  * Rounds all edges in geom to radius and return the resulting geometry.
  */
-async function fillet(geom, radius) {
+async function fillet(
+  geom: AbundanceObject,
+  radius: number
+): Promise<AbundanceObject> {
   return util.actOnLeafs(
     geom,
-    async (leaf) => {
+    async (leaf: AbundanceLeaf) => {
       return {
-        geometry: await util.geometryProvider.fillet(leaf.geometry, radius),
+        geometry: await util.geometryProvider!.fillet(leaf.geometry, radius),
         plane: leaf.plane,
         tags: leaf.tags,
         color: leaf.color,
@@ -144,12 +166,15 @@ async function fillet(geom, radius) {
  * Applies a chamfer (beveled edge) to all edges in geom. Chamfer is symmetric and specified by size.
  * Returns the resulting geometry.
  */
-async function chamfer(geom, size) {
+async function chamfer(
+  geom: AbundanceObject,
+  size: number
+): Promise<AbundanceObject> {
   return util.actOnLeafs(
     geom,
-    async (leaf) => {
+    async (leaf: AbundanceLeaf) => {
       return {
-        geometry: await util.geometryProvider.chamfer(leaf.geometry, size),
+        geometry: await util.geometryProvider!.chamfer(leaf.geometry, size),
         plane: leaf.plane,
         tags: leaf.tags,
         color: leaf.color,
