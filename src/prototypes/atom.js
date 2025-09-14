@@ -1,4 +1,4 @@
-import AttachmentPoint from "./attachmentpoint";
+import AttachmentPoint from "./attachmentpoint.js";
 import GlobalVariables from "../js/globalvariables.js";
 import { parse } from "mathjs";
 import { ObservableEntity, Status } from "./observableEntity.js";
