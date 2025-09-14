@@ -9,50 +9,6 @@ var cmenu;
 
 const createCMenu = (targetElement) => {
   ele = targetElement;
-  
-  /**
-   * Check if there are any selected atoms or connectors
-   */
-  const hasSelectedItems = () => {
-    // Check for selected atoms
-    const hasSelectedAtoms = GlobalVariables.currentMolecule.nodesOnTheScreen.some(atom => atom.selected);
-    
-    // Check for selected connectors by looking at all input attachment points
-    const hasSelectedConnectors = GlobalVariables.currentMolecule.nodesOnTheScreen.some(atom => 
-      atom.inputs.some(input => 
-        input.connectors.some(connector => connector.selected)
-      )
-    );
-    
-    return hasSelectedAtoms || hasSelectedConnectors;
-  };
-
-  /**
-   * Handle deletion of selected atoms and connectors (same logic as keyboard delete)
-   */
-  const deleteSelectedItems = () => {
-    // Save undo state before deletion
-    GlobalVariables.saveUndoState("DELETE", "Deleted selected atoms");
-
-    // First, collect selected atoms for deletion
-    GlobalVariables.atomsSelected = [];
-    GlobalVariables.currentMolecule.copy(); // This populates atomsSelected with selected atoms
-
-    // Delete selected atoms
-    GlobalVariables.atomsSelected.forEach((item) => {
-      GlobalVariables.currentMolecule.nodesOnTheScreen.forEach((nodeOnTheScreen) => {
-        if (nodeOnTheScreen.uniqueID == item.uniqueID) {
-          nodeOnTheScreen.deleteNode();
-        }
-      });
-    });
-
-    // Delete selected connectors by forwarding keyPress to all atoms
-    GlobalVariables.currentMolecule.nodesOnTheScreen.forEach((molecule) => {
-      molecule.keyPress("Delete");
-    });
-  };
-
   // /**
   //      * Runs to create submenus from Global Variables atomCategories. Populates menu objects
   //      * @param {object} group - Name of the category to find appropriate atoms
@@ -96,10 +52,12 @@ const createCMenu = (targetElement) => {
   };
 
   /**
-   * Create the menu configuration, optionally including delete option
+   * This creates a new instance of the circular menu.
    */
-  const createMenuConfig = () => {
-    const baseMenus = [
+  cmenu = CMenu(ele.current).config({
+    hideAfterClick: GlobalVariables.isMobile() ? false : true,
+    percent: 0.15,
+    menus: [
       {
         title: "Actions",
         icon: "Actions",
@@ -130,45 +88,8 @@ const createCMenu = (targetElement) => {
         icon: "Interaction",
         menus: makeArray("Interactions"),
       },
-    ];
-
-    // Add delete option if there are selected items
-    if (hasSelectedItems()) {
-      baseMenus.unshift({
-        title: "Delete",
-        icon: "Delete",
-        click: function(e) {
-          deleteSelectedItems();
-          cmenu.hide();
-        }
-      });
-    }
-
-    return baseMenus;
-  };
-
-  /**
-   * This creates a new instance of the circular menu.
-   */
-  cmenu = CMenu(ele.current).config({
-    hideAfterClick: GlobalVariables.isMobile() ? false : true,
-    percent: 0.15,
-    menus: createMenuConfig(),
+    ],
   });
-
-  /**
-   * Update the menu configuration dynamically (call before showing)
-   */
-  const updateMenu = () => {
-    cmenu.config({
-      hideAfterClick: GlobalVariables.isMobile() ? false : true,
-      percent: 0.15,
-      menus: createMenuConfig(),
-    });
-  };
-
-  // Expose the updateMenu function on the cmenu object
-  cmenu.updateMenu = updateMenu;
 
   /* Mask the default context menu on the main canvas*/
   document

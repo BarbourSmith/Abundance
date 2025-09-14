@@ -338,8 +338,7 @@ export default memo(function FlowCanvas({
 
       // Start a long press timer for touch events (700ms is a common duration for long press)
       longPressTimer.current = setTimeout(() => {
-        // When timer completes, update menu and show the circular menu at touch position
-        cmenu.updateMenu();
+        // When timer completes, show the circular menu at touch position
         cmenu.show([touchStartPos.current.x, touchStartPos.current.y], false);
         longPressTimer.current = null;
       }, 500);
@@ -360,7 +359,6 @@ export default memo(function FlowCanvas({
     // if it's a right click show the circular menu
     if (isRightMB) {
       var doubleClick = false;
-      cmenu.updateMenu();
       cmenu.show([event.clientX, event.clientY], doubleClick);
       return;
     } else {

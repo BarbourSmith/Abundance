@@ -5,6 +5,8 @@ import React, {
   useImperativeHandle,
 } from "react";
 import { useControls } from "../../hooks/useControls";
+import GlobalVariables from "../../js/globalvariables.js";
+import { hasSelectedItems, deleteSelectedItems } from "../../js/deletionUtils.js";
 
 // SVG icons (Settings, X, CaretDown)
 const SettingsIcon = ({ size = 14 }) => (
@@ -48,6 +50,18 @@ const CaretDownIcon = ({ size = 12, collapsed }) => (
       points="7 9 10 12 13 9"
       fill="none"
       stroke="#c4a3d5"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+const DeleteIcon = ({ size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <path
+      d="M3 6h18m-2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6"
+      stroke="#ff6b6b"
       strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
@@ -264,6 +278,24 @@ export const SimpleControlPanel = forwardRef(function SimpleControlPanel(
       handlePanelKeyDown(event);
     },
   }));
+  
+  // State to track if there are selected items (for delete button visibility)
+  const [hasSelected, setHasSelected] = useState(false);
+  
+  // Update hasSelected state when selection changes
+  useEffect(() => {
+    const checkSelection = () => {
+      if (GlobalVariables.currentMolecule && GlobalVariables.currentMolecule.nodesOnTheScreen) {
+        setHasSelected(hasSelectedItems());
+      }
+    };
+    
+    checkSelection();
+    // Set up periodic check for selection changes
+    const interval = setInterval(checkSelection, 100);
+    return () => clearInterval(interval);
+  }, []);
+  
   const [controlValues, setControlValue, { controls: registeredControls }] =
     useControls(controls);
 
@@ -1075,6 +1107,46 @@ export const SimpleControlPanel = forwardRef(function SimpleControlPanel(
                     return null;
                 }
               })}
+              
+              {/* Delete button for touch devices when items are selected */}
+              {GlobalVariables.isMobile() && hasSelected && (
+                <div
+                  style={{
+                    marginTop: 8,
+                    display: "flex",
+                    justifyContent: "center",
+                  }}
+                >
+                  <button
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      padding: "8px 16px",
+                      background: "#ff6b6b",
+                      color: "#fff",
+                      border: "none",
+                      borderRadius: "6px",
+                      cursor: "pointer",
+                      fontSize: "14px",
+                      fontWeight: "600",
+                      transition: "background 0.2s",
+                    }}
+                    onClick={() => {
+                      deleteSelectedItems();
+                    }}
+                    onMouseEnter={(e) => {
+                      e.target.style.background = "#ff5252";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.style.background = "#ff6b6b";
+                    }}
+                  >
+                    <DeleteIcon size={16} />
+                    Delete Selected
+                  </button>
+                </div>
+              )}
               {/* Debug values 
               <div
                 style={{
