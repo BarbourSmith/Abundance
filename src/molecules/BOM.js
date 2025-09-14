@@ -96,7 +96,7 @@ export default class AddBOMTag extends Atom {
   }
 
   createInputParams() {
-    let inputParams = {};
+    let inputParams = { ...super.createInputParams() };
     for (const key in this.BOMitem) {
       inputParams[this.uniqueID + key] = {
         type: "string",
