@@ -514,7 +514,7 @@ export default memo(function FlowCanvas({
   }, []);
 
   useEffect(() => {
-    createCMenu(circleMenu, setSearchingGitHub);
+    createCMenu(circleMenu, () => setExpandedMenu("git-search"));
   }, []);
 
   let parentLinkPath = [];
