@@ -769,6 +769,18 @@ const ShowProjects = ({
     setPageNumber(0);
   };
 
+  const handleSearchSubmit = () => {
+    // Force trigger search when user manually submits
+    // This ensures search runs immediately instead of waiting for debounce
+    setPageNumber(0);
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      handleSearchSubmit();
+    }
+  };
+
   const UserNavDiv = (
     <div className="left-login-div">
       <div
@@ -966,10 +978,14 @@ const ShowProjects = ({
               onChange={(e) => {
                 handleSearchChange(e);
               }}
+              onKeyDown={handleKeyDown}
               className="menu_search searchButton"
               id="project_search"
             />
-            <button className="list_thumb_button">
+            <button 
+              className="list_thumb_button"
+              onClick={handleSearchSubmit}
+            >
               <img
                 src={
                   import.meta.env.VITE_APP_PATH_FOR_PICS +
