@@ -4,40 +4,6 @@ import ReplicadMesh from "../render/ReplicadMesh.jsx";
 import WireframeMesh from "../render/WireframeMesh.jsx";
 import globalvariables from "../../js/globalvariables.js";
 
-function useWindowSize() {
-  // Initialize state with undefined width/height so server and client renders match
-  // Learn more here: https://joshwcomeau.com/react/the-perils-of-rehydration/
-  const [windowSize, setWindowSize] = useState({
-    width: 0,
-    height: 0,
-  });
-  useEffect(() => {
-    // Handler to call on window resize
-    function handleResize() {
-      // Set window width/height to state
-      if (globalvariables.isMobile()) {
-        setWindowSize({
-          width: window.screen.width,
-          height: window.screen.height,
-        });
-      } else {
-        setWindowSize({
-          width: window.innerWidth,
-          height: window.innerHeight,
-        });
-      }
-    }
-    // Add event listener
-    window.addEventListener("resize", handleResize);
-
-    // Call handler right away so state gets updated with initial window size
-    handleResize();
-    // Remove event listener on cleanup
-    return () => window.removeEventListener("resize", handleResize);
-  }, []); // Empty array ensures that effect is only run on mount
-  return windowSize;
-}
-
 export default memo(function LowerHalf({
   activeAtom,
   gridParam,
@@ -51,8 +17,8 @@ export default memo(function LowerHalf({
   backgroundUsdzFile,
   showBackgroundModel,
   authorizedUserOcto,
+  windowSize,
 }) {
-  const windowSize = useWindowSize();
   const [cameraZoom, setCameraZoom] = useState(1);
 
   useEffect(() => {
@@ -112,20 +78,6 @@ export default memo(function LowerHalf({
             </div>
           )}
         </section>
-        <div className="container arrow-up">
-          <input type="checkbox" className="custom" />
-          <div className="dots"></div>
-        </div>
-        <div id="viewer_bar"></div>
-        <div className={`centered-text hidden`}>
-          <div className="loading">
-            <div className="dot"></div>
-            <div className="dot"></div>
-            <div className="dot"></div>
-            <div className="dot"></div>
-            <div className="dot"></div>
-          </div>
-        </div>
       </div>
       <div id="bottom_bar"></div>
     </>

@@ -13,6 +13,7 @@ import ParamsMenu from "../secondary/ParamsMenu.jsx";
 import ExportMenu from "../secondary/ExportMenu.jsx";
 import RenderMenu from "../secondary/RenderMenu.jsx";
 import BomMenu from "../secondary/BomMenu.jsx";
+import RenderProgressBar from "../secondary/RenderProgressBar.jsx";
 import {
   BrowserRouter as Router,
   useParams,
@@ -56,6 +57,10 @@ function runMode({
   setOutdatedMesh,
   redirectType,
   setRedirectType,
+  renderProgress,
+  setRenderProgress,
+  renderBarVisible,
+  setRenderBarVisible,
 }) {
   // canvas to hide
   const canvasRef = useRef(500);
@@ -80,6 +85,8 @@ function runMode({
   /** State for menu content collapsing */
   // Which menu is expanded: "params", "render", "bom", or "none"
   const [expandedMenu, setExpandedMenu] = useState("params");
+
+  console.log("renderBarVisible", renderBarVisible);
 
   useEffect(() => {
     GlobalVariables.canvas = canvasRef;
@@ -184,6 +191,9 @@ function runMode({
         }}
         collapsedOffset={[45, -90]}
       />
+      {renderBarVisible ? (
+        <RenderProgressBar progress={renderProgress} run={true} />
+      ) : null}
       <div id="headerBarRun">
         <img
           className="thumnail-logo"
@@ -192,15 +202,6 @@ function runMode({
           }
           alt="logo"
         />
-      </div>
-      <div className={`centered-text hidden`}>
-        <div className="loading">
-          <div className="dot"></div>
-          <div className="dot"></div>
-          <div className="dot"></div>
-          <div className="dot"></div>
-          <div className="dot"></div>
-        </div>
       </div>
       <canvas
         style={{ display: "none" }}

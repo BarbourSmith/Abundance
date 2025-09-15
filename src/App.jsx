@@ -23,6 +23,8 @@ import "./styles/menuIcons.css";
 import "./styles/login.css";
 import "./styles/codemirror.css";
 
+import RenderProgressBar from "./components/secondary/RenderProgressBar.jsx";
+import { render } from "@testing-library/react";
 
 const queryClient = new QueryClient();
 /**
@@ -59,10 +61,43 @@ export default function ReplicadApp() {
   const [exportPopUp, setExportPopUp] = useState(false);
   const [redirectType, setRedirectType] = useState(null);
 
+  /** State for render progress bar */
+  const [renderProgress, setRenderProgress] = useState(0);
+  const [renderBarVisible, setRenderBarVisible] = useState(true);
+
   const [authorizedUserOcto, setAuthorizedUserOcto] = useState(null);
   const [shortCutsOn, setShortCuts] = useState(
     localStorage.getItem("shortcuts") === "true"
   );
+
+  useEffect(() => {
+    setRenderProgress(0);
+    setRenderBarVisible(true);
+    let interval = setInterval(() => {
+      const molecule = GlobalVariables.topLevelMolecule;
+      if (molecule) {
+        const [ready, total] = molecule.getCompletionTuple();
+        // Update your UI with progress here
+        //console.log(`Molecule progress: ${ready} / ${total}`);
+        const progress = Math.floor((ready / total) * 100);
+        setRenderProgress(progress);
+        if (molecule.getState().status === "ready") {
+          clearInterval(interval);
+        }
+      }
+    }, 500); // Poll every 500ms
+
+    return () => clearInterval(interval);
+  }, [GlobalVariables.topLevelMolecule]);
+
+  useEffect(() => {
+    if (renderProgress >= 100) {
+      const timeout = setTimeout(() => {
+        setRenderBarVisible(false);
+      }, 1000);
+      return () => clearTimeout(timeout);
+    }
+  }, [renderProgress]);
 
   /* Creates an element to check with Puppeteer if the molecule is fully loaded*/
   const createPuppeteerDiv = () => {
@@ -76,12 +111,6 @@ export default function ReplicadApp() {
       invisibleDiv.id = "molecule-fully-render-puppeteer";
       invisibleDiv.style.display = "none";
       document.body.appendChild(invisibleDiv);
-    }
-  };
-  const loadingDotsNone = () => {
-    const loadingDots = document.querySelector(".loading");
-    if (loadingDots) {
-      loadingDots.style.display = "none";
     }
   };
 
@@ -99,18 +128,18 @@ export default function ReplicadApp() {
             setMesh(m);
             setWireMesh(m);
             setOutdatedMesh(false);
-            loadingDotsNone();
+            setRenderProgress(100);
           })
           .catch((e) => {
             console.error("reset view not working" + e);
           });
       } else {
+        console.log("Generating mesh for id:", id);
         cad
           .generateDisplayMesh(id)
           .then((m) => {
             setMesh(m);
             setOutdatedMesh(false);
-            loadingDotsNone();
           })
           .catch((e) => {
             console.error("Can't display Mesh " + e);
@@ -180,16 +209,18 @@ export default function ReplicadApp() {
       })
       .then(async (response) => {
         let rawFileContent;
-        
+
         // Handle large files (>1MB) using download_url
         if (!response.data.content || response.data.content.length === 0) {
           const fileResponse = await fetch(response.data.download_url);
           rawFileContent = await fileResponse.text();
         } else {
           // Handle small files using base64 content with UTF-8 encoding
-          rawFileContent = GlobalVariables.fromBinaryStr(atob(response.data.content));
+          rawFileContent = GlobalVariables.fromBinaryStr(
+            atob(response.data.content)
+          );
         }
-        
+
         let rawFile = JSON.parse(rawFileContent);
 
         if (rawFile.filetypeVersion == 1) {
@@ -264,6 +295,10 @@ export default function ReplicadApp() {
                   setWireMesh,
                   outdatedMesh,
                   setOutdatedMesh,
+                  renderProgress,
+                  setRenderProgress,
+                  renderBarVisible,
+                  setRenderBarVisible,
                 }}
               />
             }
@@ -285,6 +320,10 @@ export default function ReplicadApp() {
                   setOutdatedMesh,
                   redirectType,
                   setRedirectType,
+                  renderProgress,
+                  setRenderProgress,
+                  renderBarVisible,
+                  setRenderBarVisible,
                 }}
               />
             }

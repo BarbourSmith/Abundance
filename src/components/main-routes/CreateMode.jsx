@@ -18,7 +18,7 @@ import ParamsMenu from "../secondary/ParamsMenu.jsx";
 import RenderMenu from "../secondary/RenderMenu.jsx";
 import BomMenu from "../secondary/BomMenu.jsx";
 import GitSearchMenu from "../secondary/GitSearchMenu.jsx";
-
+import RenderProgressBar from "../secondary/RenderProgressBar.jsx";
 /**
  * Create mode component appears displays flow canvas, renderer and sidebar when
  * a user has been authorized access to a project.
@@ -43,6 +43,10 @@ function CreateMode({
   setWireMesh,
   outdatedMesh,
   setOutdatedMesh,
+  setRenderProgress,
+  renderProgress,
+  renderBarVisible,
+  setRenderBarVisible,
 }) {
   const navigate = useNavigate();
 
@@ -101,6 +105,41 @@ function CreateMode({
     y: "Code", //is there a more natural code letter? can't seem to prevent command t new tab behavior
     z: "Undo", //saving this letter
   };
+
+  // Initialize state with undefined width/height so server and client renders match
+  // Learn more here: https://joshwcomeau.com/react/the-perils-of-rehydration/
+  const [windowSize, setWindowSize] = useState({
+    width: 0,
+    height: 0,
+  });
+  useEffect(() => {
+    // Handler to call on window resize
+    function handleResize() {
+      let height;
+      if (window.visualViewport) {
+        height = window.visualViewport.height;
+      } else if (GlobalVariables.isMobile()) {
+        height = window.screen.height;
+      } else {
+        height = window.innerHeight;
+      }
+      setWindowSize({
+        width: window.innerWidth,
+        height,
+      });
+    }
+    window.addEventListener("resize", handleResize);
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener("resize", handleResize);
+    }
+    handleResize();
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener("resize", handleResize);
+      }
+    };
+  }, []); // Empty array ensures that effect is only run on mount
 
   /** Checks if activeAtom is topLevel to render goUp button */
   useEffect(() => {
@@ -163,7 +202,6 @@ function CreateMode({
         forwardKeyToPanel(e);
       }
     }
-
     /*
     // Example: Toggle shortcut display with Ctrl+/
     if ((e.ctrlKey || e.metaKey) && e.key === "/") {
@@ -807,6 +845,9 @@ function CreateMode({
               setErrorNotification: setErrorNotification,
             }}
           />
+          {renderBarVisible ? (
+            <RenderProgressBar progress={renderProgress} label="Rendering" />
+          ) : null}
           <div id="headerBar">
             <img
               className="thumnail-logo"
@@ -944,6 +985,7 @@ function CreateMode({
               errorNotification,
               setErrorNotification,
               setExpandedMenu,
+              windowSize,
             }}
           />
           <div className="parent flex-parent" id="lowerHalf">
@@ -962,6 +1004,7 @@ function CreateMode({
                 backgroundUsdzFile,
                 showBackgroundModel,
                 authorizedUserOcto,
+                windowSize,
               }}
             />
           </div>

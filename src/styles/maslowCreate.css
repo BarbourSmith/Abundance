@@ -126,6 +126,7 @@ body {
   font-family: "Work Sans", sans-serif;
   background: var(--flowCanvas-background);
   overflow: hidden;
+  height: 100dvh;
 }
 
 .jscad-container {
@@ -225,6 +226,9 @@ body {
   -moz-user-select: none; /* Old versions of Firefox */
   -ms-user-select: none; /* Internet Explorer/Edge */
   user-select: none; /* Non-prefixed version */
+  -webkit-touch-callout: none; /* iOS Safari */
+  -webkit-tap-highlight-color: transparent; /* Remove tap highlight */
+  touch-action: manipulation; /* Prevent default touch behaviors that might trigger text selection */
 }
 
 .flex-parent {
@@ -706,7 +710,7 @@ Sidebar navigation
   font-size: 12px;
 }
 
-/* Loading Lower canvas dots*/
+/* Loading Lower canvas dots , NOT IN USE LEAVING FOR FUTURE IMPLEMENTATIONS*/
 
 .centered-text {
   position: absolute;

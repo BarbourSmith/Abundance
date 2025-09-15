@@ -4,25 +4,6 @@ import Molecule from "../../molecules/molecule.js";
 import { createCMenu, cmenu } from "../../js/NewMenu.js";
 import { useNavigate } from "react-router-dom";
 
-function onWindowResize() {
-  const flowCanvas = document.getElementById("flow-canvas");
-  if (GlobalVariables.isMobile()) {
-    flowCanvas.width = window.screen.width;
-    flowCanvas.height = window.screen.height * 0.45;
-  } else {
-    flowCanvas.width = window.innerWidth;
-    flowCanvas.height = window.innerHeight * 0.45;
-  }
-}
-
-window.addEventListener(
-  "resize",
-  () => {
-    onWindowResize();
-  },
-  false
-);
-
 export default memo(function FlowCanvas({
   activeAtom,
   loadProject,
@@ -33,6 +14,7 @@ export default memo(function FlowCanvas({
   errorNotification,
   setErrorNotification,
   setExpandedMenu,
+  windowSize,
 }) {
   /** State for github molecule search input */
   const [searchingGitHub, setSearchingGitHub] = useState(false);
@@ -49,6 +31,7 @@ export default memo(function FlowCanvas({
   let lastTouchMove = null;
   let longPressTimer = useRef(null);
   let touchStartPos = useRef({ x: 0, y: 0 });
+  const canvasHeightScale = 0.45;
 
   // Double tap detection
   let lastTapTime = useRef(0);
@@ -89,6 +72,13 @@ export default memo(function FlowCanvas({
       atom.update();
     });
   }, []);
+
+  useEffect(() => {
+    if (canvasRef.current && windowSize) {
+      canvasRef.current.width = windowSize.width;
+      canvasRef.current.height = windowSize.height * canvasHeightScale;
+    }
+  }, [windowSize]);
 
   const draw = () => {
     GlobalVariables.c.clearRect(
@@ -510,10 +500,6 @@ export default memo(function FlowCanvas({
   }, [draw]);
 
   useEffect(() => {
-    onWindowResize();
-  }, []);
-
-  useEffect(() => {
     createCMenu(circleMenu, setSearchingGitHub);
   }, []);
 
@@ -535,6 +521,10 @@ export default memo(function FlowCanvas({
         ref={canvasRef}
         id="flow-canvas"
         tabIndex={0}
+        style={{
+          width: windowSize?.width || 0,
+          height: (windowSize?.height || 0) * canvasHeightScale,
+        }}
         onMouseMove={mouseMove}
         onTouchMove={mouseMove}
         onTouchStart={onMouseDown}
