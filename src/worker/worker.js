@@ -721,7 +721,7 @@ async function importingSVG(targetID, svg, width) {
  * @param {string} gcode - The G-code string to visualize
  * @returns {void} This function does not return a value, it directly stores the result in the library
  */
-function visualizeGcode(targetID, gcode) {
+async function visualizeGcode(targetID, gcode) {
   let currentPosition = [0, 0, 0];
   let edges = [];
   // Split the gcode into lines
@@ -762,7 +762,7 @@ function visualizeGcode(targetID, gcode) {
   const wire = util.replicad.assembleWire(edges);
   library[targetID] = {
     // TODO: we could probably use a hash of the gcode string as an ID here.
-    geometry: [util.geometryProvider.addSingularToCache(wire)],
+    geometry: await util.geometryProvider.addSingularToCache(wire),
     tags: [],
     plane: util.XYPlane,
     color: util.defaultColor,
@@ -795,11 +795,12 @@ const prettyProjection = (shape) => {
  * @returns {Promise<string>} A promise that resolves to an SVG string representing the thumbnail
  * @throws {Error} Throws an error if the geometry is undefined or thumbnail generation fails
  */
-function generateThumbnail(inputID) {
-  return started.then(() => {
+async function generateThumbnail(inputID) {
+  return started.then(async () => {
     if (library[inputID] != undefined) {
-      const fusedGeometry = util.geometryProvider.get(
-        interaction.digFuse(library[inputID])
+      const fusedAssembly = await interaction.digFuse(library[inputID]);
+      const fusedGeometry = await util.geometryProvider.get(
+        fusedAssembly.geometry
       );
       let projectionShape;
       let svg;
