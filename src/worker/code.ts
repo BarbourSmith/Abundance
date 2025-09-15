@@ -4,6 +4,7 @@ import { intersect, assembly, cutAssembly } from "./interaction";
 import { AbundanceObject } from "./util";
 import { ReplicadObject } from "./geometryProvider";
 import { Plane } from "replicad";
+import { resolve } from "url";
 
 /**
  * For backward compatibility reasons we allow users to call functions with
@@ -11,8 +12,19 @@ import { Plane } from "replicad";
  */
 type UserGeometryObj = string | RealizedAssembly | ReplicadObject;
 
-type RealizedAssembly = {
-  geometry: ReplicadObject | RealizedAssembly[];
+type RealizedAssembly = RealizedLeaf | RealizedBranch;
+
+type RealizedBranch = {
+  geometry: RealizedAssembly[];
+  plane: Plane;
+  dimension: "2D" | "3D" | "Wire";
+  color: string;
+  tags: string[];
+  bom: string[];
+};
+
+type RealizedLeaf = {
+  geometry: ReplicadObject[]; // For backwards compatibility this is an array. But it always contains a single item.
   plane: Plane;
   dimension: "2D" | "3D" | "Wire";
   color: string;
@@ -289,6 +301,35 @@ async function executeCode(
   }
 }
 
+function isLeaf(node: RealizedAssembly): node is RealizedLeaf {
+  return (
+    Array.isArray(node.geometry) &&
+    node.geometry.every((item) => "geometry" in item === false)
+  );
+}
+
+async function ensureDimension(
+  assembly: RealizedAssembly | Promise<RealizedAssembly>
+): Promise<RealizedAssembly> {
+  return Promise.resolve(assembly).then(async (resolvedAssembly) => {
+    if (isLeaf(resolvedAssembly)) {
+      if (
+        !("dimension" in resolvedAssembly) ||
+        resolvedAssembly.dimension === undefined
+      ) {
+        resolvedAssembly.dimension =
+          "_wrapped" in resolvedAssembly.geometry[0] ? "3D" : "2D";
+      }
+    } else {
+      resolvedAssembly.geometry = await Promise.all(
+        resolvedAssembly.geometry.map((child) => ensureDimension(child))
+      );
+      resolvedAssembly.dimension = resolvedAssembly.geometry[0].dimension;
+    }
+    return resolvedAssembly;
+  });
+}
+
 /**
  * AssemblyMap
  *
@@ -305,18 +346,18 @@ async function executeCode(
 async function assemblyMap(
   assembly: RealizedAssembly,
   callbackFn: (
-    node: RealizedAssembly,
+    node: RealizedLeaf,
     depth: number
   ) => RealizedAssembly | Promise<RealizedAssembly>
-): Promise<RealizedAssembly> {
+): Promise<RealizedAssembly | undefined> {
   try {
     // Helper function to process nodes recursively
     async function processNode(
       node: RealizedAssembly,
       depth: number
-    ): Promise<RealizedAssembly> {
-      if (Array.isArray(node.geometry) === false) {
-        return callbackFn(node, depth);
+    ): Promise<RealizedAssembly | undefined> {
+      if (isLeaf(node)) {
+        return ensureDimension(callbackFn(node, depth));
       }
       // This is a branch node
       else {
@@ -331,6 +372,10 @@ async function assemblyMap(
           (item) => item !== undefined
         );
 
+        if (filteredGeometry.length === 0) {
+          return undefined;
+        }
+
         // Return a new node with the same metadata but transformed children
         return {
           geometry: filteredGeometry,
@@ -338,7 +383,7 @@ async function assemblyMap(
           color: node.color,
           plane: node.plane,
           bom: node.bom || [],
-          dimension: node.dimension,
+          dimension: filteredGeometry[0].dimension,
         };
       }
     }
@@ -355,7 +400,7 @@ async function assemblyMap(
 async function assemblyAsIterable(assembly: RealizedAssembly) {
   const result: RealizedAssembly[] = [];
   const helper = (assembly: RealizedAssembly) => {
-    if (Array.isArray(assembly.geometry) === false) {
+    if (isLeaf(assembly)) {
       result.push(assembly);
     } else {
       assembly.geometry.forEach((child) => helper(child));
@@ -395,7 +440,7 @@ async function realizeAssembly(
   if (util.isLeaf(assembly)) {
     return {
       ...assembly,
-      geometry: await util.geometryProvider!.get(assembly.geometry),
+      geometry: [await util.geometryProvider!.get(assembly.geometry)],
       plane: util.asReplicadPlane(assembly.plane),
     };
   } else {
@@ -415,11 +460,11 @@ async function realizeAssembly(
 async function cacheAssembly(
   assembly: RealizedAssembly
 ): Promise<AbundanceObject> {
-  if (Array.isArray(assembly.geometry) === false) {
+  if (isLeaf(assembly)) {
     return {
       ...assembly,
       geometry: await util.geometryProvider!.addSingularToCache(
-        assembly.geometry
+        assembly.geometry[0]
       ),
       plane: assembly.plane ? util.asSimplePlane(assembly.plane) : util.XYPlane,
     };
