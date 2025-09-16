@@ -1,5 +1,6 @@
 import GlobalVariables from "../js/globalvariables.js";
 import AttachmentPoint from "./attachmentpoint.js";
+import { addOrDeletePorts } from "../js/alwaysOneFreeInput.js";
 
 /**
  * The connector class defines how an output can be connected to an input. It appears on the screen as a black line extending from an output to an input.
@@ -161,12 +162,21 @@ export default class Connector {
           if (dist <= radiusInPixels && !attachmentMade) {
             // Ensure we're not trying to connect to the same atom
             if (this.attachmentPoint1.parentMolecule !== atom) {
+              // For fusion/assembly atoms that use alwaysOneFreeInput pattern,
+              // ensure there's a free input available before trying to replace connections
+              const isAlwaysOneFreeInputAtom = ["Fusion", "Assembly", "ShrinkWrap", "Loft", "Group"].includes(atom.atomType);
+              
+              if (isAlwaysOneFreeInputAtom) {
+                // Ensure there's always a free input available for these atoms
+                addOrDeletePorts(atom);
+              }
+
               // Find the first compatible input attachment point
               for (let i = 0; i < atom.inputs.length; i++) {
                 const input = atom.inputs[i];
                 // Check if this input is compatible with our output
                 if (input.type === "input") {
-                  // Check if this input is available or can be replaced
+                  // Check if this input is available
                   if (input.connectors.length === 0) {
                     // Available input - check compatibility
                     if (AttachmentPoint.areTypesCompatible(this.attachmentPoint1, input)) {
@@ -176,7 +186,17 @@ export default class Connector {
                       //  this.propogate();
                       break; // Stop after finding the first compatible input
                     }
-                  } else {
+                  }
+                }
+              }
+
+              // Only attempt to replace existing connections if:
+              // 1. No free input was found AND
+              // 2. This is NOT an alwaysOneFreeInput atom (those should always have free inputs)
+              if (!attachmentMade && !isAlwaysOneFreeInputAtom) {
+                for (let i = 0; i < atom.inputs.length; i++) {
+                  const input = atom.inputs[i];
+                  if (input.type === "input" && input.connectors.length > 0) {
                     // Input has existing connections - check if we can replace them
                     if (AttachmentPoint.areTypesCompatible(this.attachmentPoint1, input)) {
                       // Save undo state before replacing connection
