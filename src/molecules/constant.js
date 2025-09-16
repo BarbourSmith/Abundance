@@ -105,15 +105,28 @@ export default class Constant extends Atom {
     };
     // Create the input for the constant value
     inputParams[this.uniqueID + this.name] = {
-      type: "number",
+      type: "string",
       value: this.value,
       label: this.name,
       disabled: false,
-      step: 0.01,
       onChange: (value) => {
         if (this.value !== value) {
-          // Update to a new value with READY status
-          this.setReady(value);
+          try {
+            // Try to evaluate the input as a mathematical expression
+            const evaluatedValue = this.evaluateEquation(value);
+            // Update to the evaluated value with READY status
+            this.setReady(evaluatedValue);
+          } catch (error) {
+            // If evaluation fails, try to parse as a simple number
+            const numericValue = Number(value);
+            if (!isNaN(numericValue) && isFinite(numericValue)) {
+              this.setReady(numericValue);
+            } else {
+              // If both fail, show error but don't crash
+              console.warn(`Invalid constant value: "${value}". ${error.message}`);
+              this.setError(error.message);
+            }
+          }
         }
       },
     };
