@@ -71,7 +71,17 @@ export default class GitHubMolecule extends Molecule {
       if (atom.getState().status === Status.UPSTREAM_ERROR) {
         atom.inputs.forEach((input) => {
           if (input.connectors.length > 0) {
-            buffer.push(input.connectors[0].attachmentPoint1.parentMolecule);
+            let toAdd = input.connectors[0].attachmentPoint1.parentMolecule;
+            if (
+              toAdd.atomType == "Molecule" ||
+              toAdd.atomType == "GitHubMolecule"
+            ) {
+              toAdd = toAdd.getOutputAtom();
+            }
+
+            if (buffer.includes(toAdd) === false) {
+              buffer.push(toAdd);
+            }
           }
         });
       }
