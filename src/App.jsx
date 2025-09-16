@@ -12,7 +12,7 @@ import GlobalVariables from "./js/globalvariables.js";
 import LoginMode from "./components/main-routes/LoginMode.jsx";
 import RunMode from "./components/main-routes/RunMode.jsx";
 import CreateMode from "./components/main-routes/CreateMode.jsx";
-import cadWorker from "./worker/worker.js?worker";
+import cadWorker from "./worker/worker.ts?worker";
 
 import { QueryClient, QueryClientProvider } from "react-query";
 import Callback from "./components/main-routes/CallBack.jsx";

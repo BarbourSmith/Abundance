@@ -1,20 +1,40 @@
 import { expose } from "comlink";
-import { Plane } from "replicad";
 import { drawSVG } from "replicad-decorate";
-import * as cutlayout from "./cutlayout.ts";
-import * as util from "./util.ts";
-import * as shapes from "./shapes.ts";
-import * as actions from "./actions.ts";
-import * as interaction from "./interaction.ts";
-import * as tags from "./tags.ts";
-import * as codeLib from "./code.ts";
-import { GeometryProvider } from "./geometryProvider.ts";
+import * as cutlayout from "./cutlayout";
+import * as util from "./util";
+import * as shapes from "./shapes";
+import * as actions from "./actions";
+import * as interaction from "./interaction";
+import * as tags from "./tags";
+import * as codeLib from "./code";
+import * as replicad from "replicad";
+import { GeometryProvider, ReplicadObject } from "./geometryProvider";
+import type { LayoutConfig, Placement } from "./cutlayout";
+import type { AbundanceObject } from "./util";
+import type { AnyShape, Shape3D, Edge, ShapeMesh } from "replicad";
 
-const library = {};
-let defaultMesh = undefined;
-const started = util.init();
+// --- Type Definitions ---
 
-function getOrThrow(id) {
+type Library = Record<string, AbundanceObject>;
+type DisplayMesh = {
+  cameraZoom: number;
+  faces: ShapeMesh;
+  edges: {
+    lines: number[];
+    edgeGroups: {
+      start: number;
+      count: number;
+      edgeId: number;
+    }[];
+  };
+  color: string;
+};
+
+const library: Library = {};
+let defaultMesh: any = undefined;
+const started: Promise<boolean> = util.init();
+
+function getOrThrow(id: string): AbundanceObject {
   if (id == undefined) {
     throw new Error("Missing a required input");
   }
@@ -27,7 +47,11 @@ function getOrThrow(id) {
   return library[id];
 }
 
-async function code(targetID, codeText, argumentsArray) {
+async function code(
+  targetID: string,
+  codeText: string,
+  argumentsArray: any[]
+): Promise<string> {
   await started;
   const result = await codeLib.executeCode(codeText, argumentsArray, library);
   library[targetID] = result;
@@ -35,35 +59,17 @@ async function code(targetID, codeText, argumentsArray) {
 }
 
 /**
- * Lay out the parts from inputID to be cut out from a sheet of material. Attempts to lay them out
- * in a compact and machinable way while respecting the layoutConfig.
- *
- * @param {string} inputID - Shape or assembly to be layed out
- * @param {string} targetID - The unique identifier to store the layed out assembly in the library
- * @param progressCallback - a function which takes two parameters:
- *    - progress - 0 to 1 inclusive
- *    - cancelationHandle - a callable which cancels this task.
- * @param warningCallback - a to be called with an informational message if layout fails or partially fails.
- * @param placementCallback - called back with a placement object specifying a singular layout for these parts.
- *    - will be called multiple times as progressively better layouts are found.
- * @param {*} layoutConfig - dictionary with keys:
- *    - width
- *    - height - together with width specifies the dimensions of the stock material
- *    - partPadding - space between parts in the resulting placement
- *    - units - MM or Inches. Used for resolution when generating part perimeters
- * @param {*} priorPlacements - optional array of previous placements to use as starting point
- *
- * @returns {Promise<Array>} A promise that resolves to the best placement found during this run.
+ * Lay out the parts from inputID to be cut out from a sheet of material.
  */
 async function layout(
-  targetID,
-  inputID,
-  progressCallback,
-  warningCallback,
-  placementCallback,
-  layoutConfig,
-  priorPlacements
-) {
+  targetID: string,
+  inputID: string,
+  progressCallback: (progress: number, cancelCallback: () => void) => void,
+  warningCallback: (msg: string) => void,
+  placementCallback: (placements: Placement[][]) => void,
+  layoutConfig: LayoutConfig,
+  priorPlacements?: Placement[][]
+): Promise<Placement[][]> {
   await started;
   return cutlayout
     .layout(
@@ -74,81 +80,40 @@ async function layout(
       layoutConfig,
       priorPlacements
     )
-    .then((resultArray) => {
+    .then((resultArray: [AbundanceObject, Placement[][]]) => {
       const [layedOutAssembly, positions] = resultArray;
       library[targetID] = layedOutAssembly;
-
-      // Store the rotated assembly for reuse in displayLayout to avoid calling rotateForLayout again
       return positions;
     });
 }
 
 /**
- * Lays out the parts of InputID according to the positions described in placements. Where `placements`
- * is the result of an earlier call to `layout`.
- *
- * @param {string} targetID - where in the library to store the resulting layed out assembly.
- * @param {string} inputID - the ID of the input geometry to layout
- * @param {*} placements - the placement information from the layout
- * @param {*} warningCallback - will be called back if there are issues with this placement (eg: does not account for all parts)
- * @param {*} layoutConfig - the layout configuration. See `layout` for expected properties.
- * @returns {Promise<boolean>} A promise that resolves when the layout is displayed.
+ * Lays out the parts of InputID according to the positions described in placements.
  */
 async function displayLayout(
-  targetID,
-  inputID,
-  placements,
-  warningCallback,
-  layoutConfig
-) {
+  targetID: string,
+  inputID: string,
+  placements: Placement[][],
+  warningCallback: (msg: string) => void,
+  layoutConfig: LayoutConfig
+): Promise<string> {
   await started;
-  // Call expensive function and cache the rotated assembly for future use
   const result = await cutlayout.displayLayout(
     getOrThrow(inputID),
     placements,
     warningCallback,
     layoutConfig
   );
-
-  // Store the final result
   library[targetID] = result;
   return targetID;
 }
 
 /**
- * A function which converts any input into Abundance style geometry. Input can be a library ID, an abundance object, or a single geometry object.
- * This is useful for allowing our functions to work within the Code atom or within the flow canvas.
+ * Deletes a geometry from the library.
+ * @param inputID - The library ID to delete.
+ * @returns {Promise<void>}
  */
-function toGeometry(input, name = "geometry") {
-  //If the input is a library ID we look it up
-  if (typeof input === "string" || typeof input === "number") {
-    return library[input];
-  }
-  //If the input is already an abundance object we return it
-  else if (input.geometry) {
-    return input;
-  }
-
-  // else check if it's a raw geometry object
-  const raw_type = input?._wrapped?.$$?.ptrType?.name;
-  if (raw_type && raw_type instanceof String && raw_type.startsWith("TopoDS")) {
-    // If it's a raw geometry object, we wrap it in an abundance object
-    return {
-      geometry: [input],
-      tags: [],
-      color: util.defaultColor,
-      bom: [],
-    };
-  } else {
-    // If it's something else, we throw an error
-    throw new Error(name + " value cannot be interpreted as geometry.");
-  }
-}
-
-/**
- * A function that deletes a geometry from the library.
- */
-function deleteFromLibrary(inputID) {
+function deleteFromLibrary(inputID: string): Promise<void> {
   return started.then(() => {
     delete library[inputID];
   });
@@ -156,79 +121,92 @@ function deleteFromLibrary(inputID) {
 
 /**
  * Creates a mesh with the specified thickness.
- * @param {number} thickness - The thickness value for the mesh
- * @returns {Promise<Array>} A promise that resolves to an empty array representing mesh data structure
+ * @param thickness - The thickness value for the mesh.
+ * @returns {Promise<any[]>}
  */
-function createMesh(thickness) {
+function createMesh(thickness: number): Promise<any[]> {
   return started.then(() => {
-    // This is how you get the data structure that the replica-three-helper
-    // can synchronize with three BufferGeometry
     return [];
   });
 }
 
 /**
- * Creates a circle geometry with the specified diameter and stores it in the library.
- * @param {string} id - The unique identifier to store the circle geometry in the library
- * @param {number} diameter - The diameter of the circle
- * @returns {Promise<boolean>} A promise that resolves to true when the circle is created successfully
+ * Creates a circle geometry and stores it in the library.
+ * @param id - The unique identifier for the circle.
+ * @param diameter - The diameter of the circle.
+ * @returns {Promise<string>}
  */
-async function circle(id, diameter) {
+async function circle(id: string, diameter: number): Promise<string> {
   await started;
   library[id] = await shapes.circle(diameter);
   return id;
 }
 
 /**
- * Creates a rectangle geometry with the specified dimensions and stores it in the library.
- * @param {number} x - The width of the rectangle
- * @param {number} y - The height of the rectangle
- * @returns {Promise<AbundanceObject>} A promise that resolves to the created rectangle geometry
+ * Creates a rectangle geometry and stores it in the library.
+ * @param targetID - The unique identifier for the rectangle.
+ * @param x - The width of the rectangle.
+ * @param y - The height of the rectangle.
+ * @returns {Promise<string>}
  */
-async function rectangle(targetID, x, y) {
+async function rectangle(
+  targetID: string,
+  x: number,
+  y: number
+): Promise<string> {
   await started;
   library[targetID] = await shapes.rectangle(x, y);
   return targetID;
 }
 
 /**
- * Creates a regular polygon geometry with the specified radius and number of sides, and stores it in the library.
- * @param {string} id - The unique identifier to store the polygon geometry in the library
- * @param {number} radius - The radius of the polygon (distance from center to vertex)
- * @param {number} numberOfSides - The number of sides of the polygon
- * @returns {Promise<boolean>} A promise that resolves to true when the polygon is created successfully
+ * Creates a regular polygon geometry and stores it in the library.
+ * @param id - The unique identifier for the polygon.
+ * @param radius - The radius of the polygon.
+ * @param numberOfSides - The number of sides.
+ * @returns {Promise<string>}
  */
-async function regularPolygon(id, radius, numberOfSides) {
+async function regularPolygon(
+  id: string,
+  radius: number,
+  numberOfSides: number
+): Promise<string> {
   await started;
   library[id] = await shapes.regularPolygon(radius, numberOfSides);
   return id;
 }
 
 /**
- * Creates text geometry with the specified text, font size, and font family, and stores it in the library.
- * @param {string} id - The unique identifier to store the text geometry in the library
- * @param {string} text - The text content to be rendered
- * @param {number} fontSize - The size of the font
- * @param {string} fontFamily - The font family to use for rendering the text
- * @returns {Promise<boolean>} A promise that resolves to true when the text geometry is created successfully
- * @throws {Error} Throws an error if the font fails to load
+ * Creates text geometry and stores it in the library.
+ * @param id - The unique identifier for the text geometry.
+ * @param text - The text content.
+ * @param fontSize - The font size.
+ * @param fontFamily - The font family.
+ * @returns {Promise<string>}
  */
-async function text(id, text, fontSize, fontFamily) {
-  return started.then(async () => {
-    const result = await shapes.text(text, fontSize, fontFamily);
-    library[id] = result;
-    return id;
-  });
+async function text(
+  id: string,
+  text: string,
+  fontSize: number,
+  fontFamily: string
+): Promise<string> {
+  await started;
+  const result = await shapes.text(text, fontSize, fontFamily);
+  library[id] = result;
+  return id;
 }
 
 /**
  * Creates a loft shape by blending between multiple 2D sketches and stores it in the library.
  * @param {string} targetID - The unique identifier to store the lofted geometry in the library
  * @param {string[]} inputsIDs - Array of library IDs containing 2D sketches to be lofted
- * @returns {Promise<boolean>} A promise that resolves to true when the loft is created successfully
+ * @returns {Promise<string>} A promise that resolves to the ID of the created loft geometry
  * @throws {Error} Throws an error if input parts are not sketches or contain interior geometries
  */
-async function loftShapes(targetID, inputsIDs) {
+async function loftShapes(
+  targetID: string,
+  inputsIDs: string[]
+): Promise<string> {
   await started;
   library[targetID] = await interaction.loftShapes(
     (inputsIDs || []).map(getOrThrow)
@@ -243,7 +221,11 @@ async function loftShapes(targetID, inputsIDs) {
  * @param {number} height - The height to extrude the sketch
  * @returns {Promise<boolean>} A promise that resolves to true when the extrusion is completed successfully
  */
-async function extrude(targetID, inputID, height) {
+async function extrude(
+  targetID: string,
+  inputID: string,
+  height: number
+): Promise<string> {
   await started;
   library[targetID] = await actions.extrude(getOrThrow(inputID), height);
   return targetID;
@@ -258,15 +240,17 @@ async function extrude(targetID, inputID, height) {
  * @param {string|null} targetID - The ID to store the result in the library. If null, the result is returned
  * @returns {Promise<boolean|Object>} A promise that resolves to the moved geometry, or true if targetID is provided
  */
-async function move(geom, x, y, z, targetID = null) {
+async function move(
+  geom: string,
+  x: number,
+  y: number,
+  z: number,
+  targetID: string
+): Promise<string | boolean> {
   await started;
-  const result = await actions.move(toGeometry(geom, "move-geometry"), x, y, z);
-  if (targetID) {
-    library[targetID] = result;
-    return targetID;
-  } else {
-    return result;
-  }
+  const result = await actions.move(getOrThrow(geom), x, y, z);
+  library[targetID] = result;
+  return targetID;
 }
 
 /**
@@ -278,17 +262,18 @@ async function move(geom, x, y, z, targetID = null) {
  * @param {string} targetID - The ID to store the result in. If it undefined the result will be returned instead
  * @returns {Promise<boolean|Object>} A promise that resolves to the rotated geometry or true if targetID is provided
  **/
-async function rotate(geom, x, y, z, targetID = null) {
+async function rotate(
+  geom: string,
+  x: number,
+  y: number,
+  z: number,
+  targetID: string
+): Promise<string | boolean> {
   await started;
 
-  const asGeom = toGeometry(geom, "rotate-geometry"); // TODO(tristan): I'd love to deprecate use of this method here.
-  const result = await actions.rotate(asGeom, x, y, z);
-  if (targetID) {
-    library[targetID] = result;
-    return targetID;
-  } else {
-    return result;
-  }
+  const result = await actions.rotate(getOrThrow(geom), x, y, z);
+  library[targetID] = result;
+  return targetID;
 }
 
 /**
@@ -298,17 +283,16 @@ async function rotate(geom, x, y, z, targetID = null) {
  * @param {string|null} targetID - The ID to store the result in the library. If null, the result is returned
  * @returns {Promise<boolean|Object>} A promise that resolves to the scaled geometry, or true if targetID is provided
  */
-async function scale(geom, scaleFactor, targetID = null) {
+async function scale(
+  geom: string,
+  scaleFactor: number,
+  targetID: string
+): Promise<string | boolean> {
   await started;
 
-  geom = toGeometry(geom, "scale-geometry");
-  const result = await actions.scale(geom, scaleFactor);
-  if (targetID) {
-    library[targetID] = result;
-    return targetID;
-  } else {
-    return result;
-  }
+  const result = await actions.scale(getOrThrow(geom), scaleFactor);
+  library[targetID] = result;
+  return targetID;
 }
 
 /**
@@ -318,19 +302,16 @@ async function scale(geom, scaleFactor, targetID = null) {
  * @param {string|null} targetID - The ID to store the result in the library. If null, the result is returned
  * @returns {Promise<boolean|Object>} A promise that resolves to the filleted geometry or true if targetID is provided
  */
-async function fillet(geom, radius, targetID = null) {
+async function fillet(
+  geom: string,
+  radius: number,
+  targetID: string
+): Promise<string | boolean> {
   await started;
 
-  const result = await actions.fillet(
-    toGeometry(geom, "fillet-geometry"),
-    radius
-  );
-  if (targetID) {
-    library[targetID] = result;
-    return targetID;
-  } else {
-    return result;
-  }
+  const result = await actions.fillet(getOrThrow(geom), radius);
+  library[targetID] = result;
+  return targetID;
 }
 
 /**
@@ -340,19 +321,16 @@ async function fillet(geom, radius, targetID = null) {
  * @param {string|null} targetID - The ID to store the result in the library. If null, the result is returned
  * @returns {Promise<boolean|Object>} A promise that resolves to the chamfered geometry or true if targetID is provided
  */
-async function chamfer(geom, size, targetID = null) {
+async function chamfer(
+  geom: string,
+  size: number,
+  targetID: string
+): Promise<string> {
   await started;
 
-  const result = await actions.chamfer(
-    toGeometry(geom, "chamfer-geometry"),
-    size
-  );
-  if (targetID) {
-    library[targetID] = result;
-    return targetID;
-  } else {
-    return result;
-  }
+  const result = await actions.chamfer(getOrThrow(geom), size);
+  library[targetID] = result;
+  return targetID;
 }
 
 /**
@@ -369,7 +347,11 @@ async function chamfer(geom, size, targetID = null) {
  * If the base geometry is an assembly, the cut operation is applied to each leaf independently.
  * Uses bounding box checks to avoid processing cuts for non-overlapping geometries.
  */
-function difference(targetID, input1ID, input2ID) {
+function difference(
+  targetID: string,
+  input1ID: string,
+  input2ID: string
+): Promise<string> {
   return started.then(async () => {
     library[targetID] = await interaction.difference(
       getOrThrow(input1ID),
@@ -386,7 +368,10 @@ function difference(targetID, input1ID, input2ID) {
  * @returns {Promise<boolean>} A promise that resolves to true when the shrink wrapping is completed successfully
  * @throws {Error} Throws an error if inputs are not all sketches or if sketches have interior geometries
  */
-function shrinkWrapSketches(targetID, inputIDs) {
+function shrinkWrapSketches(
+  targetID: string,
+  inputIDs: string[]
+): Promise<string> {
   return started.then(async () => {
     library[targetID] = await interaction.shrinkWrapSketches(
       inputIDs.map(getOrThrow)
@@ -402,18 +387,18 @@ function shrinkWrapSketches(targetID, inputIDs) {
  * @param {string|null} targetID - The ID to store the result in the library. If null, the result is returned
  * @returns {Promise<boolean|Object>} A promise that resolves to true if targetID is provided, or the intersected geometry if targetID is null
  */
-function intersect(input1ID, input2ID, targetID = null) {
+function intersect(
+  input1ID: string,
+  input2ID: string,
+  targetID: string
+): Promise<string> {
   return started.then(async () => {
     const result = await interaction.intersect(
       getOrThrow(input1ID),
       getOrThrow(input2ID)
     );
-    if (targetID) {
-      library[targetID] = result;
-      return targetID;
-    } else {
-      return result;
-    }
+    library[targetID] = result;
+    return targetID;
   });
 }
 
@@ -424,7 +409,11 @@ function intersect(input1ID, input2ID, targetID = null) {
  * @param {string[]} TAG - Array of tags to add to the geometry
  * @returns {Promise<boolean>} A promise that resolves to true when the tagging is completed successfully
  */
-function tag(targetID, inputID, TAG) {
+function tag(
+  targetID: string,
+  inputID: string,
+  TAG: string[]
+): Promise<string> {
   return started.then(() => {
     library[targetID] = tags.tag(getOrThrow(inputID), TAG);
     return targetID;
@@ -437,7 +426,7 @@ function tag(targetID, inputID, TAG) {
  * @returns {Promise<string[]>} A promise that resolves to an array of all unique tags, with "Select Tag" as the first element
  * @throws {Error} Throws an error if the geometry with the specified ID is not found in the library
  */
-function extractAllTags(inputID) {
+function extractAllTags(inputID: string): Promise<string[]> {
   return started.then(() => {
     return tags.extractAllTags(getOrThrow(inputID));
   });
@@ -451,7 +440,11 @@ function extractAllTags(inputID) {
  * @returns {Promise} A promise that resolves when the coloring operation is completed
  * @note If the color is "#D9544D", a "keepout" tag is automatically added to the geometry
  */
-function color(targetID, inputID, color) {
+function color(
+  targetID: string,
+  inputID: string,
+  color: string
+): Promise<string> {
   return started.then(() => {
     library[targetID] = tags.color(getOrThrow(inputID), color);
     return targetID;
@@ -465,7 +458,7 @@ function color(targetID, inputID, color) {
  * @param {Object} BOM - The BOM entry to add to the geometry
  * @returns {Promise<boolean>} A promise that resolves to true when the BOM addition is completed successfully
  */
-function bom(targetID, inputID, BOM) {
+function bom(targetID: string, inputID: string, BOM: string): Promise<string> {
   return started.then(() => {
     library[targetID] = tags.bom(getOrThrow(inputID), BOM);
     return targetID;
@@ -480,7 +473,11 @@ function bom(targetID, inputID, BOM) {
  * @returns {Promise<boolean>} A promise that resolves to true when the extraction is completed successfully
  * @throws {Error} Throws an error if the specified tag is not found in the geometry
  */
-function extractTag(targetID, inputID, TAG) {
+function extractTag(
+  targetID: string,
+  inputID: string,
+  TAG: string
+): Promise<string> {
   return started.then(() => {
     library[targetID] = tags.extractTag(getOrThrow(inputID), TAG);
     return targetID;
@@ -494,7 +491,7 @@ function extractTag(targetID, inputID, TAG) {
  * @returns {Promise<boolean>} A promise that resolves to true when the output operation is completed successfully
  * @throws {Error} Throws an error if nothing is connected to the output (inputID is undefined)
  */
-function output(targetID, inputID) {
+function output(targetID: string, inputID: string): Promise<string> {
   return started.then(() => {
     if (library[inputID] != undefined) {
       library[targetID] = library[inputID];
@@ -513,11 +510,8 @@ function output(targetID, inputID) {
  * @returns {Promise<boolean>} A promise that resolves to true when the molecule operation is completed successfully
  * @throws {Error} Throws an error if the output ID is undefined
  */
-function molecule(targetID, inputID) {
+function molecule(targetID: string, inputID: string): Promise<string> {
   return started.then(() => {
-    if (inputID instanceof Promise) {
-      throw new Error("inputID was passed a promise: " + inputID);
-    }
     if (library[inputID] != undefined) {
       library[targetID] = library[inputID];
     } else {
@@ -532,7 +526,7 @@ function molecule(targetID, inputID) {
  * @param {string} inputID - The library ID of the geometry to extract BOM from
  * @returns {Array|boolean} The BOM array if it exists, or false if BOM is undefined
  */
-function extractBomList(inputID) {
+function extractBomList(inputID: string): string[] | false {
   return tags.extractBomList(getOrThrow(inputID));
 }
 
@@ -543,40 +537,50 @@ function extractBomList(inputID) {
  * @param {string} fileType - The file type for export ("STL", "STEP", or "SVG")
  * @returns {Promise<targetID>} A promise that resolves to ID of the result when the export preparation is completed successfully
  */
-function visExport(targetID, inputID, fileType) {
-  // TODO
-  return started.then(() => {
+function visExport(
+  targetID: string,
+  inputID: string,
+  fileType: string
+): Promise<string> {
+  return started.then(async () => {
     let geometryToExport = tags.extractKeepOut(library[inputID]);
-    let fusedGeometry = interaction.digFuse(geometryToExport);
+    if (!geometryToExport) {
+      throw new Error(
+        "Geometry To Export has no geometry after keepout is applied"
+      );
+    }
+    let fusedGeometry = await interaction.digFuse(geometryToExport);
     let displayColor =
       fileType == "STL"
         ? "#91C8D5"
         : fileType == "STEP"
         ? "#ACAFDD"
         : "#3C3C3C";
-    let finalGeometry;
+    let finalGeometry = fusedGeometry;
     if (fileType == "SVG") {
       /** Fuses input geometry, draws a top view projection*/
       if (util.is3D(library[inputID])) {
-        finalGeometry = [
-          util.replicad.drawProjection(
-            util.geometryProvider.get(fusedGeometry),
-            "top"
-          ).visible,
-        ];
-      } else {
-        finalGeometry = [fusedGeometry];
+        const shape3d = (await util.geometryProvider!.get(
+          fusedGeometry.geometry
+        )) as AnyShape;
+        const drawingResult = util.replicad.drawProjection(
+          shape3d,
+          "top"
+        ).visible;
+        const cachedGeom = await util.geometryProvider!.addSingularToCache(
+          drawingResult
+        );
+        finalGeometry = {
+          ...fusedGeometry,
+          geometry: cachedGeom,
+          dimension: "2D",
+        };
       }
-    } else {
-      finalGeometry = [fusedGeometry];
     }
-    if (targetID) {
-      library[targetID] = {
-        geometry: finalGeometry,
-        color: displayColor,
-        plane: library[inputID].plane,
-      };
-    }
+    library[targetID] = {
+      ...finalGeometry,
+      color: displayColor,
+    };
     return targetID;
   });
 }
@@ -589,23 +593,53 @@ function visExport(targetID, inputID, fileType) {
  * @param {string} units - The units for scaling ("Inches", "MM", or other)
  * @returns {Promise<Blob>} A promise that resolves to a Blob containing the exported file data
  */
-function downExport(ID, fileType, svgResolution, units) {
-  return started.then(() => {
-    // BUG: what if this is given an assembly?
-    const geom = util.geometryProvider.get(library[ID].geometry);
+function downExport(
+  inputID: string,
+  fileType: string,
+  svgResolution: number,
+  units: string
+): Promise<Blob> {
+  return started.then(async () => {
+    // as with visexport, fuse the result before exporting.
+    let geometryToExport = tags.extractKeepOut(library[inputID]);
+    if (!geometryToExport) {
+      throw new Error(
+        "Geometry To Export has no geometry after keepout is applied"
+      );
+    }
+    let fusedGeometry = await interaction.digFuse(geometryToExport);
+    const geom = await util.geometryProvider!.get(fusedGeometry.geometry);
     let scaleUnit = units == "Inches" ? 1 : units == "MM" ? 25.4 : 1;
     let scaling = svgResolution / scaleUnit;
     if (fileType == "SVG") {
+      if ("toSVG" in geom == false) {
+        throw new Error("SVG export requires 2D geometry");
+      }
       let svg = geom.clone().scale(scaling).toSVG(scaling);
       var blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
 
       return blob;
     } else if (fileType == "STL") {
+      if ("blobSTL" in geom == false) {
+        throw new Error("STL export requires 3D geometry");
+      }
       return geom.clone().blobSTL();
     } else {
+      if ("blobSTEP" in geom == false) {
+        throw new Error("STEP export requires 3D geometry");
+      }
       return geom.clone().blobSTEP();
     }
   });
+}
+
+function is3dshape(shape: AnyShape | replicad.Drawing): shape is Shape3D {
+  return [
+    replicad.Solid,
+    replicad.Compound,
+    replicad.Shell,
+    replicad.CompSolid,
+  ].some((type) => shape instanceof type);
 }
 
 /**
@@ -614,15 +648,23 @@ function downExport(ID, fileType, svgResolution, units) {
  * @param {File} file - The STEP file to import
  * @returns {Promise<boolean>} A promise that resolves to true when the import is completed successfully
  */
-async function importingSTEP(targetID, file) {
+async function importingSTEP(targetID: string, file: File) {
   let STEPresult = await util.replicad.importSTEP(file);
+  if (!is3dshape(STEPresult)) {
+    throw new Error(
+      "Imported STEP file describes a " +
+        typeof STEPresult +
+        ". Must be a Solid, Shell, Compound, or CompSolid."
+    );
+  }
 
   library[targetID] = {
-    geometry: await util.geometryProvider.addSingularToCache(STEPresult),
+    geometry: await util.geometryProvider!.addSingularToCache(STEPresult),
     tags: [],
     color: util.defaultColor,
     bom: [],
     dimension: "3D",
+    plane: util.XYPlane,
   };
   return targetID;
 }
@@ -633,14 +675,21 @@ async function importingSTEP(targetID, file) {
  * @param {File} file - The STL file to import
  * @returns {Promise<boolean>} A promise that resolves to true when the import is completed successfully
  */
-async function importingSTL(targetID, file) {
+async function importingSTL(targetID: string, file: File) {
   let STLresult = await util.replicad.importSTL(file);
-
+  if (!is3dshape(STLresult)) {
+    throw new Error(
+      "Imported STL file describes a " +
+        typeof STLresult +
+        ". Must be a Solid, Shell, Compound, or CompSolid."
+    );
+  }
   library[targetID] = {
-    geometry: await util.geometryProvider.addSingularToCache(STLresult),
+    geometry: await util.geometryProvider!.addSingularToCache(STLresult),
     tags: [],
     color: util.defaultColor,
     bom: [],
+    plane: util.XYPlane,
     dimension: "3D",
   };
   return targetID;
@@ -654,7 +703,7 @@ async function importingSTL(targetID, file) {
  * @returns {Promise<boolean>} A promise that resolves to true when the import is completed successfully
  * @throws {Error} Throws an error if the SVG import fails
  */
-async function importingSVG(targetID, svg, width) {
+async function importingSVG(targetID: string, svg: string, width: number) {
   const baseWidth = width + width * 0.05;
   const baseShape = util.replicad
     .drawRectangle(baseWidth, baseWidth)
@@ -674,7 +723,7 @@ async function importingSVG(targetID, svg, width) {
     let center = drawnSVG.boundingBox.center;
 
     library[targetID] = {
-      geometry: await util.geometryProvider.addSingularToCache(
+      geometry: await util.geometryProvider!.addSingularToCache(
         drawnSVG.clone().translate(-center[0], -center[1])
       ),
       tags: [],
@@ -699,9 +748,9 @@ async function importingSVG(targetID, svg, width) {
  * @param {string} gcode - The G-code string to visualize
  * @returns {void} This function does not return a value, it directly stores the result in the library
  */
-async function visualizeGcode(targetID, gcode) {
-  let currentPosition = [0, 0, 0];
-  let edges = [];
+async function visualizeGcode(targetID: string, gcode: string): Promise<void> {
+  let currentPosition: [number, number, number] = [0, 0, 0];
+  let edges: Edge[] = [];
   // Split the gcode into lines
   const lines = gcode.split("\n");
   lines.forEach((line) => {
@@ -740,7 +789,7 @@ async function visualizeGcode(targetID, gcode) {
   const wire = util.replicad.assembleWire(edges);
   library[targetID] = {
     // TODO: we could probably use a hash of the gcode string as an ID here.
-    geometry: await util.geometryProvider.addSingularToCache(wire),
+    geometry: await util.geometryProvider!.addSingularToCache(wire),
     tags: [],
     plane: util.XYPlane,
     color: util.defaultColor,
@@ -754,10 +803,10 @@ async function visualizeGcode(targetID, gcode) {
  * @param {Object} shape - The 3D shape to create a projection from
  * @returns {Object} An object containing visible and hidden projection lines
  */
-const prettyProjection = (shape) => {
+const prettyProjection = (shape: Shape3D | replicad.Wire) => {
   const bbox = shape.boundingBox;
   const center = bbox.center;
-  const corner = [
+  const corner: [number, number, number] = [
     bbox.center[0] + bbox.width,
     bbox.center[1] - bbox.height,
     bbox.center[2] + bbox.depth,
@@ -774,16 +823,16 @@ const prettyProjection = (shape) => {
  * @returns {Promise<string>} A promise that resolves to an SVG string representing the thumbnail
  * @throws {Error} Throws an error if the geometry is undefined or thumbnail generation fails
  */
-async function generateThumbnail(inputID) {
+async function generateThumbnail(inputID: string): Promise<string> {
   return started.then(async () => {
     if (library[inputID] != undefined) {
       const fusedAssembly = await interaction.digFuse(library[inputID]);
-      const fusedGeometry = await util.geometryProvider.get(
+      const fusedGeometry = await util.geometryProvider!.get(
         fusedAssembly.geometry
       );
       let projectionShape;
       let svg;
-      if (util.is3D(library[inputID])) {
+      if (is3dshape(fusedGeometry) || fusedGeometry instanceof replicad.Wire) {
         projectionShape = prettyProjection(fusedGeometry);
         svg = projectionShape.visible.toSVG();
       } else {
@@ -801,7 +850,9 @@ async function generateThumbnail(inputID) {
   });
 }
 
-function getBoundingBox(inputID) {
+function getBoundingBox(
+  inputID: string
+): Promise<{ min: number[]; max: number[] }> {
   return util.getBounds(getOrThrow(inputID));
 }
 
@@ -810,7 +861,7 @@ function getBoundingBox(inputID) {
  * @param {string} inputID - The geometry ID to check
  * @returns {Promise<boolean>} True if it's an assembly, false otherwise
  */
-async function isAssembly(inputID) {
+async function isAssembly(inputID: string): Promise<boolean> {
   await started;
   const geometry = getOrThrow(inputID);
   return util.isAssembly(geometry);
@@ -821,7 +872,7 @@ async function isAssembly(inputID) {
  * @param {string} assemblyID - The assembly ID
  * @returns {Promise<Array<string>>} Array of part IDs
  */
-async function extractParts(assemblyID) {
+async function extractParts(assemblyID: string): Promise<string[]> {
   await started;
   const assembly = getOrThrow(assemblyID);
 
@@ -830,7 +881,7 @@ async function extractParts(assemblyID) {
     return [assemblyID];
   }
 
-  const parts = [];
+  const parts: string[] = [];
   let partIndex = 0;
 
   // Extract each part from the assembly and store it in the library
@@ -851,15 +902,11 @@ async function extractParts(assemblyID) {
  * Geometries will cut all geometries below them in the list to make sure that no parts intersect
  * If the targetID is defined, the assembly will be stored in the library under that ID, otherwise it will be returned
  */
-async function assembly(inputIDs, targetID = null) {
+async function assembly(inputIDs: string[], targetID: string): Promise<string> {
   await started;
   const result = await interaction.assembly(inputIDs.map(getOrThrow));
-  if (targetID != null) {
-    library[targetID] = result;
-    return targetID;
-  } else {
-    return result;
-  }
+  library[targetID] = result;
+  return targetID;
 }
 
 /**
@@ -869,7 +916,7 @@ async function assembly(inputIDs, targetID = null) {
  * @returns {Promise<boolean>} A promise that resolves to true when the fusion is completed successfully
  * @throws {Error} Throws an error if inputs are mixed between 2D and 3D geometries
  */
-function fusion(targetID, inputIDs) {
+function fusion(targetID: string, inputIDs: string[]): Promise<string> {
   return started.then(async () => {
     library[targetID] = await interaction.fusion(inputIDs.map(getOrThrow));
     return targetID;
@@ -930,24 +977,24 @@ function resetView() {
   });
 }
 
-function getLargestBoundingBox(meshArray) {
-  let overallMin = [Infinity, Infinity, Infinity];
-  let overallMax = [-Infinity, -Infinity, -Infinity];
+function getLargestBoundingBox(meshArray: ReplicadObject[]): {
+  width: number;
+  height: number;
+  depth: number;
+} {
+  let overallMin: [number, number, number] = [Infinity, Infinity, Infinity];
+  let overallMax: [number, number, number] = [-Infinity, -Infinity, -Infinity];
 
   if (!Array.isArray(meshArray)) {
     throw new Error("meshArray is not defined or not an array");
   }
 
   meshArray.forEach((mesh) => {
-    if (
-      !mesh.geometry ||
-      !mesh.geometry.boundingBox ||
-      !Array.isArray(mesh.geometry.boundingBox.bounds)
-    ) {
+    if (!mesh.boundingBox || !Array.isArray(mesh.boundingBox.bounds)) {
       throw new Error("Invalid mesh geometry or boundingBox structure");
     }
 
-    let boundingBox = mesh.geometry.boundingBox.bounds;
+    let boundingBox = mesh.boundingBox.bounds;
     if (
       boundingBox.length < 2 ||
       !Array.isArray(boundingBox[0]) ||
@@ -962,29 +1009,31 @@ function getLargestBoundingBox(meshArray) {
     // Update overall minimum coordinates
     overallMin[0] = Math.min(overallMin[0], min[0]);
     overallMin[1] = Math.min(overallMin[1], min[1]);
-    overallMin[2] = Math.min(overallMin[2], min[2]);
+    if (min[2] != undefined) {
+      overallMin[2] = Math.min(overallMin[2], min[2]);
+    }
 
     // Update overall maximum coordinates
     overallMax[0] = Math.max(overallMax[0], max[0]);
     overallMax[1] = Math.max(overallMax[1], max[1]);
-    overallMax[2] = Math.max(overallMax[2], max[2]);
+    if (max[2] != undefined) {
+      overallMax[2] = Math.max(overallMax[2], max[2]);
+    }
   });
-
-  // Create a new bounding box with the overall min and max coordinates
-  let newBoundingBox = [overallMin, overallMax];
 
   // Calculate the width, height, and depth
   let width = overallMax[0] - overallMin[0];
   let height = overallMax[1] - overallMin[1];
   let depth = overallMax[2] - overallMin[2];
 
-  // Return the dimensions as a 3-point vector
   return { width, height, depth };
-
-  //return newBoundingBox;
 }
 
-function calculateZoom(boundingBox) {
+function calculateZoom(boundingBox: {
+  width: number;
+  height: number;
+  depth: number;
+}): number {
   try {
     // Given example bounding box and zoom level
     const exampleBoundingBox = {
@@ -1016,19 +1065,17 @@ function calculateZoom(boundingBox) {
   }
 }
 
-function generateCameraPosition(meshArray) {
-  try {
-    // Get the largest bounding box from the mesh array
-    let largestBoundingBox = getLargestBoundingBox(meshArray);
-    let zoom = calculateZoom(largestBoundingBox);
+function generateCameraPosition(meshArray: ReplicadObject[]): number {
+  // Get the largest bounding box from the mesh array
+  let largestBoundingBox = getLargestBoundingBox(meshArray);
+  let zoom = calculateZoom(largestBoundingBox);
 
-    return zoom;
-  } catch (e) {
-    throw new Error(e);
-  }
+  return zoom;
 }
 
-async function generateDisplayMesh(id) {
+async function generateDisplayMesh(
+  id: string | AbundanceObject
+): Promise<DisplayMesh[]> {
   await started;
   console.log("Generating display mesh for ID:", JSON.stringify(id));
   let geom = undefined;
@@ -1037,7 +1084,12 @@ async function generateDisplayMesh(id) {
   } else {
     if (library[id] != undefined && id != undefined) {
       geom = library[id];
-      console.log("resolved to: " + JSON.stringify(geom));
+      try {
+        console.log("resolved to: " + JSON.stringify(geom));
+      } catch (error) {
+        console.error("Error resolving geometry:", error);
+        throw error;
+      }
     } else {
       return generateDefaultMesh();
     }
@@ -1046,16 +1098,16 @@ async function generateDisplayMesh(id) {
   // Flatten the assembly to remove hierarchy
   const flattened = util.flattenAssembly(geom);
 
-  let meshArray = [];
+  let meshArray: { color: string; geometry: ReplicadObject }[] = [];
 
   for (let i = 0; i < flattened.length; i++) {
     const displayObject = flattened[i];
     let cleanedGeometry;
     // TODO: would love a better way to check if geometry is 2D or 3D.
-    const geom = await util.geometryProvider.get(displayObject.geometry);
-    if (geom.mesh == undefined) {
-      cleanedGeometry = await util.geometryProvider.get(
-        await util.geometryProvider.extrude(
+    const geom = await util.geometryProvider!.get(displayObject.geometry);
+    if (!("mesh" in geom) || geom.mesh == undefined) {
+      cleanedGeometry = await util.geometryProvider!.get(
+        await util.geometryProvider!.extrude(
           displayObject.geometry,
           displayObject.plane,
           0.0001
@@ -1072,7 +1124,7 @@ async function generateDisplayMesh(id) {
 
   let cameraZoom;
   try {
-    cameraZoom = generateCameraPosition(meshArray);
+    cameraZoom = generateCameraPosition(meshArray.map((m) => m.geometry));
   } catch (e) {
     cameraZoom = 1;
   }
@@ -1082,10 +1134,9 @@ async function generateDisplayMesh(id) {
   for (const meshObj of meshArray) {
     try {
       let sketchPlane = util.asReplicadPlane(geom.plane);
-      if (meshObj.geometry.mesh == undefined) {
+      if (meshObj.geometry instanceof replicad.Drawing) {
         const threeDShape = meshObj.geometry
           .sketchOnPlane(sketchPlane)
-          .clone()
           .extrude(0.0001);
         finalMeshes.push({
           cameraZoom: cameraZoom,

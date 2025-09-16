@@ -20,7 +20,7 @@ function tag(geom: AbundanceObject, TAG: string[]): AbundanceObject {
  * Return a copy of `geom` with the specified color.
  * @note If the color is "#D9544D", a "keepout" tag is automatically added to the geometry
  */
-function color(geom: AbundanceObject, color: string): Promise<AbundanceObject> {
+function color(geom: AbundanceObject, color: string): AbundanceObject {
   return actOnLeafsSync(geom, (leaf: AbundanceLeaf) => {
     // keep out color add tag
     if (color == "#D9544D") {

@@ -416,6 +416,7 @@ async function applyLayout(
       return {
         ...leaf,
         geometry: newGeom,
+        referencePoint: undefined,
       };
     }
   );
@@ -807,4 +808,6 @@ export {
   displayLayout,
   displayLayoutWithRotatedAssembly,
   createDefaultPlacements,
+  LayoutConfig,
+  Placement,
 };
