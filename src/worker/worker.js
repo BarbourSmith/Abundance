@@ -156,12 +156,17 @@ async function displayLayout(
  * This is useful for allowing our functions to work within the Code atom or within the flow canvas.
  */
 function toGeometry(input, name = "geometry") {
+  // Check for null or undefined input first
+  if (input === null || input === undefined) {
+    throw new Error(name + " value cannot be interpreted as geometry.");
+  }
+
   //If the input is a library ID we look it up
   if (typeof input === "string" || typeof input === "number") {
     return library[input];
   }
   //If the input is already an abundance object we return it
-  else if (input.geometry) {
+  else if (input && input.geometry) {
     return input;
   }
 
