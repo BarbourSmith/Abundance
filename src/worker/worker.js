@@ -647,6 +647,7 @@ async function importingSTEP(targetID, file) {
     tags: [],
     color: util.defaultColor,
     bom: [],
+    dimension: "3D",
   };
   return targetID;
 }
@@ -665,6 +666,7 @@ async function importingSTL(targetID, file) {
     tags: [],
     color: util.defaultColor,
     bom: [],
+    dimension: "3D",
   };
   return targetID;
 }
@@ -704,6 +706,7 @@ async function importingSVG(targetID, svg, width) {
       plane: util.XYPlane,
       color: util.defaultColor,
       bom: [],
+      dimension: "2D",
     };
 
     return targetID;
@@ -767,6 +770,7 @@ async function visualizeGcode(targetID, gcode) {
     plane: util.XYPlane,
     color: util.defaultColor,
     bom: [],
+    dimension: "3D",
   };
 }
 
