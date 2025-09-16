@@ -19,6 +19,7 @@ import RenderMenu from "../secondary/RenderMenu.jsx";
 import BomMenu from "../secondary/BomMenu.jsx";
 import GitSearchMenu from "../secondary/GitSearchMenu.jsx";
 import RenderProgressBar from "../secondary/RenderProgressBar.jsx";
+import { useAppState, useRenderState } from "../../contexts/index.jsx";
 /**
  * Create mode component appears displays flow canvas, renderer and sidebar when
  * a user has been authorized access to a project.
@@ -26,28 +27,33 @@ import RenderProgressBar from "../secondary/RenderProgressBar.jsx";
  * @prop {setstate} setRunMode - setState function for runMode
  * @prop {boolean} RunMode - Determines if Run mode is on or off
  */
-function CreateMode({
-  activeAtom,
-  setActiveAtom,
-  authorizedUserOcto,
-  loadProject,
-  exportPopUp,
-  setExportPopUp,
-  shortCutsOn,
-  setShortCuts,
-  mesh,
-  setMesh,
-  size,
-  cad,
-  wireMesh,
-  setWireMesh,
-  outdatedMesh,
-  setOutdatedMesh,
-  setRenderProgress,
-  renderProgress,
-  renderBarVisible,
-  setRenderBarVisible,
-}) {
+function CreateMode() {
+  // Get state from contexts
+  const {
+    activeAtom,
+    setActiveAtom,
+    authorizedUserOcto,
+    loadProject,
+    exportPopUp,
+    setExportPopUp,
+    shortCutsOn,
+    setShortCuts,
+  } = useAppState();
+
+  const {
+    mesh,
+    setMesh,
+    size,
+    cad,
+    wireMesh,
+    setWireMesh,
+    outdatedMesh,
+    setOutdatedMesh,
+    setRenderProgress,
+    renderProgress,
+    renderBarVisible,
+    setRenderBarVisible,
+  } = useRenderState();
   const navigate = useNavigate();
 
   /** State for grid and axes parameters */

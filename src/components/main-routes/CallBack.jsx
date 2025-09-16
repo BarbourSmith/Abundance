@@ -3,16 +3,18 @@ import { useLocation } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 import { Octokit } from "https://esm.sh/octokit@2.0.19";
 import GlobalVariables from "../../js/globalvariables.js";
+import { useAppState } from "../../contexts/index.jsx";
 
-const Callback = ({
-  isAuthorized,
-  setIsAuthorized,
-  setIsLoggedIn,
-  setAuthorizedUserOcto,
-  setRedirectType,
-}) => {
+const Callback = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { 
+    isAuthorized, 
+    setIsAuthorized, 
+    setIsLoggedIn, 
+    setAuthorizedUserOcto, 
+    setRedirectType 
+  } = useAppState();
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);

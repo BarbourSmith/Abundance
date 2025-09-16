@@ -19,6 +19,7 @@ import {
   useParams,
   useNavigate,
 } from "react-router-dom";
+import { useAppState, useRenderState } from "../../contexts/index.jsx";
 
 function useWindowSize() {
   // Initialize state with undefined width/height so server and client renders match
@@ -46,22 +47,31 @@ function useWindowSize() {
   return windowSize;
 }
 
-function runMode({
-  setActiveAtom,
-  activeAtom,
-  authorizedUserOcto,
-  loadProject,
-  mesh,
-  wireMesh,
-  outdatedMesh,
-  setOutdatedMesh,
-  redirectType,
-  setRedirectType,
-  renderProgress,
-  setRenderProgress,
-  renderBarVisible,
-  setRenderBarVisible,
-}) {
+function runMode() {
+  // Get state from contexts
+  const {
+    isloggedIn,
+    setActiveAtom,
+    activeAtom: contextActiveAtom,
+    authorizedUserOcto,
+    loadProject,
+    redirectType,
+    setRedirectType,
+  } = useAppState();
+
+  const {
+    mesh,
+    wireMesh,
+    outdatedMesh,
+    setOutdatedMesh,
+    renderProgress,
+    setRenderProgress,
+    renderBarVisible,
+    setRenderBarVisible,
+  } = useRenderState();
+
+  // Use GlobalVariables.currentMolecule as activeAtom for compatibility
+  const activeAtom = GlobalVariables.currentMolecule;
   // canvas to hide
   const canvasRef = useRef(500);
 
