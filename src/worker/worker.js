@@ -1,7 +1,7 @@
 import { expose } from "comlink";
 import { Plane } from "replicad";
 import { drawSVG } from "replicad-decorate";
-import * as cutlayout from "./cutlayout.js";
+import * as cutlayout from "./cutlayout.ts";
 import * as util from "./util.ts";
 import * as shapes from "./shapes.ts";
 import * as actions from "./actions.ts";
@@ -65,11 +65,6 @@ async function layout(
   priorPlacements
 ) {
   await started;
-
-  // Always clear the cache when layout is called because geometry input might have changed
-  const rotatedAssemblyKey = inputID + "_rotated";
-  delete library[rotatedAssemblyKey];
-
   return cutlayout
     .layout(
       getOrThrow(inputID),
@@ -80,12 +75,10 @@ async function layout(
       priorPlacements
     )
     .then((resultArray) => {
-      const [layedOutAssembly, positions, rotatedAssembly] = resultArray;
+      const [layedOutAssembly, positions] = resultArray;
       library[targetID] = layedOutAssembly;
 
       // Store the rotated assembly for reuse in displayLayout to avoid calling rotateForLayout again
-      library[rotatedAssemblyKey] = rotatedAssembly;
-
       return positions;
     });
 }
@@ -109,34 +102,16 @@ async function displayLayout(
   layoutConfig
 ) {
   await started;
-  // Check if we have a pre-rotated assembly from a previous layout call
-  const rotatedAssemblyKey = inputID + "_rotated";
-  const rotatedAssembly = library[rotatedAssemblyKey];
+  // Call expensive function and cache the rotated assembly for future use
+  const result = await cutlayout.displayLayout(
+    getOrThrow(inputID),
+    placements,
+    warningCallback,
+    layoutConfig
+  );
 
-  if (rotatedAssembly) {
-    // Use the pre-rotated assembly to avoid calling rotateForLayout again
-    library[targetID] = await cutlayout.displayLayoutWithRotatedAssembly(
-      rotatedAssembly,
-      placements,
-      warningCallback,
-      layoutConfig
-    );
-  } else {
-    // Call expensive function and cache the rotated assembly for future use
-    const [result, newRotatedAssembly] = await cutlayout.displayLayout(
-      getOrThrow(inputID),
-      placements,
-      warningCallback,
-      layoutConfig
-    );
-
-    // Cache the rotated assembly for future displayLayout calls
-    library[rotatedAssemblyKey] = newRotatedAssembly;
-
-    // Store the final result
-    library[targetID] = result;
-  }
-
+  // Store the final result
+  library[targetID] = result;
   return targetID;
 }
 

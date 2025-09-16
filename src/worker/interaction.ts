@@ -132,7 +132,7 @@ async function shrinkWrapSketches(
 async function intersect(
   shape1: AbundanceObject,
   shape2: AbundanceObject
-): Promise<any> {
+): Promise<AbundanceObject> {
   return util.actOnLeafs(shape1, async (leaf: AbundanceLeaf) => {
     const shapeToIntersectWith = await digFuse(shape2);
     return {

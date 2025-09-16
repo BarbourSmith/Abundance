@@ -155,6 +155,14 @@ export default class CutLayout extends Atom {
     }
   }
 
+  deleteNode(backgroundClickAfter = true, deletePath = true, silent = false) {
+    if (this.cancelationHandle) {
+      this.cancelationHandle();
+      this.cancelationHandle = undefined;
+    }
+    return super.deleteNode(backgroundClickAfter, deletePath, silent);
+  }
+
   handleNewPlacements(placements, isFinalPlacement = false) {
     this.placements = placements;
     this.displayLayout(isFinalPlacement);
@@ -314,9 +322,24 @@ export default class CutLayout extends Atom {
 
     inputParams["Compute Layout"] = {
       type: "button",
-      label: "Compute Layout",
+      label:
+        this.getState().status == Status.PROCESSING
+          ? "Halt Layout"
+          : "Compute Layout",
       onClick: () => {
-        this.updateValueButton();
+        if (this.getState().status == Status.PROCESSING) {
+          if (this.cancelationHandle) {
+            this.cancelationHandle();
+            this.cancelationHandle = undefined;
+            console.log("Cancelled layout");
+          } else {
+            console.log("No cancelation handle... uh oh");
+          }
+          this.setWaiting();
+        } else {
+          this.updateValueButton();
+        }
+        setInputChanged();
       },
     };
 

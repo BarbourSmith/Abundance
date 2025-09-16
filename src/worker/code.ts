@@ -1,7 +1,14 @@
 import * as util from "./util";
 import { rotate, move, scale, fillet, chamfer } from "./actions";
 import { intersect, assembly, cutAssembly } from "./interaction";
-import { AbundanceObject } from "./util";
+import {
+  AbundanceObject,
+  RealizedAssembly,
+  RealizedLeaf,
+  cacheAssembly,
+  realizeAssembly,
+  isRealizedLeaf,
+} from "./util";
 import { ReplicadObject } from "./geometryProvider";
 import { Plane } from "replicad";
 import { resolve } from "url";
@@ -11,26 +18,6 @@ import { resolve } from "url";
  * any of the UserGeometryObj types.
  */
 type UserGeometryObj = string | RealizedAssembly | ReplicadObject;
-
-type RealizedAssembly = RealizedLeaf | RealizedBranch;
-
-type RealizedBranch = {
-  geometry: RealizedAssembly[];
-  plane: Plane;
-  dimension: "2D" | "3D" | "Wire";
-  color: string;
-  tags: string[];
-  bom: string[];
-};
-
-type RealizedLeaf = {
-  geometry: ReplicadObject[]; // For backwards compatibility this is an array. But it always contains a single item.
-  plane: Plane;
-  dimension: "2D" | "3D" | "Wire";
-  color: string;
-  tags: string[];
-  bom: string[];
-};
 
 /**
  * A best-effort check for exploits in user provided code. Checks for a series of known bad patterns.
@@ -302,18 +289,11 @@ async function executeCode(
   }
 }
 
-function isLeaf(node: RealizedAssembly): node is RealizedLeaf {
-  return (
-    Array.isArray(node.geometry) &&
-    node.geometry.every((item) => "geometry" in item === false)
-  );
-}
-
 async function ensureDimension(
   assembly: RealizedAssembly | Promise<RealizedAssembly>
 ): Promise<RealizedAssembly> {
   return Promise.resolve(assembly).then(async (resolvedAssembly) => {
-    if (isLeaf(resolvedAssembly)) {
+    if (isRealizedLeaf(resolvedAssembly)) {
       if (
         !("dimension" in resolvedAssembly) ||
         resolvedAssembly.dimension === undefined
@@ -357,7 +337,7 @@ async function assemblyMap(
       node: RealizedAssembly,
       depth: number
     ): Promise<RealizedAssembly | undefined> {
-      if (isLeaf(node)) {
+      if (isRealizedLeaf(node)) {
         return ensureDimension(callbackFn(node, depth));
       }
       // This is a branch node
@@ -401,7 +381,7 @@ async function assemblyMap(
 async function assemblyAsIterable(assembly: RealizedAssembly) {
   const result: RealizedAssembly[] = [];
   const helper = (assembly: RealizedAssembly) => {
-    if (isLeaf(assembly)) {
+    if (isRealizedLeaf(assembly)) {
       result.push(assembly);
     } else {
       assembly.geometry.forEach((child) => helper(child));
@@ -433,54 +413,6 @@ function logError(error: Error, context: string) {
   }
   console.error("full error:");
   console.error(error);
-}
-
-async function realizeAssembly(
-  assembly: AbundanceObject
-): Promise<RealizedAssembly> {
-  if (util.isLeaf(assembly)) {
-    return {
-      ...assembly,
-      geometry: [await util.geometryProvider!.get(assembly.geometry)],
-      plane: util.asReplicadPlane(assembly.plane),
-    };
-  } else {
-    const children = await Promise.all(
-      (assembly.geometry as AbundanceObject[]).map(async (child) => {
-        return await realizeAssembly(child);
-      })
-    );
-    return {
-      ...assembly,
-      geometry: children,
-      plane: util.asReplicadPlane(assembly.plane),
-    };
-  }
-}
-
-async function cacheAssembly(
-  assembly: RealizedAssembly
-): Promise<AbundanceObject> {
-  if (isLeaf(assembly)) {
-    return {
-      ...assembly,
-      geometry: await util.geometryProvider!.addSingularToCache(
-        assembly.geometry[0]
-      ),
-      plane: assembly.plane ? util.asSimplePlane(assembly.plane) : util.XYPlane,
-    };
-  } else {
-    const children = await Promise.all(
-      (assembly.geometry as RealizedAssembly[]).map(async (child) => {
-        return await cacheAssembly(child);
-      })
-    );
-    return {
-      ...assembly,
-      geometry: children,
-      plane: assembly.plane ? util.asSimplePlane(assembly.plane) : util.XYPlane,
-    };
-  }
 }
 
 export { executeCode };
