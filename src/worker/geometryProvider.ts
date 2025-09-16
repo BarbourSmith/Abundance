@@ -330,7 +330,7 @@ class GeometryProvider {
 
   private _makeId(type: string, ...args: any[]) {
     args = args.map((arg) => {
-      return JSON.stringify(arg);
+      return typeof arg === "string" ? arg : JSON.stringify(arg);
     });
     const key = [type, ...args].flat(Infinity).join("-");
     return key;
