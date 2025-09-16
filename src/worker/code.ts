@@ -290,9 +290,10 @@ async function executeCode(
     });
 
     return await Promise.race([
-      userFunction(...inputValues),
+      ensureDimension(userFunction(...inputValues)),
       timeoutPromise,
     ]).then((result) => {
+      //@ts-ignore
       return cacheAssembly(result);
     });
   } catch (error) {
