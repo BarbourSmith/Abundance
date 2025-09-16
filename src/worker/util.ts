@@ -33,7 +33,6 @@ type AbundanceObject = AbundanceLeaf | AbundanceBranch;
 
 interface AbundanceBranch {
   geometry: AbundanceObject[];
-  dimension: "2D" | "3D" | "Wire";
   plane: SimplePlane;
   color: string;
   tags: string[];
@@ -154,7 +153,7 @@ function actOnLeafsSync(
 
 async function actOnLeafs(
   assembly: AbundanceObject,
-  action: (leaf: AbundanceLeaf) => AbundanceObject | Promise<AbundanceObject>,
+  action: (leaf: AbundanceLeaf) => AbundanceLeaf | Promise<AbundanceLeaf>,
   plane?: SimplePlane
 ): Promise<AbundanceObject> {
   if (!isAbundanceObject(assembly)) {
@@ -179,7 +178,6 @@ async function actOnLeafs(
       color: assembly.color,
       tags: assembly.tags,
       bom: assembly.bom,
-      dimension: assembly.dimension,
     };
   }
 }
@@ -219,19 +217,8 @@ function isWireGeometry(inputs: AbundanceObject): boolean {
   }
 }
 
-function isAssembly(part: any): part is AbundanceBranch {
-  if (part == undefined || part.geometry == undefined) {
-    return false;
-  }
-  if (part.geometry.length > 0) {
-    if (part.geometry[0].geometry) {
-      return true;
-    } else {
-      return false;
-    }
-  } else {
-    return false;
-  }
+function isAssembly(part: AbundanceObject): part is AbundanceBranch {
+  return Array.isArray(part.geometry);
 }
 
 // Translate string representation to a replicad plane

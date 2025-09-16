@@ -44,7 +44,7 @@ async function move(
       async (leaf: AbundanceLeaf) => {
         return {
           geometry: await util.geometryProvider!.move(leaf.geometry, x, y, z),
-          dimension: toMove.dimension,
+          dimension: leaf.dimension,
           plane: leaf.plane,
           tags: leaf.tags,
           color: leaf.color,
@@ -64,7 +64,7 @@ async function move(
       async (leaf: AbundanceLeaf) => {
         return {
           geometry: await util.geometryProvider!.move(leaf.geometry, x, y),
-          dimension: toMove.dimension,
+          dimension: leaf.dimension,
           tags: leaf.tags,
           plane: zTranslate(leaf.plane, z),
           color: leaf.color,
@@ -90,7 +90,7 @@ async function rotate(
     return util.actOnLeafs(toRotate, async (leaf: AbundanceLeaf) => {
       return {
         geometry: await util.geometryProvider!.rotate(leaf.geometry, x, y, z),
-        dimension: toRotate.dimension,
+        dimension: leaf.dimension,
         tags: leaf.tags,
         plane: leaf.plane,
         color: leaf.color,
@@ -101,7 +101,7 @@ async function rotate(
     return util.actOnLeafs(toRotate, async (leaf: AbundanceLeaf) => {
       return {
         geometry: await util.geometryProvider!.rotate(leaf.geometry, 0, 0, z),
-        dimension: toRotate.dimension,
+        dimension: leaf.dimension,
         tags: leaf.tags,
         plane: util.asSimplePlane(
           util.asReplicadPlane(leaf.plane).pivot(z, "X").pivot(y, "Y")

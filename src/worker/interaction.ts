@@ -152,7 +152,7 @@ async function intersect(
 /**
  * Return the boolean union between all entries in shapes.
  */
-async function fusion(shapes: AbundanceObject[]): Promise<AbundanceObject> {
+async function fusion(shapes: AbundanceObject[]): Promise<AbundanceLeaf> {
   const all2D = shapes.every((shape) => !util.is3D(shape));
   const all3D = shapes.every((shape) => util.is3D(shape));
   if (!all2D && !all3D) {
@@ -164,8 +164,8 @@ async function fusion(shapes: AbundanceObject[]): Promise<AbundanceObject> {
   if (shapes.length === 0) {
     throw new Error("No shapes provided for fusion");
   }
-
-  let fusedGeometry = (await digFuse(shapes[0])).geometry;
+  const digFused = await digFuse(shapes[0]);
+  let fusedGeometry = digFused.geometry;
   let bomAssembly = shapes[0].bom ? shapes[0].bom.slice() : [];
   for (let i = 1; i < shapes.length; i++) {
     fusedGeometry = await util.geometryProvider!.fuse(
@@ -183,7 +183,7 @@ async function fusion(shapes: AbundanceObject[]): Promise<AbundanceObject> {
     bom: bomAssembly,
     plane: util.XYPlane,
     color: util.defaultColor,
-    dimension: shapes[0].dimension,
+    dimension: digFused.dimension,
   };
 }
 
@@ -234,8 +234,9 @@ async function assembly(
     geometry: assembly,
     plane: util.XYPlane,
     tags: [],
+    color: util.defaultColor,
     bom: bomAssembly,
-    dimension: geometries[0].dimension,
+    dimension: all3D ? "3D" : "2D",
   };
 }
 
@@ -255,10 +256,10 @@ async function digFuse(assembly: AbundanceObject): Promise<AbundanceLeaf> {
   for (let i = 1; i < flattened.length; i++) {
     result = await util.geometryProvider!.fuse(result, flattened[i].geometry);
   }
-  // TODO: should this be the union of all tags on all leafs?
+  // TODO(tristan): should this be the union of all tags on all leafs?
   return {
     geometry: result,
-    dimension: assembly.dimension,
+    dimension: flattened[0].dimension,
     tags: assembly.tags,
     plane: assembly.plane,
     color: assembly.color,
@@ -296,13 +297,11 @@ async function cutAssembly(
 
       //returns new assembly that has been cut
       const newAssembly = {
-        //TODO(tristan): Shouldn't we be copying color and plane here?
         geometry: assemblyCut,
         tags: partToCut.tags,
         bom: partToCut.bom,
         plane: partToCut.plane,
         color: partToCut.color,
-        dimension: partToCut.dimension,
       };
       return newAssembly;
     } else {
