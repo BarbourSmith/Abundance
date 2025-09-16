@@ -283,8 +283,10 @@ export default class CutLayout extends Atom {
           this.uniqueID,
           inputID,
           proxy((progress, cancelationHandle) => {
-            this.progress = progress;
-            this.cancelationHandle = cancelationHandle;
+            if (this.getState().status == Status.PROCESSING) {
+              this.progress = progress;
+              this.cancelationHandle = cancelationHandle;
+            }
           }),
           proxy((message) => {
             this.setWarning(message);
@@ -314,6 +316,19 @@ export default class CutLayout extends Atom {
     }
   }
 
+  haltAndDisplay() {
+    if (this.cancelationHandle) {
+      this.cancelationHandle();
+      this.cancelationHandle = undefined;
+    }
+    this.progress = 1.0;
+    if (this.placements != undefined) {
+      this.displayLayout(true);
+    } else {
+      this.setWaiting();
+    }
+  }
+
   createInputParams(setInputChanged) {
     this.setInputChanged = setInputChanged;
     const placements = this.getPlacements();
@@ -328,14 +343,7 @@ export default class CutLayout extends Atom {
           : "Compute Layout",
       onClick: () => {
         if (this.getState().status == Status.PROCESSING) {
-          if (this.cancelationHandle) {
-            this.cancelationHandle();
-            this.cancelationHandle = undefined;
-            console.log("Cancelled layout");
-          } else {
-            console.log("No cancelation handle... uh oh");
-          }
-          this.setWaiting();
+          this.haltAndDisplay();
         } else {
           this.updateValueButton();
         }
