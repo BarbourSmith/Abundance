@@ -306,7 +306,7 @@ async function cutAssembly(
       let partCutCopy = partToCut;
       for (const cuttingPart of cuttingParts) {
         // for each cutting part cut the part
-        partCutCopy = await recursiveCut(partToCut, cuttingPart);
+        partCutCopy = await recursiveCut(partCutCopy, cuttingPart);
       }
       // return new cut part, expand compound solid if it was cut into disconnected
       // parts
