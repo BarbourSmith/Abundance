@@ -37,14 +37,14 @@ class ObservableEntity {
         // for all long paths to be READY before they attempt to reprocess.
         this.status = Status.PROCESSING;
         this.value = null;
-        this.propagateChange();
+        this.propagateChange(this.subscribers);
       }
       console.debug(
         `Status change for ${this.name} (${this.uniqueID}): ${this.status} -> ${status}`
       );
       this.status = status;
       this.value = value;
-      this.propagateChange();
+      this.propagateChange(this.subscribers);
     }
   }
 
@@ -130,9 +130,9 @@ class ObservableEntity {
     };
   }
 
-  propagateChange() {
+  propagateChange(subscribers) {
     // Notify all subscribers of this atom that it has changed
-    Object.entries(this.subscribers).forEach(([id, subscriber]) => {
+    Object.entries(subscribers).forEach(([id, subscriber]) => {
       try {
         subscriber();
       } catch (error) {

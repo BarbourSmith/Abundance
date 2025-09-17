@@ -843,14 +843,17 @@ export default class Molecule extends Atom {
     }
   }
 
-  propagateChange() {
+  // Override behavior to avoid propagating downstream when this is the
+  // current molecule.
+  propagateChange(subscribers) {
     if (this == GlobalVariables.currentMolecule) {
-      // This is the output of the currently focused molecule
-      // don't dispatch changes upstream because those entities aren't
-      // shown.
-      return;
+      // Only propagate to self-subscriber
+      super.propagateChange({
+        "self-subscriber": this.selfSubscriber.bind(this),
+      });
+    } else {
+      super.propagateChange(subscribers);
     }
-    super.propagateChange();
   }
 
   changeUnits(newUnitsIndex) {
