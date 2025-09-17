@@ -633,15 +633,6 @@ function downExport(
   });
 }
 
-function is3dshape(shape: AnyShape | replicad.Drawing): shape is Shape3D {
-  return [
-    replicad.Solid,
-    replicad.Compound,
-    replicad.Shell,
-    replicad.CompSolid,
-  ].some((type) => shape instanceof type);
-}
-
 /**
  * Imports a STEP file and stores the resulting geometry in the library.
  * @param {string} targetID - The unique identifier to store the imported geometry in the library
@@ -650,7 +641,7 @@ function is3dshape(shape: AnyShape | replicad.Drawing): shape is Shape3D {
  */
 async function importingSTEP(targetID: string, file: File) {
   let STEPresult = await util.replicad.importSTEP(file);
-  if (!is3dshape(STEPresult)) {
+  if (!util.is3dshape(STEPresult)) {
     throw new Error(
       "Imported STEP file describes a " +
         typeof STEPresult +
@@ -677,7 +668,7 @@ async function importingSTEP(targetID: string, file: File) {
  */
 async function importingSTL(targetID: string, file: File) {
   let STLresult = await util.replicad.importSTL(file);
-  if (!is3dshape(STLresult)) {
+  if (!util.is3dshape(STLresult)) {
     throw new Error(
       "Imported STL file describes a " +
         typeof STLresult +
@@ -832,7 +823,10 @@ async function generateThumbnail(inputID: string): Promise<string> {
       );
       let projectionShape;
       let svg;
-      if (is3dshape(fusedGeometry) || fusedGeometry instanceof replicad.Wire) {
+      if (
+        util.is3dshape(fusedGeometry) ||
+        fusedGeometry instanceof replicad.Wire
+      ) {
         projectionShape = prettyProjection(fusedGeometry);
         svg = projectionShape.visible.toSVG();
       } else {

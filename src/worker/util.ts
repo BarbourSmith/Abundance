@@ -209,6 +209,17 @@ function generateUniqueID(): string {
   return uuidv4();
 }
 
+function is3dshape(
+  shape: replicad.AnyShape | replicad.Drawing
+): shape is replicad.Shape3D {
+  return [
+    replicad.Solid,
+    replicad.Compound,
+    replicad.Shell,
+    replicad.CompSolid,
+  ].some((type) => shape instanceof type);
+}
+
 function isWireGeometry(inputs: AbundanceObject): boolean {
   if (isAssembly(inputs)) {
     return inputs.geometry.some((input: any) => isWireGeometry(input));
@@ -327,4 +338,5 @@ export {
   isLeaf,
   isRealizedLeaf,
   actOnLeafsSync,
+  is3dshape,
 };

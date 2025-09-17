@@ -1,6 +1,6 @@
 import { GeometryProvider, ReplicadObject } from "./geometryProvider";
 import * as util from "./util";
-import { Sketches, Shape3D, Solid, Drawing } from "replicad";
+import { Compound, Shape3D, Solid, Drawing } from "replicad";
 import { AbundanceObject, AbundanceLeaf } from "./util";
 
 /**
@@ -66,14 +66,7 @@ function difference(
   ) {
     // Process each leaf of target independently
     return util.actOnLeafs(target, async (leaf: AbundanceLeaf) => {
-      return {
-        geometry: await recursiveCut(leaf, cutter),
-        tags: leaf.tags,
-        color: leaf.color,
-        plane: leaf.plane,
-        bom: leaf.bom,
-        dimension: leaf.dimension,
-      };
+      return await recursiveCut(leaf, cutter);
     });
   } else {
     throw new Error("Both inputs must be either 3D or 2D");
@@ -217,7 +210,6 @@ async function assembly(
         }
       }
     } else {
-      console.trace("assembly error. inputs: " + geometries);
       throw new Error(
         "Assemblies must be composed from only sketches OR only solids"
       );
@@ -311,58 +303,14 @@ async function cutAssembly(
       }
 
       // if part to cut is a single part send to cutting function with cutting parts
-      let partCutCopy = partToCut.geometry;
+      let partCutCopy = partToCut;
       for (const cuttingPart of cuttingParts) {
         // for each cutting part cut the part
         partCutCopy = await recursiveCut(partToCut, cuttingPart);
       }
-      /*   if the part is a compound return each solid as a new assembly */
-      async function getSolids(compound: any): Promise<Solid[]> {
-        const compoundObj = (await util.geometryProvider!.get(
-          compound
-        )) as Shape3D;
-        return Array.from(
-          util.replicad.iterTopo(compoundObj.wrapped, "solid"),
-          (s) => new Solid(s)
-        );
-      }
-      const partCutCopyObj = (await util.geometryProvider!.get(
-        partCutCopy
-      )) as Shape3D;
-      if (partCutCopyObj.wrapped) {
-        let solids = await getSolids(partCutCopy);
-        if (solids.length > 1) {
-          let newAssembly: any[] = [];
-          solids.forEach((solid) => {
-            newAssembly.push({
-              geometry: solid,
-              tags: partToCut.tags,
-              color: partToCut.color,
-              bom: partToCut.bom,
-              plane: partToCut.plane,
-              dimension: partToCut.dimension,
-            });
-          });
-          // return new cut part
-          return {
-            geometry: newAssembly,
-            tags: partToCut.tags,
-            color: partToCut.color,
-            bom: partToCut.bom,
-            plane: partToCut.plane,
-            dimension: partToCut.dimension,
-          };
-        }
-      }
-      // return new cut part
-      return {
-        geometry: partCutCopy,
-        tags: partToCut.tags,
-        color: partToCut.color,
-        bom: partToCut.bom,
-        plane: partToCut.plane,
-        dimension: partToCut.dimension,
-      };
+      // return new cut part, expand compound solid if it was cut into disconnected
+      // parts
+      return splitCompSolid(partCutCopy);
     }
   } catch (e: any) {
     console.log(e);
@@ -391,9 +339,9 @@ async function cutAssembly(
 async function recursiveCut(
   partToCut: AbundanceLeaf,
   cuttingParts: AbundanceObject
-): Promise<string> {
+): Promise<AbundanceLeaf> {
   if (util.isWireGeometry(partToCut)) {
-    return partToCut.geometry;
+    return partToCut;
   }
 
   let resultGeomId: string = partToCut.geometry;
@@ -417,8 +365,39 @@ async function recursiveCut(
       cuttingPart.geometry
     );
   }
-  // TODO: Should this return toCutGeom or partToCut?
-  return resultGeomId;
+  const result = {
+    ...partToCut,
+    geometry: resultGeomId,
+  };
+  return result;
+}
+
+async function splitCompSolid(part: AbundanceLeaf): Promise<AbundanceObject> {
+  const subPartIds = await util.geometryProvider!.expandCompoundShape(
+    part.geometry
+  );
+  if (subPartIds.length <= 1) {
+    return part;
+  }
+
+  const resultGeoms = [];
+  for (const id of subPartIds) {
+    resultGeoms.push({
+      geometry: id,
+      tags: part.tags,
+      color: part.color,
+      bom: part.bom,
+      plane: part.plane,
+      dimension: part.dimension,
+    });
+  }
+  return {
+    geometry: resultGeoms,
+    tags: part.tags,
+    color: part.color,
+    bom: part.bom,
+    plane: part.plane,
+  };
 }
 
 export {

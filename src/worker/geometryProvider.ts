@@ -116,6 +116,22 @@ class GeometryProvider {
     return id;
   }
 
+  async expandCompoundShape(id: string): Promise<string[]> {
+    const compound = await this.get(id);
+    if (!(compound instanceof replicad.Compound)) {
+      return [id];
+    }
+    const ids = [];
+    for (const solid of replicad.iterTopo(compound.wrapped, "solid")) {
+      const partId = this._makeId("expand", ids.length, id);
+      this.createIfAbsent(partId, async () => {
+        return this.as3dShapeOrThrow(new replicad.Solid(solid));
+      });
+      ids.push(partId);
+    }
+    return ids;
+  }
+
   /**
    * Extrudes a 2D shape into a 3D volume.
    * @param inputId - The ID of the 2D geometry to extrude
