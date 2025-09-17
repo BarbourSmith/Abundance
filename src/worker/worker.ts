@@ -641,7 +641,7 @@ function downExport(
  */
 async function importingSTEP(targetID: string, file: File) {
   let STEPresult = await util.replicad.importSTEP(file);
-  if (!util.is3dshape(STEPresult)) {
+  if (!util.geometryProvider!.isShape3D(STEPresult)) {
     throw new Error(
       "Imported STEP file describes a " +
         typeof STEPresult +
@@ -668,7 +668,7 @@ async function importingSTEP(targetID: string, file: File) {
  */
 async function importingSTL(targetID: string, file: File) {
   let STLresult = await util.replicad.importSTL(file);
-  if (!util.is3dshape(STLresult)) {
+  if (!util.geometryProvider!.isShape3D(STLresult)) {
     throw new Error(
       "Imported STL file describes a " +
         typeof STLresult +
@@ -824,7 +824,7 @@ async function generateThumbnail(inputID: string): Promise<string> {
       let projectionShape;
       let svg;
       if (
-        util.is3dshape(fusedGeometry) ||
+        util.geometryProvider!.isShape3D(fusedGeometry) ||
         fusedGeometry instanceof replicad.Wire
       ) {
         projectionShape = prettyProjection(fusedGeometry);

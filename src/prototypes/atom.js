@@ -870,9 +870,8 @@ export default class Atom extends ObservableEntity {
 
     // Handle empty or whitespace-only equations gracefully
     if (!substitutedEquation) {
-      throw new Error(
-        "Empty mathematical expression. Please enter a valid expression."
-      );
+      // If the equation is empty, treat it as zero
+      substitutedEquation = "0";
     }
 
     const variables = this.extractVariablesFromEquation(substitutedEquation);

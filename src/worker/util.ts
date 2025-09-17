@@ -53,7 +53,7 @@ interface AbundanceLeaf {
  * materialize the assembly so that replicad operations
  * can be performed in batch before being re-cached.
  *
- * Specifically, for code and for cutlayout
+ * Specifically, for code atoms.
  */
 type RealizedAssembly = RealizedLeaf | RealizedBranch;
 
@@ -209,17 +209,6 @@ function generateUniqueID(): string {
   return uuidv4();
 }
 
-function is3dshape(
-  shape: replicad.AnyShape | replicad.Drawing
-): shape is replicad.Shape3D {
-  return [
-    replicad.Solid,
-    replicad.Compound,
-    replicad.Shell,
-    replicad.CompSolid,
-  ].some((type) => shape instanceof type);
-}
-
 function isWireGeometry(inputs: AbundanceObject): boolean {
   if (isAssembly(inputs)) {
     return inputs.geometry.some((input: any) => isWireGeometry(input));
@@ -338,5 +327,4 @@ export {
   isLeaf,
   isRealizedLeaf,
   actOnLeafsSync,
-  is3dshape,
 };
