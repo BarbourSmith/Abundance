@@ -190,7 +190,7 @@ export default class CutLayout extends Atom {
     const placements = this.getPlacements();
 
     if (this.inputsAreReady()) {
-      var inputID = this.findIOValue("geometry");
+      var inputGeom = this.findIOValue("geometry");
       var sheetWidth = this.findIOValue("Sheet Width");
       var sheetHeight = this.findIOValue("Sheet Height");
       var partPadding = this.findIOValue("Part Padding");
@@ -198,8 +198,7 @@ export default class CutLayout extends Atom {
       this.setProcessing();
       return GlobalVariables.cad
         .displayLayout(
-          this.uniqueID,
-          inputID,
+          inputGeom,
           placements,
           proxy((message) => {
             // TODO(tristan): warnings get cleared whenever we setReady.
@@ -268,20 +267,19 @@ export default class CutLayout extends Atom {
         this.cancelationHandle();
       }
       this.setProcessing();
-      var inputID = this.findIOValue("geometry");
+      var inputGeom = this.findIOValue("geometry");
       var sheetWidth = this.findIOValue("Sheet Width");
       var sheetHeight = this.findIOValue("Sheet Height");
       var partPadding = this.findIOValue("Part Padding");
 
-      if (!inputID) {
+      if (!inputGeom) {
         this.setError('"geometry" input is missing');
         return;
       }
 
       GlobalVariables.cad
         .layout(
-          this.uniqueID,
-          inputID,
+          inputGeom,
           proxy((progress, cancelationHandle) => {
             if (this.getState().status == Status.PROCESSING) {
               this.progress = progress;
@@ -305,7 +303,8 @@ export default class CutLayout extends Atom {
           },
           this.placements
         )
-        .then((positions) => {
+        .then((layoutAndPositions) => {
+          const [layout, positions] = layoutAndPositions;
           this.handleNewPlacements(positions, true);
         })
         .catch(this.alertingErrorHandler())

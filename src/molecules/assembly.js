@@ -120,7 +120,7 @@ export default class Assembly extends Atom {
       .filter((io) => io.connectors.length > 0)
       .map((io) => inputs[io.name])
       .filter(Boolean);
-    return GlobalVariables.cad.assembly(nonnullInputIds, this.uniqueID);
+    return GlobalVariables.cad.assembly(nonnullInputIds);
   }
 
   /**

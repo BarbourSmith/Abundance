@@ -110,7 +110,7 @@ export default class Tag extends Atom {
   compute(inputs) {
     const inputID = inputs.geometry;
     const tags = this.tags;
-    return GlobalVariables.cad.tag(this.uniqueID, inputID, tags);
+    return GlobalVariables.cad.tag(inputID, tags);
   }
 
   /**

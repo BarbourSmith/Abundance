@@ -101,7 +101,7 @@ export default class Color extends Atom {
    */
   compute(inputs) {
     const color = Object.values(this.colorOptions)[this.selectedColorIndex];
-    return GlobalVariables.cad.color(this.uniqueID, inputs.geometry, color);
+    return GlobalVariables.cad.color(inputs.geometry, color);
   }
 
   createInputParams() {

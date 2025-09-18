@@ -74,8 +74,8 @@ export default class Difference extends Atom {
    * Compute the difference of two geometries.
    */
   compute(inputs) {
-    const input1ID = inputs.geometry1;
-    const input2ID = inputs.geometry2;
-    return GlobalVariables.cad.difference(this.uniqueID, input1ID, input2ID);
+    const input1 = inputs.geometry1;
+    const input2 = inputs.geometry2;
+    return GlobalVariables.cad.difference(input1, input2);
   }
 }

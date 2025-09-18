@@ -229,7 +229,7 @@ export default class Code extends Atom {
    * Grab the code as a text string and execute it.
    */
   compute(argumentsArray) {
-    return GlobalVariables.cad.code(this.uniqueID, this.code, argumentsArray);
+    return GlobalVariables.cad.code(this.code, argumentsArray);
   }
 
   /**

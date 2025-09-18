@@ -122,9 +122,8 @@ export default class ExtractTag extends Atom {
   }
 
   compute(inputs) {
-    const inputID = inputs.input;
-    console.log("extracting tag", this.tag, "from input geom: ", inputID);
-    return GlobalVariables.cad.extractTag(this.uniqueID, inputID, this.tag);
+    const input = inputs.input;
+    return GlobalVariables.cad.extractTag(input, this.tag);
   }
 
   /**

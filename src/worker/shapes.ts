@@ -14,6 +14,7 @@ import { AbundanceLeaf } from "./util";
  * @returns Assembly containing a circle on the XY plane
  */
 async function circle(diameter: number): Promise<AbundanceLeaf> {
+  await util.init();
   return {
     geometry: await util.geometryProvider!.drawCircle(diameter / 2),
     dimension: "2D",
@@ -31,6 +32,7 @@ async function circle(diameter: number): Promise<AbundanceLeaf> {
  * @returns Assembly containing a rectangle on the XY plane
  */
 async function rectangle(x: number, y: number): Promise<AbundanceLeaf> {
+  await util.init();
   return {
     geometry: await util.geometryProvider!.drawRectangle(x, y),
     dimension: "2D",
@@ -57,6 +59,7 @@ async function regularPolygon(
   if (numberOfSides % 1.0 !== 0) {
     throw new Error("Number of sides must be an integer.");
   }
+  await util.init();
   return {
     geometry: await util.geometryProvider!.drawPolysides(radius, numberOfSides),
     dimension: "2D",
@@ -80,6 +83,7 @@ async function textGeom(
   fontSize: number,
   fontFamily: string
 ): Promise<AbundanceLeaf> {
+  await util.init();
   await util.replicad.loadFont(Fonts[fontFamily as keyof typeof Fonts]);
   return {
     geometry: await util.geometryProvider!.drawText(text, {

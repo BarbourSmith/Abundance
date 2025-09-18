@@ -104,7 +104,6 @@ export default class shrinkWrap extends Atom {
       .filter(Boolean);
 
     return GlobalVariables.cad.shrinkWrapSketches(
-      this.uniqueID,
       nonnullInputIds
     );
   }

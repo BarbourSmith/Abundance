@@ -80,6 +80,6 @@ export default class Move extends Atom {
     const x = inputs.xDist;
     const y = inputs.yDist;
     const z = inputs.zDist;
-    return GlobalVariables.cad.move(inputID, x, y, z, this.uniqueID);
+    return GlobalVariables.cad.move(inputID, x, y, z);
   }
 }

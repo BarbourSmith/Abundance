@@ -2,14 +2,29 @@ import { expose } from "comlink";
 import type { AnyShape, Edge, Shape3D, ShapeMesh } from "replicad";
 import * as replicad from "replicad";
 import { drawSVG } from "replicad-decorate";
-import * as actions from "./actions";
-import * as codeLib from "./code";
-import type { LayoutConfig, Placement } from "./cutlayout";
-import * as cutlayout from "./cutlayout";
+import { chamfer, extrude, fillet, move, rotate, scale } from "./actions";
+import { executeCode as code } from "./code";
+import { displayLayout, layout } from "./cutlayout";
 import { ReplicadObject } from "./geometryProvider";
-import * as interaction from "./interaction";
-import * as shapes from "./shapes";
-import * as tags from "./tags";
+import {
+  assembly,
+  difference,
+  digFuse,
+  fusion,
+  intersect,
+  loftShapes,
+  shrinkWrapSketches,
+} from "./interaction";
+import { circle, rectangle, regularPolygon, text } from "./shapes";
+import {
+  bom,
+  color,
+  extractAllTags,
+  extractBomList,
+  extractKeepOut,
+  extractTag,
+  tag,
+} from "./tags";
 import type { AbundanceObject } from "./util";
 import * as util from "./util";
 
@@ -47,67 +62,6 @@ function getOrThrow(id: string): AbundanceObject {
   return library[id];
 }
 
-async function code(
-  targetID: string,
-  codeText: string,
-  argumentsArray: any[]
-): Promise<string> {
-  await started;
-  const result = await codeLib.executeCode(codeText, argumentsArray, library);
-  library[targetID] = result;
-  return targetID;
-}
-
-/**
- * Lay out the parts from inputID to be cut out from a sheet of material.
- */
-async function layout(
-  targetID: string,
-  inputID: string,
-  progressCallback: (progress: number, cancelCallback: () => void) => void,
-  warningCallback: (msg: string) => void,
-  placementCallback: (placements: Placement[][]) => void,
-  layoutConfig: LayoutConfig,
-  priorPlacements?: Placement[][]
-): Promise<Placement[][]> {
-  await started;
-  return cutlayout
-    .layout(
-      getOrThrow(inputID),
-      progressCallback,
-      warningCallback,
-      placementCallback,
-      layoutConfig,
-      priorPlacements
-    )
-    .then((resultArray: [AbundanceObject, Placement[][]]) => {
-      const [layedOutAssembly, positions] = resultArray;
-      library[targetID] = layedOutAssembly;
-      return positions;
-    });
-}
-
-/**
- * Lays out the parts of InputID according to the positions described in placements.
- */
-async function displayLayout(
-  targetID: string,
-  inputID: string,
-  placements: Placement[][],
-  warningCallback: (msg: string) => void,
-  layoutConfig: LayoutConfig
-): Promise<string> {
-  await started;
-  const result = await cutlayout.displayLayout(
-    getOrThrow(inputID),
-    placements,
-    warningCallback,
-    layoutConfig
-  );
-  library[targetID] = result;
-  return targetID;
-}
-
 /**
  * Deletes a geometry from the library.
  * @param inputID - The library ID to delete.
@@ -127,353 +81,6 @@ function deleteFromLibrary(inputID: string): Promise<void> {
 function createMesh(thickness: number): Promise<any[]> {
   return started.then(() => {
     return [];
-  });
-}
-
-/**
- * Creates a circle geometry and stores it in the library.
- * @param id - The unique identifier for the circle.
- * @param diameter - The diameter of the circle.
- * @returns {Promise<string>}
- */
-async function circle(id: string, diameter: number): Promise<string> {
-  await started;
-  library[id] = await shapes.circle(diameter);
-  return id;
-}
-
-/**
- * Creates a rectangle geometry and stores it in the library.
- * @param targetID - The unique identifier for the rectangle.
- * @param x - The width of the rectangle.
- * @param y - The height of the rectangle.
- * @returns {Promise<string>}
- */
-async function rectangle(x: number, y: number): Promise<AbundanceObject> {
-  await started;
-  return await shapes.rectangle(x, y);
-}
-
-/**
- * Creates a regular polygon geometry and stores it in the library.
- * @param id - The unique identifier for the polygon.
- * @param radius - The radius of the polygon.
- * @param numberOfSides - The number of sides.
- * @returns {Promise<string>}
- */
-async function regularPolygon(
-  id: string,
-  radius: number,
-  numberOfSides: number
-): Promise<string> {
-  await started;
-  library[id] = await shapes.regularPolygon(radius, numberOfSides);
-  return id;
-}
-
-/**
- * Creates text geometry and stores it in the library.
- * @param id - The unique identifier for the text geometry.
- * @param text - The text content.
- * @param fontSize - The font size.
- * @param fontFamily - The font family.
- * @returns {Promise<string>}
- */
-async function text(
-  id: string,
-  text: string,
-  fontSize: number,
-  fontFamily: string
-): Promise<string> {
-  await started;
-  const result = await shapes.text(text, fontSize, fontFamily);
-  library[id] = result;
-  return id;
-}
-
-/**
- * Creates a loft shape by blending between multiple 2D sketches and stores it in the library.
- * @param {string} targetID - The unique identifier to store the lofted geometry in the library
- * @param {string[]} inputsIDs - Array of library IDs containing 2D sketches to be lofted
- * @returns {Promise<string>} A promise that resolves to the ID of the created loft geometry
- * @throws {Error} Throws an error if input parts are not sketches or contain interior geometries
- */
-async function loftShapes(
-  targetID: string,
-  inputsIDs: string[]
-): Promise<string> {
-  await started;
-  library[targetID] = await interaction.loftShapes(
-    (inputsIDs || []).map(getOrThrow)
-  );
-  return targetID;
-}
-
-/**
- * Extrudes a 2D sketch to create a 3D geometry with the specified height and stores it in the library.
- * @param {string} targetID - The unique identifier to store the extruded geometry in the library
- * @param {string} inputID - The library ID of the 2D sketch to be extruded
- * @param {number} height - The height to extrude the sketch
- * @returns {Promise<boolean>} A promise that resolves to true when the extrusion is completed successfully
- */
-async function extrude(
-  input: AbundanceObject,
-  height: number
-): Promise<AbundanceObject> {
-  await started;
-  return await actions.extrude(input, height);
-}
-
-/**
- * Moves a geometry by the specified x, y, and z distances.
- * @param {string} geom - The library ID of the geometry to move
- * @param {number} x - The distance to move along the x-axis
- * @param {number} y - The distance to move along the y-axis
- * @param {number} z - The distance to move along the z-axis
- * @param {string|null} targetID - The ID to store the result in the library. If null, the result is returned
- * @returns {Promise<boolean|Object>} A promise that resolves to the moved geometry, or true if targetID is provided
- */
-async function move(
-  geom: string,
-  x: number,
-  y: number,
-  z: number,
-  targetID: string
-): Promise<string | boolean> {
-  await started;
-  const result = await actions.move(getOrThrow(geom), x, y, z);
-  library[targetID] = result;
-  return targetID;
-}
-
-/**
- * Function to rotate a geometry around the x, y, and z axis
- * @param {string} inputId - Library ID of the geometry to rotate
- * @param {number} x - The angle to rotate around the x axis
- * @param {number} y - The angle to rotate around the y axis
- * @param {number} z - The angle to rotate around the z axis
- * @param {string} targetID - The ID to store the result in. If it undefined the result will be returned instead
- * @returns {Promise<boolean|Object>} A promise that resolves to the rotated geometry or true if targetID is provided
- **/
-async function rotate(
-  geom: string,
-  x: number,
-  y: number,
-  z: number,
-  targetID: string
-): Promise<string | boolean> {
-  await started;
-
-  const result = await actions.rotate(getOrThrow(geom), x, y, z);
-  library[targetID] = result;
-  return targetID;
-}
-
-/**
- * Scales a geometry by the specified scale factor.
- * @param {string} inputId - libraryId of the geometry to scale
- * @param {number} scaleFactor - The scale factor to apply (1.0 = no change, 2.0 = double size, 0.5 = half size)
- * @param {string|null} targetID - The ID to store the result in the library. If null, the result is returned
- * @returns {Promise<boolean|Object>} A promise that resolves to the scaled geometry, or true if targetID is provided
- */
-async function scale(
-  geom: string,
-  scaleFactor: number,
-  targetID: string
-): Promise<string | boolean> {
-  await started;
-
-  const result = await actions.scale(getOrThrow(geom), scaleFactor);
-  library[targetID] = result;
-  return targetID;
-}
-
-/**
- * Applies a fillet (rounded edge) to the input geometry.
- * @param {string} inputId - inputId of the geometry to fillet
- * @param {number} radius - The radius of the fillet
- * @param {string|null} targetID - The ID to store the result in the library. If null, the result is returned
- * @returns {Promise<boolean|Object>} A promise that resolves to the filleted geometry or true if targetID is provided
- */
-async function fillet(
-  geom: string,
-  radius: number,
-  targetID: string
-): Promise<string | boolean> {
-  await started;
-
-  const result = await actions.fillet(getOrThrow(geom), radius);
-  library[targetID] = result;
-  return targetID;
-}
-
-/**
- * Applies a chamfer (beveled edge) to the input geometry.
- * @param {Object|string} geom - The geometry to chamfer, or library ID for same
- * @param {number} size - The size of the chamfer
- * @param {string|null} targetID - The ID to store the result in the library. If null, the result is returned
- * @returns {Promise<boolean|Object>} A promise that resolves to the chamfered geometry or true if targetID is provided
- */
-async function chamfer(
-  geom: string,
-  size: number,
-  targetID: string
-): Promise<string> {
-  await started;
-
-  const result = await actions.chamfer(getOrThrow(geom), size);
-  library[targetID] = result;
-  return targetID;
-}
-
-/**
- * Performs a boolean difference operation between two geometries.
- * This function subtracts the second geometry (cutter) from the first geometry (target).
- *
- * @param {string} targetID - The ID where the resulting geometry will be stored in the library
- * @param {string} input1ID - The ID of the base geometry from which material will be removed
- * @param {string} input2ID - The ID of the cutting geometry that will be subtracted
- * @returns {Promise<boolean>} - A promise that resolves to true when the operation completes
- * @throws {Error} - If the input geometries are not of the same type (both must be either 3D or 2D)
- *
- * The function maintains all metadata from the base geometry including tags, color, plane, and BOM.
- * If the base geometry is an assembly, the cut operation is applied to each leaf independently.
- * Uses bounding box checks to avoid processing cuts for non-overlapping geometries.
- */
-function difference(
-  targetID: string,
-  input1ID: string,
-  input2ID: string
-): Promise<string> {
-  return started.then(async () => {
-    library[targetID] = await interaction.difference(
-      getOrThrow(input1ID),
-      getOrThrow(input2ID)
-    );
-    return targetID;
-  });
-}
-
-/**
- * Creates a shrink-wrapped boundary around multiple 2D sketches and stores it in the library.
- * @param {string} targetID - The unique identifier to store the shrink-wrapped geometry in the library
- * @param {string[]} inputIDs - Array of library IDs containing 2D sketches to be shrink-wrapped
- * @returns {Promise<boolean>} A promise that resolves to true when the shrink wrapping is completed successfully
- * @throws {Error} Throws an error if inputs are not all sketches or if sketches have interior geometries
- */
-function shrinkWrapSketches(
-  targetID: string,
-  inputIDs: string[]
-): Promise<string> {
-  return started.then(async () => {
-    library[targetID] = await interaction.shrinkWrapSketches(
-      inputIDs.map(getOrThrow)
-    );
-    return targetID;
-  });
-}
-
-/**
- * Performs a boolean intersection operation between two geometries.
- * @param {string|Object} input1ID - The ID of the first geometry or the geometry object itself
- * @param {string|Object} input2ID - The ID of the second geometry or the geometry object itself
- * @param {string|null} targetID - The ID to store the result in the library. If null, the result is returned
- * @returns {Promise<boolean|Object>} A promise that resolves to true if targetID is provided, or the intersected geometry if targetID is null
- */
-function intersect(
-  input1ID: string,
-  input2ID: string,
-  targetID: string
-): Promise<string> {
-  return started.then(async () => {
-    const result = await interaction.intersect(
-      getOrThrow(input1ID),
-      getOrThrow(input2ID)
-    );
-    library[targetID] = result;
-    return targetID;
-  });
-}
-
-/**
- * Adds tags to a geometry and stores the tagged geometry in the library.
- * @param {string} targetID - The unique identifier to store the tagged geometry in the library
- * @param {string} inputID - The library ID of the geometry to tag
- * @param {string[]} TAG - Array of tags to add to the geometry
- * @returns {Promise<boolean>} A promise that resolves to true when the tagging is completed successfully
- */
-function tag(
-  targetID: string,
-  inputID: string,
-  TAG: string[]
-): Promise<string> {
-  return started.then(() => {
-    library[targetID] = tags.tag(getOrThrow(inputID), TAG);
-    return targetID;
-  });
-}
-
-/**
- * Extracts and returns all tags from a geometry and its subassemblies.
- * @param {string} inputID - The library ID of the geometry to extract tags from
- * @returns {Promise<string[]>} A promise that resolves to an array of all unique tags, with "Select Tag" as the first element
- * @throws {Error} Throws an error if the geometry with the specified ID is not found in the library
- */
-function extractAllTags(inputID: string): Promise<string[]> {
-  return started.then(() => {
-    return tags.extractAllTags(getOrThrow(inputID));
-  });
-}
-
-/**
- * Applies a color to a geometry and stores the colored geometry in the library.
- * @param {string} targetID - The unique identifier to store the colored geometry in the library
- * @param {string} inputID - The library ID of the geometry to color
- * @param {string} color - The color to apply to the geometry (hex color code)
- * @returns {Promise} A promise that resolves when the coloring operation is completed
- * @note If the color is "#D9544D", a "keepout" tag is automatically added to the geometry
- */
-function color(
-  targetID: string,
-  inputID: string,
-  color: string
-): Promise<string> {
-  return started.then(() => {
-    library[targetID] = tags.color(getOrThrow(inputID), color);
-    return targetID;
-  });
-}
-
-/**
- * Adds a Bill of Materials (BOM) entry to a geometry and stores it in the library.
- * @param {string} targetID - The unique identifier to store the geometry with BOM in the library
- * @param {string} inputID - The library ID of the geometry to add BOM entry to
- * @param {Object} BOM - The BOM entry to add to the geometry
- * @returns {Promise<boolean>} A promise that resolves to true when the BOM addition is completed successfully
- */
-function bom(targetID: string, inputID: string, BOM: any): Promise<string> {
-  return started.then(() => {
-    library[targetID] = tags.bom(getOrThrow(inputID), BOM);
-    return targetID;
-  });
-}
-
-/**
- * Extracts geometry with a specific tag and stores it in the library.
- * @param {string} targetID - The unique identifier to store the extracted geometry in the library
- * @param {string} inputID - The library ID of the geometry to extract from
- * @param {string} TAG - The specific tag to search for and extract
- * @returns {Promise<boolean>} A promise that resolves to true when the extraction is completed successfully
- * @throws {Error} Throws an error if the specified tag is not found in the geometry
- */
-function extractTag(
-  targetID: string,
-  inputID: string,
-  TAG: string
-): Promise<string> {
-  return started.then(() => {
-    library[targetID] = tags.extractTag(getOrThrow(inputID), TAG);
-    return targetID;
   });
 }
 
@@ -515,15 +122,6 @@ function molecule(targetID: string, inputID: string): Promise<string> {
 }
 
 /**
- * Extracts the Bill of Materials (BOM) list from a geometry.
- * @param {string} inputID - The library ID of the geometry to extract BOM from
- * @returns {Array|boolean} The BOM array if it exists, or false if BOM is undefined
- */
-function extractBomList(inputID: string): any[] | false {
-  return tags.extractBomList(getOrThrow(inputID));
-}
-
-/**
  * Prepares geometry for visualization export in various file formats (STL, STEP, SVG).
  * @param {string} targetID - The unique identifier to store the prepared export geometry in the library
  * @param {string} inputID - The library ID of the geometry to prepare for export
@@ -536,13 +134,13 @@ function visExport(
   fileType: string
 ): Promise<string> {
   return started.then(async () => {
-    let geometryToExport = tags.extractKeepOut(library[inputID]);
+    let geometryToExport = extractKeepOut(library[inputID]);
     if (!geometryToExport) {
       throw new Error(
         "Geometry To Export has no geometry after keepout is applied"
       );
     }
-    let fusedGeometry = await interaction.digFuse(geometryToExport);
+    let fusedGeometry = await digFuse(geometryToExport);
     let displayColor =
       fileType == "STL"
         ? "#91C8D5"
@@ -594,13 +192,13 @@ function downExport(
 ): Promise<Blob> {
   return started.then(async () => {
     // as with visexport, fuse the result before exporting.
-    let geometryToExport = tags.extractKeepOut(library[inputID]);
+    let geometryToExport = extractKeepOut(library[inputID]);
     if (!geometryToExport) {
       throw new Error(
         "Geometry To Export has no geometry after keepout is applied"
       );
     }
-    let fusedGeometry = await interaction.digFuse(geometryToExport);
+    let fusedGeometry = await digFuse(geometryToExport);
     const geom = await util.geometryProvider!.get(fusedGeometry.geometry);
     let scaleUnit = units == "Inches" ? 1 : units == "MM" ? 25.4 : 1;
     let scaling = svgResolution / scaleUnit;
@@ -807,33 +405,29 @@ const prettyProjection = (shape: Shape3D | replicad.Wire) => {
  * @returns {Promise<string>} A promise that resolves to an SVG string representing the thumbnail
  * @throws {Error} Throws an error if the geometry is undefined or thumbnail generation fails
  */
-async function generateThumbnail(inputID: string): Promise<string> {
+async function generateThumbnail(input: AbundanceObject): Promise<string> {
   return started.then(async () => {
-    if (library[inputID] != undefined) {
-      const fusedAssembly = await interaction.digFuse(library[inputID]);
-      const fusedGeometry = await util.geometryProvider!.get(
-        fusedAssembly.geometry
-      );
-      let projectionShape;
-      let svg;
-      if (
-        util.geometryProvider!.isShape3D(fusedGeometry) ||
-        fusedGeometry instanceof replicad.Wire
-      ) {
-        projectionShape = prettyProjection(fusedGeometry);
-        svg = projectionShape.visible.toSVG();
-      } else {
-        projectionShape = util.replicad.drawProjection(
-          fusedGeometry.sketchOnPlane("XY").extrude(0.0001),
-          "top"
-        ).visible;
-        svg = projectionShape.toSVG();
-      }
-      //let hiddenSvg = projectionShape.hidden.toSVGPaths();
-      return svg;
+    const fusedAssembly = await digFuse(input);
+    const fusedGeometry = await util.geometryProvider!.get(
+      fusedAssembly.geometry
+    );
+    let projectionShape;
+    let svg;
+    if (
+      util.geometryProvider!.isShape3D(fusedGeometry) ||
+      fusedGeometry instanceof replicad.Wire
+    ) {
+      projectionShape = prettyProjection(fusedGeometry);
+      svg = projectionShape.visible.toSVG();
     } else {
-      throw new Error("can't generate thumbnail for undefined geometry");
+      projectionShape = util.replicad.drawProjection(
+        fusedGeometry.sketchOnPlane("XY").extrude(0.0001),
+        "top"
+      ).visible;
+      svg = projectionShape.toSVG();
     }
+    //let hiddenSvg = projectionShape.hidden.toSVGPaths();
+    return svg;
   });
 }
 
@@ -884,32 +478,6 @@ async function extractParts(assemblyID: string): Promise<string[]> {
   return parts;
 }
 
-/**
- * A function which takes in an array of target geometries and forms them into an assembly
- * Geometries will cut all geometries below them in the list to make sure that no parts intersect
- * If the targetID is defined, the assembly will be stored in the library under that ID, otherwise it will be returned
- */
-async function assembly(inputIDs: string[], targetID: string): Promise<string> {
-  await started;
-  const result = await interaction.assembly(inputIDs.map(getOrThrow));
-  library[targetID] = result;
-  return targetID;
-}
-
-/**
- * Performs a boolean fusion (union) operation on multiple geometries and stores the result in the library.
- * @param {string} targetID - The unique identifier to store the fused geometry in the library
- * @param {string[]} inputIDs - Array of library IDs containing geometries to be fused together
- * @returns {Promise<boolean>} A promise that resolves to true when the fusion is completed successfully
- * @throws {Error} Throws an error if inputs are mixed between 2D and 3D geometries
- */
-function fusion(targetID: string, inputIDs: string[]): Promise<string> {
-  return started.then(async () => {
-    library[targetID] = await interaction.fusion(inputIDs.map(getOrThrow));
-    return targetID;
-  });
-}
-
 let colorOptions = {
   Default: util.defaultColor,
   Red: "#FF9065",
@@ -943,13 +511,8 @@ let colorOptions = {
  */
 async function generateDefaultMesh() {
   if (defaultMesh == undefined) {
-    const libId = await text(
-      "default-mesh",
-      "No output to display",
-      28,
-      "ROBOTO"
-    );
-    defaultMesh = await generateDisplayMesh(libId);
+    const defaultText = await text("No output to display", 28, "ROBOTO");
+    defaultMesh = await generateDisplayMesh(defaultText);
   }
   return defaultMesh;
 }

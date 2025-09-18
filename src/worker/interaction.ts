@@ -13,7 +13,10 @@ import { AbundanceLeaf, AbundanceObject } from "./util";
 /**
  * Create and return a lofted shape which blends between multiple 2D profile sketches.
  */
-async function loftShapes(sketches: AbundanceObject[]): Promise<any> {
+async function loftShapes(
+  sketches: AbundanceObject[]
+): Promise<AbundanceObject> {
+  await util.init();
   let arrayOfSketchedGeometry = await Promise.all(
     sketches.map(async (sketch) => {
       if (util.is3D(sketch)) {
@@ -33,15 +36,14 @@ async function loftShapes(sketches: AbundanceObject[]): Promise<any> {
       }
     })
   );
-  if (arrayOfSketchedGeometry.length == 0) {
+  let startGeometry = arrayOfSketchedGeometry.shift();
+  if (startGeometry === undefined) {
     throw new Error("No sketches provided for loft");
   }
 
-  let startGeometry = arrayOfSketchedGeometry.shift();
-
   return {
     geometry: await util.geometryProvider!.addSingularToCache(
-      startGeometry.loftWith([...arrayOfSketchedGeometry])
+      startGeometry.loftWith([...arrayOfSketchedGeometry], {})
     ),
     dimension: "3D",
     tags: [],
@@ -55,10 +57,11 @@ async function loftShapes(sketches: AbundanceObject[]): Promise<any> {
  * Performs a boolean difference operation between two geometries.
  * This function subtracts the second geometry (cutter) from the first geometry (target).
  */
-function difference(
+async function difference(
   target: AbundanceObject,
   cutter: AbundanceObject
 ): Promise<AbundanceObject> {
+  await util.init();
   if (
     (util.is3D(target) && util.is3D(cutter)) ||
     (!util.is3D(target) && !util.is3D(cutter))
@@ -78,6 +81,7 @@ function difference(
 async function shrinkWrapSketches(
   sketches: AbundanceObject[]
 ): Promise<AbundanceLeaf> {
+  await util.init();
   let BOM: any[] = [];
   if (sketches.some((sketch) => util.is3D(sketch))) {
     throw new Error("Parts to be shrink wrapped must be sketches");
@@ -125,6 +129,7 @@ async function intersect(
   shape1: AbundanceObject,
   shape2: AbundanceObject
 ): Promise<AbundanceObject> {
+  await util.init();
   return util.actOnLeafs(shape1, async (leaf: AbundanceLeaf) => {
     const shapeToIntersectWith = await digFuse(shape2);
     return {
@@ -145,6 +150,7 @@ async function intersect(
  * Return the boolean union between all entries in shapes.
  */
 async function fusion(shapes: AbundanceObject[]): Promise<AbundanceLeaf> {
+  await util.init();
   const all2D = shapes.every((shape) => !util.is3D(shape));
   const all3D = shapes.every((shape) => util.is3D(shape));
   if (!all2D && !all3D) {
@@ -190,6 +196,7 @@ async function assembly(
   if (!Array.isArray(geometries) || geometries.length === 0) {
     throw new Error("inputIDs must be a non-empty array");
   }
+  await util.init();
 
   let assembly: AbundanceObject[] = [];
   let bomAssembly: any[] = [];
@@ -239,6 +246,7 @@ async function assembly(
  * @returns {Object} A single fused geometry combining all leaves in the assembly
  */
 async function digFuse(assembly: AbundanceObject): Promise<AbundanceLeaf> {
+  await util.init();
   var flattened = util.flattenAssembly(assembly);
   if (flattened.length === 0) {
     throw new Error("No geometries found to fuse");
@@ -276,6 +284,7 @@ async function cutAssembly(
   partToCut: AbundanceObject,
   cuttingParts: AbundanceObject[]
 ): Promise<AbundanceObject> {
+  await util.init();
   try {
     //If the partToCut is an assembly pass each part back into cutAssembly function to be cut separately
     if (util.isAssembly(partToCut)) {
@@ -400,5 +409,12 @@ async function splitCompSolid(part: AbundanceLeaf): Promise<AbundanceObject> {
 }
 
 export {
-  assembly, cutAssembly, difference, digFuse, fusion, intersect, loftShapes, shrinkWrapSketches
+  assembly,
+  cutAssembly,
+  difference,
+  digFuse,
+  fusion,
+  intersect,
+  loftShapes,
+  shrinkWrapSketches,
 };

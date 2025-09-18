@@ -12,6 +12,10 @@ async function extrude(
   toExtrude: AbundanceObject,
   height: number
 ): Promise<AbundanceObject> {
+  if (util.is3D(toExtrude)) {
+    throw new Error("Cannot extrude a 3D geometry.");
+  }
+  await util.init();
   return util.actOnLeafs(toExtrude, async (leaf: AbundanceLeaf) => {
     return {
       ...leaf,
@@ -35,6 +39,7 @@ async function move(
   y: number,
   z: number
 ): Promise<AbundanceObject> {
+  await util.init();
   if (util.is3D(toMove)) {
     return util.actOnLeafs(
       toMove,
@@ -76,6 +81,7 @@ async function rotate(
   y: number,
   z: number
 ): Promise<AbundanceObject> {
+  await util.init();
   if (util.is3D(toRotate)) {
     return util.actOnLeafs(toRotate, async (leaf: AbundanceLeaf) => {
       return {
@@ -103,6 +109,7 @@ async function scale(
   geom: AbundanceObject,
   scaleFactor: number
 ): Promise<AbundanceObject> {
+  await util.init();
   return util.actOnLeafs(
     geom,
     async (leaf: AbundanceLeaf) => {
@@ -125,6 +132,7 @@ async function fillet(
   geom: AbundanceObject,
   radius: number
 ): Promise<AbundanceObject> {
+  await util.init();
   return util.actOnLeafs(
     geom,
     async (leaf: AbundanceLeaf) => {
@@ -145,6 +153,7 @@ async function chamfer(
   geom: AbundanceObject,
   size: number
 ): Promise<AbundanceObject> {
+  await util.init();
   return util.actOnLeafs(
     geom,
     async (leaf: AbundanceLeaf) => {

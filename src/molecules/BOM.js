@@ -65,9 +65,9 @@ export default class AddBOMTag extends Atom {
   }
 
   compute(inputs) {
-    const inputID = inputs.geometry;
+    const input = inputs.geometry;
     const bomItem = this.BOMitem;
-    return GlobalVariables.cad.bom(this.uniqueID, inputID, bomItem);
+    return GlobalVariables.cad.bom(input, bomItem);
   }
 
   /**

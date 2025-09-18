@@ -322,7 +322,7 @@ export default class Molecule extends Atom {
    * Computes and returns an array of BOMEntry objects after looking at the tags of a geometry.*/
   async extractBomTags() {
     var tag = "BOMitem";
-    let bomlist = await GlobalVariables.cad.extractBomList(this.uniqueID);
+    let bomlist = await GlobalVariables.cad.extractBomList(this.value);
     return bomlist;
   }
 
@@ -810,18 +810,15 @@ export default class Molecule extends Atom {
 
     const outputAtom = this.getOutputAtom();
     if (outputAtom) {
-      const state = outputAtom.getState();
-      if (state.status == Status.READY) {
-        GlobalVariables.cad
-          .molecule(this.uniqueID, state.value)
-          .then((result) => {
-            this.setReady(result);
-            this.compileBom().then((bom) => {
-              this.compiledBom = bom;
-              if (this.setInputChanged) {
-                this.setInputChanged(bom);
-              }
-            });
+      const outputState = outputAtom.getState();
+      if (outputState.status == Status.READY) {
+        this.setReady(outputState.value);
+        this.compileBom()
+          .then((bom) => {
+            this.compiledBom = bom;
+            if (this.setInputChanged) {
+              this.setInputChanged(bom);
+            }
           })
           .catch(this.alertingErrorHandler);
       } else {
@@ -889,7 +886,7 @@ export default class Molecule extends Atom {
 
   async generateProjectThumbnail() {
     //Generate a thumbnail for the project
-    return GlobalVariables.cad.generateThumbnail(this.uniqueID);
+    return GlobalVariables.cad.generateThumbnail(this.value);
   }
 
   /**
@@ -1548,6 +1545,6 @@ export default class Molecule extends Atom {
   sendToRender() {
     //Send code to JSxCAD to render
     //console.log(this);
-    GlobalVariables.writeToDisplay(this.uniqueID);
+    GlobalVariables.writeToDisplay(this.value);
   }
 }

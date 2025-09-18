@@ -60,7 +60,6 @@ export default class Circle extends Atom {
    * Compute the circle geometry.
    */
   async compute(inputs) {
-    const diameter = inputs.diameter;
-    return GlobalVariables.cad.circle(this.uniqueID, diameter);
+    return GlobalVariables.cad.circle(inputs.diameter);
   }
 }
