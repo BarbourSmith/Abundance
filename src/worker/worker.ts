@@ -30,7 +30,6 @@ import * as util from "./util";
 
 // --- Type Definitions ---
 
-type Library = Record<string, AbundanceObject>;
 type DisplayMesh = {
   cameraZoom: number;
   faces: ShapeMesh;
@@ -45,7 +44,6 @@ type DisplayMesh = {
   color: string;
 };
 
-const library: Library = {};
 let defaultMesh: any = undefined;
 const started: Promise<boolean> = util.init();
 
@@ -540,7 +538,7 @@ function generateCameraPosition(meshArray: ReplicadObject[]): number {
 }
 
 async function generateDisplayMesh(
-  id: string | AbundanceObject
+  id: AbundanceObject
 ): Promise<DisplayMesh[]> {
   await started;
   console.log("Generating display mesh for ID:", JSON.stringify(id));
@@ -548,17 +546,7 @@ async function generateDisplayMesh(
   if (util.isAbundanceObject(id)) {
     geom = id;
   } else {
-    if (library[id] != undefined && id != undefined) {
-      geom = library[id];
-      try {
-        console.log("resolved to: " + JSON.stringify(geom));
-      } catch (error) {
-        console.error("Error resolving geometry:", error);
-        throw error;
-      }
-    } else {
-      return generateDefaultMesh();
-    }
+    return generateDefaultMesh();
   }
 
   // Flatten the assembly to remove hierarchy
