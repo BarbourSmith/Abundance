@@ -71,6 +71,6 @@ export default class Extrude extends Atom {
 
   // order of args dictated by the order in which they're initialized in the constructor.
   compute(argsDict) {
-    return GlobalVariables.cad.extrude(this.uniqueID, argsDict.geometry, argsDict.height);
+    return GlobalVariables.cad.extrude(argsDict.geometry, argsDict.height);
   }
 }

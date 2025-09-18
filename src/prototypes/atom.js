@@ -781,7 +781,7 @@ export default class Atom extends ObservableEntity {
   sendToRender() {
     //Send code to JSxCAD to render
     try {
-      GlobalVariables.writeToDisplay(this.uniqueID);
+      GlobalVariables.writeToDisplay(this.value);
     } catch (err) {
       this.setError(err);
     }

@@ -71,10 +71,7 @@ export default class Output extends Atom {
   }
 
   compute(argsDict) {
-    return GlobalVariables.cad.output(
-      this.uniqueID,
-      argsDict["number or geometry"]
-    );
+    return Promise.resolve(argsDict["number or geometry"]);
   }
 
   /**
@@ -83,7 +80,7 @@ export default class Output extends Atom {
   sendToRender() {
     //Send code to JSxCAD to render
     try {
-      GlobalVariables.writeToDisplay(this.uniqueID);
+      GlobalVariables.writeToDisplay(this.value);
     } catch (err) {
       this.setError(err);
     }

@@ -149,14 +149,9 @@ async function circle(id: string, diameter: number): Promise<string> {
  * @param y - The height of the rectangle.
  * @returns {Promise<string>}
  */
-async function rectangle(
-  targetID: string,
-  x: number,
-  y: number
-): Promise<string> {
+async function rectangle(x: number, y: number): Promise<AbundanceObject> {
   await started;
-  library[targetID] = await shapes.rectangle(x, y);
-  return targetID;
+  return await shapes.rectangle(x, y);
 }
 
 /**
@@ -222,13 +217,11 @@ async function loftShapes(
  * @returns {Promise<boolean>} A promise that resolves to true when the extrusion is completed successfully
  */
 async function extrude(
-  targetID: string,
-  inputID: string,
+  input: AbundanceObject,
   height: number
-): Promise<string> {
+): Promise<AbundanceObject> {
   await started;
-  library[targetID] = await actions.extrude(getOrThrow(inputID), height);
-  return targetID;
+  return await actions.extrude(input, height);
 }
 
 /**
@@ -1214,8 +1207,43 @@ if (
 
 // Export functions for testing and ES module environments
 export {
-  assembly, bom, chamfer, circle, code, color, createMesh, deleteFromLibrary, difference, displayLayout, downExport, extractAllTags, extractParts, extractTag, extrude, fillet, generateThumbnail, getBoundingBox, importingSTEP,
+  assembly,
+  bom,
+  chamfer,
+  circle,
+  code,
+  color,
+  createMesh,
+  deleteFromLibrary,
+  difference,
+  displayLayout,
+  downExport,
+  extractAllTags,
+  extractParts,
+  extractTag,
+  extrude,
+  fillet,
+  generateThumbnail,
+  getBoundingBox,
+  importingSTEP,
   importingSTL,
-  importingSVG, intersect, isAssembly, layout, library, loftShapes, molecule, move, output, rectangle, regularPolygon, rotate,
-  scale, shrinkWrapSketches, started, tag, text, visExport, visualizeGcode
+  importingSVG,
+  intersect,
+  isAssembly,
+  layout,
+  library,
+  loftShapes,
+  molecule,
+  move,
+  output,
+  rectangle,
+  regularPolygon,
+  rotate,
+  scale,
+  shrinkWrapSketches,
+  started,
+  tag,
+  text,
+  visExport,
+  visualizeGcode,
 };
