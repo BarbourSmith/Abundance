@@ -25,7 +25,7 @@ import {
   extractTag,
   tag,
 } from "./tags";
-import type { AbundanceObject } from "./util";
+import type { AbundanceObject, AbundanceLeaf } from "./util";
 import * as util from "./util";
 
 // --- Type Definitions ---
@@ -49,28 +49,12 @@ const library: Library = {};
 let defaultMesh: any = undefined;
 const started: Promise<boolean> = util.init();
 
-function getOrThrow(id: string): AbundanceObject {
-  if (id == undefined) {
-    throw new Error("Missing a required input");
-  }
-  if (!library[id]) {
-    throw new Error(`Library ID ${id} does not exist.`);
-  }
-  if (library[id] instanceof Promise) {
-    throw new Error("Someone put a promise into the library at: " + id);
-  }
-  return library[id];
-}
-
 /**
  * Deletes a geometry from the library.
  * @param inputID - The library ID to delete.
- * @returns {Promise<void>}
  */
-function deleteFromLibrary(inputID: string): Promise<void> {
-  return started.then(() => {
-    delete library[inputID];
-  });
+function deleteFromLibrary(inputID: string): Promise<boolean> {
+  return started;
 }
 
 /**
@@ -85,56 +69,17 @@ function createMesh(thickness: number): Promise<any[]> {
 }
 
 /**
- * Copies a geometry from one library location to another, typically used for output connections.
- * @param {string} targetID - The unique identifier to store the output geometry in the library
- * @param {string} inputID - The library ID of the geometry to output
- * @returns {Promise<boolean>} A promise that resolves to true when the output operation is completed successfully
- * @throws {Error} Throws an error if nothing is connected to the output (inputID is undefined)
- */
-function output(targetID: string, inputID: string): Promise<string> {
-  return started.then(() => {
-    if (library[inputID] != undefined) {
-      library[targetID] = library[inputID];
-    } else {
-      throw new Error("Nothing is connected to the output");
-    }
-
-    return targetID;
-  });
-}
-
-/**
- * Copies a geometry from one library location to another, typically used for molecule connections.
- * @param {string} targetID - The unique identifier to store the molecule geometry in the library
- * @param {string} inputID - The library ID of the geometry to copy for the molecule
- * @returns {Promise<boolean>} A promise that resolves to true when the molecule operation is completed successfully
- * @throws {Error} Throws an error if the output ID is undefined
- */
-function molecule(targetID: string, inputID: string): Promise<string> {
-  return started.then(() => {
-    if (library[inputID] != undefined) {
-      library[targetID] = library[inputID];
-    } else {
-      throw new Error("output ID is undefined");
-    }
-    return targetID;
-  });
-}
-
-/**
  * Prepares geometry for visualization export in various file formats (STL, STEP, SVG).
- * @param {string} targetID - The unique identifier to store the prepared export geometry in the library
- * @param {string} inputID - The library ID of the geometry to prepare for export
+ * @param {AbundanceObject} input - The geometry to export
  * @param {string} fileType - The file type for export ("STL", "STEP", or "SVG")
  * @returns {Promise<targetID>} A promise that resolves to ID of the result when the export preparation is completed successfully
  */
 function visExport(
-  targetID: string,
-  inputID: string,
+  input: AbundanceObject,
   fileType: string
-): Promise<string> {
+): Promise<AbundanceObject> {
   return started.then(async () => {
-    let geometryToExport = extractKeepOut(library[inputID]);
+    let geometryToExport = extractKeepOut(input);
     if (!geometryToExport) {
       throw new Error(
         "Geometry To Export has no geometry after keepout is applied"
@@ -150,7 +95,7 @@ function visExport(
     let finalGeometry = fusedGeometry;
     if (fileType == "SVG") {
       /** Fuses input geometry, draws a top view projection*/
-      if (util.is3D(library[inputID])) {
+      if (util.is3D(input)) {
         const shape3d = (await util.geometryProvider!.get(
           fusedGeometry.geometry
         )) as AnyShape;
@@ -168,31 +113,30 @@ function visExport(
         };
       }
     }
-    library[targetID] = {
+    return {
       ...finalGeometry,
       color: displayColor,
     };
-    return targetID;
   });
 }
 
 /**
  * Exports geometry to downloadable file formats (STL, STEP, SVG).
- * @param {string} ID - The library ID of the geometry to export
+ * @param {AbundanceObject} input - The geometry to export
  * @param {string} fileType - The file type for export ("STL", "STEP", or "SVG")
  * @param {number} svgResolution - The resolution for SVG export
  * @param {string} units - The units for scaling ("Inches", "MM", or other)
  * @returns {Promise<Blob>} A promise that resolves to a Blob containing the exported file data
  */
 function downExport(
-  inputID: string,
+  input: AbundanceObject,
   fileType: string,
   svgResolution: number,
   units: string
 ): Promise<Blob> {
   return started.then(async () => {
     // as with visexport, fuse the result before exporting.
-    let geometryToExport = extractKeepOut(library[inputID]);
+    let geometryToExport = extractKeepOut(input);
     if (!geometryToExport) {
       throw new Error(
         "Geometry To Export has no geometry after keepout is applied"
@@ -226,11 +170,9 @@ function downExport(
 
 /**
  * Imports a STEP file and stores the resulting geometry in the library.
- * @param {string} targetID - The unique identifier to store the imported geometry in the library
  * @param {File} file - The STEP file to import
- * @returns {Promise<boolean>} A promise that resolves to true when the import is completed successfully
  */
-async function importingSTEP(targetID: string, file: File) {
+async function importingSTEP(file: File): Promise<AbundanceObject> {
   let STEPresult = await util.replicad.importSTEP(file);
   if (!util.geometryProvider!.isShape3D(STEPresult)) {
     throw new Error(
@@ -240,7 +182,7 @@ async function importingSTEP(targetID: string, file: File) {
     );
   }
 
-  library[targetID] = {
+  return {
     geometry: await util.geometryProvider!.addSingularToCache(STEPresult),
     tags: [],
     color: util.defaultColor,
@@ -248,16 +190,13 @@ async function importingSTEP(targetID: string, file: File) {
     dimension: "3D",
     plane: util.XYPlane,
   };
-  return targetID;
 }
 
 /**
  * Imports an STL file and stores the resulting geometry in the library.
- * @param {string} targetID - The unique identifier to store the imported geometry in the library
  * @param {File} file - The STL file to import
- * @returns {Promise<boolean>} A promise that resolves to true when the import is completed successfully
  */
-async function importingSTL(targetID: string, file: File) {
+async function importingSTL(file: File): Promise<AbundanceObject> {
   let STLresult = await util.replicad.importSTL(file);
   if (!util.geometryProvider!.isShape3D(STLresult)) {
     throw new Error(
@@ -266,7 +205,7 @@ async function importingSTL(targetID: string, file: File) {
         ". Must be a Solid, Shell, Compound, or CompSolid."
     );
   }
-  library[targetID] = {
+  return {
     geometry: await util.geometryProvider!.addSingularToCache(STLresult),
     tags: [],
     color: util.defaultColor,
@@ -274,18 +213,18 @@ async function importingSTL(targetID: string, file: File) {
     plane: util.XYPlane,
     dimension: "3D",
   };
-  return targetID;
 }
 
 /**
  * Imports an SVG file and creates 2D geometry, then stores it in the library.
- * @param {string} targetID - The unique identifier to store the imported SVG geometry in the library
  * @param {string} svg - The SVG content as a string
  * @param {number} width - The width to scale the SVG to
- * @returns {Promise<boolean>} A promise that resolves to true when the import is completed successfully
  * @throws {Error} Throws an error if the SVG import fails
  */
-async function importingSVG(targetID: string, svg: string, width: number) {
+async function importingSVG(
+  svg: string,
+  width: number
+): Promise<AbundanceObject> {
   const baseWidth = width + width * 0.05;
   const baseShape = util.replicad
     .drawRectangle(baseWidth, baseWidth)
@@ -304,7 +243,7 @@ async function importingSVG(targetID: string, svg: string, width: number) {
     let drawnSVG = await drawSVG(svgString, { width: width });
     let center = drawnSVG.boundingBox.center;
 
-    library[targetID] = {
+    return {
       geometry: await util.geometryProvider!.addSingularToCache(
         drawnSVG.clone().translate(-center[0], -center[1])
       ),
@@ -314,8 +253,6 @@ async function importingSVG(targetID: string, svg: string, width: number) {
       bom: [],
       dimension: "2D",
     };
-
-    return targetID;
   } catch (error) {
     //add alert  ----> Try tweaking your file here https://iconly.io/tools/svg-convert-stroke-to-fill "
 
@@ -326,11 +263,9 @@ async function importingSVG(targetID: string, svg: string, width: number) {
 
 /**
  * Visualizes G-code by parsing movement commands and creating 3D wire geometry.
- * @param {string} targetID - The unique identifier to store the visualized G-code geometry in the library
  * @param {string} gcode - The G-code string to visualize
- * @returns {void} This function does not return a value, it directly stores the result in the library
  */
-async function visualizeGcode(targetID: string, gcode: string): Promise<void> {
+async function visualizeGcode(gcode: string): Promise<AbundanceObject> {
   let currentPosition: [number, number, number] = [0, 0, 0];
   let edges: Edge[] = [];
   // Split the gcode into lines
@@ -369,9 +304,11 @@ async function visualizeGcode(targetID: string, gcode: string): Promise<void> {
   // Create a wire from the edges
 
   const wire = util.replicad.assembleWire(edges);
-  library[targetID] = {
-    // TODO: we could probably use a hash of the gcode string as an ID here.
-    geometry: await util.geometryProvider!.addSingularToCache(wire),
+  return {
+    geometry: await util.geometryProvider!.addSingularToCache(
+      wire,
+      util.hashString(gcode)
+    ),
     tags: [],
     plane: util.XYPlane,
     color: util.defaultColor,
@@ -401,7 +338,7 @@ const prettyProjection = (shape: Shape3D | replicad.Wire) => {
 
 /**
  * Generates an SVG thumbnail representation of a geometry.
- * @param {string} inputID - The library ID of the geometry to generate a thumbnail for
+ * @param {AbundanceObject} input - geometry to generate a thumbnail for
  * @returns {Promise<string>} A promise that resolves to an SVG string representing the thumbnail
  * @throws {Error} Throws an error if the geometry is undefined or thumbnail generation fails
  */
@@ -432,9 +369,9 @@ async function generateThumbnail(input: AbundanceObject): Promise<string> {
 }
 
 function getBoundingBox(
-  inputID: string
+  geometry: AbundanceObject
 ): Promise<{ min: number[]; max: number[] }> {
-  return util.getBounds(getOrThrow(inputID));
+  return util.getBounds(geometry);
 }
 
 /**
@@ -442,40 +379,19 @@ function getBoundingBox(
  * @param {string} inputID - The geometry ID to check
  * @returns {Promise<boolean>} True if it's an assembly, false otherwise
  */
-async function isAssembly(inputID: string): Promise<boolean> {
+async function isAssembly(geometry: AbundanceObject): Promise<boolean> {
   await started;
-  const geometry = getOrThrow(inputID);
   return util.isAssembly(geometry);
 }
 
 /**
- * Extract individual parts from an assembly
- * @param {string} assemblyID - The assembly ID
- * @returns {Promise<Array<string>>} Array of part IDs
+ * Extract individual parts from an assembly. Returns a list of leaf nodes.
  */
-async function extractParts(assemblyID: string): Promise<string[]> {
+async function extractParts(
+  assembly: AbundanceObject
+): Promise<AbundanceLeaf[]> {
   await started;
-  const assembly = getOrThrow(assemblyID);
-
-  if (!util.isAssembly(assembly)) {
-    // If it's not an assembly, return the original ID
-    return [assemblyID];
-  }
-
-  const parts: string[] = [];
-  let partIndex = 0;
-
-  // Extract each part from the assembly and store it in the library
-  util.actOnLeafs(assembly, (leaf) => {
-    if (leaf.geometry && leaf.geometry.length > 0) {
-      const partID = `${assemblyID}_part_${partIndex++}`;
-      library[partID] = leaf;
-      parts.push(partID);
-    }
-    return leaf;
-  });
-
-  return parts;
+  return util.flattenAssembly(assembly);
 }
 
 let colorOptions = {
@@ -752,8 +668,6 @@ if (
     extractAllTags,
     layout,
     displayLayout,
-    output,
-    molecule,
     bom,
     extractTag,
     intersect,
@@ -796,9 +710,7 @@ export {
   layout,
   library,
   loftShapes,
-  molecule,
   move,
-  output,
   rectangle,
   regularPolygon,
   rotate,

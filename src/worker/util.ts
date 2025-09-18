@@ -223,6 +223,20 @@ const XYPlane: SimplePlane = {
   normal: [0, 0, 1],
 };
 
+/**
+ * Generates a concise 32-bit FNV-1a hash for a string (suitable for cache keys).
+ * @param {string} str - The input string to hash (e.g., G-code)
+ * @returns {string} - 8-character hex hash
+ */
+function hashString(str: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) {
+    hash ^= str.charCodeAt(i);
+    hash = (hash * 0x01000193) >>> 0;
+  }
+  return hash.toString(16).padStart(8, "0");
+}
+
 export {
   AbundanceLeaf,
   AbundanceObject,
@@ -235,6 +249,7 @@ export {
   generateUniqueID,
   geometryProvider,
   getBounds,
+  hashString,
   init,
   is3D,
   isAbundanceObject,

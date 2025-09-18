@@ -31,8 +31,7 @@ export default class Export extends Atom {
     this.description =
       "Export Atom, let's you choose a type of file to Export.";
     /**
-     * This atom's value. Contains the value of the input geometry, not the stl
-     * @type {string}
+     * This atom's value. A struct of the input geometry and the produced
      */
     this.value = null;
     /**
@@ -90,11 +89,7 @@ export default class Export extends Atom {
    * Update the displayed svg file
    */
   compute(inputs) {
-    return GlobalVariables.cad.visExport(
-      this.uniqueID,
-      inputs.geometry,
-      inputs["File Type"]
-    );
+    return GlobalVariables.cad.visExport(inputs.geometry, inputs["File Type"]);
   }
 
   createInputParams(setInputChanged) {
@@ -182,7 +177,7 @@ export default class Export extends Atom {
     console.log(this);
     GlobalVariables.cad
       .downExport(
-        this.uniqueID,
+        this.value,
         fileType,
         resolution,
         GlobalVariables.topLevelMolecule.unitsKey

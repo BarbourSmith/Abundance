@@ -174,7 +174,7 @@ export default class Gcode extends Atom {
       this.gcodeString = gcode;
       this.gcodeGenerated = true;
       this.progress = 1.0; // Complete progress
-      this.setReady(GlobalVariables.cad.visualizeGcode(this.uniqueID, gcode));
+      this.setReady(GlobalVariables.cad.visualizeGcode(gcode));
     };
   }
 
@@ -272,30 +272,27 @@ export default class Gcode extends Atom {
    */
   async _processSinglePart(inputID) {
     this._isProcessingAssembly = false;
-    const idForVisExport = GlobalVariables.generateUniqueID();
     GlobalVariables.cad
-      .visExport(idForVisExport, inputID, "STL")
-      .then((result) => {
+      .visExport(inputID, "STL")
+      .then((visExported) => {
         const units = GlobalVariables.topLevelMolecule?.unitsKey || "MM";
         GlobalVariables.cad
-          .downExport(idForVisExport, "STL", null, units)
+          .downExport(visExported, "STL", null, units)
           .then((result) => {
             //Delete anything previously stored
             if (this.stlURL) {
               URL.revokeObjectURL(this.stlURL); // Clean up the previous URL
             }
             this.stlURL = URL.createObjectURL(result); // Store the STL URL
-            GlobalVariables.cad
-              .getBoundingBox(idForVisExport)
-              .then((bounds) => {
-                this.center = [
-                  (bounds.max[0] + bounds.min[0]) / 2,
-                  (bounds.max[1] + bounds.min[1]) / 2,
-                  (bounds.max[2] + bounds.min[2]) / 2,
-                ];
-                // Always generate gcode when geometry input is processed
-                this._generateGcode();
-              });
+            GlobalVariables.cad.getBoundingBox(visExported).then((bounds) => {
+              this.center = [
+                (bounds.max[0] + bounds.min[0]) / 2,
+                (bounds.max[1] + bounds.min[1]) / 2,
+                (bounds.max[2] + bounds.min[2]) / 2,
+              ];
+              // Always generate gcode when geometry input is processed
+              this._generateGcode();
+            });
           });
       })
       .catch((err) => {
@@ -345,19 +342,19 @@ export default class Gcode extends Atom {
   async _sortParts(parts) {
     const partsWithBounds = [];
 
-    for (const partID of parts) {
+    for (const part of parts) {
       try {
-        const bounds = await GlobalVariables.cad.getBoundingBox(partID);
+        const bounds = await GlobalVariables.cad.getBoundingBox(part);
         const centerX = (bounds.max[0] + bounds.min[0]) / 2;
         const centerY = (bounds.max[1] + bounds.min[1]) / 2;
         partsWithBounds.push({
-          id: partID,
+          partGeom: part,
           centerX: centerX,
           centerY: centerY,
           bounds: bounds,
         });
       } catch (err) {
-        console.warn(`Could not get bounds for part ${partID}:`, err);
+        console.warn(`Could not get bounds for part ${part}:`, err);
       }
     }
 
@@ -385,7 +382,7 @@ export default class Gcode extends Atom {
         break;
     }
 
-    return partsWithBounds.map((part) => part.id);
+    return partsWithBounds.map((part) => part.partGeom);
   }
 
   /**
@@ -405,12 +402,11 @@ export default class Gcode extends Atom {
         this.progress = partProgress;
         //this.sendToRender();
 
-        const idForVisExport = GlobalVariables.generateUniqueID();
         // Generate STL for this part
-        await GlobalVariables.cad.visExport(idForVisExport, partID, "STL");
+        const visExported = await GlobalVariables.cad.visExport(partID, "STL");
         const units = GlobalVariables.topLevelMolecule?.unitsKey || "MM";
         const stlBlob = await GlobalVariables.cad.downExport(
-          idForVisExport,
+          visExported,
           "STL",
           null,
           units
@@ -419,7 +415,7 @@ export default class Gcode extends Atom {
         const stlURL = URL.createObjectURL(stlBlob);
 
         // Get part bounds for centering
-        const bounds = await GlobalVariables.cad.getBoundingBox(idForVisExport);
+        const bounds = await GlobalVariables.cad.getBoundingBox(visExported);
         const center = [
           (bounds.max[0] + bounds.min[0]) / 2,
           (bounds.max[1] + bounds.min[1]) / 2,
@@ -449,7 +445,7 @@ export default class Gcode extends Atom {
 
     // Generate visualization for the final G-code and store in library under
     // this.uniqueID
-    return GlobalVariables.cad.visualizeGcode(this.uniqueID, this.gcodeString);
+    return GlobalVariables.cad.visualizeGcode(this.gcodeString);
   }
 
   /**
