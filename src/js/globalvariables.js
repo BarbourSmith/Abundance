@@ -558,6 +558,10 @@ class GlobalVariables {
           if (connector.ap2ID && idMapping[connector.ap2ID]) {
             connector.ap2ID = idMapping[connector.ap2ID];
           }
+          // Also remap connector's own uniqueID if it exists
+          if (connector.uniqueID) {
+            connector.uniqueID = this.generateUniqueID();
+          }
         });
       }
 

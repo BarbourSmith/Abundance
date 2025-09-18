@@ -54,6 +54,10 @@ describe('ID Remapping Logic Test', () => {
           if (connector.ap2ID && idMapping[connector.ap2ID]) {
             connector.ap2ID = idMapping[connector.ap2ID];
           }
+          // Also remap connector's own uniqueID if it exists
+          if (connector.uniqueID) {
+            connector.uniqueID = generateUniqueID();
+          }
         });
       }
 
@@ -152,11 +156,14 @@ describe('ID Remapping Logic Test', () => {
     expect(remappedMolecule.allAtoms[0].uniqueID).not.toBe('atom-456');
     expect(remappedMolecule.allAtoms[1].uniqueID).not.toBe('atom-789');
 
-    // Connectors should reference the new IDs
+    // Connectors should reference the new IDs and have new uniqueIDs
     expect(remappedMolecule.allConnectors).toHaveLength(1);
     const connector = remappedMolecule.allConnectors[0];
     expect(connector.ap1ID).toBe(remappedMolecule.allAtoms[0].uniqueID);
     expect(connector.ap2ID).toBe(remappedMolecule.allAtoms[1].uniqueID);
+    // FIXED: Connector should also get a new uniqueID
+    expect(connector.uniqueID).not.toBe('connector-101');
+    expect(connector.uniqueID).toBeDefined();
   });
 
   it('should demonstrate the issue with molecule.remapIDs', () => {
