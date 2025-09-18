@@ -2,14 +2,7 @@ import { chamfer, fillet, move, rotate, scale } from "./actions";
 import { ReplicadObject } from "./geometryProvider";
 import { assembly, cutAssembly, intersect } from "./interaction";
 import * as util from "./util";
-import {
-  AbundanceObject,
-  RealizedAssembly,
-  RealizedLeaf,
-  cacheAssembly,
-  isRealizedLeaf,
-  realizeAssembly,
-} from "./util";
+import { AbundanceObject } from "./util";
 import * as replicad from "replicad";
 
 /**

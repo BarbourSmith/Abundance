@@ -110,7 +110,7 @@ class GeometryProvider {
 
   async drawText(text: string, options: any): Promise<string> {
     const id = this._makeId("text", text, options);
-    this.createIfAbsent(id, async () => {
+    await this.createIfAbsent(id, async () => {
       return Promise.resolve(replicad.drawText(text, options));
     });
     return id;
