@@ -126,8 +126,7 @@ async function toGeometry(
  */
 async function executeCode(
   code: string,
-  argumentsArray: { [key: string]: any },
-  fullLibrary: { [key: string]: AbundanceObject }
+  argumentsArray: { [key: string]: any }
 ): Promise<AbundanceObject> {
   try {
     // Validate input parameters
@@ -142,9 +141,12 @@ async function executeCode(
     // This library copy will be in focus for the user. Has the side effect that direct assignments
     // to the library by the user code will not affect the main library.
     const userLib: { [key: string]: RealizedAssembly } = {};
+    let i = 0;
     for (const [key, value] of Object.entries(argumentsArray)) {
-      if (value in fullLibrary) {
-        userLib[value] = await realizeAssembly(fullLibrary[value]);
+      if (util.isAbundanceObject(value)) {
+        const newKey = `userlib_${i++}`;
+        userLib[newKey] = await realizeAssembly(value);
+        argumentsArray[key] = newKey;
       }
     }
 
