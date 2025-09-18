@@ -1,5 +1,5 @@
 import * as util from "./util";
-import { AbundanceObject, AbundanceLeaf } from "./util";
+import { AbundanceLeaf, AbundanceObject } from "./util";
 
 /**
  * Methods in this file act on a single geometry and return a modified copy of it.
@@ -14,16 +14,13 @@ async function extrude(
 ): Promise<AbundanceObject> {
   return util.actOnLeafs(toExtrude, async (leaf: AbundanceLeaf) => {
     return {
+      ...leaf,
       geometry: await util.geometryProvider!.extrude(
         leaf.geometry,
         leaf.plane,
         height
       ),
       dimension: "3D",
-      plane: leaf.plane,
-      color: leaf.color,
-      tags: leaf.tags,
-      bom: leaf.bom,
     };
   });
 }
@@ -43,12 +40,8 @@ async function move(
       toMove,
       async (leaf: AbundanceLeaf) => {
         return {
+          ...leaf,
           geometry: await util.geometryProvider!.move(leaf.geometry, x, y, z),
-          dimension: leaf.dimension,
-          plane: leaf.plane,
-          tags: leaf.tags,
-          color: leaf.color,
-          bom: leaf.bom,
         };
       },
       toMove.plane
@@ -63,12 +56,9 @@ async function move(
       toMove,
       async (leaf: AbundanceLeaf) => {
         return {
+          ...leaf,
           geometry: await util.geometryProvider!.move(leaf.geometry, x, y),
-          dimension: leaf.dimension,
-          tags: leaf.tags,
           plane: zTranslate(leaf.plane, z),
-          color: leaf.color,
-          bom: leaf.bom,
         };
       },
       zTranslate(toMove.plane, z)
@@ -89,25 +79,18 @@ async function rotate(
   if (util.is3D(toRotate)) {
     return util.actOnLeafs(toRotate, async (leaf: AbundanceLeaf) => {
       return {
+        ...leaf,
         geometry: await util.geometryProvider!.rotate(leaf.geometry, x, y, z),
-        dimension: leaf.dimension,
-        tags: leaf.tags,
-        plane: leaf.plane,
-        color: leaf.color,
-        bom: leaf.bom,
       };
     });
   } else {
     return util.actOnLeafs(toRotate, async (leaf: AbundanceLeaf) => {
       return {
+        ...leaf,
         geometry: await util.geometryProvider!.rotate(leaf.geometry, 0, 0, z),
-        dimension: leaf.dimension,
-        tags: leaf.tags,
         plane: util.asSimplePlane(
           util.asReplicadPlane(leaf.plane).pivot(z, "X").pivot(y, "Y")
         ),
-        color: leaf.color,
-        bom: leaf.bom,
       };
     });
   }
@@ -124,15 +107,11 @@ async function scale(
     geom,
     async (leaf: AbundanceLeaf) => {
       return {
+        ...leaf,
         geometry: await util.geometryProvider!.scale(
           leaf.geometry,
           scaleFactor
         ),
-        plane: leaf.plane,
-        tags: leaf.tags,
-        color: leaf.color,
-        bom: leaf.bom,
-        dimension: leaf.dimension,
       };
     },
     geom.plane
@@ -150,12 +129,8 @@ async function fillet(
     geom,
     async (leaf: AbundanceLeaf) => {
       return {
+        ...leaf,
         geometry: await util.geometryProvider!.fillet(leaf.geometry, radius),
-        plane: leaf.plane,
-        tags: leaf.tags,
-        color: leaf.color,
-        bom: leaf.bom,
-        dimension: leaf.dimension,
       };
     },
     geom.plane
@@ -174,16 +149,12 @@ async function chamfer(
     geom,
     async (leaf: AbundanceLeaf) => {
       return {
+        ...leaf,
         geometry: await util.geometryProvider!.chamfer(leaf.geometry, size),
-        plane: leaf.plane,
-        tags: leaf.tags,
-        color: leaf.color,
-        bom: leaf.bom,
-        dimension: leaf.dimension,
       };
     },
     geom.plane
   );
 }
 
-export { extrude, move, rotate, scale, fillet, chamfer };
+export { chamfer, extrude, fillet, move, rotate, scale };

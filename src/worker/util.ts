@@ -1,8 +1,8 @@
+import * as replicad from "replicad";
 import opencascade from "replicad-opencascadejs/src/replicad_single.js";
 import opencascadeWasm from "replicad-opencascadejs/src/replicad_single.wasm?url";
-import * as replicad from "replicad";
 import { v4 as uuidv4 } from "uuid";
-import { GeometryProvider, ReplicadObject } from "./geometryProvider";
+import { GeometryProvider } from "./geometryProvider";
 
 let defaultColor: string = "#aad7f2";
 let loaded: boolean = false;
@@ -47,33 +47,6 @@ interface AbundanceLeaf {
   tags: string[];
   bom: string[];
 }
-
-/**
- * These types are only used in cases where we need to
- * materialize the assembly so that replicad operations
- * can be performed in batch before being re-cached.
- *
- * Specifically, for code atoms.
- */
-type RealizedAssembly = RealizedLeaf | RealizedBranch;
-
-type RealizedBranch = {
-  geometry: RealizedAssembly[];
-  plane: replicad.Plane;
-  dimension: "2D" | "3D" | "Wire";
-  color: string;
-  tags: string[];
-  bom: string[];
-};
-
-type RealizedLeaf = {
-  geometry: ReplicadObject[]; // For backwards compatibility this is an array. But it always contains a single item.
-  plane: replicad.Plane;
-  dimension: "2D" | "3D" | "Wire";
-  color: string;
-  tags: string[];
-  bom: string[];
-};
 
 function is3D(part: AbundanceObject): boolean {
   if (part === undefined || part.geometry === undefined) {
@@ -246,85 +219,25 @@ const XYPlane: SimplePlane = {
   normal: [0, 0, 1],
 };
 
-async function realizeAssembly(
-  assembly: AbundanceObject
-): Promise<RealizedAssembly> {
-  if (isLeaf(assembly)) {
-    return {
-      ...assembly,
-      geometry: [await geometryProvider!.get(assembly.geometry)],
-      plane: asReplicadPlane(assembly.plane),
-    };
-  } else {
-    const children = await Promise.all(
-      (assembly.geometry as AbundanceObject[]).map(async (child) => {
-        return await realizeAssembly(child);
-      })
-    );
-    return {
-      ...assembly,
-      geometry: children,
-      plane: asReplicadPlane(assembly.plane),
-    };
-  }
-}
-
-function isRealizedLeaf(node: RealizedAssembly): node is RealizedLeaf {
-  return (
-    Array.isArray(node.geometry) &&
-    node.geometry.every((item) => "geometry" in item === false)
-  );
-}
-
-async function cacheAssembly(
-  assembly: RealizedAssembly
-): Promise<AbundanceObject> {
-  if (isRealizedLeaf(assembly)) {
-    return {
-      ...assembly,
-      geometry: await geometryProvider!.addSingularToCache(
-        assembly.geometry[0]
-      ),
-      plane: assembly.plane ? asSimplePlane(assembly.plane) : XYPlane,
-    };
-  } else {
-    const children = await Promise.all(
-      (assembly.geometry as RealizedAssembly[]).map(async (child) => {
-        return await cacheAssembly(child);
-      })
-    );
-    return {
-      ...assembly,
-      geometry: children,
-      plane: assembly.plane ? asSimplePlane(assembly.plane) : XYPlane,
-    };
-  }
-}
-
 export {
-  init,
-  actOnLeafs,
-  replicad,
-  geometryProvider,
-  is3D,
-  isWireGeometry,
-  isAssembly,
-  generateUniqueID,
-  getBounds,
-  defaultColor,
-  realizeAssembly,
-  cacheAssembly,
-  AbundanceObject,
   AbundanceLeaf,
-  RealizedAssembly,
-  RealizedLeaf,
-  SimplePlane,
+  AbundanceObject,
+  actOnLeafs,
+  actOnLeafsSync,
   asReplicadPlane,
   asSimplePlane,
-  XYPlane,
-  isAbundanceObject,
+  defaultColor,
   flattenAssembly,
+  generateUniqueID,
+  geometryProvider,
+  getBounds,
+  init,
+  is3D,
+  isAbundanceObject,
+  isAssembly,
   isLeaf,
-  isRealizedLeaf,
-  actOnLeafsSync,
+  isWireGeometry,
+  replicad,
+  SimplePlane,
+  XYPlane,
 };

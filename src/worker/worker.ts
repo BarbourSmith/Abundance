@@ -1,17 +1,17 @@
 import { expose } from "comlink";
-import { drawSVG } from "replicad-decorate";
-import * as cutlayout from "./cutlayout";
-import * as util from "./util";
-import * as shapes from "./shapes";
-import * as actions from "./actions";
-import * as interaction from "./interaction";
-import * as tags from "./tags";
-import * as codeLib from "./code";
+import type { AnyShape, Edge, Shape3D, ShapeMesh } from "replicad";
 import * as replicad from "replicad";
-import { GeometryProvider, ReplicadObject } from "./geometryProvider";
+import { drawSVG } from "replicad-decorate";
+import * as actions from "./actions";
+import * as codeLib from "./code";
 import type { LayoutConfig, Placement } from "./cutlayout";
+import * as cutlayout from "./cutlayout";
+import { ReplicadObject } from "./geometryProvider";
+import * as interaction from "./interaction";
+import * as shapes from "./shapes";
+import * as tags from "./tags";
 import type { AbundanceObject } from "./util";
-import type { AnyShape, Shape3D, Edge, ShapeMesh } from "replicad";
+import * as util from "./util";
 
 // --- Type Definitions ---
 
@@ -1214,43 +1214,8 @@ if (
 
 // Export functions for testing and ES module environments
 export {
-  library,
-  started,
-  deleteFromLibrary,
-  importingSTEP,
+  assembly, bom, chamfer, circle, code, color, createMesh, deleteFromLibrary, difference, displayLayout, downExport, extractAllTags, extractParts, extractTag, extrude, fillet, generateThumbnail, getBoundingBox, importingSTEP,
   importingSTL,
-  importingSVG,
-  createMesh,
-  circle,
-  color,
-  code,
-  regularPolygon,
-  rectangle,
-  extrude,
-  move,
-  rotate,
-  scale,
-  fillet,
-  chamfer,
-  difference,
-  tag,
-  extractAllTags,
-  layout,
-  displayLayout,
-  output,
-  molecule,
-  bom,
-  extractTag,
-  intersect,
-  assembly,
-  loftShapes,
-  text,
-  visualizeGcode,
-  getBoundingBox,
-  generateThumbnail,
-  visExport,
-  downExport,
-  shrinkWrapSketches,
-  isAssembly,
-  extractParts,
+  importingSVG, intersect, isAssembly, layout, library, loftShapes, molecule, move, output, rectangle, regularPolygon, rotate,
+  scale, shrinkWrapSketches, started, tag, text, visExport, visualizeGcode
 };

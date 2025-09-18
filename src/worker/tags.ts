@@ -1,5 +1,4 @@
-import { actOnLeafsSync, isLeaf } from "./util";
-import { AbundanceObject, AbundanceLeaf } from "./util";
+import { AbundanceLeaf, AbundanceObject, actOnLeafsSync, isLeaf } from "./util";
 
 /**
  * Methods in this file act on the metadata of a geometry or assembly,
@@ -158,11 +157,6 @@ function filterAssembly(
 }
 
 export {
-  extractAllTags,
-  tag,
-  color,
-  bom,
-  extractTag,
-  extractBomList,
-  extractKeepOut,
+  bom, color, extractAllTags, extractBomList,
+  extractKeepOut, extractTag, tag
 };

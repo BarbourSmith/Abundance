@@ -1,5 +1,5 @@
-import * as util from "./util";
 import Fonts from "../js/fonts.js";
+import * as util from "./util";
 import { AbundanceLeaf } from "./util";
 
 /**

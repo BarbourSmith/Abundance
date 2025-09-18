@@ -1,11 +1,10 @@
-import { PolygonPacker, PlacementWrapper } from "polygon-packer";
-import type { DisplayCallback, PlacementData } from "polygon-packer/src/types";
-import { Face, Shape3D } from "replicad";
-import * as util from "./util";
 import { proxy } from "comlink";
-import type { AbundanceObject, AbundanceLeaf } from "./util";
+import { PlacementWrapper, PolygonPacker } from "polygon-packer";
+import type { DisplayCallback } from "polygon-packer/src/types";
+import { Face, Shape3D } from "replicad";
 import { ReplicadObject } from "./geometryProvider";
-import { rotate } from "./actions";
+import type { AbundanceLeaf, AbundanceObject } from "./util";
+import * as util from "./util";
 
 type SimpleXY = { x: number; y: number };
 
@@ -804,10 +803,7 @@ function areaApprox(bounds: {
 }
 
 export {
-  layout,
-  displayLayout,
-  displayLayoutWithRotatedAssembly,
-  createDefaultPlacements,
-  LayoutConfig,
-  Placement,
+  createDefaultPlacements, displayLayout,
+  displayLayoutWithRotatedAssembly, layout, LayoutConfig,
+  Placement
 };

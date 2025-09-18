@@ -1,6 +1,6 @@
-import AttachmentPoint from "./attachmentpoint";
-import GlobalVariables from "../js/globalvariables.js";
 import { parse } from "mathjs";
+import GlobalVariables from "../js/globalvariables.js";
+import AttachmentPoint from "./attachmentpoint";
 import { ObservableEntity, Status } from "./observableEntity.js";
 
 // Make this an enum once we're using typescript

@@ -1,23 +1,47 @@
+import { chamfer, fillet, move, rotate, scale } from "./actions";
+import { ReplicadObject } from "./geometryProvider";
+import { assembly, cutAssembly, intersect } from "./interaction";
 import * as util from "./util";
-import { rotate, move, scale, fillet, chamfer } from "./actions";
-import { intersect, assembly, cutAssembly } from "./interaction";
 import {
   AbundanceObject,
   RealizedAssembly,
   RealizedLeaf,
   cacheAssembly,
-  realizeAssembly,
   isRealizedLeaf,
+  realizeAssembly,
 } from "./util";
-import { ReplicadObject } from "./geometryProvider";
-import { Plane } from "replicad";
-import { resolve } from "url";
+import * as replicad from "replicad";
 
 /**
  * For backward compatibility reasons we allow users to call functions with
  * any of the UserGeometryObj types.
  */
 type UserGeometryObj = string | RealizedAssembly | ReplicadObject;
+
+/**
+ * Provide a non-cached version of assemblies for user code execution.
+ * This ensures that user code doesn't have to deal with cacheIDs
+ * and can easily use replicad functions directly.
+ */
+type RealizedAssembly = RealizedLeaf | RealizedBranch;
+
+type RealizedBranch = {
+  geometry: RealizedAssembly[];
+  plane: replicad.Plane;
+  dimension: "2D" | "3D" | "Wire";
+  color: string;
+  tags: string[];
+  bom: string[];
+};
+
+type RealizedLeaf = {
+  geometry: ReplicadObject[]; // For backwards compatibility this is an array. But it always contains a single item.
+  plane: replicad.Plane;
+  dimension: "2D" | "3D" | "Wire";
+  color: string;
+  tags: string[];
+  bom: string[];
+};
 
 /**
  * A best-effort check for exploits in user provided code. Checks for a series of known bad patterns.
@@ -413,6 +437,62 @@ function logError(error: Error, context: string) {
   }
   console.error("full error:");
   console.error(error);
+}
+
+async function realizeAssembly(
+  assembly: AbundanceObject
+): Promise<RealizedAssembly> {
+  if (util.isLeaf(assembly)) {
+    return {
+      ...assembly,
+      geometry: [await util.geometryProvider!.get(assembly.geometry)],
+      plane: util.asReplicadPlane(assembly.plane),
+    };
+  } else {
+    const children = await Promise.all(
+      (assembly.geometry as AbundanceObject[]).map(async (child) => {
+        return await realizeAssembly(child);
+      })
+    );
+    return {
+      ...assembly,
+      geometry: children,
+      plane: util.asReplicadPlane(assembly.plane),
+      dimension: children[0].dimension,
+    };
+  }
+}
+
+function isRealizedLeaf(node: RealizedAssembly): node is RealizedLeaf {
+  return (
+    Array.isArray(node.geometry) &&
+    node.geometry.every((item) => "geometry" in item === false)
+  );
+}
+
+async function cacheAssembly(
+  assembly: RealizedAssembly
+): Promise<AbundanceObject> {
+  if (isRealizedLeaf(assembly)) {
+    return {
+      ...assembly,
+      geometry: await util.geometryProvider!.addSingularToCache(
+        assembly.geometry[0]
+      ),
+      plane: assembly.plane ? util.asSimplePlane(assembly.plane) : util.XYPlane,
+    };
+  } else {
+    const children = await Promise.all(
+      (assembly.geometry as RealizedAssembly[]).map(async (child) => {
+        return await cacheAssembly(child);
+      })
+    );
+    return {
+      ...assembly,
+      geometry: children,
+      plane: assembly.plane ? util.asSimplePlane(assembly.plane) : util.XYPlane,
+    };
+  }
 }
 
 export { executeCode };

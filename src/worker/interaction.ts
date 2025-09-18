@@ -1,7 +1,6 @@
-import { GeometryProvider, ReplicadObject } from "./geometryProvider";
+import { Drawing } from "replicad";
 import * as util from "./util";
-import { Compound, Shape3D, Solid, Drawing } from "replicad";
-import { AbundanceObject, AbundanceLeaf } from "./util";
+import { AbundanceLeaf, AbundanceObject } from "./util";
 
 /**
  * All methods in this file take multiple geometries and combine them in some way.
@@ -401,12 +400,5 @@ async function splitCompSolid(part: AbundanceLeaf): Promise<AbundanceObject> {
 }
 
 export {
-  loftShapes,
-  difference,
-  shrinkWrapSketches,
-  intersect,
-  fusion,
-  assembly,
-  digFuse,
-  cutAssembly,
+  assembly, cutAssembly, difference, digFuse, fusion, intersect, loftShapes, shrinkWrapSketches
 };
