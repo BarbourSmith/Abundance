@@ -53,7 +53,19 @@ export const addOrDeletePorts = (target) => {
   if (howManyInputPortsAvailable(target) == 0) {
     //We need to make a new port available
     const highest = findHighestInput(target);
-    target.addIO("Shape " + (highest + 1), "geometry");
+
+    // Create new AP and subscribe but avoid a callback right away.
+    const newAp = target._addIOWithoutSubscribing(
+      "Shape " + (highest + 1),
+      "geometry"
+    );
+    newAp.subscribe(
+      () => {
+        target.onUpstreamChange();
+      },
+      target.uniqueID,
+      false
+    );
   }
   if (howManyInputPortsAvailable(target) >= 2) {
     //We need to remove the empty port
