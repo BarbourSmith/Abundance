@@ -877,10 +877,12 @@ export default class Molecule extends Atom {
       GlobalVariables.currentMolecule.enableAllChildren();
 
       // Force propagation upstream since intermediate changes have been
-      // withheld
+      // withheld. Only call setReady if we have a valid value.
       const value = this.value;
       this.setWaiting();
-      this.setReady(value);
+      if (value !== null && value !== undefined) {
+        this.setReady(value);
+      }
     }
   }
 
