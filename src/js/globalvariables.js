@@ -203,7 +203,7 @@ class GlobalVariables {
      * A reference to the top level molecule of the project.
      * @type {object}
      */
-    this.topLevelMolecule;
+    this._topLevelMolecule;
 
     /**
      * A flag to indicate if the program is running with a touch interface. Set in flowDraw.js.
@@ -342,6 +342,17 @@ class GlobalVariables {
       },
       { override: true }
     );
+  }
+
+  get topLevelMolecule() {
+    return this._topLevelMolecule;
+  }
+
+  set topLevelMolecule(molecule) {
+    if (this._topLevelMolecule) {
+      this._topLevelMolecule.disable();
+    }
+    this._topLevelMolecule = molecule;
   }
 
   /**

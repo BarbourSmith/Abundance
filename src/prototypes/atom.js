@@ -482,6 +482,12 @@ export default class Atom extends ObservableEntity {
     return true;
   }
 
+  disable() {
+    // TODO(tristan): do something clever about preserving value for cases
+    // where we'll be re-enabled.
+    this.setDisabled(false);
+  }
+
   /**
    * Check if this atom is currently enabled (not in DISABLED status)
    * @returns {boolean} true if enabled, false if disabled
