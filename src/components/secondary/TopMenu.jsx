@@ -266,6 +266,13 @@ function TopMenu({
       },
     },
     {
+      id: "Recompute Project",
+      buttonFunc: () => {
+        GlobalVariables.currentMolecule = GlobalVariables.topLevelMolecule;
+        GlobalVariables.topLevelMolecule.recomputeAll();
+      }
+    },
+    {
       /**
        * Send user to GitHub settings page to delete project.
        */

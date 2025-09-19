@@ -1,13 +1,16 @@
 import * as replicad from "replicad";
 import shrinkWrap from "replicad-shrink-wrap";
-import type { AbundanceObject } from "./util";
-import { sha256 } from "js-sha256";
-import { asReplicadPlane, SimplePlane, flattenAssembly } from "./util";
+import { AbundanceObject, asReplicadPlane, SimplePlane } from "./util";
 
 type ReplicadObject = replicad.Shape3D | replicad.Drawing | replicad.Wire;
 
 type RequestContext = {
   project: string;
+};
+
+type ProjectStore = {
+  cache: Map<string, ReplicadObject>;
+  assemblies: Map<string, AbundanceObject>;
 };
 
 /**
@@ -20,7 +23,9 @@ type RequestContext = {
  * or retrieve the geometry via `get(id)`.
  */
 class GeometryProvider {
-  private cache = new Map<string, Map<string, ReplicadObject>>();
+  private MAX_PROJECTS = 4;
+  private cache = new Map<string, ProjectStore>();
+  private projectLRU: string[] = [];
   private cacheHitMetrics: Record<string, [number, number]>;
   private nextId: number;
   private readonly HASHED_KEYS: boolean = true;
@@ -50,19 +55,33 @@ class GeometryProvider {
     this.cacheHitMetrics[type][1]++;
   }
 
+  private updateLRU(projectId: string) {
+    const idx = this.projectLRU.indexOf(projectId);
+    if (idx !== -1) this.projectLRU.splice(idx, 1);
+    this.projectLRU.push(projectId);
+    if (this.projectLRU.length > this.MAX_PROJECTS) {
+      const evictId = this.projectLRU.shift();
+      if (evictId) this.deleteProjectCache(evictId);
+    }
+  }
+
+  private deleteProjectCache(projectId: string) {
+    console.debug("Deleting project cache for ", projectId);
+    this.cache.delete(projectId);
+  }
+
   private getCacheForProject(
     project: string,
     allowNewProj: boolean = true
-  ): Map<string, ReplicadObject> {
+  ): ProjectStore {
+    this.updateLRU(project);
     let result = this.cache.get(project);
     if (!result) {
       if (allowNewProj) {
-        // TODO: be smarter about cache eviction
-        if (this.cache.size >= 1) {
-          console.log("Clearing cache of: ", Array.from(this.cache.keys()));
-          this.cache.clear();
-        }
-        result = new Map<string, ReplicadObject>();
+        result = {
+          cache: new Map<string, ReplicadObject>(),
+          assemblies: new Map<string, AbundanceObject>(),
+        };
         this.cache.set(project, result);
       } else {
         throw new Error(`No cache found for project ${project}`);
@@ -77,7 +96,7 @@ class GeometryProvider {
     context: RequestContext,
     builder: () => Promise<ReplicadObject>
   ): Promise<string> {
-    const cache = this.getCacheForProject(context.project);
+    const cache = this.getCacheForProject(context.project).cache;
 
     if (!cache.has(id)) {
       let value = await builder();
@@ -91,6 +110,20 @@ class GeometryProvider {
     return Promise.resolve(id);
   }
 
+  private async createIfAbsentAssembly(
+    id: string,
+    context: RequestContext,
+    builder: () => Promise<AbundanceObject>
+  ): Promise<string> {
+    const assemblies = this.getCacheForProject(context.project).assemblies;
+
+    if (!assemblies.has(id)) {
+      let value = await builder();
+      assemblies.set(id, value);
+    }
+    return Promise.resolve(id);
+  }
+
   /**
    * Retrieves a real geometry from the cache. This should only be used when
    * the caller needs to perform operations which aren't supported by this class,
@@ -101,7 +134,7 @@ class GeometryProvider {
    * @returns The geometry object itself (ie ReplicadObject)
    */
   async get(id: string, context: RequestContext): Promise<ReplicadObject> {
-    const value = this.getCacheForProject(context.project, false).get(id);
+    const value = this.getCacheForProject(context.project, false).cache.get(id);
     if (value == undefined) {
       console.trace("Cache miss for id:", id);
       throw new Error(`Geometry with ID ${id} not found in cache`);
@@ -415,6 +448,36 @@ class GeometryProvider {
     return shrinkWrapId;
   }
 
+  async loftSketches(
+    sketchIds: string[],
+    planes: SimplePlane[],
+    context: RequestContext
+  ): Promise<string> {
+    if (sketchIds.length != planes.length) {
+      throw new Error("Number of sketches and planes must match");
+    }
+    const loftId = this._makeId("loft", ...sketchIds);
+    await this.createIfAbsent(loftId, context, async () => {
+      const sketches = [];
+      for (let i = 0; i < sketchIds.length; i++) {
+        let partObj = (await this.get(
+          sketchIds[i],
+          context
+        )) as replicad.Drawing;
+        let sketchedpart = partObj.sketchOnPlane(asReplicadPlane(planes[i]));
+        if (!("sketches" in sketchedpart)) {
+          sketches.push(sketchedpart);
+        } else {
+          throw new Error(
+            "Sketches to be lofted can't have interior geometries"
+          );
+        }
+      }
+      return sketches[0].loftWith(sketches.slice(1), {});
+    });
+    return loftId;
+  }
+
   /**
    * Adds the given geometry to the cache and returns the ID for it.
    * Note this method should be avoided because it guarantees there will never
@@ -433,10 +496,37 @@ class GeometryProvider {
     return id;
   }
 
-  private _makeId(type: string, ...args: any[]): string {
-    let key = JSON.stringify(args);
-    key = this.HASHED_KEYS ? sha256(key) : key;
-    return type + "-" + key;
+  cacheAssembly(
+    id: string,
+    assembly: AbundanceObject,
+    context: RequestContext
+  ) {
+    const assemblies = this.getCacheForProject(context.project).assemblies;
+    assemblies.set(id, assembly);
+  }
+
+  getAssembly(
+    id: string,
+    context: RequestContext
+  ): Promise<AbundanceObject | undefined> {
+    const assemblies = this.getCacheForProject(context.project).assemblies;
+    // TODO: should we add a check here asserting that all reference geometries
+    // exist in the project cache?
+    const result = assemblies.get(id);
+    if (result) {
+      this.cacheHit("assembly");
+    } else {
+      this.cacheMiss("assembly");
+    }
+    return Promise.resolve(result);
+  }
+
+  private _makeId(type: string, ...args: any[]) {
+    args = args.map((arg) => {
+      return typeof arg === "string" ? arg : JSON.stringify(arg);
+    });
+    const key = [type, ...args].flat(Infinity).join("-");
+    return key;
   }
 }
 

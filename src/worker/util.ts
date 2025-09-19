@@ -224,6 +224,21 @@ const XYPlane: SimplePlane = {
   normal: [0, 0, 1],
 };
 
+async function hashFileContents(file: File): Promise<string> {
+  const arrayBuffer = await file.arrayBuffer();
+  let hash = "";
+  if (self.crypto?.subtle) {
+    const digest = await self.crypto.subtle.digest("SHA-256", arrayBuffer);
+    hash = Array.from(new Uint8Array(digest))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+  } else {
+    console.warn("SubtleCrypto not available, falling back to simple hash");
+    hash = hashString(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+  }
+  return hash;
+}
+
 /**
  * Generates a concise 32-bit FNV-1a hash for a string (suitable for cache keys).
  * @param {string} str - The input string to hash (e.g., G-code)
@@ -250,6 +265,7 @@ export {
   generateUniqueID,
   geometryProvider,
   getBounds,
+  hashFileContents,
   hashString,
   init,
   is3D,

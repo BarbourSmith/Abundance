@@ -1,7 +1,6 @@
 import * as util from "./util";
 import { AbundanceLeaf, AbundanceObject } from "./util";
 import { RequestContext } from "./geometryProvider";
-import { context } from "@react-three/fiber";
 
 /**
  * Methods in this file act on a single geometry and return a modified copy of it.

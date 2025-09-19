@@ -5,6 +5,7 @@ import * as util from "./util";
 import { AbundanceObject } from "./util";
 import * as replicad from "replicad";
 import { RequestContext } from "./geometryProvider";
+import { arg } from "mathjs";
 
 /**
  * For backward compatibility reasons we allow users to call functions with
@@ -148,12 +149,23 @@ async function executeCode(
     // to the library by the user code will not affect the main library.
     const userLib: { [key: string]: RealizedAssembly } = {};
     let i = 0;
+    const argsSignature: string[] = [];
     for (const [key, value] of Object.entries(argumentsArray)) {
       if (util.isAbundanceObject(value)) {
         const newKey = `userlib_${i++}`;
         userLib[newKey] = await realizeAssembly(value);
         argumentsArray[key] = newKey;
+        argsSignature.push(JSON.stringify(value));
+      } else {
+        argsSignature.push(value.toString());
       }
+    }
+
+    // check cache for existing result
+    const cacheId = composeID(code, argsSignature);
+    const cached = await util.geometryProvider!.getAssembly(cacheId, context);
+    if (cached) {
+      return cached;
     }
 
     // Validate code for dangerous patterns
@@ -325,9 +337,11 @@ async function executeCode(
     return await Promise.race([
       ensureDimension(userFunction(...inputValues)),
       timeoutPromise,
-    ]).then((result) => {
+    ]).then(async (result) => {
       //@ts-ignore
-      return cacheAssembly(result);
+      const abundanceObj = await cacheAssembly(result);
+      util.geometryProvider!.cacheAssembly(cacheId, abundanceObj, context);
+      return abundanceObj;
     });
   } catch (error) {
     console.error("Code execution error:", error);
@@ -490,6 +504,10 @@ function isRealizedLeaf(node: RealizedAssembly): node is RealizedLeaf {
     Array.isArray(node.geometry) &&
     node.geometry.every((item) => "geometry" in item === false)
   );
+}
+
+function composeID(code: string, argsSignature: string[]): string {
+  return [util.hashString(code), ...argsSignature].join("-");
 }
 
 async function cacheAssembly(

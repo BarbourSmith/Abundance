@@ -194,7 +194,8 @@ async function importingSTEP(
   return {
     geometry: await util.geometryProvider!.addSingularToCache(
       STEPresult,
-      context
+      context,
+      await util.hashFileContents(file)
     ),
     tags: [],
     color: util.defaultColor,
@@ -224,7 +225,8 @@ async function importingSTL(
   return {
     geometry: await util.geometryProvider!.addSingularToCache(
       STLresult,
-      context
+      context,
+      await util.hashFileContents(file)
     ),
     tags: [],
     color: util.defaultColor,
@@ -242,8 +244,8 @@ async function importingSTL(
  */
 async function importingSVG(
   svg: string,
-  width: number,
-  context: RequestContext
+  context: RequestContext,
+  width: number
 ): Promise<AbundanceObject> {
   await started;
   const baseWidth = width + width * 0.05;
@@ -267,7 +269,8 @@ async function importingSVG(
     return {
       geometry: await util.geometryProvider!.addSingularToCache(
         drawnSVG.clone().translate(-center[0], -center[1]),
-        context
+        context,
+        await util.hashString(svg)
       ),
       tags: [],
       plane: util.XYPlane,

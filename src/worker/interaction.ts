@@ -18,34 +18,26 @@ async function loftShapes(
   context: RequestContext
 ): Promise<AbundanceObject> {
   await util.init();
-  let arrayOfSketchedGeometry = await Promise.all(
+  let sketchAndPlane = await Promise.all(
     sketches.map(async (sketch) => {
       if (util.is3D(sketch)) {
         throw new Error("Parts to be lofted must be sketches");
       }
-      let partToLoft = await digFuse(sketch, context);
-      let partObj = (await util.geometryProvider!.get(
-        partToLoft.geometry,
-        context
-      )) as Drawing;
-      let sketchedpart = partObj.sketchOnPlane(
-        util.asReplicadPlane(sketch.plane)
-      );
-      if (!("sketches" in sketchedpart)) {
-        return sketchedpart;
-      } else {
-        throw new Error("Sketches to be lofted can't have interior geometries");
-      }
+      const result = await digFuse(sketch, context);
+      return {
+        geometry: result.geometry,
+        plane: result.plane,
+      };
     })
   );
-  let startGeometry = arrayOfSketchedGeometry.shift();
-  if (startGeometry === undefined) {
-    throw new Error("No sketches provided for loft");
-  }
+
+  const sketchList = sketchAndPlane.map((sp) => sp.geometry);
+  const planes = sketchAndPlane.map((sp) => sp.plane);
 
   return {
-    geometry: await util.geometryProvider!.addSingularToCache(
-      startGeometry.loftWith([...arrayOfSketchedGeometry], {}),
+    geometry: await util.geometryProvider!.loftSketches(
+      sketchList,
+      planes,
       context
     ),
     dimension: "3D",

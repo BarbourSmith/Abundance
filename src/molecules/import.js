@@ -136,7 +136,7 @@ export default class Import extends Atom {
             throw new Error("Invalid file type");
           }
 
-          return funcToCall(file, this.SVGwidth);
+          return funcToCall(file, this.getContext(), this.SVGwidth);
         })
         .then((result) => {
           this.setReady(result);
