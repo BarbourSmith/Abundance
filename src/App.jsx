@@ -162,7 +162,7 @@ function AppContent() {
       } else {
         console.log("Generating mesh for value:", moleculeValue);
         cad
-          .generateDisplayMesh(moleculeValue)
+          .generateDisplayMesh(id, GlobalVariables.topLevelMolecule.getContext())
           .then((m) => {
             setMesh(m);
             setOutdatedMesh(false);
@@ -175,7 +175,7 @@ function AppContent() {
         //Exception: Don't display the mesh if the thing we are displaying is already the output
         if (GlobalVariables.currentMolecule.value != moleculeValue) {
           cad
-            .generateDisplayMesh(GlobalVariables.currentMolecule.value)
+            .generateDisplayMesh(GlobalVariables.currentMolecule.uniqueID, GlobalVariables.topLevelMolecule.getContext())
             .then((w) => {
               setWireMesh(w);
               // Only create Puppeteer div when displaying the top-level molecule's output

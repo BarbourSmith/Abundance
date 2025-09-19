@@ -212,7 +212,8 @@ export default class CutLayout extends Atom {
               GlobalVariables.topLevelMolecule.units[
                 GlobalVariables.topLevelMolecule.unitsKey
               ],
-          }
+          },
+          this.getContext()
         )
         .then((result) => {
           if (this.selected) {
@@ -301,6 +302,7 @@ export default class CutLayout extends Atom {
                 GlobalVariables.topLevelMolecule.unitsKey
               ],
           },
+          this.getContext(),
           this.placements
         )
         .then((layoutAndPositions) => {

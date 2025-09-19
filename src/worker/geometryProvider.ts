@@ -1,10 +1,14 @@
 import * as replicad from "replicad";
 import shrinkWrap from "replicad-shrink-wrap";
-import { asReplicadPlane, SimplePlane, flattenAssembly } from "./util";
 import type { AbundanceObject } from "./util";
 import { sha256 } from "js-sha256";
+import { asReplicadPlane, SimplePlane, flattenAssembly } from "./util";
 
 type ReplicadObject = replicad.Shape3D | replicad.Drawing | replicad.Wire;
+
+type RequestContext = {
+  project: string;
+};
 
 /**
  * Manages a cache of geometries. This class provides a list of basic operations
@@ -16,7 +20,7 @@ type ReplicadObject = replicad.Shape3D | replicad.Drawing | replicad.Wire;
  * or retrieve the geometry via `get(id)`.
  */
 class GeometryProvider {
-  private cache = new Map<string, ReplicadObject>();
+  private cache = new Map<string, Map<string, ReplicadObject>>();
   private cacheHitMetrics: Record<string, [number, number]>;
   private nextId: number;
   private readonly HASHED_KEYS: boolean = true;
@@ -46,14 +50,38 @@ class GeometryProvider {
     this.cacheHitMetrics[type][1]++;
   }
 
+  private getCacheForProject(
+    project: string,
+    allowNewProj: boolean = true
+  ): Map<string, ReplicadObject> {
+    let result = this.cache.get(project);
+    if (!result) {
+      if (allowNewProj) {
+        // TODO: be smarter about cache eviction
+        if (this.cache.size >= 1) {
+          console.log("Clearing cache of: ", Array.from(this.cache.keys()));
+          this.cache.clear();
+        }
+        result = new Map<string, ReplicadObject>();
+        this.cache.set(project, result);
+      } else {
+        throw new Error(`No cache found for project ${project}`);
+      }
+    }
+    return result;
+  }
+
   // Returns the id of the geometry once it's been added to the cache.
   private async createIfAbsent(
     id: string,
+    context: RequestContext,
     builder: () => Promise<ReplicadObject>
   ): Promise<string> {
-    if (!this.cache.has(id)) {
+    const cache = this.getCacheForProject(context.project);
+
+    if (!cache.has(id)) {
       let value = await builder();
-      this.cache.set(id, value);
+      cache.set(id, value);
       this.cacheMiss(id);
     } else {
       this.cacheHit(id);
@@ -72,8 +100,8 @@ class GeometryProvider {
    * @param id - ID of the geometry to retrieve
    * @returns The geometry object itself (ie ReplicadObject)
    */
-  async get(id: string): Promise<ReplicadObject> {
-    const value = this.cache.get(id);
+  async get(id: string, context: RequestContext): Promise<ReplicadObject> {
+    const value = this.getCacheForProject(context.project, false).get(id);
     if (value == undefined) {
       console.trace("Cache miss for id:", id);
       throw new Error(`Geometry with ID ${id} not found in cache`);
@@ -87,47 +115,62 @@ class GeometryProvider {
    * @param y - The height of the rectangle
    * @returns The ID of the created rectangle
    */
-  async drawRectangle(x: number, y: number): Promise<string> {
+  async drawRectangle(
+    x: number,
+    y: number,
+    context: RequestContext
+  ): Promise<string> {
     const id = this._makeId("rectangle", x, y);
-    await this.createIfAbsent(id, () => {
+    await this.createIfAbsent(id, context, () => {
       return Promise.resolve(replicad.drawRectangle(x, y));
     });
     return id;
   }
 
-  async drawCircle(radius: number): Promise<string> {
+  async drawCircle(radius: number, context: RequestContext): Promise<string> {
     const id = this._makeId("circle", radius);
-    await this.createIfAbsent(id, () => {
+    await this.createIfAbsent(id, context, () => {
       return Promise.resolve(replicad.drawCircle(radius));
     });
     return id;
   }
 
-  async drawPolysides(radius: number, numberOfSides: number): Promise<string> {
+  async drawPolysides(
+    radius: number,
+    numberOfSides: number,
+    context: RequestContext
+  ): Promise<string> {
     const id = this._makeId("polysides", radius, numberOfSides);
-    await this.createIfAbsent(id, () => {
+    await this.createIfAbsent(id, context, () => {
       return Promise.resolve(replicad.drawPolysides(radius, numberOfSides));
     });
     return id;
   }
 
-  async drawText(text: string, options: any): Promise<string> {
+  async drawText(
+    text: string,
+    options: any,
+    context: RequestContext
+  ): Promise<string> {
     const id = this._makeId("text", text, options);
-    await this.createIfAbsent(id, async () => {
+    await this.createIfAbsent(id, context, async () => {
       return Promise.resolve(replicad.drawText(text, options));
     });
     return id;
   }
 
-  async expandCompoundShape(id: string): Promise<string[]> {
-    const compound = await this.get(id);
+  async expandCompoundShape(
+    id: string,
+    context: RequestContext
+  ): Promise<string[]> {
+    const compound = await this.get(id, context);
     if (!(compound instanceof replicad.Compound)) {
       return [id];
     }
     const ids = [];
     for (const solid of replicad.iterTopo(compound.wrapped, "solid")) {
       const partId = this._makeId("expand", ids.length, id);
-      await this.createIfAbsent(partId, async () => {
+      await this.createIfAbsent(partId, context, async () => {
         return this.as3dShapeOrThrow(new replicad.Solid(solid));
       });
       ids.push(partId);
@@ -145,11 +188,12 @@ class GeometryProvider {
   async extrude(
     inputId: string,
     plane: SimplePlane,
-    height: number
+    height: number,
+    context: RequestContext
   ): Promise<string> {
     const extrudedId = this._makeId("extrude", inputId, plane, height);
-    await this.createIfAbsent(extrudedId, async () => {
-      const geometry = (await this.get(inputId)) as replicad.Drawing;
+    await this.createIfAbsent(extrudedId, context, async () => {
+      const geometry = (await this.get(inputId, context)) as replicad.Drawing;
       const result = geometry
         .sketchOnPlane(asReplicadPlane(plane))
         .extrude(height);
@@ -165,20 +209,27 @@ class GeometryProvider {
     id: string,
     dx: number,
     dy: number,
-    dz: number = 0
+    dz: number,
+    context: RequestContext
   ): Promise<string> {
     const movedId = this._makeId("move", id, dx, dy, dz);
-    await this.createIfAbsent(movedId, async () => {
-      const geometry = await this.get(id);
+    await this.createIfAbsent(movedId, context, async () => {
+      const geometry = await this.get(id, context);
       return geometry.translate(dx, dy, dz);
     });
     return movedId;
   }
 
-  async rotate(id: string, x: number, y: number, z: number): Promise<string> {
+  async rotate(
+    id: string,
+    x: number,
+    y: number,
+    z: number,
+    context: RequestContext
+  ): Promise<string> {
     const rotateId = this._makeId("rotate", id, x, y, z);
-    await this.createIfAbsent(rotateId, async () => {
-      const geometry = await this.get(id);
+    await this.createIfAbsent(rotateId, context, async () => {
+      const geometry = await this.get(id, context);
       if (geometry instanceof replicad.Drawing) {
         // TODO(tristan): should this rotate around center of bounding box?
         return geometry.rotate(z, [0, 0]);
@@ -192,19 +243,27 @@ class GeometryProvider {
     return rotateId;
   }
 
-  async scale(id: string, scaleFactor: number): Promise<string> {
+  async scale(
+    id: string,
+    scaleFactor: number,
+    context: RequestContext
+  ): Promise<string> {
     const scaleId = this._makeId("scale", id, scaleFactor);
-    await this.createIfAbsent(scaleId, async () => {
-      const geometry = await this.get(id);
+    await this.createIfAbsent(scaleId, context, async () => {
+      const geometry = await this.get(id, context);
       return geometry.scale(scaleFactor);
     });
     return scaleId;
   }
 
-  async fillet(id: string, radius: number): Promise<string> {
+  async fillet(
+    id: string,
+    radius: number,
+    context: RequestContext
+  ): Promise<string> {
     const filletId = this._makeId("fillet", id, radius);
-    await this.createIfAbsent(filletId, async () => {
-      const geometry = await this.get(id);
+    await this.createIfAbsent(filletId, context, async () => {
+      const geometry = await this.get(id, context);
       if (geometry instanceof replicad.Wire) {
         throw new Error("Cannot fillet a wire");
       }
@@ -213,10 +272,14 @@ class GeometryProvider {
     return filletId;
   }
 
-  async chamfer(id: string, size: number): Promise<string> {
+  async chamfer(
+    id: string,
+    size: number,
+    context: RequestContext
+  ): Promise<string> {
     const chamferId = this._makeId("chamfer", id, size);
-    await this.createIfAbsent(chamferId, async () => {
-      const geometry = await this.get(id);
+    await this.createIfAbsent(chamferId, context, async () => {
+      const geometry = await this.get(id, context);
       if (geometry instanceof replicad.Wire) {
         throw new Error("Cannot chamfer a wire");
       }
@@ -252,10 +315,17 @@ class GeometryProvider {
     }
   }
 
-  async intersect(input1ID: string, inputID2: string): Promise<string> {
+  async intersect(
+    input1ID: string,
+    inputID2: string,
+    context: RequestContext
+  ): Promise<string> {
     const id = this._makeId("intersect", input1ID, inputID2);
-    await this.createIfAbsent(id, async () => {
-      const args = [await this.get(input1ID), await this.get(inputID2)];
+    await this.createIfAbsent(id, context, async () => {
+      const args = [
+        await this.get(input1ID, context),
+        await this.get(inputID2, context),
+      ];
       // Intersect only allowed between matching types. 2 drawings or 2 3d shapes.
 
       if (this.areAllDrawings(args)) {
@@ -275,12 +345,19 @@ class GeometryProvider {
   }
 
   // Fuse 1 or more geometries together.
-  async fuse(input1ID: string, inputID2: string): Promise<string> {
+  async fuse(
+    input1ID: string,
+    inputID2: string,
+    context: RequestContext
+  ): Promise<string> {
     const sortedArgs = [input1ID, inputID2].sort();
     const resultId = this._makeId("fuse", sortedArgs[0], sortedArgs[1]);
 
-    await this.createIfAbsent(resultId, async () => {
-      const args = [await this.get(input1ID), await this.get(inputID2)];
+    await this.createIfAbsent(resultId, context, async () => {
+      const args = [
+        await this.get(input1ID, context),
+        await this.get(inputID2, context),
+      ];
       // Fuse only allowed between matching types. 2 drawings or 2 3d shapes.
       if (this.areAllDrawings(args)) {
         return args[0].fuse(args[1]);
@@ -298,49 +375,16 @@ class GeometryProvider {
     return resultId;
   }
 
-  async assemblyFuse(assembly: AbundanceObject): Promise<string> {
-    const partIds = flattenAssembly(assembly).map((part) => part.geometry);
-    if (partIds.length === 1) {
-      return partIds[0];
-    }
-    const id = this._makeId("assemblyFuse", ...partIds.sort());
-    await this.createIfAbsent(id, async () => {
-      const shapes = await Promise.all(
-        partIds.map((partId) => this.get(partId))
-      );
-
-      let result = undefined;
-      for (let i = 0; i < shapes.length; i++) {
-        const shape = shapes[i];
-        if (shape instanceof replicad.Wire) {
-          continue; // fusing a wire is a no-op.
-        }
-        if (!result) {
-          result = shape;
-        } else {
-          if (this.isShape3D(result) && this.isShape3D(shape)) {
-            // Optimized fuse since we know assembly components don't intersect
-            result = result.fuse(shape, { optimisation: "commonFace" });
-          } else {
-            //@ts-ignore
-            result = result.fuse(shape); // both drawings
-          }
-        }
-      }
-      if (!result) {
-        throw new Error("assembly was all wires. Cannot be fused");
-      }
-      return result;
-    });
-    return id;
-  }
-
-  async cut(toCut: string, cutter: string): Promise<string> {
-    const toCutGeom = await this.get(toCut);
+  async cut(
+    toCut: string,
+    cutter: string,
+    context: RequestContext
+  ): Promise<string> {
+    const toCutGeom = await this.get(toCut, context);
     if (toCutGeom instanceof replicad.Wire) {
       return toCut; // cutting wire is a no-op.
     }
-    const cutterGeom = await this.get(cutter);
+    const cutterGeom = await this.get(cutter, context);
     if (cutterGeom instanceof replicad.Wire) {
       return toCut; // cutting with a wire is a no-op.
     }
@@ -348,7 +392,7 @@ class GeometryProvider {
     let args = [toCutGeom, cutterGeom];
     const resultId = this._makeId("cut", toCut, cutter);
     if (this.areAllDrawings(args) || this.areAll3DShapes(args)) {
-      await this.createIfAbsent(resultId, async () => {
+      await this.createIfAbsent(resultId, context, async () => {
         //@ts-ignore
         return args[0].cut(args[1]);
       });
@@ -357,10 +401,14 @@ class GeometryProvider {
     return toCut;
   }
 
-  async shrinkWrapSketches(compositeSketchId: string, points: number) {
+  async shrinkWrapSketches(
+    compositeSketchId: string,
+    points: number,
+    context: RequestContext
+  ) {
     const shrinkWrapId = this._makeId("shrinkWrap", compositeSketchId, points);
-    await this.createIfAbsent(shrinkWrapId, async () => {
-      const geometry = await this.get(compositeSketchId);
+    await this.createIfAbsent(shrinkWrapId, context, async () => {
+      const geometry = await this.get(compositeSketchId, context);
       //@ts-ignore
       return shrinkWrap(geometry, points);
     });
@@ -377,10 +425,11 @@ class GeometryProvider {
    */
   async addSingularToCache(
     geometry: ReplicadObject,
+    context: RequestContext,
     id: string | undefined = undefined
   ) {
     id = id || this._makeId("singular", this.nextId++);
-    await this.createIfAbsent(id, () => Promise.resolve(geometry));
+    await this.createIfAbsent(id, context, () => Promise.resolve(geometry));
     return id;
   }
 
@@ -391,4 +440,4 @@ class GeometryProvider {
   }
 }
 
-export { GeometryProvider, ReplicadObject };
+export { GeometryProvider, ReplicadObject, RequestContext };

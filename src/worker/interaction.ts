@@ -1,7 +1,7 @@
 import { Drawing } from "replicad";
 import * as util from "./util";
 import { AbundanceLeaf, AbundanceObject } from "./util";
-
+import { RequestContext } from "./geometryProvider";
 /**
  * All methods in this file take multiple geometries and combine them in some way.
  *
@@ -14,7 +14,8 @@ import { AbundanceLeaf, AbundanceObject } from "./util";
  * Create and return a lofted shape which blends between multiple 2D profile sketches.
  */
 async function loftShapes(
-  sketches: AbundanceObject[]
+  sketches: AbundanceObject[],
+  context: RequestContext
 ): Promise<AbundanceObject> {
   await util.init();
   let arrayOfSketchedGeometry = await Promise.all(
@@ -22,9 +23,10 @@ async function loftShapes(
       if (util.is3D(sketch)) {
         throw new Error("Parts to be lofted must be sketches");
       }
-      let partToLoft = await fuseAssembly(sketch);
+      let partToLoft = await digFuse(sketch, context);
       let partObj = (await util.geometryProvider!.get(
-        partToLoft.geometry
+        partToLoft.geometry,
+        context
       )) as Drawing;
       let sketchedpart = partObj.sketchOnPlane(
         util.asReplicadPlane(sketch.plane)
@@ -43,7 +45,8 @@ async function loftShapes(
 
   return {
     geometry: await util.geometryProvider!.addSingularToCache(
-      startGeometry.loftWith([...arrayOfSketchedGeometry], {})
+      startGeometry.loftWith([...arrayOfSketchedGeometry], {}),
+      context
     ),
     dimension: "3D",
     tags: [],
@@ -59,7 +62,8 @@ async function loftShapes(
  */
 async function difference(
   target: AbundanceObject,
-  cutter: AbundanceObject
+  cutter: AbundanceObject,
+  context: RequestContext
 ): Promise<AbundanceObject> {
   await util.init();
   if (
@@ -68,7 +72,7 @@ async function difference(
   ) {
     // Process each leaf of target independently
     return util.actOnLeafs(target, async (leaf: AbundanceLeaf) => {
-      return await recursiveCut(leaf, cutter);
+      return await recursiveCut(leaf, cutter, context);
     });
   } else {
     throw new Error("Both inputs must be either 3D or 2D");
@@ -79,7 +83,8 @@ async function difference(
  * Creates a shrink-wrapped boundary around multiple 2D sketches and stores it in the library.
  */
 async function shrinkWrapSketches(
-  sketches: AbundanceObject[]
+  sketches: AbundanceObject[],
+  context: RequestContext
 ): Promise<AbundanceLeaf> {
   await util.init();
   let BOM: any[] = [];
@@ -91,11 +96,12 @@ async function shrinkWrapSketches(
     throw new Error("No sketches provided for shrink wrap");
   }
 
-  let geometryToWrap = await fuseAssembly(sketches[0]);
+  let geometryToWrap = await digFuse(sketches[0], context);
   for (let i = 1; i < sketches.length; i++) {
-    let fusedInput = await fuseAssembly(sketches[i]);
+    let fusedInput = await digFuse(sketches[i], context);
     let fusedObj = (await util.geometryProvider!.get(
-      fusedInput.geometry
+      fusedInput.geometry,
+      context
     )) as Drawing;
     //@ts-ignore - ignore access of private innerShape field
     if (fusedObj.innerShape && fusedObj.innerShape.blueprints) {
@@ -106,13 +112,15 @@ async function shrinkWrapSketches(
     BOM.push(fusedInput.bom);
     geometryToWrap.geometry = await util.geometryProvider!.fuse(
       geometryToWrap.geometry,
-      fusedInput.geometry
+      fusedInput.geometry,
+      context
     );
   }
   return {
     geometry: await util.geometryProvider!.shrinkWrapSketches(
       geometryToWrap.geometry,
-      50
+      50,
+      context
     ),
     dimension: "2D",
     tags: [],
@@ -127,15 +135,17 @@ async function shrinkWrapSketches(
  */
 async function intersect(
   shape1: AbundanceObject,
-  shape2: AbundanceObject
+  shape2: AbundanceObject,
+  context: RequestContext
 ): Promise<AbundanceObject> {
   await util.init();
   return util.actOnLeafs(shape1, async (leaf: AbundanceLeaf) => {
-    const shapeToIntersectWith = await fuseAssembly(shape2);
+    const shapeToIntersectWith = await digFuse(shape2, context);
     return {
       geometry: await util.geometryProvider!.intersect(
         leaf.geometry,
-        shapeToIntersectWith.geometry
+        shapeToIntersectWith.geometry,
+        context
       ),
       tags: leaf.tags,
       color: leaf.color,
@@ -149,7 +159,10 @@ async function intersect(
 /**
  * Return the boolean union between all entries in shapes.
  */
-async function fusion(shapes: AbundanceObject[]): Promise<AbundanceLeaf> {
+async function fusion(
+  shapes: AbundanceObject[],
+  context: RequestContext
+): Promise<AbundanceLeaf> {
   await util.init();
   const all2D = shapes.every((shape) => !util.is3D(shape));
   const all3D = shapes.every((shape) => util.is3D(shape));
@@ -162,15 +175,16 @@ async function fusion(shapes: AbundanceObject[]): Promise<AbundanceLeaf> {
   if (shapes.length === 0) {
     throw new Error("No shapes provided for fusion");
   }
-  const digFused = await fuseAssembly(shapes[0]);
+  const digFused = await digFuse(shapes[0], context);
   let fusedGeometry = digFused.geometry;
   let bomAssembly = shapes[0].bom ? shapes[0].bom.slice() : [];
   for (let i = 1; i < shapes.length; i++) {
     fusedGeometry = await util.geometryProvider!.fuse(
       fusedGeometry,
       (
-        await fuseAssembly(shapes[i])
-      ).geometry
+        await digFuse(shapes[i], context)
+      ).geometry,
+      context
     );
     bomAssembly.push(...(shapes[i].bom || []));
   }
@@ -191,7 +205,8 @@ async function fusion(shapes: AbundanceObject[]): Promise<AbundanceLeaf> {
  * If the targetID is defined, the assembly will be stored in the library under that ID, otherwise it will be returned
  */
 async function assembly(
-  geometries: AbundanceObject[]
+  geometries: AbundanceObject[],
+  context: RequestContext
 ): Promise<AbundanceObject> {
   if (!Array.isArray(geometries) || geometries.length === 0) {
     throw new Error("inputIDs must be a non-empty array");
@@ -210,7 +225,9 @@ async function assembly(
     if (all3D || all2D) {
       for (let i = 0; i < geometries.length; i++) {
         const geometry = geometries[i];
-        assembly.push(await cutAssembly(geometry, geometries.slice(i + 1)));
+        assembly.push(
+          await cutAssembly(geometry, geometries.slice(i + 1), context)
+        );
         if (geometry.bom && geometry.bom.length > 0) {
           bomAssembly.push(...geometry.bom);
         }
@@ -245,13 +262,24 @@ async function assembly(
  * @param {Object} assembly - The assembly or leaf geometry to process
  * @returns {Object} A single fused geometry combining all leaves in the assembly
  */
-async function fuseAssembly(assembly: AbundanceObject): Promise<AbundanceLeaf> {
+async function digFuse(
+  assembly: AbundanceObject,
+  context: RequestContext
+): Promise<AbundanceLeaf> {
   await util.init();
   const flattened = util.flattenAssembly(assembly);
   if (flattened.length === 0) {
     throw new Error("No geometries found in assembly");
   }
-  // TODO: should be union of tags and bom?
+  let result = flattened[0].geometry;
+  for (let i = 1; i < flattened.length; i++) {
+    result = await util.geometryProvider!.fuse(
+      result,
+      flattened[i].geometry,
+      context
+    );
+  }
+  // TODO(tristan): should this be the union of all tags on all leafs?
   return {
     ...assembly,
     geometry: await util.geometryProvider!.assemblyFuse(assembly),
@@ -275,7 +303,8 @@ async function fuseAssembly(assembly: AbundanceObject): Promise<AbundanceLeaf> {
  */
 async function cutAssembly(
   partToCut: AbundanceObject,
-  cuttingParts: AbundanceObject[]
+  cuttingParts: AbundanceObject[],
+  context: RequestContext
 ): Promise<AbundanceObject> {
   await util.init();
   try {
@@ -285,7 +314,7 @@ async function cutAssembly(
       let assemblyCut: any[] = [];
       for (const part of assemblyToCut) {
         // make new assembly from cut parts
-        assemblyCut.push(await cutAssembly(part, cuttingParts));
+        assemblyCut.push(await cutAssembly(part, cuttingParts, context));
       }
 
       //returns new assembly that has been cut
@@ -307,11 +336,11 @@ async function cutAssembly(
       let partCutCopy = partToCut;
       for (const cuttingPart of cuttingParts) {
         // for each cutting part cut the part
-        partCutCopy = await recursiveCut(partCutCopy, cuttingPart);
+        partCutCopy = await recursiveCut(partCutCopy, cuttingPart, context);
       }
       // return new cut part, expand compound solid if it was cut into disconnected
       // parts
-      return splitCompSolid(partCutCopy);
+      return splitCompSolid(partCutCopy, context);
     }
   } catch (e: any) {
     console.log(e);
@@ -339,7 +368,8 @@ async function cutAssembly(
  */
 async function recursiveCut(
   partToCut: AbundanceLeaf,
-  cuttingParts: AbundanceObject
+  cuttingParts: AbundanceObject,
+  context: RequestContext
 ): Promise<AbundanceLeaf> {
   if (util.isWireGeometry(partToCut)) {
     return partToCut;
@@ -347,13 +377,14 @@ async function recursiveCut(
 
   let resultGeomId: string = partToCut.geometry;
   for (const cuttingPart of util.flattenAssembly(cuttingParts)) {
-    let toCutGeom = await util.geometryProvider!.get(resultGeomId);
+    let toCutGeom = await util.geometryProvider!.get(resultGeomId, context);
     if (partToCut.dimension != cuttingPart.dimension) {
       continue;
       // skip this leaf. can't cut 2D with 3D or vice versa
     }
     const cuttingPartGeom = await util.geometryProvider!.get(
-      cuttingPart.geometry
+      cuttingPart.geometry,
+      context
     );
     // @ts-ignore
     if (toCutGeom.boundingBox.isOut(cuttingPartGeom.boundingBox)) {
@@ -363,7 +394,8 @@ async function recursiveCut(
 
     resultGeomId = await util.geometryProvider!.cut(
       resultGeomId,
-      cuttingPart.geometry
+      cuttingPart.geometry,
+      context
     );
   }
   const result = {
@@ -373,9 +405,13 @@ async function recursiveCut(
   return result;
 }
 
-async function splitCompSolid(part: AbundanceLeaf): Promise<AbundanceObject> {
+async function splitCompSolid(
+  part: AbundanceLeaf,
+  context: RequestContext
+): Promise<AbundanceObject> {
   const subPartIds = await util.geometryProvider!.expandCompoundShape(
-    part.geometry
+    part.geometry,
+    context
   );
   if (subPartIds.length <= 1) {
     return part;

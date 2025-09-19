@@ -100,7 +100,10 @@ export default class shrinkWrap extends Atom {
       .map((io) => inputs[io.name])
       .filter(Boolean);
 
-    return GlobalVariables.cad.shrinkWrapSketches(nonnullInputIds);
+    return GlobalVariables.cad.shrinkWrapSketches(
+      nonnullInputIds,
+      this.getContext()
+    );
   }
 
   /**

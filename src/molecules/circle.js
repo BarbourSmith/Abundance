@@ -60,6 +60,6 @@ export default class Circle extends Atom {
    * Compute the circle geometry.
    */
   async compute(inputs) {
-    return GlobalVariables.cad.circle(inputs.diameter);
+    return GlobalVariables.cad.circle(inputs.diameter, this.getContext());
   }
 }

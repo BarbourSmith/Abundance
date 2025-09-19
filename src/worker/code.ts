@@ -4,6 +4,7 @@ import { assembly, cutAssembly, intersect } from "./interaction";
 import * as util from "./util";
 import { AbundanceObject } from "./util";
 import * as replicad from "replicad";
+import { RequestContext } from "./geometryProvider";
 
 /**
  * For backward compatibility reasons we allow users to call functions with
@@ -35,6 +36,8 @@ type RealizedLeaf = {
   tags: string[];
   bom: string[];
 };
+
+let context: RequestContext = { project: "" };
 
 /**
  * A best-effort check for exploits in user provided code. Checks for a series of known bad patterns.
@@ -108,7 +111,8 @@ async function toGeometry(
       tags: [],
       bom: [],
       geometry: await util.geometryProvider!.addSingularToCache(
-        input as ReplicadObject
+        input as ReplicadObject,
+        context
       ),
     };
   } else {
@@ -126,7 +130,8 @@ async function toGeometry(
  */
 async function executeCode(
   code: string,
-  argumentsArray: { [key: string]: any }
+  argumentsArray: { [key: string]: any },
+  contextArg: RequestContext
 ): Promise<AbundanceObject> {
   try {
     // Validate input parameters
@@ -136,6 +141,7 @@ async function executeCode(
     if (code.length > 50000) {
       throw new Error("Code too long (maximum 50,000 characters)");
     }
+    context = contextArg;
 
     // Make a copy of the necessary entries in the library where all geometries are de-cached.
     // This library copy will be in focus for the user. Has the side effect that direct assignments
@@ -163,7 +169,13 @@ async function executeCode(
       z: number
     ) => {
       return realizeAssembly(
-        await move(await toGeometry(geom, "move-geometry", userLib), x, y, z)
+        await move(
+          await toGeometry(geom, "move-geometry", userLib),
+          x,
+          y,
+          z,
+          context
+        )
       );
     };
 
@@ -178,7 +190,8 @@ async function executeCode(
           await toGeometry(geom, "rotate-geometry", userLib),
           x,
           y,
-          z
+          z,
+          context
         )
       );
     };
@@ -187,20 +200,29 @@ async function executeCode(
       return realizeAssembly(
         await scale(
           await toGeometry(geom, "scale-geometry", userLib),
-          scaleFactor
+          scaleFactor,
+          context
         )
       );
     };
 
     const wrappedFillet = async (geom: UserGeometryObj, radius: number) => {
       return realizeAssembly(
-        await fillet(await toGeometry(geom, "fillet-geometry", userLib), radius)
+        await fillet(
+          await toGeometry(geom, "fillet-geometry", userLib),
+          radius,
+          context
+        )
       );
     };
 
     const wrappedChamfer = async (geom: UserGeometryObj, size: number) => {
       return realizeAssembly(
-        await chamfer(await toGeometry(geom, "chamfer-geometry", userLib), size)
+        await chamfer(
+          await toGeometry(geom, "chamfer-geometry", userLib),
+          size,
+          context
+        )
       );
     };
 
@@ -211,7 +233,8 @@ async function executeCode(
       return realizeAssembly(
         await intersect(
           await toGeometry(input1, "intersect-geometry1", userLib),
-          await toGeometry(input2, "intersect-geometry2", userLib)
+          await toGeometry(input2, "intersect-geometry2", userLib),
+          context
         )
       );
     };
@@ -222,7 +245,7 @@ async function executeCode(
           async (id) => await toGeometry(id, "assembly-geometry", userLib)
         )
       );
-      const res = await assembly(ids);
+      const res = await assembly(ids, context);
       return realizeAssembly(res);
     };
 
@@ -237,13 +260,17 @@ async function executeCode(
             input2Array.map(
               async (id) => await toGeometry(id, "cut-geometry", userLib)
             )
-          )
+          ),
+          context
         )
       );
     };
 
     const wrappedGetBounds = async (geom: UserGeometryObj) => {
-      return util.getBounds(await toGeometry(geom, "bounds-geometry", userLib));
+      return util.getBounds(
+        await toGeometry(geom, "bounds-geometry", userLib),
+        context
+      );
     };
 
     let keys1 = [
@@ -440,7 +467,7 @@ async function realizeAssembly(
   if (util.isLeaf(assembly)) {
     return {
       ...assembly,
-      geometry: [await util.geometryProvider!.get(assembly.geometry)],
+      geometry: [await util.geometryProvider!.get(assembly.geometry, context)],
       plane: util.asReplicadPlane(assembly.plane),
     };
   } else {
@@ -472,7 +499,8 @@ async function cacheAssembly(
     return {
       ...assembly,
       geometry: await util.geometryProvider!.addSingularToCache(
-        assembly.geometry[0]
+        assembly.geometry[0],
+        context
       ),
       plane: assembly.plane ? util.asSimplePlane(assembly.plane) : util.XYPlane,
     };

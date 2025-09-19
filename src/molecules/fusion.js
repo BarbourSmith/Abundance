@@ -124,7 +124,7 @@ export default class Join extends Atom {
       .filter((io) => io.connectors.length > 0)
       .map((io) => inputs[io.name])
       .filter(Boolean);
-    return GlobalVariables.cad.fusion(nonnullInputIds);
+    return GlobalVariables.cad.fusion(nonnullInputIds, this.getContext());
   }
 
   /**

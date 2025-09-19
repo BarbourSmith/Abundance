@@ -68,6 +68,6 @@ export default class Rotate extends Atom {
     const x = inputs["x-axis degrees"];
     const y = inputs["y-axis degrees"];
     const z = inputs["z-axis degrees"];
-    return GlobalVariables.cad.rotate(inputID, x, y, z);
+    return GlobalVariables.cad.rotate(inputID, x, y, z, this.getContext());
   }
 }

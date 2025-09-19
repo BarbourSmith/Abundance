@@ -1,5 +1,7 @@
 import * as util from "./util";
 import { AbundanceLeaf, AbundanceObject } from "./util";
+import { RequestContext } from "./geometryProvider";
+import { context } from "@react-three/fiber";
 
 /**
  * Methods in this file act on a single geometry and return a modified copy of it.
@@ -10,7 +12,8 @@ import { AbundanceLeaf, AbundanceObject } from "./util";
  */
 async function extrude(
   toExtrude: AbundanceObject,
-  height: number
+  height: number,
+  context: RequestContext
 ): Promise<AbundanceObject> {
   if (util.is3D(toExtrude)) {
     throw new Error("Cannot extrude a 3D geometry.");
@@ -22,7 +25,8 @@ async function extrude(
       geometry: await util.geometryProvider!.extrude(
         leaf.geometry,
         leaf.plane,
-        height
+        height,
+        context
       ),
       dimension: "3D",
     };
@@ -37,7 +41,8 @@ async function move(
   toMove: AbundanceObject,
   x: number,
   y: number,
-  z: number
+  z: number,
+  context: RequestContext
 ): Promise<AbundanceObject> {
   await util.init();
   if (util.is3D(toMove)) {
@@ -46,7 +51,13 @@ async function move(
       async (leaf: AbundanceLeaf) => {
         return {
           ...leaf,
-          geometry: await util.geometryProvider!.move(leaf.geometry, x, y, z),
+          geometry: await util.geometryProvider!.move(
+            leaf.geometry,
+            x,
+            y,
+            z,
+            context
+          ),
         };
       },
       toMove.plane
@@ -62,7 +73,13 @@ async function move(
       async (leaf: AbundanceLeaf) => {
         return {
           ...leaf,
-          geometry: await util.geometryProvider!.move(leaf.geometry, x, y),
+          geometry: await util.geometryProvider!.move(
+            leaf.geometry,
+            x,
+            y,
+            0,
+            context
+          ),
           plane: zTranslate(leaf.plane, z),
         };
       },
@@ -79,21 +96,34 @@ async function rotate(
   toRotate: AbundanceObject,
   x: number,
   y: number,
-  z: number
+  z: number,
+  context: RequestContext
 ): Promise<AbundanceObject> {
   await util.init();
   if (util.is3D(toRotate)) {
     return util.actOnLeafs(toRotate, async (leaf: AbundanceLeaf) => {
       return {
         ...leaf,
-        geometry: await util.geometryProvider!.rotate(leaf.geometry, x, y, z),
+        geometry: await util.geometryProvider!.rotate(
+          leaf.geometry,
+          x,
+          y,
+          z,
+          context
+        ),
       };
     });
   } else {
     return util.actOnLeafs(toRotate, async (leaf: AbundanceLeaf) => {
       return {
         ...leaf,
-        geometry: await util.geometryProvider!.rotate(leaf.geometry, 0, 0, z),
+        geometry: await util.geometryProvider!.rotate(
+          leaf.geometry,
+          0,
+          0,
+          z,
+          context
+        ),
         plane: util.asSimplePlane(
           util.asReplicadPlane(leaf.plane).pivot(x, "X").pivot(y, "Y")
         ),
@@ -107,7 +137,8 @@ async function rotate(
  */
 async function scale(
   geom: AbundanceObject,
-  scaleFactor: number
+  scaleFactor: number,
+  context: RequestContext
 ): Promise<AbundanceObject> {
   await util.init();
   return util.actOnLeafs(
@@ -117,7 +148,8 @@ async function scale(
         ...leaf,
         geometry: await util.geometryProvider!.scale(
           leaf.geometry,
-          scaleFactor
+          scaleFactor,
+          context
         ),
       };
     },
@@ -130,7 +162,8 @@ async function scale(
  */
 async function fillet(
   geom: AbundanceObject,
-  radius: number
+  radius: number,
+  context: RequestContext
 ): Promise<AbundanceObject> {
   await util.init();
   return util.actOnLeafs(
@@ -138,7 +171,11 @@ async function fillet(
     async (leaf: AbundanceLeaf) => {
       return {
         ...leaf,
-        geometry: await util.geometryProvider!.fillet(leaf.geometry, radius),
+        geometry: await util.geometryProvider!.fillet(
+          leaf.geometry,
+          radius,
+          context
+        ),
       };
     },
     geom.plane
@@ -151,7 +188,8 @@ async function fillet(
  */
 async function chamfer(
   geom: AbundanceObject,
-  size: number
+  size: number,
+  context: RequestContext
 ): Promise<AbundanceObject> {
   await util.init();
   return util.actOnLeafs(
@@ -159,7 +197,11 @@ async function chamfer(
     async (leaf: AbundanceLeaf) => {
       return {
         ...leaf,
-        geometry: await util.geometryProvider!.chamfer(leaf.geometry, size),
+        geometry: await util.geometryProvider!.chamfer(
+          leaf.geometry,
+          size,
+          context
+        ),
       };
     },
     geom.plane

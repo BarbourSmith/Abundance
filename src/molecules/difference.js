@@ -81,6 +81,6 @@ export default class Difference extends Atom {
   compute(inputs) {
     const input1 = inputs.geometry1;
     const input2 = inputs.geometry2;
-    return GlobalVariables.cad.difference(input1, input2);
+    return GlobalVariables.cad.difference(input1, input2, this.getContext());
   }
 }

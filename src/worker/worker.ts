@@ -5,7 +5,7 @@ import { drawSVG } from "replicad-decorate";
 import { chamfer, extrude, fillet, move, rotate, scale } from "./actions";
 import { executeCode as code } from "./code";
 import { displayLayout, layout } from "./cutlayout";
-import { ReplicadObject } from "./geometryProvider";
+import { ReplicadObject, RequestContext } from "./geometryProvider";
 import {
   assembly,
   difference,
@@ -74,7 +74,8 @@ function createMesh(thickness: number): Promise<any[]> {
  */
 function visExport(
   input: AbundanceObject,
-  fileType: string
+  fileType: string,
+  context: RequestContext
 ): Promise<AbundanceObject> {
   return started.then(async () => {
     let geometryToExport = extractKeepOut(input);
@@ -83,7 +84,7 @@ function visExport(
         "Geometry To Export has no geometry after keepout is applied"
       );
     }
-    let fusedGeometry = await fuseAssembly(geometryToExport);
+    let fusedGeometry = await digFuse(geometryToExport, context);
     let displayColor =
       fileType == "STL"
         ? "#91C8D5"
@@ -95,14 +96,16 @@ function visExport(
       /** Fuses input geometry, draws a top view projection*/
       if (util.is3D(input)) {
         const shape3d = (await util.geometryProvider!.get(
-          fusedGeometry.geometry
+          fusedGeometry.geometry,
+          context
         )) as AnyShape;
         const drawingResult = util.replicad.drawProjection(
           shape3d,
           "top"
         ).visible;
         const cachedGeom = await util.geometryProvider!.addSingularToCache(
-          drawingResult
+          drawingResult,
+          context
         );
         finalGeometry = {
           ...fusedGeometry,
@@ -130,7 +133,8 @@ function downExport(
   input: AbundanceObject,
   fileType: string,
   svgResolution: number,
-  units: string
+  units: string,
+  context: RequestContext
 ): Promise<Blob> {
   return started.then(async () => {
     // as with visexport, fuse the result before exporting.
@@ -140,8 +144,11 @@ function downExport(
         "Geometry To Export has no geometry after keepout is applied"
       );
     }
-    let fusedGeometry = await fuseAssembly(geometryToExport);
-    const geom = await util.geometryProvider!.get(fusedGeometry.geometry);
+    let fusedGeometry = await digFuse(geometryToExport, context);
+    const geom = await util.geometryProvider!.get(
+      fusedGeometry.geometry,
+      context
+    );
     let scaleUnit = units == "Inches" ? 1 : units == "MM" ? 25.4 : 1;
     let scaling = svgResolution / scaleUnit;
     if (fileType == "SVG") {
@@ -170,7 +177,10 @@ function downExport(
  * Imports a STEP file and stores the resulting geometry in the library.
  * @param {File} file - The STEP file to import
  */
-async function importingSTEP(file: File): Promise<AbundanceObject> {
+async function importingSTEP(
+  file: File,
+  context: RequestContext
+): Promise<AbundanceObject> {
   await started;
   let STEPresult = await util.replicad.importSTEP(file);
   if (!util.geometryProvider!.isShape3D(STEPresult)) {
@@ -182,7 +192,10 @@ async function importingSTEP(file: File): Promise<AbundanceObject> {
   }
 
   return {
-    geometry: await util.geometryProvider!.addSingularToCache(STEPresult),
+    geometry: await util.geometryProvider!.addSingularToCache(
+      STEPresult,
+      context
+    ),
     tags: [],
     color: util.defaultColor,
     bom: [],
@@ -195,7 +208,10 @@ async function importingSTEP(file: File): Promise<AbundanceObject> {
  * Imports an STL file and stores the resulting geometry in the library.
  * @param {File} file - The STL file to import
  */
-async function importingSTL(file: File): Promise<AbundanceObject> {
+async function importingSTL(
+  file: File,
+  context: RequestContext
+): Promise<AbundanceObject> {
   await started;
   let STLresult = await util.replicad.importSTL(file);
   if (!util.geometryProvider!.isShape3D(STLresult)) {
@@ -206,7 +222,10 @@ async function importingSTL(file: File): Promise<AbundanceObject> {
     );
   }
   return {
-    geometry: await util.geometryProvider!.addSingularToCache(STLresult),
+    geometry: await util.geometryProvider!.addSingularToCache(
+      STLresult,
+      context
+    ),
     tags: [],
     color: util.defaultColor,
     bom: [],
@@ -223,7 +242,8 @@ async function importingSTL(file: File): Promise<AbundanceObject> {
  */
 async function importingSVG(
   svg: string,
-  width: number
+  width: number,
+  context: RequestContext
 ): Promise<AbundanceObject> {
   await started;
   const baseWidth = width + width * 0.05;
@@ -246,7 +266,8 @@ async function importingSVG(
 
     return {
       geometry: await util.geometryProvider!.addSingularToCache(
-        drawnSVG.clone().translate(-center[0], -center[1])
+        drawnSVG.clone().translate(-center[0], -center[1]),
+        context
       ),
       tags: [],
       plane: util.XYPlane,
@@ -266,7 +287,10 @@ async function importingSVG(
  * Visualizes G-code by parsing movement commands and creating 3D wire geometry.
  * @param {string} gcode - The G-code string to visualize
  */
-async function visualizeGcode(gcode: string): Promise<AbundanceObject> {
+async function visualizeGcode(
+  gcode: string,
+  context: RequestContext
+): Promise<AbundanceObject> {
   let currentPosition: [number, number, number] = [0, 0, 0];
   let edges: Edge[] = [];
   // Split the gcode into lines
@@ -308,6 +332,7 @@ async function visualizeGcode(gcode: string): Promise<AbundanceObject> {
   return {
     geometry: await util.geometryProvider!.addSingularToCache(
       wire,
+      context,
       util.hashString(gcode)
     ),
     tags: [],
@@ -344,25 +369,14 @@ const prettyProjection = (shape: Shape3D | replicad.Wire) => {
  * @throws {Error} Throws an error if the geometry is undefined or thumbnail generation fails
  */
 async function generateThumbnail(
-  input: AbundanceObject
-): Promise<string | undefined> {
+  input: AbundanceObject,
+  context: RequestContext
+): Promise<string> {
   return started.then(async () => {
-    if (input === undefined || input.geometry === undefined) {
-      return undefined;
-    }
-    if (util.flattenAssembly(input).length > 100) {
-      // Fusing is too expensive for large projects for now.
-      return undefined;
-    }
-    console.log("Fusing assembly of size:", util.flattenAssembly(input).length);
-    const startTime = performance.now();
-
-    const fusedAssembly = await fuseAssembly(input);
-    console.log(
-      `Fusing assembly took ${performance.now() - startTime} milliseconds`
-    );
+    const fusedAssembly = await digFuse(input, context);
     const fusedGeometry = await util.geometryProvider!.get(
-      fusedAssembly.geometry
+      fusedAssembly.geometry,
+      context
     );
     let projectionShape;
     let svg;
@@ -385,9 +399,10 @@ async function generateThumbnail(
 }
 
 function getBoundingBox(
-  geometry: AbundanceObject
+  geometry: AbundanceObject,
+  context: RequestContext
 ): Promise<{ min: number[]; max: number[] }> {
-  return util.getBounds(geometry);
+  return util.getBounds(geometry, context);
 }
 
 /**
@@ -441,10 +456,15 @@ let colorOptions = {
  * @param {string} id - The unique identifier to store the default mesh in the library
  * @returns {Promise} A promise that resolves to the default text mesh
  */
-async function generateDefaultMesh() {
+async function generateDefaultMesh(context: RequestContext) {
   if (defaultMesh == undefined) {
-    const defaultText = await text("No output to display", 28, "ROBOTO");
-    defaultMesh = await generateDisplayMesh(defaultText);
+    const defaultText = await text(
+      "No output to display",
+      28,
+      "ROBOTO",
+      context
+    );
+    defaultMesh = await generateDisplayMesh(defaultText, context);
   }
   return defaultMesh;
 }
@@ -556,7 +576,8 @@ function generateCameraPosition(meshArray: ReplicadObject[]): number {
 }
 
 async function generateDisplayMesh(
-  id: AbundanceObject
+  id: AbundanceObject,
+  context: RequestContext
 ): Promise<DisplayMesh[]> {
   await started;
   console.log("Generating display mesh for ID:", JSON.stringify(id));
@@ -564,7 +585,7 @@ async function generateDisplayMesh(
   if (util.isAbundanceObject(id)) {
     geom = id;
   } else {
-    return generateDefaultMesh();
+    return generateDefaultMesh(context);
   }
 
   // Flatten the assembly to remove hierarchy
@@ -576,14 +597,19 @@ async function generateDisplayMesh(
     const displayObject = flattened[i];
     let cleanedGeometry;
     // TODO: would love a better way to check if geometry is 2D or 3D.
-    const geom = await util.geometryProvider!.get(displayObject.geometry);
+    const geom = await util.geometryProvider!.get(
+      displayObject.geometry,
+      context
+    );
     if (!("mesh" in geom) || geom.mesh == undefined) {
       cleanedGeometry = await util.geometryProvider!.get(
         await util.geometryProvider!.extrude(
           displayObject.geometry,
           displayObject.plane,
-          0.0001
-        )
+          0.0001,
+          context
+        ),
+        context
       );
     } else {
       cleanedGeometry = geom;

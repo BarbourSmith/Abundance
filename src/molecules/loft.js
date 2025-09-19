@@ -121,7 +121,7 @@ export default class Loft extends Atom {
       .map((io) => inputs[io.name])
       .filter(Boolean);
 
-    return GlobalVariables.cad.loftShapes(nonnullInputIds);
+    return GlobalVariables.cad.loftShapes(nonnullInputIds, this.getContext());
   }
 
   /**

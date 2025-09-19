@@ -2,8 +2,8 @@ import { proxy } from "comlink";
 import { PlacementWrapper, PolygonPacker } from "polygon-packer";
 import type { DisplayCallback } from "polygon-packer/src/types";
 import { Face, Shape3D } from "replicad";
-import { ReplicadObject } from "./geometryProvider";
 import { extractKeepOut } from "./tags";
+import { ReplicadObject, RequestContext } from "./geometryProvider";
 import type { AbundanceLeaf, AbundanceObject } from "./util";
 import * as util from "./util";
 
@@ -46,12 +46,14 @@ async function layout(
   warningCallback: (msg: string) => void,
   placementsCallback: (placements: Placement[][]) => void,
   layoutConfig: LayoutConfig,
+  context: RequestContext,
   previousPlacements: Placement[][] | undefined = undefined
 ): Promise<[AbundanceObject, Placement[][]]> {
   var [rotatedAssembly, shapesForLayout] = await rotateForLayout(
     assembly,
     layoutConfig,
-    warningCallback
+    warningCallback,
+    context
   );
 
   let positionsPromise = computePositions(
@@ -66,7 +68,8 @@ async function layout(
     const layedOutAssembly = await applyLayout(
       rotatedAssembly,
       positions,
-      layoutConfig
+      layoutConfig,
+      context
     );
 
     if (positions.length == 0) {
@@ -98,14 +101,21 @@ async function displayLayout(
   assembly: AbundanceObject,
   positions: Placement[][],
   warningCallback: (msg: string) => void,
-  layoutConfig: LayoutConfig
+  layoutConfig: LayoutConfig,
+  context: RequestContext
 ): Promise<AbundanceObject> {
   const [rotatedAssembly, shapesForLayout] = await rotateForLayout(
     assembly,
     layoutConfig,
-    warningCallback
+    warningCallback,
+    context
   );
-  const result = await applyLayout(rotatedAssembly, positions, layoutConfig);
+  const result = await applyLayout(
+    rotatedAssembly,
+    positions,
+    layoutConfig,
+    context
+  );
   return result;
 }
 
@@ -118,9 +128,10 @@ async function displayLayoutWithRotatedAssembly(
   rotatedAssembly: AbundanceObject,
   positions: Placement[][],
   warningCallback: (msg: string) => void,
-  layoutConfig: LayoutConfig
+  layoutConfig: LayoutConfig,
+  context: RequestContext
 ): Promise<AbundanceObject> {
-  return applyLayout(rotatedAssembly, positions, layoutConfig);
+  return applyLayout(rotatedAssembly, positions, layoutConfig, context);
 }
 
 /**
@@ -138,25 +149,37 @@ async function displayLayoutWithRotatedAssembly(
 async function rotateForLayout(
   assembly: AbundanceObject,
   layoutConfig: LayoutConfig,
-  warningCallback: (msg: string) => void
+  warningCallback: (msg: string) => void,
+  context: RequestContext
 ): Promise<[AbundanceObject, ShapeForLayout[]]> {
   // Filter out keepout geometry before any processing
   const filteredAssembly = extractKeepOut(assembly);
   if (!filteredAssembly) {
-    throw new Error(
-      "No geometry to layout after keepout geometry is excluded"
-    );
+    throw new Error("No geometry to layout after keepout geometry is excluded");
   }
-  
+
   const cacheID = JSON.stringify([filteredAssembly, layoutConfig]);
   const cached = rotateMemoCache.get(cacheID);
   if (cached) {
     let [rotatedAssembly, shapesForLayout, warning] = cached;
-    if (warning) {
-      warningCallback(warning);
+    try {
+      await util.geometryProvider!.get(
+        util.flattenAssembly(rotatedAssembly)[0].geometry,
+        context
+      );
+      // If retrieving a geometry succeeds, then the cache hasn't been revoked on us
+      // and we can proceed.
+      if (warning) {
+        warningCallback(warning);
+      }
+      console.log("rotateForLayout cache hit for: " + cacheID);
+      return Promise.resolve([rotatedAssembly, shapesForLayout]);
+    } catch (error) {
+      console.warn(
+        "Geom cache was evicted during the lifetime of rotateForLayout memoization",
+        error
+      );
     }
-    console.log("rotateForLayout cache hit for: " + cacheID);
-    return Promise.resolve([rotatedAssembly, shapesForLayout]);
   }
   console.log("rotateForLayout cache miss for: " + cacheID);
   // Cache miss
@@ -183,7 +206,7 @@ async function rotateForLayout(
   const intermediate = await util.actOnLeafs(
     filteredAssembly,
     async (leaf: AbundanceLeaf) => {
-      let geom = await util.geometryProvider!.get(leaf.geometry);
+      let geom = await util.geometryProvider!.get(leaf.geometry, context);
       if (!("faces" in geom)) {
         // geom is a 2D object.
         return leaf;
@@ -340,7 +363,10 @@ async function rotateForLayout(
 
     let newLeaf = {
       ...leaf,
-      geometry: await util.geometryProvider!.addSingularToCache(newGeom),
+      geometry: await util.geometryProvider!.addSingularToCache(
+        newGeom,
+        context
+      ),
       id: leafID,
       referencePoint: selected.face.center,
     };
@@ -379,7 +405,8 @@ async function rotateForLayout(
 async function applyLayout(
   rotatedAssembly: AbundanceObject,
   positions: Placement[][],
-  layoutConfig: LayoutConfig
+  layoutConfig: LayoutConfig,
+  context: RequestContext
 ): Promise<AbundanceObject> {
   const result = util.actOnLeafs(
     rotatedAssembly,
@@ -412,13 +439,15 @@ async function applyLayout(
         leaf.geometry,
         0,
         0,
-        transform.rotate
+        transform.rotate,
+        context
       );
       newGeom = await util.geometryProvider!.move(
         newGeom,
         transform.translate.x,
         transform.translate.y + i * layoutConfig.height,
-        0
+        0,
+        context
       );
 
       return {
@@ -812,7 +841,10 @@ function areaApprox(bounds: {
 }
 
 export {
-  createDefaultPlacements, displayLayout,
-  displayLayoutWithRotatedAssembly, layout, LayoutConfig,
-  Placement
+  createDefaultPlacements,
+  displayLayout,
+  displayLayoutWithRotatedAssembly,
+  layout,
+  LayoutConfig,
+  Placement,
 };

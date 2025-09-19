@@ -1,6 +1,7 @@
 import Fonts from "../js/fonts.js";
 import * as util from "./util";
 import { AbundanceLeaf } from "./util";
+import { RequestContext } from "./geometryProvider";
 
 /**
  * Methods in this file create a new geometry from non-geometric inputs. Eg:
@@ -13,10 +14,13 @@ import { AbundanceLeaf } from "./util";
  * @param {number} diameter - The diameter of the circle
  * @returns Assembly containing a circle on the XY plane
  */
-async function circle(diameter: number): Promise<AbundanceLeaf> {
+async function circle(
+  diameter: number,
+  context: RequestContext
+): Promise<AbundanceLeaf> {
   await util.init();
   return {
-    geometry: await util.geometryProvider!.drawCircle(diameter / 2),
+    geometry: await util.geometryProvider!.drawCircle(diameter / 2, context),
     dimension: "2D",
     tags: [],
     plane: util.XYPlane,
@@ -31,10 +35,14 @@ async function circle(diameter: number): Promise<AbundanceLeaf> {
  * @param {number} y - The height of the rectangle
  * @returns Assembly containing a rectangle on the XY plane
  */
-async function rectangle(x: number, y: number): Promise<AbundanceLeaf> {
+async function rectangle(
+  x: number,
+  y: number,
+  context: RequestContext
+): Promise<AbundanceLeaf> {
   await util.init();
   return {
-    geometry: await util.geometryProvider!.drawRectangle(x, y),
+    geometry: await util.geometryProvider!.drawRectangle(x, y, context),
     dimension: "2D",
     plane: util.XYPlane,
     color: util.defaultColor,
@@ -51,7 +59,8 @@ async function rectangle(x: number, y: number): Promise<AbundanceLeaf> {
  */
 async function regularPolygon(
   radius: number,
-  numberOfSides: number
+  numberOfSides: number,
+  context: RequestContext
 ): Promise<AbundanceLeaf> {
   if (numberOfSides < 3) {
     throw new Error("Number of sides must be at least 3 for a polygon.");
@@ -61,7 +70,11 @@ async function regularPolygon(
   }
   await util.init();
   return {
-    geometry: await util.geometryProvider!.drawPolysides(radius, numberOfSides),
+    geometry: await util.geometryProvider!.drawPolysides(
+      radius,
+      numberOfSides,
+      context
+    ),
     dimension: "2D",
     tags: [],
     plane: util.XYPlane,
@@ -81,17 +94,22 @@ async function regularPolygon(
 async function textGeom(
   text: string,
   fontSize: number,
-  fontFamily: string
+  fontFamily: string,
+  context: RequestContext
 ): Promise<AbundanceLeaf> {
   await util.init();
   await util.replicad.loadFont(Fonts[fontFamily as keyof typeof Fonts]);
   return {
-    geometry: await util.geometryProvider!.drawText(text, {
-      startX: 0,
-      startY: 0,
-      fontSize: fontSize,
-      font: fontFamily,
-    }),
+    geometry: await util.geometryProvider!.drawText(
+      text,
+      {
+        startX: 0,
+        startY: 0,
+        fontSize: fontSize,
+        font: fontFamily,
+      },
+      context
+    ),
     dimension: "2D",
     tags: [],
     plane: util.XYPlane,

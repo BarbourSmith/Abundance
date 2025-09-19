@@ -2,7 +2,7 @@ import * as replicad from "replicad";
 import opencascade from "replicad-opencascadejs/src/replicad_single.js";
 import opencascadeWasm from "replicad-opencascadejs/src/replicad_single.wasm?url";
 import { v4 as uuidv4 } from "uuid";
-import { GeometryProvider } from "./geometryProvider";
+import { GeometryProvider, RequestContext } from "./geometryProvider";
 
 let defaultColor: string = "#aad7f2";
 let loaded: boolean = false;
@@ -61,7 +61,8 @@ function is3D(part: AbundanceObject): boolean {
 }
 
 async function getBounds(
-  geometry: AbundanceObject
+  geometry: AbundanceObject,
+  context: RequestContext
 ): Promise<{ min: number[]; max: number[] }> {
   try {
     let minX = Infinity,
@@ -72,7 +73,7 @@ async function getBounds(
       maxZ = -Infinity;
 
     await actOnLeafs(geometry, async (leaf: AbundanceLeaf) => {
-      const replicadbox = (await geometryProvider!.get(leaf.geometry))
+      const replicadbox = (await geometryProvider!.get(leaf.geometry, context))
         .boundingBox;
       let bbox = replicadbox.bounds;
       minX = Math.min(minX, bbox[0][0]);

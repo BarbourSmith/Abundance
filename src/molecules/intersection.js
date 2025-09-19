@@ -89,6 +89,6 @@ export default class Intersection extends Atom {
   compute(inputs) {
     const input1 = inputs.geometry1;
     const input2 = inputs.geometry2;
-    return GlobalVariables.cad.intersect(input1, input2);
+    return GlobalVariables.cad.intersect(input1, input2, this.getContext());
   }
 }
