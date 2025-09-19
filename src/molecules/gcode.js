@@ -170,11 +170,12 @@ export default class Gcode extends Atom {
    * @returns {Function} The gcode callback function
    */
   _createGcodeCallback() {
-    return (gcode) => {
+    return async (gcode) => {
       this.gcodeString = gcode;
       this.gcodeGenerated = true;
       this.progress = 1.0; // Complete progress
-      this.setReady(GlobalVariables.cad.visualizeGcode(this.uniqueID, gcode));
+      await GlobalVariables.cad.visualizeGcode(this.uniqueID, gcode);
+      this.setReady(this.uniqueID);
     };
   }
 
@@ -449,7 +450,8 @@ export default class Gcode extends Atom {
 
     // Generate visualization for the final G-code and store in library under
     // this.uniqueID
-    return GlobalVariables.cad.visualizeGcode(this.uniqueID, this.gcodeString);
+    await GlobalVariables.cad.visualizeGcode(this.uniqueID, this.gcodeString);
+    return this.uniqueID;
   }
 
   /**

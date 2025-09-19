@@ -71,7 +71,7 @@ async function getBounds(
       maxY = -Infinity,
       maxZ = -Infinity;
 
-    actOnLeafs(geometry, async (leaf: AbundanceLeaf) => {
+    for await (const leaf of flattenAssembly(geometry)) {
       const replicadbox = (await geometryProvider!.get(leaf.geometry))
         .boundingBox;
       let bbox = replicadbox.bounds;
@@ -86,8 +86,7 @@ async function getBounds(
         minZ = Math.min(minZ, bbox[0][2]);
         maxZ = Math.max(maxZ, bbox[1][2]);
       }
-      return leaf;
-    });
+    }
 
     return {
       min: [minX, minY, minZ],

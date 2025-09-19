@@ -870,24 +870,13 @@ async function extractParts(assemblyID: string): Promise<string[]> {
   await started;
   const assembly = getOrThrow(assemblyID);
 
-  if (!util.isAssembly(assembly)) {
-    // If it's not an assembly, return the original ID
-    return [assemblyID];
-  }
-
   const parts: string[] = [];
   let partIndex = 0;
-
-  // Extract each part from the assembly and store it in the library
-  util.actOnLeafs(assembly, (leaf) => {
-    if (leaf.geometry && leaf.geometry.length > 0) {
-      const partID = `${assemblyID}_part_${partIndex++}`;
-      library[partID] = leaf;
-      parts.push(partID);
-    }
-    return leaf;
-  });
-
+  for await (const leaf of util.flattenAssembly(assembly)) {
+    const partID = `${assemblyID}_part_${partIndex++}`;
+    library[partID] = leaf;
+    parts.push(partID);
+  }
   return parts;
 }
 
@@ -1214,8 +1203,43 @@ if (
 
 // Export functions for testing and ES module environments
 export {
-  assembly, bom, chamfer, circle, code, color, createMesh, deleteFromLibrary, difference, displayLayout, downExport, extractAllTags, extractParts, extractTag, extrude, fillet, generateThumbnail, getBoundingBox, importingSTEP,
+  assembly,
+  bom,
+  chamfer,
+  circle,
+  code,
+  color,
+  createMesh,
+  deleteFromLibrary,
+  difference,
+  displayLayout,
+  downExport,
+  extractAllTags,
+  extractParts,
+  extractTag,
+  extrude,
+  fillet,
+  generateThumbnail,
+  getBoundingBox,
+  importingSTEP,
   importingSTL,
-  importingSVG, intersect, isAssembly, layout, library, loftShapes, molecule, move, output, rectangle, regularPolygon, rotate,
-  scale, shrinkWrapSketches, started, tag, text, visExport, visualizeGcode
+  importingSVG,
+  intersect,
+  isAssembly,
+  layout,
+  library,
+  loftShapes,
+  molecule,
+  move,
+  output,
+  rectangle,
+  regularPolygon,
+  rotate,
+  scale,
+  shrinkWrapSketches,
+  started,
+  tag,
+  text,
+  visExport,
+  visualizeGcode,
 };
