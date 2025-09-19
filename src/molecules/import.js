@@ -140,7 +140,9 @@ export default class Import extends Atom {
         })
         .then((result) => {
           this.setReady(result);
-          this.sendToRender();
+          if (this.selected) {
+            this.sendToRender();
+          }
           return result;
         })
         .catch(this.alertingErrorHandler());

@@ -269,7 +269,6 @@ function AppContent() {
         }
         GlobalVariables.currentMolecule = GlobalVariables.topLevelMolecule;
         GlobalVariables.currentMolecule.selected = true;
-
         setActiveAtom(GlobalVariables.currentMolecule);
       })
       .catch((e) => {
