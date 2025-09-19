@@ -156,7 +156,8 @@ function AppContent() {
             setRenderProgress(100);
           })
           .catch((e) => {
-            console.error("reset view not working" + e);
+            const errorMsg = e instanceof Error ? e.message : String(e);
+            console.error("Reset view failed:", errorMsg);
           });
       } else {
         console.log("Generating mesh for id:", id);
@@ -167,8 +168,19 @@ function AppContent() {
             setOutdatedMesh(false);
           })
           .catch((e) => {
-            console.error("Can't display Mesh " + e);
-            activeAtom.setError("Can't display Mesh " + e);
+            const errorMsg = e instanceof Error ? e.message : String(e);
+            console.error("Can't display Mesh:", errorMsg);
+            
+            // Check if this looks like a worker crash
+            const isWorkerCrash = errorMsg.includes("worker thread crash") || 
+                                 errorMsg.includes("Worker terminated") ||
+                                 errorMsg.includes("MessagePort closed");
+            
+            const userFriendlyMsg = isWorkerCrash 
+              ? `Display failed: Worker thread crashed while generating mesh. Try refreshing the page or simplifying the geometry.`
+              : `Display failed: ${errorMsg}`;
+            
+            activeAtom.setError(userFriendlyMsg);
           });
         /*Set wireMesh*/
         //Exception: Don't display the mesh if the thing we are displaying is already the output
@@ -183,7 +195,8 @@ function AppContent() {
               }
             })
             .catch((e) => {
-              console.error("Can't compute Wireframe/No output " + e);
+              const errorMsg = e instanceof Error ? e.message : String(e);
+              console.error("Can't compute Wireframe/No output:", errorMsg);
               // Create div even on error for top-level molecule to prevent hanging
               if (id === GlobalVariables.topLevelMolecule?.uniqueID) {
                 createPuppeteerDiv();
@@ -200,7 +213,8 @@ function AppContent() {
               createPuppeteerDiv();
             })
             .catch((e) => {
-              console.error("reset view not working" + e);
+              const errorMsg = e instanceof Error ? e.message : String(e);
+              console.error("Reset view failed:", errorMsg);
               // Create div even on error to prevent hanging
               createPuppeteerDiv();
             });

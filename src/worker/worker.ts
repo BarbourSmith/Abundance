@@ -1081,10 +1081,11 @@ async function generateDisplayMesh(
       try {
         console.log("resolved to: " + JSON.stringify(geom));
       } catch (error) {
-        console.error("Error resolving geometry:", error);
-        throw error;
+        console.error("Error resolving geometry for ID:", id, error);
+        throw new Error(`Failed to resolve geometry for ID "${id}": ${error instanceof Error ? error.message : String(error)}`);
       }
     } else {
+      console.warn("No geometry found for ID:", id, "returning default mesh");
       return generateDefaultMesh();
     }
   }
@@ -1125,7 +1126,8 @@ async function generateDisplayMesh(
 
   let finalMeshes = [];
   // Iterate through the meshArray and create final meshes with faces, edges and color to pass to display
-  for (const meshObj of meshArray) {
+  for (let i = 0; i < meshArray.length; i++) {
+    const meshObj = meshArray[i];
     try {
       let sketchPlane = util.asReplicadPlane(geom.plane);
       if (meshObj.geometry instanceof replicad.Drawing) {
@@ -1156,7 +1158,15 @@ async function generateDisplayMesh(
         });
       }
     } catch (e) {
-      throw new Error("Error generating display mesh" + e);
+      const geometryType = meshObj.geometry instanceof replicad.Drawing ? "2D Drawing" : "3D Shape";
+      const idContext = typeof id === "string" ? ` (ID: ${id})` : "";
+      const meshIndex = i + 1;
+      console.error(`Failed to generate mesh for ${geometryType} at index ${meshIndex}${idContext}:`, e);
+      throw new Error(
+        `Error generating display mesh for ${geometryType} at index ${meshIndex}${idContext}. ` +
+        `This may indicate a worker thread crash or invalid geometry. ` +
+        `Original error: ${e instanceof Error ? e.message : String(e)}`
+      );
     }
   }
   return finalMeshes;
