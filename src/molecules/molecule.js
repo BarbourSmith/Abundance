@@ -1015,11 +1015,14 @@ export default class Molecule extends Atom {
 
       //Place the connectors, skipping null/undefined
       if (json.allConnectors) {
-        json.allConnectors.forEach((connector) => {
-          if (connector) {
-            this.placeConnector(connector);
-          }
-        });
+        // Add a small delay to ensure atoms are fully ready
+        setTimeout(() => {
+          json.allConnectors.forEach((connector) => {
+            if (connector) {
+              this.placeConnector(connector);
+            }
+          });
+        }, 10);
       }
       const outputAtom = this.getOutputAtom();
       outputAtom.subscribe(
@@ -1484,7 +1487,7 @@ export default class Molecule extends Atom {
         attachmentPoint2: inputAttachmentPoint,
       });
     } else {
-      console.warn("Unable to place connector");
+      console.warn("Unable to place connector - missing attachment points");
     }
   }
 
