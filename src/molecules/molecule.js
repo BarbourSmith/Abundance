@@ -1163,6 +1163,12 @@ export default class Molecule extends Atom {
         let newID = GlobalVariables.generateUniqueID();
         idPairs[oldID] = newID;
         atom.uniqueID = newID;
+
+        // Recursively handle nested molecules (GitHubMolecules can contain other molecules)
+        if ((atom.atomType === "Molecule" || atom.atomType === "GitHubMolecule") && 
+            (atom.allAtoms || atom.allConnectors)) {
+          this.remapIDs(atom);
+        }
       });
 
       // Handle connectors if they exist

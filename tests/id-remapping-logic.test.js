@@ -84,6 +84,12 @@ describe('ID Remapping Logic Test', () => {
         let newID = generateUniqueID();
         idPairs[oldID] = newID;
         atom.uniqueID = newID;
+
+        // Recursively handle nested molecules (GitHubMolecules can contain other molecules)
+        if ((atom.atomType === "Molecule" || atom.atomType === "GitHubMolecule") && 
+            (atom.allAtoms || atom.allConnectors)) {
+          moleculeRemapIDs(atom);
+        }
       });
       
       // Handle connectors if they exist
@@ -230,6 +236,8 @@ describe('ID Remapping Logic Test', () => {
       ],
       allConnectors: [
         {
+          ap1Name: 'some-attachment-point',
+          ap2Name: 'geometry',
           ap1ID: 'some-attachment-point',
           ap2ID: 'atom-456',
           uniqueID: 'connector-789'
@@ -258,6 +266,69 @@ describe('ID Remapping Logic Test', () => {
     expect(remapped.allConnectors[0].ap2ID).toBe(remapped.allAtoms[0].uniqueID);
     
     console.log('Fixed molecule.remapIDs - all IDs properly remapped');
+  });
+
+  it('should handle deeply nested molecules recursively', () => {
+    const mockNestedMolecule = {
+      atomType: 'GitHubMolecule',
+      name: 'ParentMolecule',
+      uniqueID: 'parent-123',
+      allAtoms: [
+        {
+          atomType: 'Circle',
+          name: 'ParentCircle',
+          uniqueID: 'parent-circle-456',
+        },
+        {
+          atomType: 'GitHubMolecule',
+          name: 'NestedMolecule',
+          uniqueID: 'nested-789',
+          allAtoms: [
+            {
+              atomType: 'Rectangle',
+              name: 'NestedRectangle',
+              uniqueID: 'nested-rect-101',
+            }
+          ],
+          allConnectors: [
+            {
+              ap1ID: 'nested-rect-101',
+              ap2ID: 'some-other-atom',
+              uniqueID: 'nested-connector-202'
+            }
+          ]
+        }
+      ],
+      allConnectors: [
+        {
+          ap1ID: 'parent-circle-456',
+          ap2ID: 'nested-789',
+          uniqueID: 'parent-connector-303'
+        }
+      ]
+    };
+
+    const originalParentCircleID = mockNestedMolecule.allAtoms[0].uniqueID;
+    const originalNestedMoleculeID = mockNestedMolecule.allAtoms[1].uniqueID;
+    const originalNestedRectID = mockNestedMolecule.allAtoms[1].allAtoms[0].uniqueID;
+    const originalNestedConnectorID = mockNestedMolecule.allAtoms[1].allConnectors[0].uniqueID;
+
+    // Apply the recursive molecule remapIDs
+    const remapped = moleculeRemapIDs(mockNestedMolecule);
+
+    console.log('Recursively remapped data:', JSON.stringify(remapped, null, 2));
+
+    // Parent level should be remapped
+    expect(remapped.uniqueID).not.toBe('parent-123');
+    expect(remapped.allAtoms[0].uniqueID).not.toBe(originalParentCircleID);
+    expect(remapped.allAtoms[1].uniqueID).not.toBe(originalNestedMoleculeID);
+    expect(remapped.allConnectors[0].uniqueID).not.toBe('parent-connector-303');
+
+    // Nested level should ALSO be remapped
+    expect(remapped.allAtoms[1].allAtoms[0].uniqueID).not.toBe(originalNestedRectID);
+    expect(remapped.allAtoms[1].allConnectors[0].uniqueID).not.toBe(originalNestedConnectorID);
+
+    console.log('Recursive remapping test passed - all nested IDs were remapped');
   });
 
   it('should demonstrate the potential issue with the current flowCanvas logic', () => {
