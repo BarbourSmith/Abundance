@@ -1,4 +1,4 @@
-import Atom from "../prototypes/atom";
+import Atom from "../prototypes/atom.js";
 import GlobalVariables from "../js/globalvariables.js";
 import { parse } from "mathjs";
 import { Status } from "../prototypes/observableEntity.js";
@@ -14,7 +14,8 @@ export default class Equation extends Atom {
   constructor(values) {
     super(values);
 
-    this.addIO("result", "number", 0, "output");
+    // Output can be either number or string depending on the equation
+    this.addIO("result", "string", 0, "output");
 
     /**
      * This atom's name

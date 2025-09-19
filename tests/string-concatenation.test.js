@@ -1,33 +1,79 @@
 import { describe, it, expect } from "vitest";
-import { create, all } from "mathjs";
+import Equation from "../src/molecules/equation.js";
 
 describe("String concatenation in equation", () => {
-  it("should test current mathjs capabilities for string operations", () => {
-    const math = create(all);
+  it("should support string concatenation with variables", async () => {
+    const equation = new Equation({});
     
-    // Test number operations (should work)
-    expect(math.evaluate('5 + 3')).toBe(8);
-    expect(math.evaluate('x + 10', {x: 5})).toBe(15);
+    // Test x + "mm plywood" type expressions
+    equation.setEquation('x + "mm plywood"');
     
-    // Test if string concatenation works
-    try {
-      const result = math.evaluate('"hello" + " world"');
-      console.log('String concatenation result:', result);
-      expect(typeof result).toBe('string');
-    } catch (error) {
-      console.log('String concatenation failed:', error.message);
-      expect(error.message).toContain('concatenation'); // Let's see what happens
-    }
+    // Mock inputs for the equation
+    equation.inputs = [
+      {
+        name: "x",
+        getValue: () => 18,
+        getState: () => ({ status: "READY" })
+      }
+    ];
     
-    // Test mixed type concatenation
-    try {
-      const result = math.evaluate('x + "mm plywood"', {x: 18});
-      console.log('Mixed concatenation result:', result);
-      expect(typeof result).toBe('string');
-      expect(result).toBe('18mm plywood');
-    } catch (error) {
-      console.log('Mixed concatenation failed:', error.message);
-      expect(error).toBeDefined(); // Currently expected to fail
-    }
+    // Test the computation
+    const result = await equation.compute();
+    expect(result).toBe("18mm plywood");
+  });
+
+  it("should support simple string concatenation", async () => {
+    const equation = new Equation({});
+    
+    equation.setEquation('"hello" + " world"');
+    
+    const result = await equation.compute();
+    expect(result).toBe("hello world");
+  });
+
+  it("should support multiple variable concatenation", async () => {
+    const equation = new Equation({});
+    
+    equation.setEquation('quantity + "x" + thickness + "mm plywood"');
+    
+    // Mock inputs for the equation
+    equation.inputs = [
+      {
+        name: "quantity",
+        getValue: () => 3,
+        getState: () => ({ status: "READY" })
+      },
+      {
+        name: "thickness", 
+        getValue: () => 18,
+        getState: () => ({ status: "READY" })
+      }
+    ];
+    
+    const result = await equation.compute();
+    expect(result).toBe("3x18mm plywood");
+  });
+
+  it("should still work with numeric expressions", async () => {
+    const equation = new Equation({});
+    
+    equation.setEquation('x + y * 2');
+    
+    // Mock inputs for the equation
+    equation.inputs = [
+      {
+        name: "x",
+        getValue: () => 5,
+        getState: () => ({ status: "READY" })
+      },
+      {
+        name: "y",
+        getValue: () => 3,
+        getState: () => ({ status: "READY" })
+      }
+    ];
+    
+    const result = await equation.compute();
+    expect(result).toBe(11); // Should still be a number for numeric expressions
   });
 });

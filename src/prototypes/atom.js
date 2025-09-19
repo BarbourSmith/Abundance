@@ -1,6 +1,6 @@
 import { parse } from "mathjs";
 import GlobalVariables from "../js/globalvariables.js";
-import AttachmentPoint from "./attachmentpoint";
+import AttachmentPoint from "./attachmentpoint.js";
 import { ObservableEntity, Status } from "./observableEntity.js";
 
 // Make this an enum once we're using typescript
@@ -862,6 +862,107 @@ export default class Atom extends ObservableEntity {
   }
 
   /**
+   * Evaluate string expressions with concatenation support
+   * @param {string} expression - The expression containing string literals
+   * @returns {string} The evaluated string result
+   */
+  _evaluateStringExpression(expression) {
+    // Extract variables from the expression
+    const variables = this.extractVariablesFromEquation(expression);
+    const unresolved = [];
+    const resolvedValues = {};
+    const BUILTIN_CONSTS = new Set(["pi", "e", "tau", "Infinity", "NaN"]);
+    
+    if (variables.length > 0) {
+      const parentInputs =
+        (this.parent && this.parent.inputs) ||
+        (this.parentMolecule && this.parentMolecule.inputs) ||
+        [];
+      
+      for (const variable of variables) {
+        if (BUILTIN_CONSTS.has(variable)) {
+          continue; // let evaluator handle it
+        }
+        
+        let value = null;
+        // Try parent inputs first
+        for (let j = 0; j < parentInputs.length; j++) {
+          if (parentInputs[j].name === variable) {
+            value =
+              typeof parentInputs[j].getValue === "function"
+                ? parentInputs[j].getValue()
+                : parentInputs[j].value;
+            break;
+          }
+        }
+        // Then this atom's inputs
+        if (value === null || value === undefined) {
+          for (let i = 0; i < this.inputs.length; i++) {
+            if (this.inputs[i].name === variable) {
+              value = this.findIOValue(this.inputs[i].name);
+              break;
+            }
+          }
+        }
+        
+        if (value === null || value === undefined) {
+          unresolved.push(variable);
+        } else {
+          resolvedValues[variable] = value;
+        }
+      }
+    }
+    
+    if (unresolved.length) {
+      const msg = `Variable(s) not found: ${unresolved.join(
+        ", "
+      )}. Make sure the variables you are using exist as inputs`;
+      console.warn(msg);
+      throw new Error(msg);
+    } else {
+      this.clearAlert();
+      
+      // For string expressions, use JavaScript evaluation for concatenation
+      let substitutedExpression = expression;
+      
+      // Substitute all resolved variables
+      for (const variable of Object.keys(resolvedValues)) {
+        const value = resolvedValues[variable];
+        const safeVar = variable.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const variablePattern = new RegExp(`\\b${safeVar}\\b`, "gu");
+        
+        // Convert value to string representation for concatenation
+        const stringValue = typeof value === 'string' ? `"${value}"` : String(value);
+        substitutedExpression = substitutedExpression.replace(
+          variablePattern,
+          stringValue
+        );
+      }
+      
+      // Safely evaluate the expression for string concatenation
+      try {
+        // Create a safe evaluation context with only basic operations
+        const safeEval = (expr) => {
+          // Allow string literals, numbers, + operator, parentheses, and letters for strings
+          if (!/^[\d\s+\-*/()."'a-zA-Z]+$/.test(expr)) {
+            throw new Error("Expression contains invalid characters");
+          }
+          
+          // Use Function constructor for safer evaluation than eval()
+          return new Function(`"use strict"; return (${expr})`)();
+        };
+        
+        const result = safeEval(substitutedExpression);
+        return String(result); // Ensure result is always a string
+      } catch (error) {
+        const msg = `Invalid string expression: "${substitutedExpression}". ${error.message}`;
+        console.warn("String expression evaluation failed:", msg);
+        throw new Error(msg);
+      }
+    }
+  }
+
+  /**
    * Evaluate the equation
    */
   evaluateEquation(equation) {
@@ -871,6 +972,13 @@ export default class Atom extends ObservableEntity {
     if (!substitutedEquation) {
       // If the equation is empty, treat it as zero
       substitutedEquation = "0";
+    }
+
+    // Check if equation contains string literals (quoted text)
+    const containsStringLiterals = /["']/.test(substitutedEquation);
+    
+    if (containsStringLiterals) {
+      return this._evaluateStringExpression(substitutedEquation);
     }
 
     const variables = this.extractVariablesFromEquation(substitutedEquation);
