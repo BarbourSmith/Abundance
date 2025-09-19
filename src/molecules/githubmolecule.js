@@ -103,6 +103,29 @@ export default class GitHubMolecule extends Molecule {
   }
 
   /**
+   * Override deserialize to handle GitHubMolecule-specific loading
+   * If this molecule has parentRepo but no allAtoms, load from GitHub
+   */
+  async deserialize(json, values = {}, forceEnable = false) {
+    // First call the parent deserialize method
+    const result = await super.deserialize(json, values, forceEnable);
+    
+    // If this GitHubMolecule has parentRepo info but no loaded content, load from GitHub
+    if (this.parentRepo && (!json.allAtoms || json.allAtoms.length === 0)) {
+      console.log(`Loading GitHubMolecule "${this.name}" from GitHub: ${this.parentRepo.owner}/${this.parentRepo.repoName}`);
+      try {
+        // Load the content from GitHub with new IDs
+        await this.loadGithubMoleculeByName(this.parentRepo, json);
+      } catch (error) {
+        console.error("Failed to load GitHubMolecule from GitHub during deserialize:", error);
+        this.setError("Failed to load from GitHub: " + error.message);
+      }
+    }
+    
+    return result;
+  }
+
+  /**
    * Reload this github molecule from github
    */
   reloadMoleculeFromGithub() {

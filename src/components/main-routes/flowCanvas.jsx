@@ -263,6 +263,7 @@ export default memo(function FlowCanvas({
               item.atomType == "GitHubMolecule"
             ) {
               // For molecules, use comprehensive ID remapping that handles nested atoms
+              // For GitHubMolecules, the deserialize method will handle loading from GitHub
               item = GlobalVariables.currentMolecule.remapIDs(item);
             } else {
               // For simple atoms, just assign a new unique ID
