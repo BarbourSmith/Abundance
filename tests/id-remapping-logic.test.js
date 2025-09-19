@@ -67,8 +67,10 @@ describe('ID Remapping Logic Test', () => {
 
   // Replicate the FIXED molecule remapIDs logic
   function moleculeRemapIDs(json) {
-    let idPairs = {};
-    
+    return _remapIDsRecursive(json, {});
+  }
+
+  function _remapIDsRecursive(json, idPairs) {
     // Always ensure the main atom/molecule gets a new ID if it doesn't already have one assigned
     if (json.uniqueID && !json.uniqueID.toString().startsWith('temp-new-')) {
       let oldMainID = json.uniqueID;
@@ -86,9 +88,10 @@ describe('ID Remapping Logic Test', () => {
         atom.uniqueID = newID;
 
         // Recursively handle nested molecules (GitHubMolecules can contain other molecules)
+        // Pass the same idPairs object to maintain cross-level ID mappings
         if ((atom.atomType === "Molecule" || atom.atomType === "GitHubMolecule") && 
             (atom.allAtoms || atom.allConnectors)) {
-          moleculeRemapIDs(atom);
+          _remapIDsRecursive(atom, idPairs);
         }
       });
       
@@ -266,6 +269,64 @@ describe('ID Remapping Logic Test', () => {
     expect(remapped.allConnectors[0].ap2ID).toBe(remapped.allAtoms[0].uniqueID);
     
     console.log('Fixed molecule.remapIDs - all IDs properly remapped');
+  });
+
+  it('should handle cross-level connector references correctly', () => {
+    const mockCrossLevelMolecule = {
+      atomType: 'GitHubMolecule',
+      name: 'ParentMolecule',
+      uniqueID: 'parent-123',
+      allAtoms: [
+        {
+          atomType: 'Circle',
+          name: 'ParentCircle',
+          uniqueID: 'parent-circle-456',
+        },
+        {
+          atomType: 'GitHubMolecule',
+          name: 'NestedMolecule',
+          uniqueID: 'nested-789',
+          allAtoms: [
+            {
+              atomType: 'Rectangle',
+              name: 'NestedRectangle',
+              uniqueID: 'nested-rect-101',
+            }
+          ],
+          allConnectors: []
+        }
+      ],
+      allConnectors: [
+        {
+          ap1ID: 'parent-circle-456',  // References parent level atom
+          ap2ID: 'nested-rect-101',    // References nested level atom - CROSS-LEVEL!
+          uniqueID: 'cross-level-connector-303'
+        }
+      ]
+    };
+
+    const originalParentCircleID = mockCrossLevelMolecule.allAtoms[0].uniqueID;
+    const originalNestedRectID = mockCrossLevelMolecule.allAtoms[1].allAtoms[0].uniqueID;
+    const originalConnectorID = mockCrossLevelMolecule.allConnectors[0].uniqueID;
+
+    // Apply the recursive molecule remapIDs
+    const remapped = moleculeRemapIDs(mockCrossLevelMolecule);
+
+    console.log('Cross-level connector test - remapped data:', JSON.stringify(remapped, null, 2));
+
+    // Verify atoms get new IDs
+    expect(remapped.allAtoms[0].uniqueID).not.toBe(originalParentCircleID);
+    expect(remapped.allAtoms[1].allAtoms[0].uniqueID).not.toBe(originalNestedRectID);
+    expect(remapped.allConnectors[0].uniqueID).not.toBe(originalConnectorID);
+
+    // CRITICAL: Cross-level connector should reference the new IDs
+    const newParentCircleID = remapped.allAtoms[0].uniqueID;
+    const newNestedRectID = remapped.allAtoms[1].allAtoms[0].uniqueID;
+    
+    expect(remapped.allConnectors[0].ap1ID).toBe(newParentCircleID);
+    expect(remapped.allConnectors[0].ap2ID).toBe(newNestedRectID);
+
+    console.log('Cross-level connector test passed - connector references updated correctly');
   });
 
   it('should handle deeply nested molecules recursively', () => {

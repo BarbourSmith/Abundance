@@ -1146,8 +1146,11 @@ export default class Molecule extends Atom {
 
   /** Gives new unique IDs to all atoms in a json object and remaps the connections with the attachment points */
   remapIDs(json) {
-    let idPairs = {};
+    return this._remapIDsRecursive(json, {});
+  }
 
+  /** Internal recursive helper for remapIDs that maintains a shared idPairs mapping */
+  _remapIDsRecursive(json, idPairs) {
     // Always ensure the main atom/molecule gets a new ID if it doesn't already have one assigned
     if (json.uniqueID && !json.uniqueID.toString().startsWith("temp-new-")) {
       let oldMainID = json.uniqueID;
@@ -1165,9 +1168,10 @@ export default class Molecule extends Atom {
         atom.uniqueID = newID;
 
         // Recursively handle nested molecules (GitHubMolecules can contain other molecules)
+        // Pass the same idPairs object to maintain cross-level ID mappings
         if ((atom.atomType === "Molecule" || atom.atomType === "GitHubMolecule") && 
             (atom.allAtoms || atom.allConnectors)) {
-          this.remapIDs(atom);
+          this._remapIDsRecursive(atom, idPairs);
         }
       });
 
