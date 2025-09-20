@@ -867,8 +867,8 @@ export default class Atom extends ObservableEntity {
    * @returns {string} The evaluated string result
    */
   _evaluateStringExpression(expression) {
-    // Extract variables from the expression
-    const variables = this.extractVariablesFromEquation(expression);
+    // Extract variables from the expression (excluding those inside string literals)
+    const variables = this._extractVariablesFromStringExpression(expression);
     const unresolved = [];
     const resolvedValues = {};
     const BUILTIN_CONSTS = new Set(["pi", "e", "tau", "Infinity", "NaN"]);
@@ -960,6 +960,32 @@ export default class Atom extends ObservableEntity {
         throw new Error(msg);
       }
     }
+  }
+
+  /**
+   * Extract variables from string expressions, ignoring variables inside string literals
+   * @param {string} expression - The expression to parse
+   * @returns {string[]} Array of variable names
+   */
+  _extractVariablesFromStringExpression(expression) {
+    const variables = [];
+    
+    // Remove string literals first, then find variables
+    let cleanExpression = expression;
+    
+    // Remove all quoted strings (both single and double quotes)
+    cleanExpression = cleanExpression.replace(/"[^"]*"/g, '""');
+    cleanExpression = cleanExpression.replace(/'[^']*'/g, "''");
+    
+    // Find variables (word characters not preceded/followed by quotes)
+    const variableMatches = cleanExpression.match(/\b[a-zA-Z][a-zA-Z0-9_]*\b/g) || [];
+    
+    // Filter out built-in constants and deduplicate
+    const filteredVariables = variableMatches.filter(v => 
+      !['pi', 'e', 'tau', 'Infinity', 'NaN'].includes(v)
+    );
+    
+    return [...new Set(filteredVariables)];
   }
 
   /**
