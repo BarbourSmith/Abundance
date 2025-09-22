@@ -89,7 +89,7 @@ async function rotate(
         ...leaf,
         geometry: await util.geometryProvider!.rotate(leaf.geometry, 0, 0, z),
         plane: util.asSimplePlane(
-          util.asReplicadPlane(leaf.plane).pivot(z, "X").pivot(y, "Y")
+          util.asReplicadPlane(leaf.plane).pivot(x, "X").pivot(y, "Y")
         ),
       };
     });
