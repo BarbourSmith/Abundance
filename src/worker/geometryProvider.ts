@@ -1,16 +1,18 @@
 import * as replicad from "replicad";
 import shrinkWrap from "replicad-shrink-wrap";
 import { AbundanceObject, asReplicadPlane, SimplePlane } from "./util";
+import {
+  getShape,
+  putShape,
+  deleteProjectCache,
+  shapeExists,
+  deleteShape,
+} from "./indexeddbUtils";
 
 type ReplicadObject = replicad.Shape3D | replicad.Drawing | replicad.Wire;
 
 type RequestContext = {
   project: string;
-};
-
-type ProjectStore = {
-  cache: Map<string, ReplicadObject>;
-  assemblies: Map<string, AbundanceObject>;
 };
 
 /**
@@ -24,7 +26,6 @@ type ProjectStore = {
  */
 class GeometryProvider {
   private MAX_PROJECTS = 4;
-  private cache = new Map<string, ProjectStore>();
   private projectLRU: string[] = [];
   private cacheHitMetrics: Record<string, [number, number]>;
   private nextId: number;
@@ -61,33 +62,15 @@ class GeometryProvider {
     this.projectLRU.push(projectId);
     if (this.projectLRU.length > this.MAX_PROJECTS) {
       const evictId = this.projectLRU.shift();
-      if (evictId) this.deleteProjectCache(evictId);
-    }
-  }
-
-  private deleteProjectCache(projectId: string) {
-    console.debug("Deleting project cache for ", projectId);
-    this.cache.delete(projectId);
-  }
-
-  private getCacheForProject(
-    project: string,
-    allowNewProj: boolean = true
-  ): ProjectStore {
-    this.updateLRU(project);
-    let result = this.cache.get(project);
-    if (!result) {
-      if (allowNewProj) {
-        result = {
-          cache: new Map<string, ReplicadObject>(),
-          assemblies: new Map<string, AbundanceObject>(),
-        };
-        this.cache.set(project, result);
-      } else {
-        throw new Error(`No cache found for project ${project}`);
+      if (evictId) {
+        // TODO: we need to look at the set of ids in the db instead
+        // of just our mem version
+        console.debug("Deleting project cache for ", evictId);
+        deleteProjectCache(evictId).then(() => {
+          console.debug("Delete finished for ", evictId);
+        });
       }
     }
-    return result;
   }
 
   // Returns the id of the geometry once it's been added to the cache.
@@ -96,32 +79,16 @@ class GeometryProvider {
     context: RequestContext,
     builder: () => Promise<ReplicadObject>
   ): Promise<string> {
-    const cache = this.getCacheForProject(context.project).cache;
-
-    if (!cache.has(id)) {
-      let value = await builder();
-      cache.set(id, value);
-      this.cacheMiss(id);
-    } else {
+    this.updateLRU(context.project);
+    const shape = await shapeExists(context.project, id);
+    if (shape) {
       this.cacheHit(id);
+    } else {
+      const geometry = await builder();
+      await putShape(context.project, id, geometry.serialize());
+      this.cacheMiss(id);
     }
-    // TODO(tristan): faking async behavior here because this will
-    // eventually be an indexedDB call, which is async by necessity.
-    return Promise.resolve(id);
-  }
-
-  private async createIfAbsentAssembly(
-    id: string,
-    context: RequestContext,
-    builder: () => Promise<AbundanceObject>
-  ): Promise<string> {
-    const assemblies = this.getCacheForProject(context.project).assemblies;
-
-    if (!assemblies.has(id)) {
-      let value = await builder();
-      assemblies.set(id, value);
-    }
-    return Promise.resolve(id);
+    return id;
   }
 
   /**
@@ -134,12 +101,58 @@ class GeometryProvider {
    * @returns The geometry object itself (ie ReplicadObject)
    */
   async get(id: string, context: RequestContext): Promise<ReplicadObject> {
-    const value = this.getCacheForProject(context.project, false).cache.get(id);
-    if (value == undefined) {
+    const shape = await getShape(context.project, id);
+    if (shape == undefined) {
       console.trace("Cache miss for id:", id);
       throw new Error(`Geometry with ID ${id} not found in cache`);
     }
-    return Promise.resolve(value.clone());
+    let result = undefined;
+    if (shape.type != "ReplicadObject") {
+      throw new Error("Expected ReplicadObject, got AbundanceObject");
+      // Deserialize as ReplicadObject
+    }
+    try {
+      result = replicad.deserializeDrawing(shape.serialized);
+    } catch (e) {
+      // Not a Drawing, try Shape3D
+      try {
+        result = replicad.deserializeShape(shape.serialized) as ReplicadObject;
+      } catch (e2) {
+        throw new Error("Failed to deserialize geometry: " + e2);
+      }
+    }
+    return Promise.resolve(result);
+  }
+
+  async deserializeOrThrow(id: string, context: RequestContext) {
+    const shape = await getShape(context.project, id);
+    if (shape == undefined) {
+      console.trace("Cache miss for id:", id);
+      throw new Error(`Geometry with ID ${id} not found in cache`);
+    }
+    console.log("Got from the cache: ", shape);
+    let result = undefined;
+    if (shape.type != "ReplicadObject") {
+      deleteShape(context.project, id); // Delete broken shape
+      throw new Error("Expected ReplicadObject, got AbundanceObject");
+    }
+    try {
+      result = replicad.deserializeDrawing(shape.serialized);
+    } catch (e) {
+      // Not a Drawing, try Shape3D
+      try {
+        result = replicad.deserializeShape(shape.serialized) as ReplicadObject;
+      } catch (e2) {
+        deleteShape(context.project, id);
+        throw new Error("Failed to deserialize geometry: " + e2);
+      }
+    }
+    return Promise.resolve(result);
+  }
+
+  async clearCache(context: RequestContext): Promise<boolean> {
+    await deleteProjectCache(context.project);
+    return true;
   }
 
   /**
@@ -496,29 +509,24 @@ class GeometryProvider {
     return id;
   }
 
-  cacheAssembly(
+  async cacheAssembly(
     id: string,
     assembly: AbundanceObject,
     context: RequestContext
-  ) {
-    const assemblies = this.getCacheForProject(context.project).assemblies;
-    assemblies.set(id, assembly);
+  ): Promise<void> {
+    return await putShape(context.project, id, JSON.stringify(assembly), true);
   }
 
-  getAssembly(
+  async getAssembly(
     id: string,
     context: RequestContext
   ): Promise<AbundanceObject | undefined> {
-    const assemblies = this.getCacheForProject(context.project).assemblies;
-    // TODO: should we add a check here asserting that all reference geometries
-    // exist in the project cache?
-    const result = assemblies.get(id);
-    if (result) {
-      this.cacheHit("assembly");
-    } else {
-      this.cacheMiss("assembly");
-    }
-    return Promise.resolve(result);
+    return await getShape(context.project, id).then((shape) => {
+      if (shape && shape.type == "AbundanceObject") {
+        return JSON.parse(shape.serialized) as AbundanceObject;
+      }
+      return undefined;
+    });
   }
 
   private _makeId(type: string, ...args: any[]) {

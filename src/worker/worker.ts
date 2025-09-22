@@ -669,6 +669,11 @@ async function generateDisplayMesh(
   return finalMeshes;
 }
 
+async function clearCache(context: RequestContext): Promise<boolean> {
+  await started;
+  return util.geometryProvider!.clearCache(context);
+}
+
 if (
   typeof self !== "undefined" &&
   typeof self.addEventListener === "function" &&
@@ -679,6 +684,7 @@ if (
     importingSTEP,
     importingSTL,
     importingSVG,
+    clearCache,
     createMesh,
     circle,
     color,
@@ -727,6 +733,7 @@ export {
   color,
   createMesh,
   deleteFromLibrary,
+  clearCache,
   difference,
   displayLayout,
   downExport,

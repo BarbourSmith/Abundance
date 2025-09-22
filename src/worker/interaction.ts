@@ -299,45 +299,39 @@ async function cutAssembly(
   context: RequestContext
 ): Promise<AbundanceObject> {
   await util.init();
-  try {
-    //If the partToCut is an assembly pass each part back into cutAssembly function to be cut separately
-    if (util.isAssembly(partToCut)) {
-      let assemblyToCut = partToCut.geometry;
-      let assemblyCut: any[] = [];
-      for (const part of assemblyToCut) {
-        // make new assembly from cut parts
-        assemblyCut.push(await cutAssembly(part, cuttingParts, context));
-      }
-
-      //returns new assembly that has been cut
-      const newAssembly = {
-        geometry: assemblyCut,
-        tags: partToCut.tags,
-        bom: partToCut.bom,
-        plane: partToCut.plane,
-        color: partToCut.color,
-      };
-      return newAssembly;
-    } else {
-      // if part to cut is wire geometry, return it unchanged (wires should pass through assemblies)
-      if (util.isWireGeometry(partToCut)) {
-        return partToCut;
-      }
-
-      // if part to cut is a single part send to cutting function with cutting parts
-      let partCutCopy = partToCut;
-      for (const cuttingPart of cuttingParts) {
-        // for each cutting part cut the part
-        partCutCopy = await recursiveCut(partCutCopy, cuttingPart, context);
-      }
-      // return new cut part, expand compound solid if it was cut into disconnected
-      // parts
-      return splitCompSolid(partCutCopy, context);
+  //If the partToCut is an assembly pass each part back into cutAssembly function to be cut separately
+  if (util.isAssembly(partToCut)) {
+    let assemblyToCut = partToCut.geometry;
+    let assemblyCut: any[] = [];
+    for (const part of assemblyToCut) {
+      // make new assembly from cut parts
+      assemblyCut.push(await cutAssembly(part, cuttingParts, context));
     }
-  } catch (e: any) {
-    console.log(e);
-    console.log(e.trace);
-    throw new Error("Cut Assembly failed", e);
+
+    //returns new assembly that has been cut
+    const newAssembly = {
+      geometry: assemblyCut,
+      tags: partToCut.tags,
+      bom: partToCut.bom,
+      plane: partToCut.plane,
+      color: partToCut.color,
+    };
+    return newAssembly;
+  } else {
+    // if part to cut is wire geometry, return it unchanged (wires should pass through assemblies)
+    if (util.isWireGeometry(partToCut)) {
+      return partToCut;
+    }
+
+    // if part to cut is a single part send to cutting function with cutting parts
+    let partCutCopy = partToCut;
+    for (const cuttingPart of cuttingParts) {
+      // for each cutting part cut the part
+      partCutCopy = await recursiveCut(partCutCopy, cuttingPart, context);
+    }
+    // return new cut part, expand compound solid if it was cut into disconnected
+    // parts
+    return splitCompSolid(partCutCopy, context);
   }
 }
 
