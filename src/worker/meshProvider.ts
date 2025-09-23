@@ -5,8 +5,7 @@ import { text } from "./shapes";
 import type { AbundanceObject } from "./util";
 import * as util from "./util";
 
-type DisplayMesh = {
-  cameraZoom: number;
+type PartialMesh = {
   faces: ShapeMesh;
   edges: {
     lines: number[];
@@ -19,9 +18,71 @@ type DisplayMesh = {
   color: string;
 };
 
+type DisplayMesh = PartialMesh & { cameraZoom: number };
+
+type MeshCacheEntry = {
+  mesh: PartialMesh;
+  bounds:
+    | [replicad.SimplePoint, replicad.SimplePoint]
+    | [replicad.Point2D, replicad.Point2D];
+};
+
+/**
+ * A simple LRU (Least Recently Used) cache implementation.
+ * Keys are moved to the "back" of the cache when added *OR* accessed.
+ *
+ * If an add operation would exceed the capacity, the "front" (least
+ * recently used) item is removed.
+ */
+export class LRUCache<K, V> {
+  private cache: Map<K, V>;
+  private capacity: number;
+
+  constructor(capacity: number) {
+    this.cache = new Map();
+    this.capacity = capacity;
+  }
+
+  get(key: K): V | undefined {
+    if (!this.cache.has(key)) return undefined;
+    const value = this.cache.get(key)!;
+    // Move to end (most recently used)
+    this.cache.delete(key);
+    this.cache.set(key, value);
+    return value;
+  }
+
+  set(key: K, value: V): void {
+    if (this.cache.has(key)) {
+      this.cache.delete(key);
+    }
+    this.cache.set(key, value);
+    if (this.cache.size > this.capacity) {
+      // Remove least recently used (first key)
+      const lruKey = this.cache.keys().next().value;
+      if (lruKey) {
+        this.cache.delete(lruKey);
+      }
+    }
+  }
+
+  has(key: K): boolean {
+    return this.cache.has(key);
+  }
+
+  clear(): void {
+    this.cache.clear();
+  }
+}
+
 class MeshProvider {
+  private CACHE_SIZE = 50;
   private geometryProvider: GeometryProvider;
   private defaultMesh: DisplayMesh[] | undefined;
+  private meshCache: LRUCache<string, MeshCacheEntry> = new LRUCache(
+    this.CACHE_SIZE
+  );
+  private metrics: [number, number] = [0, 0];
 
   constructor(geometryProvider: GeometryProvider) {
     this.geometryProvider = geometryProvider;
@@ -41,7 +102,7 @@ class MeshProvider {
     return this.defaultMesh;
   }
 
-  private getLargestBoundingBox(meshArray: ReplicadObject[]): {
+  private getLargestBoundingBox(meshArray: MeshCacheEntry[]): {
     width: number;
     height: number;
     depth: number;
@@ -58,11 +119,11 @@ class MeshProvider {
     }
 
     meshArray.forEach((mesh) => {
-      if (!mesh.boundingBox || !Array.isArray(mesh.boundingBox.bounds)) {
+      if (!mesh.bounds || !Array.isArray(mesh.bounds)) {
         throw new Error("Invalid mesh geometry or boundingBox structure");
       }
 
-      let boundingBox = mesh.boundingBox.bounds;
+      let boundingBox = mesh.bounds;
       if (
         boundingBox.length < 2 ||
         !Array.isArray(boundingBox[0]) ||
@@ -133,12 +194,85 @@ class MeshProvider {
     }
   }
 
-  private generateCameraPosition(meshArray: ReplicadObject[]): number {
+  private generateCameraPosition(meshArray: MeshCacheEntry[]): number {
     // Get the largest bounding box from the mesh array
     let largestBoundingBox = this.getLargestBoundingBox(meshArray);
     let zoom = this.calculateZoom(largestBoundingBox);
 
     return zoom;
+  }
+
+  private async getOrCreateMesh(
+    shape: util.AbundanceLeaf
+  ): Promise<MeshCacheEntry> {
+    let cached = this.meshCache.get(shape.geometry);
+    if (cached) {
+      this.metrics[0] += 1;
+      // overwrite color in case it's different from the cached version.
+      return {
+        ...cached,
+        mesh: {
+          ...cached.mesh,
+          color: shape.color,
+        },
+      };
+    }
+    this.metrics[1] += 1;
+
+    // Else build the mesh and bounding box.
+    let cleanedGeom;
+    // TODO: would love a better way to check if geometry is 2D or 3D.
+    const geom = await this.geometryProvider.get(shape.geometry);
+    if (!("mesh" in geom) || geom.mesh == undefined) {
+      cleanedGeom = await this.geometryProvider.get(
+        await this.geometryProvider.extrude(shape.geometry, shape.plane, 0.0001)
+      );
+    } else {
+      cleanedGeom = geom;
+    }
+    let resultMesh = undefined;
+    try {
+      let sketchPlane = util.asReplicadPlane(shape.plane);
+      if (cleanedGeom instanceof replicad.Drawing) {
+        const threeDShape = cleanedGeom
+          .sketchOnPlane(sketchPlane)
+          .extrude(0.0001);
+        resultMesh = {
+          faces: threeDShape.mesh({ tolerance: 0.1, angularTolerance: 0.5 }),
+          edges: threeDShape.meshEdges({
+            tolerance: 0.1,
+            angularTolerance: 0.5,
+          }),
+          color: shape.color,
+        };
+      } else {
+        resultMesh = {
+          faces: cleanedGeom.mesh({
+            tolerance: 0.1,
+            angularTolerance: 0.5,
+          }),
+          edges: cleanedGeom.meshEdges({
+            tolerance: 0.1,
+            angularTolerance: 0.5,
+          }),
+          color: shape.color,
+        };
+      }
+    } catch (e) {
+      throw new Error("Error generating display mesh" + e);
+    }
+
+    if (!resultMesh) {
+      throw new Error("Failed to generate mesh for geometry");
+    }
+    const result = {
+      mesh: resultMesh,
+      bounds: cleanedGeom.boundingBox.bounds as
+        | [replicad.SimplePoint, replicad.SimplePoint]
+        | [replicad.Point2D, replicad.Point2D],
+    };
+    this.meshCache.set(shape.geometry, result);
+    return result;
   }
 
   async generateDisplayMesh(id: AbundanceObject): Promise<DisplayMesh[]> {
@@ -152,77 +286,27 @@ class MeshProvider {
 
     // Flatten the assembly to remove hierarchy
     const flattened = util.flattenAssembly(geom);
+    if (flattened.length > this.CACHE_SIZE) {
+      console.warn("Warning: Flattened assembly size exceeds cache capacity.");
+    }
 
     let meshArray: { color: string; geometry: ReplicadObject }[] = [];
 
-    for (let i = 0; i < flattened.length; i++) {
-      const displayObject = flattened[i];
-      let cleanedGeometry;
-      // TODO: would love a better way to check if geometry is 2D or 3D.
-      const geom = await util.geometryProvider!.get(displayObject.geometry);
-      if (!("mesh" in geom) || geom.mesh == undefined) {
-        cleanedGeometry = await util.geometryProvider!.get(
-          await util.geometryProvider!.extrude(
-            displayObject.geometry,
-            displayObject.plane,
-            0.0001
-          )
-        );
-      } else {
-        cleanedGeometry = geom;
-      }
-      meshArray.push({
-        color: displayObject.color,
-        geometry: cleanedGeometry,
-      });
-    }
+    const partialMeshes = await Promise.all(
+      flattened.map((leaf) => this.getOrCreateMesh(leaf))
+    );
 
-    let cameraZoom;
-    try {
-      cameraZoom = this.generateCameraPosition(
-        meshArray.map((m) => m.geometry)
-      );
-    } catch (e) {
-      cameraZoom = 1;
-    }
+    const cameraZoom = this.generateCameraPosition(partialMeshes);
 
-    let finalMeshes = [];
-    // Iterate through the meshArray and create final meshes with faces, edges and color to pass to display
-    for (const meshObj of meshArray) {
-      try {
-        let sketchPlane = util.asReplicadPlane(geom.plane);
-        if (meshObj.geometry instanceof replicad.Drawing) {
-          const threeDShape = meshObj.geometry
-            .sketchOnPlane(sketchPlane)
-            .extrude(0.0001);
-          finalMeshes.push({
-            cameraZoom: cameraZoom,
-            faces: threeDShape.mesh({ tolerance: 0.1, angularTolerance: 0.5 }),
-            edges: threeDShape.meshEdges({
-              tolerance: 0.1,
-              angularTolerance: 0.5,
-            }),
-            color: meshObj.color,
-          });
-        } else {
-          finalMeshes.push({
-            cameraZoom: cameraZoom,
-            faces: meshObj.geometry.mesh({
-              tolerance: 0.1,
-              angularTolerance: 0.5,
-            }),
-            edges: meshObj.geometry.meshEdges({
-              tolerance: 0.1,
-              angularTolerance: 0.5,
-            }),
-            color: meshObj.color,
-          });
-        }
-      } catch (e) {
-        throw new Error("Error generating display mesh" + e);
-      }
-    }
-    return finalMeshes;
+    const resultMeshes: DisplayMesh[] = partialMeshes.map((entry) => ({
+      ...entry.mesh,
+      cameraZoom: cameraZoom,
+    }));
+
+    console.log(
+      `MeshProvider Cache Metrics: Hits = ${this.metrics[0]}, Misses = ${this.metrics[1]}`
+    );
+    return resultMeshes;
   }
 }
 
