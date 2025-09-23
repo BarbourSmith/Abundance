@@ -1,7 +1,8 @@
-import { Drawing } from "replicad";
+import { Drawing, Wire } from "replicad";
 import * as util from "./util";
 import { AbundanceLeaf, AbundanceObject } from "./util";
-import { RequestContext } from "./geometryProvider";
+import { RequestContext, ReplicadObject } from "./geometryProvider";
+import { json } from "react-router-dom";
 /**
  * All methods in this file take multiple geometries and combine them in some way.
  *
@@ -191,6 +192,40 @@ async function fusion(
   };
 }
 
+/*
+
+where n is number of leafs and a is number of assemblies
+
+Current control flow:
+For each assembly do cutAssembly with all subsequent geometries
+
+cutAssembly:
+if an assembly recurse down to each part
+if a leaf:
+for each leaf in each input assembly - cut this leaf with that one
+
+
+Runtime:
+* O(n^2) for number of leafs
+
+
+behavior constraints - we need to to retain assembly structures
+
+Options:
+deserialize all then do same as we've done here
+fuse each assembly then cut parts with fused others
+  O(a) fuses
+  O(n) cuts
+
+
+deserialization options:
+1) deserialize into an (eg) realized assembly
+2) create a higher level cache which writes results into our main cache but doesn't
+   need deserialization
+
+
+*/
+
 /**
  * A function which takes in an array of target geometries and forms them into an assembly
  * Geometries will cut all geometries below them in the list to make sure that no parts intersect
@@ -204,6 +239,17 @@ async function assembly(
     throw new Error("inputIDs must be a non-empty array");
   }
   await util.init();
+
+  const batchId = "assembly-" + util.hashString(JSON.stringify(geometries));
+  const batch: RequestContext | AbundanceObject =
+    await util.geometryProvider!.startBatchOperation(context, batchId);
+
+  // Full assembly cache hit. No work to do.
+  if (util.isAbundanceObject(batch)) {
+    return batch;
+  }
+
+  context = batch;
 
   let assembly: AbundanceObject[] = [];
   let bomAssembly: any[] = [];
@@ -236,15 +282,17 @@ async function assembly(
       bomAssembly.push(...geometry.bom);
     }
   }
-
-  return {
-    geometry: assembly,
+  const result = {
+    geometry: await Promise.all(assembly),
     plane: util.XYPlane,
     tags: [],
     color: util.defaultColor,
     bom: bomAssembly,
     dimension: all3D ? "3D" : "2D",
   };
+  util.geometryProvider!.endBatchOperation(context, result);
+
+  return result;
 }
 
 //// Helper Functions ////
@@ -299,6 +347,7 @@ async function cutAssembly(
   context: RequestContext
 ): Promise<AbundanceObject> {
   await util.init();
+
   //If the partToCut is an assembly pass each part back into cutAssembly function to be cut separately
   if (util.isAssembly(partToCut)) {
     let assemblyToCut = partToCut.geometry;

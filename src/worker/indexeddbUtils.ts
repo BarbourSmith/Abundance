@@ -27,6 +27,35 @@ function openDB(): Promise<IDBDatabase> {
   });
 }
 
+/**
+ * Returns a Set of all distinct projectIds present in the IndexedDB shapes store.
+ */
+export async function getAllProjectIds(): Promise<Set<string>> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readonly");
+    const store = tx.objectStore(STORE_NAME);
+    const index = store.index("projectId");
+    const projectIds = new Set<string>();
+    const req = index.openKeyCursor();
+
+    req.onsuccess = (event) => {
+      const cursor = (event.target as IDBRequest<IDBCursorWithValue>).result;
+      if (cursor) {
+        projectIds.add(cursor.key as string);
+        cursor.continue();
+      } else {
+        db.close();
+        resolve(projectIds);
+      }
+    };
+    req.onerror = () => {
+      db.close();
+      reject(req.error);
+    };
+  });
+}
+
 export async function putShape(
   projectId: string,
   shapeKey: string,

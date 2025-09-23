@@ -7,13 +7,32 @@ import {
   deleteProjectCache,
   shapeExists,
   deleteShape,
+  getAllProjectIds,
 } from "./indexeddbUtils";
 
 type ReplicadObject = replicad.Shape3D | replicad.Drawing | replicad.Wire;
 
 type RequestContext = {
   project: string;
+  operationId?: string;
 };
+
+/*
+
+TODO: Add functionality for batch operations where we expect to deal with
+the same shapes over and over. Eg assemblies.
+
+Impl plan(?):
+- open a batch operation has two possible results
+   1. you need to do the work - return a new context obj to use
+   2. this batch has actually already been cached - return the AbundanceObj
+- using the operation context do whatever you're doing
+  - impl side we create a warm cache with each input and transient result
+  - all transient results are also stored in the main cache (for now?)
+- closeBatch(AbundanceObject result)
+  - put the result in the main cache under the op id and reject any future
+    operations which use this op id.
+*/
 
 /**
  * Manages a cache of geometries. This class provides a list of basic operations
@@ -27,9 +46,10 @@ type RequestContext = {
 class GeometryProvider {
   private MAX_PROJECTS = 4;
   private projectLRU: string[] = [];
-  private cacheHitMetrics: Record<string, [number, number]>;
+  private cacheHitMetrics: Record<string, [number, number, number]>; // hits, misses, total-miss-duration-ms
   private nextId: number;
-  private readonly HASHED_KEYS: boolean = true;
+  private warmCache: Map<string, Map<string, ReplicadObject>> = new Map();
+  private batchMetrics: [number, number] = [0, 0];
 
   constructor() {
     this.cacheHitMetrics = {};
@@ -43,33 +63,44 @@ class GeometryProvider {
   private cacheHit(id: string): void {
     const type = id.split("-")[0];
     if (!this.cacheHitMetrics[type]) {
-      this.cacheHitMetrics[type] = [0, 0];
+      this.cacheHitMetrics[type] = [0, 0, 0];
     }
     this.cacheHitMetrics[type][0]++;
   }
 
-  private cacheMiss(id: string): void {
+  private cacheMiss(id: string, durationMs: number = 0): void {
     const type = id.split("-")[0];
     if (!this.cacheHitMetrics[type]) {
-      this.cacheHitMetrics[type] = [0, 0];
+      this.cacheHitMetrics[type] = [0, 0, 0];
     }
     this.cacheHitMetrics[type][1]++;
+    this.cacheHitMetrics[type][2] += durationMs;
   }
 
   private updateLRU(projectId: string) {
     const idx = this.projectLRU.indexOf(projectId);
-    if (idx !== -1) this.projectLRU.splice(idx, 1);
+    const newProject = idx === -1;
+    if (!newProject) {
+      this.projectLRU.splice(idx, 1);
+    }
     this.projectLRU.push(projectId);
-    if (this.projectLRU.length > this.MAX_PROJECTS) {
-      const evictId = this.projectLRU.shift();
-      if (evictId) {
-        // TODO: we need to look at the set of ids in the db instead
-        // of just our mem version
-        console.debug("Deleting project cache for ", evictId);
-        deleteProjectCache(evictId).then(() => {
-          console.debug("Delete finished for ", evictId);
-        });
+    if (newProject) {
+      if (this.projectLRU.length > this.MAX_PROJECTS) {
+        this.projectLRU.shift();
       }
+      getAllProjectIds().then(async (allIds) => {
+        if (allIds.size <= this.MAX_PROJECTS) {
+          return;
+        }
+        const evictIds = Array.from(allIds).filter(
+          (id) => !this.projectLRU.includes(id)
+        );
+        console.log("Evicting projects from cache:", evictIds);
+        for (const evictId of evictIds) {
+          await deleteProjectCache(evictId);
+        }
+        console.log("Eviction complete");
+      });
     }
   }
 
@@ -80,15 +111,51 @@ class GeometryProvider {
     builder: () => Promise<ReplicadObject>
   ): Promise<string> {
     this.updateLRU(context.project);
-    const shape = await shapeExists(context.project, id);
-    if (shape) {
+    if (
+      this.getFromWarmCache(id, context) ||
+      (await shapeExists(context.project, id))
+    ) {
       this.cacheHit(id);
     } else {
+      const start = performance.now();
       const geometry = await builder();
       await putShape(context.project, id, geometry.serialize());
-      this.cacheMiss(id);
+      if (context.operationId) {
+        this.putInWarmCache(id, context.operationId, geometry);
+      }
+      const duration = performance.now() - start;
+      this.cacheMiss(id, duration);
     }
     return id;
+  }
+
+  private getFromWarmCache(
+    id: string,
+    context: RequestContext
+  ): ReplicadObject | undefined {
+    if (!context.operationId) {
+      return undefined;
+    }
+    const operationCache = this.warmCache.get(context.operationId);
+    if (!operationCache) {
+      console.error("No warm cache for operation " + context.operationId);
+      throw new Error("No warm cache for operation " + context.operationId);
+    }
+    const result = operationCache.get(id);
+    result ? this.batchMetrics[0]++ : this.batchMetrics[1]++;
+    return result;
+  }
+
+  private putInWarmCache(
+    id: string,
+    operationId: string,
+    geometry: ReplicadObject
+  ) {
+    const operationCache = this.warmCache.get(operationId);
+    if (!operationCache) {
+      throw new Error("No warm cache for operation " + operationId);
+    }
+    operationCache.set(id, geometry);
   }
 
   /**
@@ -101,56 +168,43 @@ class GeometryProvider {
    * @returns The geometry object itself (ie ReplicadObject)
    */
   async get(id: string, context: RequestContext): Promise<ReplicadObject> {
-    const shape = await getShape(context.project, id);
-    if (shape == undefined) {
-      console.trace("Cache miss for id:", id);
-      throw new Error(`Geometry with ID ${id} not found in cache`);
+    const warmCached = this.getFromWarmCache(id, context);
+    if (warmCached) {
+      this.cacheHit("deserialize");
+      return Promise.resolve(warmCached);
     }
-    let result = undefined;
-    if (shape.type != "ReplicadObject") {
-      throw new Error("Expected ReplicadObject, got AbundanceObject");
-      // Deserialize as ReplicadObject
-    }
-    try {
-      result = replicad.deserializeDrawing(shape.serialized);
-    } catch (e) {
-      // Not a Drawing, try Shape3D
-      try {
-        result = replicad.deserializeShape(shape.serialized) as ReplicadObject;
-      } catch (e2) {
-        throw new Error("Failed to deserialize geometry: " + e2);
-      }
-    }
-    return Promise.resolve(result);
-  }
 
-  async deserializeOrThrow(id: string, context: RequestContext) {
+    // else use disk cache.
+
     const shape = await getShape(context.project, id);
     if (shape == undefined) {
       console.trace("Cache miss for id:", id);
       throw new Error(`Geometry with ID ${id} not found in cache`);
     }
-    console.log("Got from the cache: ", shape);
     let result = undefined;
-    if (shape.type != "ReplicadObject") {
-      deleteShape(context.project, id); // Delete broken shape
-      throw new Error("Expected ReplicadObject, got AbundanceObject");
-    }
     try {
       result = replicad.deserializeDrawing(shape.serialized);
+      this.cacheMiss("deserialize");
     } catch (e) {
       // Not a Drawing, try Shape3D
       try {
         result = replicad.deserializeShape(shape.serialized) as ReplicadObject;
+        this.cacheMiss("deserialize");
       } catch (e2) {
-        deleteShape(context.project, id);
         throw new Error("Failed to deserialize geometry: " + e2);
       }
+    }
+
+    if (context.operationId) {
+      // stash in warm cache to avoid repeated deserialization
+      this.putInWarmCache(id, context.operationId, result);
     }
     return Promise.resolve(result);
   }
 
   async clearCache(context: RequestContext): Promise<boolean> {
+    console.log("Clearing cache for project", context.project);
+    this.projectLRU = this.projectLRU.filter((id) => id !== context.project);
     await deleteProjectCache(context.project);
     return true;
   }
@@ -447,6 +501,39 @@ class GeometryProvider {
     return toCut;
   }
 
+  async startBatchOperation(
+    context: RequestContext,
+    id: string
+  ): Promise<AbundanceObject | RequestContext> {
+    const batchId = "batch-" + id;
+
+    const preparedResult = await this.getAssembly(batchId, context);
+    if (preparedResult) {
+      console.log("Using pre-computed batch operation result: " + batchId);
+      return preparedResult;
+    }
+
+    this.warmCache.set(batchId, new Map());
+    return { ...context, operationId: batchId };
+  }
+
+  async endBatchOperation(
+    context: RequestContext,
+    result: AbundanceObject
+  ): Promise<void> {
+    if (!context.operationId) {
+      throw new Error("provided context is not a batch operation " + context);
+    }
+    console.log(
+      `End of batch ${context.operationId}. hit/miss: ${
+        this.batchMetrics
+      }. size: ${this.warmCache.get(context.operationId)?.size}`
+    );
+    this.batchMetrics = [0, 0];
+    await this.cacheAssembly(context.operationId, result, context);
+    this.warmCache.delete(context.operationId);
+  }
+
   async shrinkWrapSketches(
     compositeSketchId: string,
     points: number,
@@ -529,7 +616,7 @@ class GeometryProvider {
     });
   }
 
-  private _makeId(type: string, ...args: any[]) {
+  _makeId(type: string, ...args: any[]) {
     args = args.map((arg) => {
       return typeof arg === "string" ? arg : JSON.stringify(arg);
     });
