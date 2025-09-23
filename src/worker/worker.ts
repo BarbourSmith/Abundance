@@ -171,6 +171,7 @@ function downExport(
  * @param {File} file - The STEP file to import
  */
 async function importingSTEP(file: File): Promise<AbundanceObject> {
+  await started;
   let STEPresult = await util.replicad.importSTEP(file);
   if (!util.geometryProvider!.isShape3D(STEPresult)) {
     throw new Error(
@@ -195,6 +196,7 @@ async function importingSTEP(file: File): Promise<AbundanceObject> {
  * @param {File} file - The STL file to import
  */
 async function importingSTL(file: File): Promise<AbundanceObject> {
+  await started;
   let STLresult = await util.replicad.importSTL(file);
   if (!util.geometryProvider!.isShape3D(STLresult)) {
     throw new Error(
@@ -223,6 +225,7 @@ async function importingSVG(
   svg: string,
   width: number
 ): Promise<AbundanceObject> {
+  await started;
   const baseWidth = width + width * 0.05;
   const baseShape = util.replicad
     .drawRectangle(baseWidth, baseWidth)

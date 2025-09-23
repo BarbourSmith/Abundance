@@ -124,7 +124,7 @@ class GeometryProvider {
     const ids = [];
     for (const solid of replicad.iterTopo(compound.wrapped, "solid")) {
       const partId = this._makeId("expand", ids.length, id);
-      this.createIfAbsent(partId, async () => {
+      await this.createIfAbsent(partId, async () => {
         return this.as3dShapeOrThrow(new replicad.Solid(solid));
       });
       ids.push(partId);
@@ -308,7 +308,7 @@ class GeometryProvider {
     let args = [toCutGeom, cutterGeom];
     const resultId = this._makeId("cut", toCut, cutter);
     if (this.areAllDrawings(args) || this.areAll3DShapes(args)) {
-      this.createIfAbsent(resultId, async () => {
+      await this.createIfAbsent(resultId, async () => {
         //@ts-ignore
         return args[0].cut(args[1]);
       });
@@ -319,7 +319,7 @@ class GeometryProvider {
 
   async shrinkWrapSketches(compositeSketchId: string, points: number) {
     const shrinkWrapId = this._makeId("shrinkWrap", compositeSketchId, points);
-    this.createIfAbsent(shrinkWrapId, async () => {
+    await this.createIfAbsent(shrinkWrapId, async () => {
       const geometry = await this.get(compositeSketchId);
       //@ts-ignore
       return shrinkWrap(geometry, points);
@@ -335,12 +335,12 @@ class GeometryProvider {
    * @param {*} geometry - geometry to be added to cache.
    * @returns key for this geometry.
    */
-  addSingularToCache(
+  async addSingularToCache(
     geometry: ReplicadObject,
     id: string | undefined = undefined
   ) {
     id = id || this._makeId("singular", this.nextId++);
-    this.createIfAbsent(id, () => Promise.resolve(geometry));
+    await this.createIfAbsent(id, () => Promise.resolve(geometry));
     return id;
   }
 
