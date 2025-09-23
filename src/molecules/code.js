@@ -123,15 +123,16 @@ export default class Code extends Atom {
 
     // Special behavior for code atoms requires that ap's are explicitly set to ready
     values.ioValues?.forEach((ioValue) => {
-      const ap = this.addIO(ioValue.name, ioValue.valueType);
+      const ap = this._addIOWithoutSubscribing(ioValue.name, ioValue.valueType);
       ap.setReady(ioValue.ioValue);
     });
-    this.addIO("output", "geometry", null, "output");
+    this._addIOWithoutSubscribing("output", "geometry", null, "output");
 
     this.setValues([]);
     this.code = values.code || this.code;
 
     this.parseInputs();
+    this._subscribeToInputs();
   }
 
   /**
@@ -278,7 +279,6 @@ export default class Code extends Atom {
               this.removeIO(input.type, input.name, this);
             }
           });
-          this._subscribeToInputs();
           return;
         } catch (e) {
           console.warn("Failed to eval const Inputs array from code:", e);
@@ -318,7 +318,6 @@ export default class Code extends Atom {
               this.removeIO(input.type, input.name, this);
             }
           });
-          this._subscribeToInputs();
           return;
         } catch (e) {
           console.warn("Failed to parse Inputs array from code:", e);
@@ -345,7 +344,6 @@ export default class Code extends Atom {
           this.removeIO(input.type, input.name, this);
         }
       });
-      this._subscribeToInputs();
     }
   }
 
