@@ -3,10 +3,12 @@ import opencascade from "replicad-opencascadejs/src/replicad_single.js";
 import opencascadeWasm from "replicad-opencascadejs/src/replicad_single.wasm?url";
 import { v4 as uuidv4 } from "uuid";
 import { GeometryProvider, RequestContext } from "./geometryProvider";
+import { MeshProvider } from "./meshProvider";
 
 let defaultColor: string = "#aad7f2";
 let loaded: boolean = false;
 let geometryProvider: GeometryProvider | undefined = undefined;
+let meshProvider: MeshProvider | undefined = undefined;
 
 const init = async (): Promise<boolean> => {
   if (loaded) return Promise.resolve(true);
@@ -19,6 +21,7 @@ const init = async (): Promise<boolean> => {
   loaded = true;
   replicad.setOC(OC);
   geometryProvider = new GeometryProvider();
+  meshProvider = new MeshProvider(geometryProvider);
 
   return true;
 };
@@ -273,6 +276,7 @@ export {
   isAssembly,
   isLeaf,
   isWireGeometry,
+  meshProvider,
   replicad,
   SimplePlane,
   XYPlane,
