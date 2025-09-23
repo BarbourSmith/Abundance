@@ -287,7 +287,9 @@ class MeshProvider {
     // Flatten the assembly to remove hierarchy
     const flattened = util.flattenAssembly(geom);
     if (flattened.length > this.CACHE_SIZE) {
-      console.warn("Warning: Flattened assembly size exceeds cache capacity.");
+      console.warn(
+        `Warning: Flattened assembly size ${flattened.length} exceeds cache capacity ${this.CACHE_SIZE}. Consider increasing CACHE_SIZE.`
+      );
     }
 
     let meshArray: { color: string; geometry: ReplicadObject }[] = [];
