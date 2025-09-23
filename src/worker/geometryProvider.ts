@@ -204,6 +204,10 @@ class GeometryProvider {
 
   async clearCache(context: RequestContext): Promise<boolean> {
     console.log("Clearing cache for project", context.project);
+    const caches = await getAllProjectIds();
+    if (!caches.has(context.project)) {
+      console.log("Delete called on non-existent cache ", context.project);
+    }
     this.projectLRU = this.projectLRU.filter((id) => id !== context.project);
     await deleteProjectCache(context.project);
     return true;

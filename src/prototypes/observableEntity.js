@@ -39,9 +39,6 @@ class ObservableEntity {
         this.value = null;
         this.propagateChange();
       }
-      if (this.uniqueID == "1738956146212") {
-        console.trace("Sauna-trailer becoming: " + status);
-      }
       console.debug(
         `Status change for ${this.name} (${this.uniqueID}): ${this.status} -> ${status}`
       );
