@@ -189,21 +189,27 @@ export default memo(function FlowCanvas({
         const hadUndoHistory =
           GlobalVariables.recentMoleculeRepresentation.length > 0;
 
-        GlobalVariables.currentMolecule.undo();
+        // Call undo asynchronously and handle the result
+        GlobalVariables.currentMolecule.undo().then(() => {
+          // Show notification based on what was undone
+          if (hadUndoHistory && operationInfo) {
+            setUndoNotification(
+              `Undone: ${operationInfo.context || operationInfo.type}`
+            );
+          } else if (hadUndoHistory) {
+            setUndoNotification("Undone: Previous action");
+          } else {
+            setUndoNotification("No action to undo");
+          }
 
-        // Show notification based on what was undone
-        if (hadUndoHistory && operationInfo) {
-          setUndoNotification(
-            `Undone: ${operationInfo.context || operationInfo.type}`
-          );
-        } else if (hadUndoHistory) {
-          setUndoNotification("Undone: Previous action");
-        } else {
-          setUndoNotification("No action to undo");
-        }
-
-        // Auto-dismiss notification after 3 seconds
-        setTimeout(() => setUndoNotification(null), 3000);
+          // Auto-dismiss notification after 3 seconds
+          setTimeout(() => setUndoNotification(null), 3000);
+        }).catch((error) => {
+          // Handle undo failure
+          console.error("Undo operation failed:", error);
+          setUndoNotification("Undo failed - please try again");
+          setTimeout(() => setUndoNotification(null), 3000);
+        });
       }
       //Copy & Paste
       else if (e.key == "c") {

@@ -605,7 +605,7 @@ export default class Molecule extends Atom {
   /**
    * Performs undo operation with improved reliability and operation type awareness
    */
-  undo() {
+  async undo() {
     // Check if there are any undo states available
     if (GlobalVariables.recentMoleculeRepresentation.length === 0) {
       console.log("No undo history available");
@@ -627,33 +627,52 @@ export default class Molecule extends Atom {
         );
       }
 
-      // Make a copy of current nodes to safely delete them
-      const nodesCopy = [...GlobalVariables.topLevelMolecule.nodesOnTheScreen];
-
-      // Delete all current nodes to prepare for state restoration
-      nodesCopy.forEach((atom) => {
-        try {
-          atom.deleteNode();
-        } catch (error) {
-          console.warn("Error deleting atom during undo:", error);
-        }
-      });
-
-      // Restore the previous state if it's a valid format
-      if (rawFile && rawFile.fileTypeVersion == 1) {
-        GlobalVariables.topLevelMolecule.deserialize(rawFile);
-      } else {
+      // Validate the saved state before proceeding
+      if (!rawFile || rawFile.fileTypeVersion !== 1) {
         console.warn("Invalid file format for undo operation");
+        return; // Don't proceed with invalid data
       }
 
-      // Ensure current molecule is selected
-      if (GlobalVariables.currentMolecule) {
-        GlobalVariables.currentMolecule.selected = true;
+      // Store current nodes for safe cleanup
+      const currentNodes = [...GlobalVariables.topLevelMolecule.nodesOnTheScreen];
+
+      // Clear the current molecule's nodes array first to avoid conflicts during deserialization
+      GlobalVariables.topLevelMolecule.nodesOnTheScreen = [];
+
+      // Restore the previous state
+      try {
+        await GlobalVariables.topLevelMolecule.deserialize(rawFile);
+        
+        // Only delete the old nodes after successful restoration
+        currentNodes.forEach((atom) => {
+          try {
+            atom.deleteNode(false, false, true); // Delete quietly without triggering side effects
+          } catch (error) {
+            console.warn("Error cleaning up old atom during undo:", error);
+          }
+        });
+
+        // Ensure current molecule is selected
+        if (GlobalVariables.currentMolecule) {
+          GlobalVariables.currentMolecule.selected = true;
+        }
+      } catch (deserializeError) {
+        // If deserialization fails, restore the original nodes
+        console.error("Failed to deserialize saved state, restoring original nodes:", deserializeError);
+        GlobalVariables.topLevelMolecule.nodesOnTheScreen = currentNodes;
+        throw deserializeError;
       }
     } catch (error) {
       console.error("Error during undo operation:", error);
-      // If undo fails, we should try to maintain a consistent state
-      // The nodes have already been deleted, so we need to handle this gracefully
+      // Re-add the undo state we just popped since the operation failed
+      if (typeof rawFile !== 'undefined') {
+        GlobalVariables.recentMoleculeRepresentation.push(
+          JSON.stringify(rawFile, null, 4)
+        );
+      }
+      if (typeof operationInfo !== 'undefined') {
+        GlobalVariables.undoOperationHistory.push(operationInfo);
+      }
     }
   }
 
