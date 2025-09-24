@@ -1,6 +1,6 @@
 import { parse } from "mathjs";
 import GlobalVariables from "../js/globalvariables.js";
-import AttachmentPoint from "./attachmentpoint.js";
+import AttachmentPoint from "./attachmentpoint";
 import { ObservableEntity, Status } from "./observableEntity.js";
 
 // Make this an enum once we're using typescript
@@ -781,7 +781,7 @@ export default class Atom extends ObservableEntity {
   sendToRender() {
     //Send code to JSxCAD to render
     try {
-      GlobalVariables.writeToDisplay(this.uniqueID);
+      GlobalVariables.writeToDisplay(this.value);
     } catch (err) {
       this.setError(err);
     }
@@ -819,6 +819,8 @@ export default class Atom extends ObservableEntity {
               let currentEquation = String(value).trim();
               input.currentEquation = currentEquation;
               try {
+                // Ensure inputs exist for variables in the equation before evaluating
+                this.ensureInputsForEquation(currentEquation);
                 const result = this.evaluateEquation(currentEquation);
 
                 if (Number.isFinite(result)) {
@@ -859,6 +861,51 @@ export default class Atom extends ObservableEntity {
       };
     }
     return inputParams;
+  }
+
+  /**
+   * Ensure that inputs exist for all variables in the given equation.
+   * This method adds missing inputs dynamically but doesn't remove existing ones.
+   * @param {string} equation - The equation to check for variables
+   */
+  ensureInputsForEquation(equation) {
+    const variables = this.extractVariablesFromEquation(equation);
+    const BUILTIN_CONSTS = new Set(["pi", "e", "tau", "Infinity", "NaN"]);
+    const parentInputs =
+      (this.parent && this.parent.inputs) ||
+      (this.parentMolecule && this.parentMolecule.inputs) ||
+      [];
+    
+    // Get parent input names to avoid duplicating them
+    const parentInputNames = parentInputs.map(input => input.name);
+    
+    const inputsToAdd = [];
+    
+    for (const variable of variables) {
+      if (BUILTIN_CONSTS.has(variable)) {
+        continue; // Skip built-in constants
+      }
+      
+      // Check if variable already exists as an input on this atom
+      const existsAsInput = this.inputs.some(input => input.name === variable);
+      
+      // Check if variable exists as a parent input
+      const existsAsParentInput = parentInputNames.includes(variable);
+      
+      // Only add input if variable doesn't exist anywhere
+      if (!existsAsInput && !existsAsParentInput) {
+        inputsToAdd.push({
+          name: variable,
+          valueType: "number",
+          defaultValue: 1,
+        });
+      }
+    }
+    
+    // Add all needed inputs at once to avoid multiple subscription updates
+    if (inputsToAdd.length > 0) {
+      this.addAllIOs(inputsToAdd);
+    }
   }
 
   /**
@@ -1006,6 +1053,9 @@ export default class Atom extends ObservableEntity {
     if (containsStringLiterals) {
       return this._evaluateStringExpression(substitutedEquation);
     }
+
+    // For non-string expressions, ensure inputs exist for variables in the equation
+    this.ensureInputsForEquation(substitutedEquation);
 
     const variables = this.extractVariablesFromEquation(substitutedEquation);
     const unresolved = [];
