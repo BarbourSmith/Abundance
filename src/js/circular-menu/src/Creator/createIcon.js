@@ -1,9 +1,33 @@
 import style from "./../style";
 import classed from "./../classed";
 
-const sizeRatio = 0.65;
-const marginTopRatio = 0.2;
-const fontHeight = 13;
+// Responsive sizing ratios based on viewport width
+const getResponsiveSizing = () => {
+  const viewportWidth = window.innerWidth;
+  
+  if (viewportWidth <= 480) {
+    // Extra small mobile devices
+    return {
+      sizeRatio: 0.5,
+      marginTopRatio: 0.15,
+      fontHeight: 10
+    };
+  } else if (viewportWidth <= 768) {
+    // Mobile devices
+    return {
+      sizeRatio: 0.55,
+      marginTopRatio: 0.18,
+      fontHeight: 11
+    };
+  } else {
+    // Desktop/tablet
+    return {
+      sizeRatio: 0.65,
+      marginTopRatio: 0.2,
+      fontHeight: 13
+    };
+  }
+};
 
 export function hasIcon(icon){
     if(icon === undefined) return false;
@@ -30,8 +54,11 @@ export default function (parent, data, index) {
     classed(span, icon + " cm-icon", true);
     style(span, 'color', color);
 
-    var l = this._calc.clickZoneRadius * sizeRatio - fontHeight + "px",
-        m = this._calc.clickZoneRadius * marginTopRatio - fontHeight + "px";
+    // Use responsive sizing
+    const sizing = getResponsiveSizing();
+    var l = this._calc.clickZoneRadius * sizing.sizeRatio - sizing.fontHeight + "px",
+        m = this._calc.clickZoneRadius * sizing.marginTopRatio - sizing.fontHeight + "px";
+    
     style(span, 'width', l);
     style(span, 'height', l);
     style(span, 'font-size', l);

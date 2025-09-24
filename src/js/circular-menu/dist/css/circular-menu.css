@@ -113,3 +113,46 @@
   position: fixed;
   /* fix the displacement bug in webkit browsers when using tab key */
 }
+
+/* Mobile responsive styles for circular menu icons */
+@media only screen and (max-width: 768px) {
+  .circular-menu ul li a span.cm-icon {
+    transform: scale(0.85);
+  }
+  
+  .circular-menu ul li a span.text {
+    font-size: 11px;
+  }
+  
+  .circular-menu ul li a {
+    padding-top: 8px;
+  }
+}
+
+@media only screen and (max-width: 480px) {
+  .circular-menu ul li a span.cm-icon {
+    transform: scale(0.7);
+  }
+  
+  .circular-menu ul li a span.text {
+    font-size: 10px;
+  }
+  
+  .circular-menu ul li a {
+    padding-top: 6px;
+  }
+}
+
+@media only screen and (max-width: 420px) {
+  .circular-menu ul li a span.cm-icon {
+    transform: scale(0.6);
+  }
+  
+  .circular-menu ul li a span.text {
+    font-size: 9px;
+  }
+  
+  .circular-menu ul li a {
+    padding-top: 5px;
+  }
+}

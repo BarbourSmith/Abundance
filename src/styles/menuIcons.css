@@ -246,3 +246,62 @@
   width: 150%;
   height: 150%;
 }
+
+/* Mobile responsive icon sizing */
+@media only screen and (max-width: 768px) {
+  /* Standard icons - scale down for mobile */
+  .Actions,
+  .Inputs {
+    width: 300% !important;
+    height: 300% !important;
+  }
+  
+  .GitHubMolecule {
+    width: 200% !important;
+    height: 200% !important;
+  }
+  
+  .Shapes, .Assembly, .Fusion, .Interaction, .Intersection, .ShrinkWrap, .Tags,
+  .OverCut-Corners, .Import-Export, .Export, .Import, .Group, .Text, .Difference,
+  .Rectangle, .Circle, .Code, .Gcode, .Scale, .RegularPolygon, .Extrude, .Move,
+  .Molecule, .GeneticAlgorithm, .Color, .CutList, .Rotate, .Input, .Equation,
+  .Loft, .Stretch, .Stl, .Svg, .CutAway, .Tag, .Add-BOM-Tag, .CutLayout,
+  .ExtractTag, .Constant {
+    width: 120% !important;
+    height: 120% !important;
+  }
+  
+  .Readme {
+    width: 40% !important;
+    height: 40% !important;
+  }
+}
+
+@media only screen and (max-width: 480px) {
+  /* Extra small mobile devices - further scale down */
+  .Actions,
+  .Inputs {
+    width: 250% !important;
+    height: 250% !important;
+  }
+  
+  .GitHubMolecule {
+    width: 150% !important;
+    height: 150% !important;
+  }
+  
+  .Shapes, .Assembly, .Fusion, .Interaction, .Intersection, .ShrinkWrap, .Tags,
+  .OverCut-Corners, .Import-Export, .Export, .Import, .Group, .Text, .Difference,
+  .Rectangle, .Circle, .Code, .Gcode, .Scale, .RegularPolygon, .Extrude, .Move,
+  .Molecule, .GeneticAlgorithm, .Color, .CutList, .Rotate, .Input, .Equation,
+  .Loft, .Stretch, .Stl, .Svg, .CutAway, .Tag, .Add-BOM-Tag, .CutLayout,
+  .ExtractTag, .Constant {
+    width: 100% !important;
+    height: 100% !important;
+  }
+  
+  .Readme {
+    width: 35% !important;
+    height: 35% !important;
+  }
+}
