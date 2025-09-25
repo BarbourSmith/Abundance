@@ -198,7 +198,6 @@ export default class Gcode extends Atom {
         const parts = await this._extractPartsFromAssembly(inputID);
         const sortedParts = await this._sortParts(parts);
         const resultID = await this._generateSequentialGcode(sortedParts);
-        this.setReady(resultID);
       } else {
         // For single parts, use the original method
         const gcodeCallback = this._createGcodeCallback();
@@ -439,11 +438,15 @@ export default class Gcode extends Atom {
     // Concatenate all G-code
     this.gcodeString = this._concatenateGcode(allGcode);
     this.gcodeGenerated = true;
-    this.progress = 1.0;
 
-    // Generate visualization for the final G-code and store in library under
-    // this.uniqueID
-    return GlobalVariables.cad.visualizeGcode(this.gcodeString);
+    // Generate visualization for the final G-code and returns as
+    // an AbundanceObject.
+    const gcodeWire = await GlobalVariables.cad.visualizeGcode(
+      this.gcodeString
+    );
+    this.setReady(gcodeWire);
+    this.progress = 1.0;
+    return gcodeWire;
   }
 
   /**
