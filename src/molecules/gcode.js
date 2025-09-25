@@ -184,7 +184,6 @@ export default class Gcode extends Atom {
     // Initialize progress tracking
     this.progress = 0.0;
     this.processing = true;
-    this.setProcessing();
 
     try {
       // Get the current input ID
@@ -387,6 +386,7 @@ export default class Gcode extends Atom {
    * @param {Array} sortedPartIDs - Array of part IDs sorted left to right
    */
   async _generateSequentialGcode(sortedPartIDs) {
+    this.setProcessing();
     const allGcode = [];
     this.progress = 0.0;
 
