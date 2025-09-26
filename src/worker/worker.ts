@@ -699,7 +699,6 @@ export {
   intersect,
   isAssembly,
   layout,
-  library,
   loftShapes,
   move,
   rectangle,
