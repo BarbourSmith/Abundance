@@ -1,6 +1,7 @@
 import * as replicad from "replicad";
 import shrinkWrap from "replicad-shrink-wrap";
-import { asReplicadPlane, SimplePlane } from "./util";
+import { asReplicadPlane, SimplePlane, flattenAssembly } from "./util";
+import type { AbundanceObject } from "./util";
 
 type ReplicadObject = replicad.Shape3D | replicad.Drawing | replicad.Wire;
 
@@ -14,7 +15,7 @@ type ReplicadObject = replicad.Shape3D | replicad.Drawing | replicad.Wire;
  * or retrieve the geometry via `get(id)`.
  */
 class GeometryProvider {
-  private cache = new Map<string, ReplicadObject>();
+  private geometryCache = new Map<string, ReplicadObject>();
   private cacheHitMetrics: Record<string, [number, number]>;
   private nextId: number;
 
@@ -48,9 +49,9 @@ class GeometryProvider {
     id: string,
     builder: () => Promise<ReplicadObject>
   ): Promise<string> {
-    if (!this.cache.has(id)) {
+    if (!this.geometryCache.has(id)) {
       let value = await builder();
-      this.cache.set(id, value);
+      this.geometryCache.set(id, value);
       this.cacheMiss(id);
     } else {
       this.cacheHit(id);
@@ -70,7 +71,7 @@ class GeometryProvider {
    * @returns The geometry object itself (ie ReplicadObject)
    */
   async get(id: string): Promise<ReplicadObject> {
-    const value = this.cache.get(id);
+    const value = this.geometryCache.get(id);
     if (value == undefined) {
       console.trace("Cache miss for id:", id);
       throw new Error(`Geometry with ID ${id} not found in cache`);
@@ -293,6 +294,43 @@ class GeometryProvider {
       }
     });
     return resultId;
+  }
+
+  async assemblyFuse(assembly: AbundanceObject): Promise<string> {
+    const partIds = flattenAssembly(assembly).map((part) => part.geometry);
+    if (partIds.length === 1) {
+      return partIds[0];
+    }
+    const id = this._makeId("assemblyFuse", ...partIds.sort());
+    await this.createIfAbsent(id, async () => {
+      const shapes = await Promise.all(
+        partIds.map((partId) => this.get(partId))
+      );
+
+      let result = undefined;
+      for (let i = 0; i < shapes.length; i++) {
+        const shape = shapes[i];
+        if (shape instanceof replicad.Wire) {
+          continue; // fusing a wire is a no-op.
+        }
+        if (!result) {
+          result = shape;
+        } else {
+          if (this.isShape3D(result) && this.isShape3D(shape)) {
+            // Optimized fuse since we know assembly components don't intersect
+            result = result.fuse(shape, { optimisation: "commonFace" });
+          } else {
+            //@ts-ignore
+            result = result.fuse(shape); // both drawings
+          }
+        }
+      }
+      if (!result) {
+        throw new Error("assembly was all wires. Cannot be fused");
+      }
+      return result;
+    });
+    return id;
   }
 
   async cut(toCut: string, cutter: string): Promise<string> {

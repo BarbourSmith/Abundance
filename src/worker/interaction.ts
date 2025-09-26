@@ -22,7 +22,7 @@ async function loftShapes(
       if (util.is3D(sketch)) {
         throw new Error("Parts to be lofted must be sketches");
       }
-      let partToLoft = await digFuse(sketch);
+      let partToLoft = await fuseAssembly(sketch);
       let partObj = (await util.geometryProvider!.get(
         partToLoft.geometry
       )) as Drawing;
@@ -91,9 +91,9 @@ async function shrinkWrapSketches(
     throw new Error("No sketches provided for shrink wrap");
   }
 
-  let geometryToWrap = await digFuse(sketches[0]);
+  let geometryToWrap = await fuseAssembly(sketches[0]);
   for (let i = 1; i < sketches.length; i++) {
-    let fusedInput = await digFuse(sketches[i]);
+    let fusedInput = await fuseAssembly(sketches[i]);
     let fusedObj = (await util.geometryProvider!.get(
       fusedInput.geometry
     )) as Drawing;
@@ -131,7 +131,7 @@ async function intersect(
 ): Promise<AbundanceObject> {
   await util.init();
   return util.actOnLeafs(shape1, async (leaf: AbundanceLeaf) => {
-    const shapeToIntersectWith = await digFuse(shape2);
+    const shapeToIntersectWith = await fuseAssembly(shape2);
     return {
       geometry: await util.geometryProvider!.intersect(
         leaf.geometry,
@@ -162,14 +162,14 @@ async function fusion(shapes: AbundanceObject[]): Promise<AbundanceLeaf> {
   if (shapes.length === 0) {
     throw new Error("No shapes provided for fusion");
   }
-  const digFused = await digFuse(shapes[0]);
+  const digFused = await fuseAssembly(shapes[0]);
   let fusedGeometry = digFused.geometry;
   let bomAssembly = shapes[0].bom ? shapes[0].bom.slice() : [];
   for (let i = 1; i < shapes.length; i++) {
     fusedGeometry = await util.geometryProvider!.fuse(
       fusedGeometry,
       (
-        await digFuse(shapes[i])
+        await fuseAssembly(shapes[i])
       ).geometry
     );
     bomAssembly.push(...(shapes[i].bom || []));
@@ -245,24 +245,17 @@ async function assembly(
  * @param {Object} assembly - The assembly or leaf geometry to process
  * @returns {Object} A single fused geometry combining all leaves in the assembly
  */
-async function digFuse(assembly: AbundanceObject): Promise<AbundanceLeaf> {
+async function fuseAssembly(assembly: AbundanceObject): Promise<AbundanceLeaf> {
   await util.init();
-  var flattened = util.flattenAssembly(assembly);
+  const flattened = util.flattenAssembly(assembly);
   if (flattened.length === 0) {
-    throw new Error("No geometries found to fuse");
+    throw new Error("No geometries found in assembly");
   }
-  let result = flattened[0].geometry;
-  for (let i = 1; i < flattened.length; i++) {
-    result = await util.geometryProvider!.fuse(result, flattened[i].geometry);
-  }
-  // TODO(tristan): should this be the union of all tags on all leafs?
+  // TODO: should be union of tags and bom?
   return {
-    geometry: result,
+    ...assembly,
+    geometry: await util.geometryProvider!.assemblyFuse(assembly),
     dimension: flattened[0].dimension,
-    tags: assembly.tags,
-    plane: assembly.plane,
-    color: assembly.color,
-    bom: assembly.bom,
   };
 }
 
@@ -412,7 +405,7 @@ export {
   assembly,
   cutAssembly,
   difference,
-  digFuse,
+  fuseAssembly,
   fusion,
   intersect,
   loftShapes,

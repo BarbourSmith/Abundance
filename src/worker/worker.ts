@@ -9,7 +9,7 @@ import { ReplicadObject } from "./geometryProvider";
 import {
   assembly,
   difference,
-  digFuse,
+  fuseAssembly,
   fusion,
   intersect,
   loftShapes,
@@ -83,7 +83,7 @@ function visExport(
         "Geometry To Export has no geometry after keepout is applied"
       );
     }
-    let fusedGeometry = await digFuse(geometryToExport);
+    let fusedGeometry = await fuseAssembly(geometryToExport);
     let displayColor =
       fileType == "STL"
         ? "#91C8D5"
@@ -140,7 +140,7 @@ function downExport(
         "Geometry To Export has no geometry after keepout is applied"
       );
     }
-    let fusedGeometry = await digFuse(geometryToExport);
+    let fusedGeometry = await fuseAssembly(geometryToExport);
     const geom = await util.geometryProvider!.get(fusedGeometry.geometry);
     let scaleUnit = units == "Inches" ? 1 : units == "MM" ? 25.4 : 1;
     let scaling = svgResolution / scaleUnit;
@@ -343,9 +343,24 @@ const prettyProjection = (shape: Shape3D | replicad.Wire) => {
  * @returns {Promise<string>} A promise that resolves to an SVG string representing the thumbnail
  * @throws {Error} Throws an error if the geometry is undefined or thumbnail generation fails
  */
-async function generateThumbnail(input: AbundanceObject): Promise<string> {
+async function generateThumbnail(
+  input: AbundanceObject
+): Promise<string | undefined> {
   return started.then(async () => {
-    const fusedAssembly = await digFuse(input);
+    if (input === undefined || input.geometry === undefined) {
+      return undefined;
+    }
+    if (util.flattenAssembly(input).length > 100) {
+      // Fusing is too expensive for large projects for now.
+      return undefined;
+    }
+    console.log("Fusing assembly of size:", util.flattenAssembly(input).length);
+    const startTime = performance.now();
+
+    const fusedAssembly = await fuseAssembly(input);
+    console.log(
+      `Fusing assembly took ${performance.now() - startTime} milliseconds`
+    );
     const fusedGeometry = await util.geometryProvider!.get(
       fusedAssembly.geometry
     );
