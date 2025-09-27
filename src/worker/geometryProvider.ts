@@ -15,7 +15,7 @@ type ReplicadObject = replicad.Shape3D | replicad.Drawing | replicad.Wire;
  * or retrieve the geometry via `get(id)`.
  */
 class GeometryProvider {
-  private geometryCache = new Map<string, ReplicadObject>();
+  private cache = new Map<string, ReplicadObject>();
   private cacheHitMetrics: Record<string, [number, number]>;
   private nextId: number;
 
@@ -49,9 +49,9 @@ class GeometryProvider {
     id: string,
     builder: () => Promise<ReplicadObject>
   ): Promise<string> {
-    if (!this.geometryCache.has(id)) {
+    if (!this.cache.has(id)) {
       let value = await builder();
-      this.geometryCache.set(id, value);
+      this.cache.set(id, value);
       this.cacheMiss(id);
     } else {
       this.cacheHit(id);
@@ -71,7 +71,7 @@ class GeometryProvider {
    * @returns The geometry object itself (ie ReplicadObject)
    */
   async get(id: string): Promise<ReplicadObject> {
-    const value = this.geometryCache.get(id);
+    const value = this.cache.get(id);
     if (value == undefined) {
       console.trace("Cache miss for id:", id);
       throw new Error(`Geometry with ID ${id} not found in cache`);
