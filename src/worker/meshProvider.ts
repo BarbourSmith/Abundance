@@ -288,11 +288,10 @@ class MeshProvider {
     const flattened = util.flattenAssembly(geom);
     if (flattened.length > this.CACHE_SIZE) {
       console.warn(
-        `Warning: Flattened assembly size ${flattened.length} exceeds cache capacity ${this.CACHE_SIZE}. Consider increasing CACHE_SIZE.`
+        `Warning: Assembly larger than cache (${this.CACHE_SIZE}). Increasing cache capacity to: ${flattened.length} x 1.5.`
       );
+      this.CACHE_SIZE = Math.ceil(flattened.length * 1.5);
     }
-
-    let meshArray: { color: string; geometry: ReplicadObject }[] = [];
 
     const partialMeshes = await Promise.all(
       flattened.map((leaf) => this.getOrCreateMesh(leaf))
