@@ -96,11 +96,9 @@ export default function ext({ children, cameraZoom, ...otherProps }) {
               sectionSize={cellSection * 10}
             />
             <GridDirectionalOverlay
-              position={[0, 0, 0]}
               cellSize={cellSection}
               args={[10000, 10000]}
               cellColor={"#726482"}
-              rotation={[Math.PI / 2, 0, 0]}
               sectionSize={cellSection * 10}
             />
           </>
