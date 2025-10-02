@@ -163,10 +163,10 @@ export default class CutLayout extends Atom {
     return super.deleteNode(backgroundClickAfter, deletePath, silent);
   }
 
-  handleNewPlacements(placements, isFinalPlacement = false) {
+  handleNewPlacements(placements, isFinalPlacement = false, skipInputChanged = false) {
     this.placements = placements;
     this.displayLayout(isFinalPlacement);
-    if (this.setInputChanged) {
+    if (this.setInputChanged && !skipInputChanged) {
       this.setInputChanged(this.placements);
     }
   }
@@ -391,7 +391,7 @@ export default class CutLayout extends Atom {
                 placement.translate.x = x;
                 placement.translate.y = y;
                 placement.rotate = z;
-                this.handleNewPlacements(this.getPlacements(), true);
+                this.handleNewPlacements(this.getPlacements(), true, true);
               }
             }
           },
