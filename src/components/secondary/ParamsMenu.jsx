@@ -79,6 +79,7 @@ export default function ParamsMenu({
     <div>
       <SimpleControlPanel
         controls={controls}
+        activeAtomId={activeAtom?.uniqueID}
         id={id}
         position={position || { top: screenHeight / 2 - 10, left: 55 }}
         title={activeAtom?.name || "Controls"}

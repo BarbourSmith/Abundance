@@ -236,6 +236,7 @@ const closeButtonStyle = {
 export const SimpleControlPanel = forwardRef(function SimpleControlPanel(
   {
     controls,
+    activeAtomId,
     id = "simple-control-panel",
     position = { top: 40, left: 40 },
     panelId,
@@ -308,11 +309,6 @@ export const SimpleControlPanel = forwardRef(function SimpleControlPanel(
     }
   };
 
-  // Track control keys to detect meaningful changes
-  const controlKeysStr = React.useMemo(() => {
-    return Object.keys(controls).sort().join(',');
-  }, [controls]);
-
   // Ensure initial values are set when controls prop changes
   React.useEffect(() => {
     Object.entries(controls).forEach(([key, config]) => {
@@ -320,15 +316,13 @@ export const SimpleControlPanel = forwardRef(function SimpleControlPanel(
         setControlValue(key, config.value);
       }
     });
-    // Only reset focus if the control keys actually changed (not just object reference)
-    // This prevents focus jumping when typing in inputs
   }, [controls]);
 
-  // Reset focus and local values only when control keys change
+  // Reset focus and local values ONLY when switching to a different atom
   React.useEffect(() => {
     setFocusedIndex(0);
     setLocalValues({});
-  }, [controlKeysStr]);
+  }, [activeAtomId]);
 
   // Only focus input on keyboard event, not on mount/controls change
   const [shouldFocus, setShouldFocus] = React.useState(false);
