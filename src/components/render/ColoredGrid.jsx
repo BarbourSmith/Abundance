@@ -21,7 +21,7 @@ const ColoredGrid = ({
   fadeDistance = 9000,
   fadeFrom = 0
 }) => {
-  const gridGeometry = useMemo(() => {
+  const { xGeometry, yGeometry, originXGeometry, originYGeometry } = useMemo(() => {
     const halfSize = gridSize / 2;
     const divisions = gridSize / cellSize;
     
@@ -64,14 +64,14 @@ const ColoredGrid = ({
       }
     }
     
-    return { xAxisLines, yAxisLines, originXLine, originYLine };
+    // Create geometries from the line arrays
+    return {
+      xGeometry: new THREE.BufferGeometry().setFromPoints(xAxisLines),
+      yGeometry: new THREE.BufferGeometry().setFromPoints(yAxisLines),
+      originXGeometry: new THREE.BufferGeometry().setFromPoints(originXLine),
+      originYGeometry: new THREE.BufferGeometry().setFromPoints(originYLine)
+    };
   }, [cellSize, gridSize, sectionSize]);
-
-  // Create line geometries
-  const createLineGeometry = (points) => {
-    const geometry = new THREE.BufferGeometry().setFromPoints(points);
-    return geometry;
-  };
 
   // Color scheme: subtle tints to indicate direction
   // X-axis lines (left-right) get a subtle red tint
@@ -85,32 +85,24 @@ const ColoredGrid = ({
   return (
     <group position={position} rotation={rotation}>
       {/* X-axis direction lines (subtle red tint) */}
-      {gridGeometry.xAxisLines.length > 0 && (
-        <lineSegments geometry={createLineGeometry(gridGeometry.xAxisLines)}>
-          <lineBasicMaterial color={xColor} opacity={0.4} transparent />
-        </lineSegments>
-      )}
+      <lineSegments geometry={xGeometry}>
+        <lineBasicMaterial color={xColor} opacity={0.4} transparent />
+      </lineSegments>
       
       {/* Y-axis direction lines (subtle green tint) */}
-      {gridGeometry.yAxisLines.length > 0 && (
-        <lineSegments geometry={createLineGeometry(gridGeometry.yAxisLines)}>
-          <lineBasicMaterial color={yColor} opacity={0.4} transparent />
-        </lineSegments>
-      )}
+      <lineSegments geometry={yGeometry}>
+        <lineBasicMaterial color={yColor} opacity={0.4} transparent />
+      </lineSegments>
       
       {/* Origin X-axis line (brighter red) */}
-      {gridGeometry.originXLine.length > 0 && (
-        <lineSegments geometry={createLineGeometry(gridGeometry.originXLine)}>
-          <lineBasicMaterial color={originXColor} opacity={0.8} transparent linewidth={2} />
-        </lineSegments>
-      )}
+      <lineSegments geometry={originXGeometry}>
+        <lineBasicMaterial color={originXColor} opacity={0.8} transparent linewidth={2} />
+      </lineSegments>
       
       {/* Origin Y-axis line (brighter green) */}
-      {gridGeometry.originYLine.length > 0 && (
-        <lineSegments geometry={createLineGeometry(gridGeometry.originYLine)}>
-          <lineBasicMaterial color={originYColor} opacity={0.8} transparent linewidth={2} />
-        </lineSegments>
-      )}
+      <lineSegments geometry={originYGeometry}>
+        <lineBasicMaterial color={originYColor} opacity={0.8} transparent linewidth={2} />
+      </lineSegments>
     </group>
   );
 };
