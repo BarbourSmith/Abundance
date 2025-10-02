@@ -308,6 +308,11 @@ export const SimpleControlPanel = forwardRef(function SimpleControlPanel(
     }
   };
 
+  // Track control keys to detect meaningful changes
+  const controlKeysStr = React.useMemo(() => {
+    return Object.keys(controls).sort().join(',');
+  }, [controls]);
+
   // Ensure initial values are set when controls prop changes
   React.useEffect(() => {
     Object.entries(controls).forEach(([key, config]) => {
@@ -315,9 +320,15 @@ export const SimpleControlPanel = forwardRef(function SimpleControlPanel(
         setControlValue(key, config.value);
       }
     });
-    setFocusedIndex(0); // Default focus to first control on controls change
-    setLocalValues({}); // Clear local values when controls change
+    // Only reset focus if the control keys actually changed (not just object reference)
+    // This prevents focus jumping when typing in inputs
   }, [controls]);
+
+  // Reset focus and local values only when control keys change
+  React.useEffect(() => {
+    setFocusedIndex(0);
+    setLocalValues({});
+  }, [controlKeysStr]);
 
   // Only focus input on keyboard event, not on mount/controls change
   const [shouldFocus, setShouldFocus] = React.useState(false);
