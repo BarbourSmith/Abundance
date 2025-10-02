@@ -165,7 +165,7 @@ export default class CutLayout extends Atom {
 
   handleNewPlacements(placements, isFinalPlacement = false, skipInputRefresh = false) {
     this.placements = placements;
-    this.displayLayout(isFinalPlacement);
+    this.displayLayout(isFinalPlacement, skipInputRefresh);
     if (this.setInputChanged && !skipInputRefresh) {
       this.setInputChanged(this.placements);
     }
@@ -186,7 +186,7 @@ export default class CutLayout extends Atom {
     return this.placements;
   }
 
-  displayLayout(isFinalPlacement = false) {
+  displayLayout(isFinalPlacement = false, skipStatusChange = false) {
     const placements = this.getPlacements();
 
     if (this.inputsAreReady()) {
@@ -195,7 +195,10 @@ export default class CutLayout extends Atom {
       var sheetHeight = this.findIOValue("Sheet Height");
       var partPadding = this.findIOValue("Part Padding");
       const priorStatus = this.status;
-      this.setProcessing();
+      // Skip status change for manual edits to prevent re-renders
+      if (!skipStatusChange) {
+        this.setProcessing();
+      }
       return GlobalVariables.cad
         .displayLayout(
           inputGeom,
@@ -218,11 +221,13 @@ export default class CutLayout extends Atom {
           if (this.selected) {
             this.sendToRender();
           }
-          // Only update our status if this is the final placement
-          if (isFinalPlacement) {
+          // Only update our status if this is the final placement and not skipping status changes
+          if (isFinalPlacement && !skipStatusChange) {
             this.setReady(result);
-          } else {
+          } else if (!skipStatusChange) {
             this.setStatus(priorStatus);
+          } else {
+            // For manual edits, just update the value without changing status
             this.value = result;
           }
         });
