@@ -2,12 +2,12 @@ import React, { Suspense, useRef, useEffect, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import {
   Wireframe,
-  Grid,
   OrthographicCamera,
 } from "@react-three/drei";
 import * as THREE from "three";
 import Controls from "./ThreeControls.jsx";
 import BackgroundModel from "./BackgroundModel.jsx";
+import DirectionalGrid from "./DirectionalGrid.jsx";
 import globalvariables from "../../js/globalvariables.js";
 import { useRendering, useAuth } from "../../contexts/index.js";
 
@@ -81,13 +81,12 @@ export default function ext({ children, cameraZoom, ...otherProps }) {
           position={[3000, 3000, 5000]}
         />
         {gridParam ? (
-          <Grid
+          <DirectionalGrid
             position={[0, 0, 0]}
             cellSize={cellSection}
             args={[10000, 10000]}
             cellColor={"#726482"}
             fadeFrom={0}
-            lineColor={"#BFA301"}
             sectionColor={"#BFA301"}
             fadeDistance={9000}
             rotation={[Math.PI / 2, 0, 0]}
