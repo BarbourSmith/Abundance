@@ -163,10 +163,10 @@ export default class CutLayout extends Atom {
     return super.deleteNode(backgroundClickAfter, deletePath, silent);
   }
 
-  handleNewPlacements(placements, isFinalPlacement = false) {
+  handleNewPlacements(placements, isFinalPlacement = false, skipInputRefresh = false) {
     this.placements = placements;
     this.displayLayout(isFinalPlacement);
-    if (this.setInputChanged) {
+    if (this.setInputChanged && !skipInputRefresh) {
       this.setInputChanged(this.placements);
     }
   }
@@ -391,7 +391,9 @@ export default class CutLayout extends Atom {
                 placement.translate.x = x;
                 placement.translate.y = y;
                 placement.rotate = z;
-                this.handleNewPlacements(this.getPlacements(), true);
+                // Pass skipInputRefresh=true to prevent input controls from being recreated
+                // This prevents focus jumping while the user is typing
+                this.handleNewPlacements(this.getPlacements(), true, true);
               }
             }
           },
