@@ -8,6 +8,9 @@ import * as THREE from "three";
  * - Lines parallel to Y-axis are tinted green
  * - The origin intersection is highlighted
  * 
+ * The grid is created in the XZ plane (Y=0) and then rotated by Math.PI/2 around X-axis
+ * to become the XY plane (Z=0 after rotation), matching replicad's Z-up coordinate system.
+ * 
  * This provides subtle visual cues about orientation without adding 3D elements.
  */
 const ColoredGrid = ({ 
@@ -26,40 +29,43 @@ const ColoredGrid = ({
     const divisions = gridSize / cellSize;
     
     // Create arrays to hold line vertices
-    const xAxisLines = []; // Lines parallel to X (running left-right)
-    const yAxisLines = []; // Lines parallel to Y (running front-back)
+    // Lines are created in XZ plane, then rotated to XY plane
+    const xAxisLines = []; // Lines parallel to X (running left-right after rotation)
+    const yAxisLines = []; // Lines parallel to Y (running front-back after rotation)
     const originXLine = []; // X-axis line through origin
-    const originYLine = []; // Y-axis line through origin
+    const originYLine = []; // Y-axis line through origin (Z-axis before rotation)
     
-    // Generate grid lines
+    // Generate grid lines in XZ plane (Y=0)
+    // After rotation by [Math.PI/2, 0, 0], this will become the XY plane
     for (let i = -divisions / 2; i <= divisions / 2; i++) {
       const pos = i * cellSize;
       const isSection = Math.abs(i % (sectionSize / cellSize)) === 0;
       const isOrigin = i === 0;
       
-      // Lines parallel to X-axis (running left-right, varying in Y)
+      // Lines parallel to X-axis (running left-right, varying in Z)
       if (isOrigin) {
         originXLine.push(
-          new THREE.Vector3(-halfSize, pos, 0),
-          new THREE.Vector3(halfSize, pos, 0)
+          new THREE.Vector3(-halfSize, 0, pos),
+          new THREE.Vector3(halfSize, 0, pos)
         );
       } else {
         xAxisLines.push(
-          new THREE.Vector3(-halfSize, pos, 0),
-          new THREE.Vector3(halfSize, pos, 0)
+          new THREE.Vector3(-halfSize, 0, pos),
+          new THREE.Vector3(halfSize, 0, pos)
         );
       }
       
-      // Lines parallel to Y-axis (running front-back, varying in X)
+      // Lines parallel to Z-axis (running front-back, varying in X)
+      // These will become Y-axis after rotation
       if (isOrigin) {
         originYLine.push(
-          new THREE.Vector3(pos, -halfSize, 0),
-          new THREE.Vector3(pos, halfSize, 0)
+          new THREE.Vector3(pos, 0, -halfSize),
+          new THREE.Vector3(pos, 0, halfSize)
         );
       } else {
         yAxisLines.push(
-          new THREE.Vector3(pos, -halfSize, 0),
-          new THREE.Vector3(pos, halfSize, 0)
+          new THREE.Vector3(pos, 0, -halfSize),
+          new THREE.Vector3(pos, 0, halfSize)
         );
       }
     }
