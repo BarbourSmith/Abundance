@@ -18,7 +18,7 @@ import ParamsMenu from "../secondary/ParamsMenu.jsx";
 import RenderMenu from "../secondary/RenderMenu.jsx";
 import BomMenu from "../secondary/BomMenu.jsx";
 import GitSearchMenu from "../secondary/GitSearchMenu.jsx";
-import RenderProgressBar from "../secondary/RenderProgressBar.jsx";
+import ProgressBars from "../secondary/ProgressBars.jsx";
 import { useTutorial } from "../../tutorial/TutorialManager";
 import { TutorialOverlay } from "../../tutorial/TutorialOverlay";
 
@@ -52,6 +52,8 @@ function CreateMode() {
     setWireMesh,
     renderProgress,
     renderBarVisible,
+    buildProgress,
+    buildBarVisible,
     backgroundUsdzFile,
     setBackgroundUsdzFile,
     backgroundUsdzSha,
@@ -927,9 +929,13 @@ function CreateMode() {
               setErrorNotification: setErrorNotification,
             }}
           />
-          {renderBarVisible ? (
-            <RenderProgressBar progress={renderProgress} label="Rendering" />
-          ) : null}
+          <ProgressBars
+            renderProgress={renderProgress}
+            renderBarVisible={renderBarVisible}
+            buildProgress={buildProgress}
+            buildBarVisible={buildBarVisible}
+            run={false}
+          />
           <div id="headerBar">
             <img
               className="thumnail-logo"

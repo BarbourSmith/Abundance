@@ -13,7 +13,7 @@ import ParamsMenu from "../secondary/ParamsMenu.jsx";
 import ExportMenu from "../secondary/ExportMenu.jsx";
 import RenderMenu from "../secondary/RenderMenu.jsx";
 import BomMenu from "../secondary/BomMenu.jsx";
-import RenderProgressBar from "../secondary/RenderProgressBar.jsx";
+import ProgressBars from "../secondary/ProgressBars.jsx";
 import {
   BrowserRouter as Router,
   useParams,
@@ -67,6 +67,8 @@ function runMode() {
     setOutdatedMesh,
     renderProgress,
     renderBarVisible,
+    buildProgress,
+    buildBarVisible,
     gridParam,
     setGrid,
     axesParam,
@@ -238,9 +240,13 @@ function runMode() {
         }}
         collapsedOffset={[45, -90]}
       />
-      {renderBarVisible ? (
-        <RenderProgressBar progress={renderProgress} run={true} />
-      ) : null}
+      <ProgressBars
+        renderProgress={renderProgress}
+        renderBarVisible={renderBarVisible}
+        buildProgress={buildProgress}
+        buildBarVisible={buildBarVisible}
+        run={true}
+      />
       <div id="headerBarRun">
         <img
           className="thumnail-logo"
