@@ -56,7 +56,7 @@ class GeometryProvider {
     this.nextId = 0;
 
     setInterval(() => {
-      console.log(this.cacheHitMetrics);
+      //console.log(this.cacheHitMetrics);
     }, 10000);
   }
 
@@ -528,11 +528,11 @@ class GeometryProvider {
     if (!context.operationId) {
       throw new Error("provided context is not a batch operation " + context);
     }
-    console.log(
+    /* console.log(
       `End of batch ${context.operationId}. hit/miss: ${
         this.batchMetrics
       }. size: ${this.warmCache.get(context.operationId)?.size}`
-    );
+    );*/
     this.batchMetrics = [0, 0];
     await this.cacheAssembly(context.operationId, result, context);
     this.warmCache.delete(context.operationId);
