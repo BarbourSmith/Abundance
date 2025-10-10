@@ -1,6 +1,12 @@
 import * as replicad from "replicad";
 import shrinkWrap from "replicad-shrink-wrap";
-import { AbundanceObject, asReplicadPlane, SimplePlane } from "./util";
+import {
+  AbundanceLeaf,
+  AbundanceObject,
+  asReplicadPlane,
+  flattenAssembly,
+  SimplePlane,
+} from "./util";
 import {
   getShape,
   putShape,
@@ -15,6 +21,7 @@ type ReplicadObject = replicad.Shape3D | replicad.Drawing | replicad.Wire;
 type RequestContext = {
   project: string;
   operationId?: string;
+  persistIntermediates?: boolean;
 };
 
 /*
@@ -119,9 +126,13 @@ class GeometryProvider {
     } else {
       const start = performance.now();
       const geometry = await builder();
-      await putShape(context.project, id, geometry.serialize());
       if (context.operationId) {
         this.putInWarmCache(id, context.operationId, geometry);
+        if (context.persistIntermediates) {
+          await putShape(context.project, id, geometry.serialize());
+        }
+      } else {
+        await putShape(context.project, id, geometry.serialize());
       }
       const duration = performance.now() - start;
       this.cacheMiss(id, duration);
@@ -505,9 +516,26 @@ class GeometryProvider {
     return toCut;
   }
 
+  /**
+   * Start a batch operation. Batch operations are appropriate to use
+   * when you expect to perform a lot of geometric operations but don't
+   * want to persist the intermediate results. Eg: for assemblies.
+   *
+   * This method may return an AbundanceObject if the result of this batch
+   * operation already exists in the cache. For this reason it is important
+   * that the id param be chose carefully.
+   *
+   * Otherwise this method returns a new RequestContext which should
+   * be passed to any operation which is part of this batch. Complete the
+   * batch operation by calling endBatchOperation() with the result.
+   *
+   * Optional: pass persistIntermediates=true to keep all intermediate
+   * results in the cache after the batch is ended.
+   */
   async startBatchOperation(
     context: RequestContext,
-    id: string
+    id: string,
+    persistIntermediates: boolean = false
   ): Promise<AbundanceObject | RequestContext> {
     const batchId = "batch-" + id;
 
@@ -518,7 +546,11 @@ class GeometryProvider {
     }
 
     this.warmCache.set(batchId, new Map());
-    return { ...context, operationId: batchId };
+    return {
+      ...context,
+      operationId: batchId,
+      persistIntermediates: persistIntermediates,
+    };
   }
 
   async endBatchOperation(
@@ -534,6 +566,28 @@ class GeometryProvider {
       }. size: ${this.warmCache.get(context.operationId)?.size}`
     );*/
     this.batchMetrics = [0, 0];
+    if (!context.persistIntermediates) {
+      // For all intermediate shapes which are part of the result assembly,
+      // promote them to the serialized cache.
+      for (const leaf of flattenAssembly(result)) {
+        const geom = this.getFromWarmCache(leaf.geometry, context);
+        if (geom) {
+          putShape(
+            context.project,
+            leaf.geometry,
+            this.getFromWarmCache(leaf.geometry, context)!.serialize()
+          );
+        } else {
+          // check that it's already in the serialized cache
+          const exists = await shapeExists(context.project, leaf.geometry);
+          if (!exists) {
+            throw new Error(
+              "Batch operation references unknown geometry: " + leaf.geometry
+            );
+          }
+        }
+      }
+    }
     await this.cacheAssembly(context.operationId, result, context);
     this.warmCache.delete(context.operationId);
   }

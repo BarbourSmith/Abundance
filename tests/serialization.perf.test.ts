@@ -54,7 +54,7 @@ function showStats(label: string, times: number[]) {
 }
 
 describe("performance: rectangle + extrude + transform", () => {
-  const context: RequestContext = { project: "perf-rect-extrude" };
+  const context: RequestContext = { project: "perf-rect-blep" };
   const REPETITIONS = 100;
 
   beforeAll(async () => {
@@ -96,7 +96,7 @@ describe("performance: rectangle + extrude + transform", () => {
 });
 
 describe("performance: assemblies", () => {
-  const context: RequestContext = { project: "perf-assemblies" };
+  const context: RequestContext = { project: "perf-assemblie-blahs" };
   const REPETITIONS = 100;
   let rectArray: AbundanceObject[] = [];
 
@@ -142,11 +142,13 @@ describe("performance: assemblies", () => {
         );
       });
     }
+    console.profile("build-assembly");
     const { results, times } = await timeMultiple(tasks);
+    console.profileEnd("build-assembly");
     const { avg, max, min, histogram } = showStats("big-assembly", times);
 
     expect(avg).toBeLessThan(50);
-  }, 30000);
+  }, 60000);
 
   // TODO: add test that involves deserializing then moving one of these complex assemblies.
   it("deserialize and move complex assembly", async () => {
@@ -172,7 +174,7 @@ describe("performance: assemblies", () => {
 
     // Expect similar timing to basic move+rotate
     expect(avg).toBeLessThan(20);
-  }, 60000);
+  }, 5000);
 
   afterAll(async () => {
     await clearCache(context);

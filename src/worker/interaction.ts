@@ -290,7 +290,7 @@ async function assembly(
     bom: bomAssembly,
     dimension: all3D ? "3D" : "2D",
   };
-  util.geometryProvider!.endBatchOperation(context, result);
+  await util.geometryProvider!.endBatchOperation(context, result);
 
   return result;
 }
