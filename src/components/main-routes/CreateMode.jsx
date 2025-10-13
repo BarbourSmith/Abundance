@@ -555,12 +555,8 @@ function CreateMode() {
       if (error.status === 401 || error.message.includes("Bad credentials")) {
         handleAuthenticationError(error, saveType);
       } else {
-        // Handle other errors
-        setErrorNotification(
-          `Save failed: ${error.message || "Unknown error occurred"}`
-        );
-        setTimeout(() => setErrorNotification(null), 5000);
-        setSaveProgress(0); // Reset save progress
+        // Reset save progress for non-auth errors
+        setSaveProgress(0);
       }
 
       throw error; // Re-throw to let calling function handle it
@@ -873,7 +869,10 @@ function CreateMode() {
 
       // The createCommit function already handles authentication errors,
       // so we only need to handle other types of errors here
-      if (!error.message.includes("Bad credentials") && error.status !== 401) {
+      const isAuthError = error.status === 401 || 
+                         (error.message && error.message.includes("Bad credentials"));
+      
+      if (!isAuthError) {
         setErrorNotification(
           `Save failed: ${error.message || "Unknown error occurred"}`
         );
