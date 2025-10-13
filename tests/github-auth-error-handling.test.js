@@ -197,8 +197,8 @@ describe('Save Project Error Notification', () => {
 
   // Helper function to check if an error is an authentication error
   const isAuthError = (error) => {
-    return error.status === 401 || 
-           (error.message && error.message.includes("Bad credentials"));
+    return error && (error.status === 401 || 
+           (error.message && error.message.includes("Bad credentials")));
   };
 
   beforeEach(() => {
