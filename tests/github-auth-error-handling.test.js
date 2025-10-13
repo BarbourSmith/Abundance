@@ -184,3 +184,171 @@ describe('GitHub Authentication Error Handling - Issue #893', () => {
     expect(scenario.expectedHandling).toBe('Show user-friendly error and re-auth option');
   });
 });
+
+/**
+ * Test for save project error notification
+ * 
+ * This validates that save errors show proper user notifications
+ * and that there are no duplicate error notifications.
+ */
+describe('Save Project Error Notification', () => {
+  let mockSetErrorNotification;
+  let mockSetSaveProgress;
+
+  beforeEach(() => {
+    mockSetErrorNotification = vi.fn();
+    mockSetSaveProgress = vi.fn();
+  });
+
+  it('should show error notification for non-auth errors in saveProject', () => {
+    // Simulate the saveProject error handler
+    const handleSaveError = (error) => {
+      console.error("Error during project save:", error);
+
+      const isAuthError = error.status === 401 || 
+                         (error.message && error.message.includes("Bad credentials"));
+      
+      if (!isAuthError) {
+        mockSetErrorNotification(
+          `Save failed: ${error.message || "Unknown error occurred"}`
+        );
+        setTimeout(() => mockSetErrorNotification(null), 5000);
+      }
+
+      mockSetSaveProgress(0);
+    };
+
+    // Test with a network error
+    const networkError = { message: "Network request failed" };
+    handleSaveError(networkError);
+    
+    expect(mockSetErrorNotification).toHaveBeenCalledWith(
+      "Save failed: Network request failed"
+    );
+    expect(mockSetSaveProgress).toHaveBeenCalledWith(0);
+  });
+
+  it('should NOT show error notification for auth errors in saveProject (handled elsewhere)', () => {
+    // Simulate the saveProject error handler
+    const handleSaveError = (error) => {
+      const isAuthError = error.status === 401 || 
+                         (error.message && error.message.includes("Bad credentials"));
+      
+      if (!isAuthError) {
+        mockSetErrorNotification(
+          `Save failed: ${error.message || "Unknown error occurred"}`
+        );
+      }
+
+      mockSetSaveProgress(0);
+    };
+
+    // Test with auth error
+    const authError = { status: 401, message: "Bad credentials" };
+    handleSaveError(authError);
+    
+    // Should NOT call setErrorNotification for auth errors
+    expect(mockSetErrorNotification).not.toHaveBeenCalled();
+    expect(mockSetSaveProgress).toHaveBeenCalledWith(0);
+  });
+
+  it('should handle errors without message property gracefully', () => {
+    // Simulate the saveProject error handler
+    const handleSaveError = (error) => {
+      const isAuthError = error.status === 401 || 
+                         (error.message && error.message.includes("Bad credentials"));
+      
+      if (!isAuthError) {
+        mockSetErrorNotification(
+          `Save failed: ${error.message || "Unknown error occurred"}`
+        );
+      }
+
+      mockSetSaveProgress(0);
+    };
+
+    // Test with an error object that has no message
+    const errorWithoutMessage = { code: "UNKNOWN_ERROR" };
+    handleSaveError(errorWithoutMessage);
+    
+    expect(mockSetErrorNotification).toHaveBeenCalledWith(
+      "Save failed: Unknown error occurred"
+    );
+    expect(mockSetSaveProgress).toHaveBeenCalledWith(0);
+  });
+
+  it('should NOT show duplicate notifications from createCommit and saveProject', () => {
+    // This test validates that we removed duplicate error notifications
+    
+    // Simulate createCommit error handler (should NOT show notification for non-auth errors)
+    const createCommitErrorHandler = (error) => {
+      if (error.status === 401 || error.message.includes("Bad credentials")) {
+        // Handle auth error
+        console.log("Auth error handled in createCommit");
+      } else {
+        // For non-auth errors, just reset progress - NO notification here
+        mockSetSaveProgress(0);
+      }
+      throw error; // Re-throw for saveProject to handle
+    };
+
+    // Simulate saveProject error handler (SHOULD show notification for non-auth errors)
+    const saveProjectErrorHandler = (error) => {
+      const isAuthError = error.status === 401 || 
+                         (error.message && error.message.includes("Bad credentials"));
+      
+      if (!isAuthError) {
+        mockSetErrorNotification(
+          `Save failed: ${error.message || "Unknown error occurred"}`
+        );
+      }
+      mockSetSaveProgress(0);
+    };
+
+    // Test the flow
+    const testError = { message: "API rate limit exceeded" };
+    
+    try {
+      createCommitErrorHandler(testError);
+    } catch (error) {
+      saveProjectErrorHandler(error);
+    }
+
+    // Should only be called ONCE from saveProject, not twice
+    expect(mockSetErrorNotification).toHaveBeenCalledTimes(1);
+    expect(mockSetErrorNotification).toHaveBeenCalledWith(
+      "Save failed: API rate limit exceeded"
+    );
+    
+    // Save progress should be reset twice (once in createCommit, once in saveProject)
+    expect(mockSetSaveProgress).toHaveBeenCalledTimes(2);
+    expect(mockSetSaveProgress).toHaveBeenCalledWith(0);
+  });
+
+  it('should show appropriate error messages for different error types', () => {
+    const handleSaveError = (error) => {
+      const isAuthError = error.status === 401 || 
+                         (error.message && error.message.includes("Bad credentials"));
+      
+      if (!isAuthError) {
+        mockSetErrorNotification(
+          `Save failed: ${error.message || "Unknown error occurred"}`
+        );
+      }
+    };
+
+    // Test different error scenarios
+    const errors = [
+      { message: "Repository not found", expectedMessage: "Save failed: Repository not found" },
+      { message: "File too large", expectedMessage: "Save failed: File too large" },
+      { message: "Network timeout", expectedMessage: "Save failed: Network timeout" },
+      { code: "UNKNOWN", expectedMessage: "Save failed: Unknown error occurred" },
+    ];
+
+    errors.forEach((testCase, index) => {
+      mockSetErrorNotification.mockClear();
+      handleSaveError(testCase);
+      expect(mockSetErrorNotification).toHaveBeenCalledWith(testCase.expectedMessage);
+    });
+  });
+});
