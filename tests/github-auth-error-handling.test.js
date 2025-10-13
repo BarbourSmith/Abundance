@@ -195,6 +195,12 @@ describe('Save Project Error Notification', () => {
   let mockSetErrorNotification;
   let mockSetSaveProgress;
 
+  // Helper function to check if an error is an authentication error
+  const isAuthError = (error) => {
+    return error.status === 401 || 
+           (error.message && error.message.includes("Bad credentials"));
+  };
+
   beforeEach(() => {
     mockSetErrorNotification = vi.fn();
     mockSetSaveProgress = vi.fn();
@@ -204,11 +210,8 @@ describe('Save Project Error Notification', () => {
     // Simulate the saveProject error handler
     const handleSaveError = (error) => {
       console.error("Error during project save:", error);
-
-      const isAuthError = error.status === 401 || 
-                         (error.message && error.message.includes("Bad credentials"));
       
-      if (!isAuthError) {
+      if (!isAuthError(error)) {
         mockSetErrorNotification(
           `Save failed: ${error.message || "Unknown error occurred"}`
         );
@@ -231,10 +234,7 @@ describe('Save Project Error Notification', () => {
   it('should NOT show error notification for auth errors in saveProject (handled elsewhere)', () => {
     // Simulate the saveProject error handler
     const handleSaveError = (error) => {
-      const isAuthError = error.status === 401 || 
-                         (error.message && error.message.includes("Bad credentials"));
-      
-      if (!isAuthError) {
+      if (!isAuthError(error)) {
         mockSetErrorNotification(
           `Save failed: ${error.message || "Unknown error occurred"}`
         );
@@ -255,10 +255,7 @@ describe('Save Project Error Notification', () => {
   it('should handle errors without message property gracefully', () => {
     // Simulate the saveProject error handler
     const handleSaveError = (error) => {
-      const isAuthError = error.status === 401 || 
-                         (error.message && error.message.includes("Bad credentials"));
-      
-      if (!isAuthError) {
+      if (!isAuthError(error)) {
         mockSetErrorNotification(
           `Save failed: ${error.message || "Unknown error occurred"}`
         );
@@ -282,7 +279,7 @@ describe('Save Project Error Notification', () => {
     
     // Simulate createCommit error handler (should NOT show notification for non-auth errors)
     const createCommitErrorHandler = (error) => {
-      if (error.status === 401 || error.message.includes("Bad credentials")) {
+      if (isAuthError(error)) {
         // Handle auth error
         console.log("Auth error handled in createCommit");
       } else {
@@ -294,10 +291,7 @@ describe('Save Project Error Notification', () => {
 
     // Simulate saveProject error handler (SHOULD show notification for non-auth errors)
     const saveProjectErrorHandler = (error) => {
-      const isAuthError = error.status === 401 || 
-                         (error.message && error.message.includes("Bad credentials"));
-      
-      if (!isAuthError) {
+      if (!isAuthError(error)) {
         mockSetErrorNotification(
           `Save failed: ${error.message || "Unknown error occurred"}`
         );
@@ -327,10 +321,7 @@ describe('Save Project Error Notification', () => {
 
   it('should show appropriate error messages for different error types', () => {
     const handleSaveError = (error) => {
-      const isAuthError = error.status === 401 || 
-                         (error.message && error.message.includes("Bad credentials"));
-      
-      if (!isAuthError) {
+      if (!isAuthError(error)) {
         mockSetErrorNotification(
           `Save failed: ${error.message || "Unknown error occurred"}`
         );
