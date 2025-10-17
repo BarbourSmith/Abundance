@@ -675,7 +675,7 @@ class GeometryProvider {
     context: RequestContext,
     id: string
   ) {
-    id = id || this._makeId("singular", this.nextId++);
+    id = id;
     await this.createIfAbsent(id, context, () => Promise.resolve(geometry));
     return id;
   }
