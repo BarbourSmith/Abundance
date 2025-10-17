@@ -473,6 +473,46 @@ class GeometryProvider {
     return resultId;
   }
 
+  async assemblyFuse(
+    assembly: AbundanceObject,
+    context: RequestContext
+  ): Promise<string> {
+    const partIds = flattenAssembly(assembly).map((part) => part.geometry);
+    if (partIds.length === 1) {
+      return partIds[0];
+    }
+    const id = this._makeId("assemblyFuse", ...partIds.sort());
+    await this.createIfAbsent(id, context, async () => {
+      const shapes = await Promise.all(
+        partIds.map((partId) => this.get(partId, context))
+      );
+
+      let result = undefined;
+      for (let i = 0; i < shapes.length; i++) {
+        const shape = shapes[i];
+        if (shape instanceof replicad.Wire) {
+          continue; // fusing a wire is a no-op.
+        }
+        if (!result) {
+          result = shape;
+        } else {
+          if (this.isShape3D(result) && this.isShape3D(shape)) {
+            // Optimized fuse since we know assembly components don't intersect
+            result = result.fuse(shape, { optimisation: "commonFace" });
+          } else {
+            //@ts-ignore
+            result = result.fuse(shape); // both drawings
+          }
+        }
+      }
+      if (!result) {
+        throw new Error("assembly was all wires. Cannot be fused");
+      }
+      return result;
+    });
+    return id;
+  }
+
   async cut(
     toCut: string,
     cutter: string,

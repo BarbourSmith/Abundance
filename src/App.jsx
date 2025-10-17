@@ -162,7 +162,7 @@ function AppContent() {
       } else {
         console.log("Generating mesh for value:", moleculeValue);
         cad
-          .generateDisplayMesh(id, GlobalVariables.topLevelMolecule.getContext())
+          .generateDisplayMesh(moleculeValue, GlobalVariables.topLevelMolecule.getContext())
           .then((m) => {
             setMesh(m);
             setOutdatedMesh(false);
@@ -179,14 +179,14 @@ function AppContent() {
             .then((w) => {
               setWireMesh(w);
               // Only create Puppeteer div when displaying the top-level molecule's output
-              if (id === GlobalVariables.topLevelMolecule?.value) {
+              if (moleculeValue === GlobalVariables.topLevelMolecule?.value) {
                 createPuppeteerDiv();
               }
             })
             .catch((e) => {
               console.error("Can't compute Wireframe/No output " + e);
               // Create div even on error for top-level molecule to prevent hanging
-              if (id === GlobalVariables.topLevelMolecule?.value) {
+              if (moleculeValue === GlobalVariables.topLevelMolecule?.value) {
                 createPuppeteerDiv();
               }
             });
