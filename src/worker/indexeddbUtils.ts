@@ -1,3 +1,27 @@
+/**
+ * IndexedDB utilities for caching geometry and Abundance objects.
+ * 
+ * CACHE VERSIONING SYSTEM:
+ * ------------------------
+ * Each cached geometry record includes a version number (CACHE_VERSION) that tracks
+ * the format of serialized data. This allows the system to automatically invalidate
+ * outdated cache entries when the serialization format or geometry computation changes.
+ * 
+ * How it works:
+ * - When saving: putShape() automatically adds the current CACHE_VERSION to each record
+ * - When reading: getShape() and shapeExists() check the version and treat outdated 
+ *   entries as cache misses (returning undefined/false)
+ * - On project load: GeometryProvider automatically cleans up outdated cache entries
+ *   via deleteOutdatedProjectCache()
+ * 
+ * To invalidate all existing caches:
+ * - Increment CACHE_VERSION constant below
+ * - All cached geometries with older versions will be treated as non-existent
+ * - They will be automatically deleted when projects are loaded
+ * 
+ * This ensures users don't get errors from incompatible cached data after updates.
+ */
+
 export type StoredGeometryRecord = {
   projectId: string;
   shapeKey: string;
