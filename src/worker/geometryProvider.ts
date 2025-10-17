@@ -24,23 +24,6 @@ type RequestContext = {
   persistIntermediates?: boolean;
 };
 
-/*
-
-TODO: Add functionality for batch operations where we expect to deal with
-the same shapes over and over. Eg assemblies.
-
-Impl plan(?):
-- open a batch operation has two possible results
-   1. you need to do the work - return a new context obj to use
-   2. this batch has actually already been cached - return the AbundanceObj
-- using the operation context do whatever you're doing
-  - impl side we create a warm cache with each input and transient result
-  - all transient results are also stored in the main cache (for now?)
-- closeBatch(AbundanceObject result)
-  - put the result in the main cache under the op id and reject any future
-    operations which use this op id.
-*/
-
 /**
  * Manages a cache of geometries. This class provides a list of basic operations
  * that produce new geometries. Calling for a geometry which has already been
@@ -63,7 +46,7 @@ class GeometryProvider {
     this.nextId = 0;
 
     setInterval(() => {
-      //console.log(this.cacheHitMetrics);
+      console.log(this.cacheHitMetrics);
     }, 10000);
   }
 
@@ -560,11 +543,11 @@ class GeometryProvider {
     if (!context.operationId) {
       throw new Error("provided context is not a batch operation " + context);
     }
-    /* console.log(
+    console.log(
       `End of batch ${context.operationId}. hit/miss: ${
         this.batchMetrics
       }. size: ${this.warmCache.get(context.operationId)?.size}`
-    );*/
+    );
     this.batchMetrics = [0, 0];
     if (!context.persistIntermediates) {
       // For all intermediate shapes which are part of the result assembly,
