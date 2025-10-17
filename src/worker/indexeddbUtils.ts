@@ -3,11 +3,16 @@ export type StoredGeometryRecord = {
   shapeKey: string;
   type: "ReplicadObject" | "AbundanceObject";
   serialized: string; // Your serialized data
+  version?: number; // Cache format version
 };
 
 const DB_NAME = "AbundanceProjectCaches";
 const DB_VERSION = 2;
 const STORE_NAME = "shapes";
+
+// Current cache format version - increment this when making breaking changes
+// to the serialization format or geometry computation
+export const CACHE_VERSION = 1;
 
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -71,6 +76,7 @@ export async function putShape(
       shapeKey: shapeKey,
       type: isAbundanceObject ? "AbundanceObject" : "ReplicadObject",
       serialized: serializedShape,
+      version: CACHE_VERSION,
     });
     tx.oncomplete = () => {
       db.close();
@@ -94,7 +100,15 @@ export async function getShape(
     const req = store.get([projectId, shapeKey]);
     req.onsuccess = () => {
       db.close();
-      resolve(req.result);
+      const record = req.result as StoredGeometryRecord | undefined;
+      
+      // If record exists but has no version or an outdated version, treat it as missing
+      if (record && (record.version === undefined || record.version < CACHE_VERSION)) {
+        console.log(`Cache entry for ${projectId}/${shapeKey} has outdated version ${record.version}, treating as cache miss`);
+        resolve(undefined);
+      } else {
+        resolve(record);
+      }
     };
     req.onerror = () => {
       db.close();
@@ -140,10 +154,18 @@ export async function shapeExists(
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, "readonly");
     const store = tx.objectStore(STORE_NAME);
-    const req = store.count([projectId, shapeKey]);
+    const req = store.get([projectId, shapeKey]);
     req.onsuccess = () => {
       db.close();
-      resolve(req.result > 0);
+      const record = req.result as StoredGeometryRecord | undefined;
+      
+      // Only consider the shape to exist if it has the current version
+      if (record && (record.version === undefined || record.version < CACHE_VERSION)) {
+        console.log(`Cache entry for ${projectId}/${shapeKey} has outdated version ${record.version}, treating as non-existent`);
+        resolve(false);
+      } else {
+        resolve(!!record);
+      }
     };
     req.onerror = () => {
       db.close();
@@ -167,6 +189,40 @@ export async function deleteProjectCache(projectId: string): Promise<void> {
       } else {
         db.close();
         resolve();
+      }
+    };
+    request.onerror = () => {
+      db.close();
+      reject(request.error);
+    };
+  });
+}
+
+/**
+ * Deletes all cache entries for a project that have outdated versions.
+ * This is useful for cleaning up after a version upgrade.
+ */
+export async function deleteOutdatedProjectCache(projectId: string): Promise<number> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    const store = tx.objectStore(STORE_NAME);
+    const index = store.index("projectId");
+    const request = index.openCursor(IDBKeyRange.only(projectId));
+    let deletedCount = 0;
+    
+    request.onsuccess = (event) => {
+      const cursor = (event.target as IDBRequest<IDBCursorWithValue>).result;
+      if (cursor) {
+        const record = cursor.value as StoredGeometryRecord;
+        if (record.version === undefined || record.version < CACHE_VERSION) {
+          store.delete(cursor.primaryKey as [string, string]);
+          deletedCount++;
+        }
+        cursor.continue();
+      } else {
+        db.close();
+        resolve(deletedCount);
       }
     };
     request.onerror = () => {
