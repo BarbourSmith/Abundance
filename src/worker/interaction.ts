@@ -240,16 +240,20 @@ async function assembly(
   }
   await util.init();
 
-  const batchId = "assembly-" + util.hashString(JSON.stringify(geometries));
-  const batch: RequestContext | AbundanceObject =
-    await util.geometryProvider!.startBatchOperation(context, batchId);
+  let startedBatch = false;
+  if (!context.operationId) {
+    const batchId = "assembly-" + util.hashString(JSON.stringify(geometries));
+    const batch: RequestContext | AbundanceObject =
+      await util.geometryProvider!.startBatchOperation(context, batchId);
 
-  // Full assembly cache hit. No work to do.
-  if (util.isAbundanceObject(batch)) {
-    return batch;
+    // Full assembly cache hit. No work to do.
+    if (util.isAbundanceObject(batch)) {
+      return batch;
+    }
+
+    context = batch;
+    startedBatch = true;
   }
-
-  context = batch;
 
   let assembly: AbundanceObject[] = [];
   let bomAssembly: any[] = [];
@@ -290,7 +294,9 @@ async function assembly(
     bom: bomAssembly,
     dimension: all3D ? "3D" : "2D",
   };
-  await util.geometryProvider!.endBatchOperation(context, result);
+  if (startedBatch) {
+    await util.geometryProvider!.endBatchOperation(context, result);
+  }
 
   return result;
 }

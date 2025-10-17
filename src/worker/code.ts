@@ -5,7 +5,6 @@ import * as util from "./util";
 import { AbundanceObject } from "./util";
 import * as replicad from "replicad";
 import { RequestContext } from "./geometryProvider";
-import { arg } from "mathjs";
 
 /**
  * For backward compatibility reasons we allow users to call functions with
@@ -37,8 +36,6 @@ type RealizedLeaf = {
   tags: string[];
   bom: string[];
 };
-
-let context: RequestContext = { project: "" };
 
 /**
  * A best-effort check for exploits in user provided code. Checks for a series of known bad patterns.
@@ -86,7 +83,8 @@ function validateUserCode(code: string): boolean {
 async function toGeometry(
   input: UserGeometryObj,
   name = "geometry",
-  userLib: { [key: string]: RealizedAssembly }
+  userLib: { [key: string]: RealizedAssembly },
+  context: RequestContext
 ): Promise<AbundanceObject> {
   if (input === undefined || input === null) {
     throw new Error(name + " value is undefined or null");
@@ -96,9 +94,13 @@ async function toGeometry(
     if (!userLib[input]) {
       throw new Error(`Library ID ${input} does not exist.`);
     }
-    return cacheAssembly(userLib[input]);
+    return addAssemblyPartsToCache(userLib[input], context, "code-transient");
   } else if ("geometry" in input) {
-    return cacheAssembly(input as RealizedAssembly);
+    return addAssemblyPartsToCache(
+      input as RealizedAssembly,
+      context,
+      "code-transient"
+    );
   }
 
   // @ts-ignore - using _wrapped to detect if this is a raw replicad object
@@ -113,7 +115,8 @@ async function toGeometry(
       bom: [],
       geometry: await util.geometryProvider!.addSingularToCache(
         input as ReplicadObject,
-        context
+        context,
+        "code-transient-" + context.nextId++
       ),
     };
   } else {
@@ -126,13 +129,11 @@ async function toGeometry(
 
 /**
  * Executes the given code with the provided arguments list.
- *
- * Unusually this function requires library as context since the source code may reference library.
  */
 async function executeCode(
   code: string,
   argumentsArray: { [key: string]: any },
-  contextArg: RequestContext
+  context: RequestContext
 ): Promise<AbundanceObject> {
   try {
     // Validate input parameters
@@ -142,7 +143,6 @@ async function executeCode(
     if (code.length > 50000) {
       throw new Error("Code too long (maximum 50,000 characters)");
     }
-    context = contextArg;
 
     // Make a copy of the necessary entries in the library where all geometries are de-cached.
     // This library copy will be in focus for the user. Has the side effect that direct assignments
@@ -153,7 +153,7 @@ async function executeCode(
     for (const [key, value] of Object.entries(argumentsArray)) {
       if (util.isAbundanceObject(value)) {
         const newKey = `userlib_${i++}`;
-        userLib[newKey] = await realizeAssembly(value);
+        userLib[newKey] = await realizeAssembly(value, context);
         argumentsArray[key] = newKey;
         argsSignature.push(JSON.stringify(value));
       } else {
@@ -167,6 +167,18 @@ async function executeCode(
     if (cached) {
       return cached;
     }
+
+    const batchId = "code-atom-" + cacheId;
+    const batch: RequestContext | AbundanceObject =
+      await util.geometryProvider!.startBatchOperation(context, batchId);
+
+    // Full assembly cache hit. No work to do.
+    if (util.isAbundanceObject(batch)) {
+      return batch;
+    }
+
+    context = batch;
+    context.nextId = 0;
 
     // Validate code for dangerous patterns
     // TODO: we probably want to allow some of these but still need to warn about them before executing
@@ -182,12 +194,13 @@ async function executeCode(
     ) => {
       return realizeAssembly(
         await move(
-          await toGeometry(geom, "move-geometry", userLib),
+          await toGeometry(geom, "move-geometry", userLib, context),
           x,
           y,
           z,
           context
-        )
+        ),
+        context
       );
     };
 
@@ -199,42 +212,46 @@ async function executeCode(
     ) => {
       return realizeAssembly(
         await rotate(
-          await toGeometry(geom, "rotate-geometry", userLib),
+          await toGeometry(geom, "rotate-geometry", userLib, context),
           x,
           y,
           z,
           context
-        )
+        ),
+        context
       );
     };
 
     const wrappedScale = async (geom: UserGeometryObj, scaleFactor: number) => {
       return realizeAssembly(
         await scale(
-          await toGeometry(geom, "scale-geometry", userLib),
+          await toGeometry(geom, "scale-geometry", userLib, context),
           scaleFactor,
           context
-        )
+        ),
+        context
       );
     };
 
     const wrappedFillet = async (geom: UserGeometryObj, radius: number) => {
       return realizeAssembly(
         await fillet(
-          await toGeometry(geom, "fillet-geometry", userLib),
+          await toGeometry(geom, "fillet-geometry", userLib, context),
           radius,
           context
-        )
+        ),
+        context
       );
     };
 
     const wrappedChamfer = async (geom: UserGeometryObj, size: number) => {
       return realizeAssembly(
         await chamfer(
-          await toGeometry(geom, "chamfer-geometry", userLib),
+          await toGeometry(geom, "chamfer-geometry", userLib, context),
           size,
           context
-        )
+        ),
+        context
       );
     };
 
@@ -244,21 +261,23 @@ async function executeCode(
     ) => {
       return realizeAssembly(
         await intersect(
-          await toGeometry(input1, "intersect-geometry1", userLib),
-          await toGeometry(input2, "intersect-geometry2", userLib),
+          await toGeometry(input1, "intersect-geometry1", userLib, context),
+          await toGeometry(input2, "intersect-geometry2", userLib, context),
           context
-        )
+        ),
+        context
       );
     };
 
     const wrappedAssembly = async (inputIDs: UserGeometryObj[]) => {
       const ids = await Promise.all(
         inputIDs.map(
-          async (id) => await toGeometry(id, "assembly-geometry", userLib)
+          async (id) =>
+            await toGeometry(id, "assembly-geometry", userLib, context)
         )
       );
       const res = await assembly(ids, context);
-      return realizeAssembly(res);
+      return realizeAssembly(res, context);
     };
 
     const wrappedCutAssembly = async (
@@ -267,20 +286,22 @@ async function executeCode(
     ) => {
       return realizeAssembly(
         await cutAssembly(
-          await toGeometry(input1, "cut-geometry1", userLib),
+          await toGeometry(input1, "cut-geometry1", userLib, context),
           await Promise.all(
             input2Array.map(
-              async (id) => await toGeometry(id, "cut-geometry", userLib)
+              async (id) =>
+                await toGeometry(id, "cut-geometry", userLib, context)
             )
           ),
           context
-        )
+        ),
+        context
       );
     };
 
     const wrappedGetBounds = async (geom: UserGeometryObj) => {
       return util.getBounds(
-        await toGeometry(geom, "bounds-geometry", userLib),
+        await toGeometry(geom, "bounds-geometry", userLib, context),
         context
       );
     };
@@ -338,9 +359,12 @@ async function executeCode(
       ensureDimension(userFunction(...inputValues)),
       timeoutPromise,
     ]).then(async (result) => {
-      //@ts-ignore
-      const abundanceObj = await cacheAssembly(result);
-      util.geometryProvider!.cacheAssembly(cacheId, abundanceObj, context);
+      const abundanceObj = await addAssemblyPartsToCache(
+        result as RealizedAssembly,
+        context,
+        cacheId
+      );
+      util.geometryProvider!.endBatchOperation(context, abundanceObj);
       return abundanceObj;
     });
   } catch (error) {
@@ -476,7 +500,8 @@ function logError(error: Error, context: string) {
 }
 
 async function realizeAssembly(
-  assembly: AbundanceObject
+  assembly: AbundanceObject,
+  context: RequestContext
 ): Promise<RealizedAssembly> {
   if (util.isLeaf(assembly)) {
     return {
@@ -487,7 +512,7 @@ async function realizeAssembly(
   } else {
     const children = await Promise.all(
       (assembly.geometry as AbundanceObject[]).map(async (child) => {
-        return await realizeAssembly(child);
+        return await realizeAssembly(child, context);
       })
     );
     return {
@@ -510,30 +535,42 @@ function composeID(code: string, argsSignature: string[]): string {
   return [util.hashString(code), ...argsSignature].join("-");
 }
 
-async function cacheAssembly(
-  assembly: RealizedAssembly
+async function addAssemblyPartsToCache(
+  assembly: RealizedAssembly,
+  context: RequestContext,
+  cacheId: string
 ): Promise<AbundanceObject> {
-  if (isRealizedLeaf(assembly)) {
-    return {
-      ...assembly,
-      geometry: await util.geometryProvider!.addSingularToCache(
-        assembly.geometry[0],
-        context
-      ),
-      plane: assembly.plane ? util.asSimplePlane(assembly.plane) : util.XYPlane,
-    };
-  } else {
-    const children = await Promise.all(
-      (assembly.geometry as RealizedAssembly[]).map(async (child) => {
-        return await cacheAssembly(child);
-      })
-    );
-    return {
-      ...assembly,
-      geometry: children,
-      plane: assembly.plane ? util.asSimplePlane(assembly.plane) : util.XYPlane,
-    };
-  }
+  const helperFunc = async (
+    assembly: RealizedAssembly
+  ): Promise<AbundanceObject> => {
+    if (isRealizedLeaf(assembly)) {
+      return {
+        ...assembly,
+        geometry: await util.geometryProvider!.addSingularToCache(
+          assembly.geometry[0],
+          context,
+          cacheId + "-" + context.nextId++ // Cache under the code atom's id + an offset within the result structure
+        ),
+        plane: assembly.plane
+          ? util.asSimplePlane(assembly.plane)
+          : util.XYPlane,
+      };
+    } else {
+      const children = await Promise.all(
+        (assembly.geometry as RealizedAssembly[]).map(async (child) => {
+          return await helperFunc(child);
+        })
+      );
+      return {
+        ...assembly,
+        geometry: children,
+        plane: assembly.plane
+          ? util.asSimplePlane(assembly.plane)
+          : util.XYPlane,
+      };
+    }
+  };
+  return helperFunc(assembly);
 }
 
 export { executeCode };

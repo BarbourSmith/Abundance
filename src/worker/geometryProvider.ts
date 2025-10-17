@@ -22,6 +22,7 @@ type RequestContext = {
   project: string;
   operationId?: string;
   persistIntermediates?: boolean;
+  [key: string]: any; // Allows for additional props
 };
 
 /**
@@ -137,7 +138,7 @@ class GeometryProvider {
     }
     const result = operationCache.get(id);
     result ? this.batchMetrics[0]++ : this.batchMetrics[1]++;
-    return result;
+    return result?.clone();
   }
 
   private putInWarmCache(
@@ -173,6 +174,8 @@ class GeometryProvider {
     const shape = await getShape(context.project, id);
     if (shape == undefined) {
       console.trace("Cache miss for id:", id);
+      console.log(this.warmCache);
+
       throw new Error(`Geometry with ID ${id} not found in cache`);
     }
     let result = undefined;
@@ -611,7 +614,7 @@ class GeometryProvider {
         }
       }
     }
-    await this.cacheAssembly(context.operationId, result, context);
+    await this.cacheAssemblyStructure(context.operationId, result, context);
     this.warmCache.delete(context.operationId);
   }
 
@@ -670,14 +673,18 @@ class GeometryProvider {
   async addSingularToCache(
     geometry: ReplicadObject,
     context: RequestContext,
-    id: string | undefined = undefined
+    id: string
   ) {
     id = id || this._makeId("singular", this.nextId++);
     await this.createIfAbsent(id, context, () => Promise.resolve(geometry));
     return id;
   }
 
-  async cacheAssembly(
+  /**
+   * Store an AbundanceObject structure in the cache. The geometries referenced
+   * in this structure must already be present in the cache.
+   */
+  async cacheAssemblyStructure(
     id: string,
     assembly: AbundanceObject,
     context: RequestContext
