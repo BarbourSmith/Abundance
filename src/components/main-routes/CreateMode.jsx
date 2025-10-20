@@ -952,10 +952,10 @@ function CreateMode() {
             <SaveBar {...{ saveState, savePopUp, setSavePopUp }} />
           ) : null}
           {duplicatingProject ? (
-            <DuplicateBar {...{ duplicateProgress, duplicatingProject }} />
+            <DuplicateBar duplicateProgress={duplicateProgress} />
           ) : null}
           {renamingProject ? (
-            <RenameBar {...{ renameProgress, renamingProject }} />
+            <RenameBar renameProgress={renameProgress} />
           ) : null}
           <div id="headerBar">
             <img

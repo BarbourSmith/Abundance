@@ -459,8 +459,8 @@ function TopMenu({
 export const SaveBar = ({ saveState, savePopUp, setSavePopUp }) => {
   if (saveState === 100) {
     // delay and then set savepopupstate to false
-    var delayInMilliseconds = 2000; //1 second
-    setTimeout(function () {
+    const delayInMilliseconds = 2000; // 2 seconds
+    setTimeout(() => {
       setSavePopUp(false);
     }, delayInMilliseconds);
   }
@@ -481,7 +481,7 @@ export const SaveBar = ({ saveState, savePopUp, setSavePopUp }) => {
   );
 };
 
-export const DuplicateBar = ({ duplicateProgress, duplicatingProject }) => {
+export const DuplicateBar = ({ duplicateProgress }) => {
   return (
     <>
       <div className="save-bar">
@@ -499,7 +499,7 @@ export const DuplicateBar = ({ duplicateProgress, duplicatingProject }) => {
   );
 };
 
-export const RenameBar = ({ renameProgress, renamingProject }) => {
+export const RenameBar = ({ renameProgress }) => {
   return (
     <>
       <div className="save-bar">
