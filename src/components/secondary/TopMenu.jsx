@@ -6,7 +6,12 @@ import DuplicateCompleteDialog from "./DuplicateCompleteDialog.jsx";
 import RenameProjectDialog from "./RenameProjectDialog.jsx";
 import { useNavigate } from "react-router-dom";
 import SettingsPopUp from "./SettingsPopUp.jsx";
-import { useAuth, useAppState, useRendering, useProject } from "../../contexts/index.js";
+import {
+  useAuth,
+  useAppState,
+  useRendering,
+  useProject,
+} from "../../contexts/index.js";
 
 function TopMenu({
   savePopUp,
@@ -274,7 +279,7 @@ function TopMenu({
       buttonFunc: () => {
         GlobalVariables.currentMolecule = GlobalVariables.topLevelMolecule;
         GlobalVariables.topLevelMolecule.recomputeAll();
-      }
+      },
     },
     {
       /**
@@ -312,8 +317,6 @@ function TopMenu({
       </>
     );
   };
-
-
 
   /*{nav bar toggle component}*/
   const Navbar = ({ currentMoleculeTop }) => {
@@ -491,7 +494,9 @@ export const DuplicateBar = ({ duplicateProgress }) => {
             data-done="70"
             style={{ width: duplicateProgress + "%", opacity: "1" }}
           >
-            {duplicateProgress !== 100 ? duplicateProgress + "%" : "Project Duplicated!"}
+            {duplicateProgress !== 100
+              ? duplicateProgress + "%"
+              : "Project Duplicated!"}
           </div>
         </div>
       </div>

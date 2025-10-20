@@ -380,6 +380,68 @@ export function ProjectProvider({ children, cad, loadProject }) {
 
       setDuplicateProjectBar(85);
 
+      // Update the top molecule name in project.abundance to match the new project name
+      try {
+        // Get the current project.abundance file from the new repo
+        const projectFileResponse = await authorizedUserOcto.request(
+          "GET /repos/{owner}/{repo}/contents/{path}",
+          {
+            owner: currentUser,
+            repo: newRepo.data.name,
+            path: "project.abundance",
+          }
+        );
+
+        let projectFileContent;
+        if (
+          !projectFileResponse.data.content ||
+          projectFileResponse.data.content.length === 0
+        ) {
+          // Handle large files using download_url
+          const contentResponse = await fetch(
+            projectFileResponse.data.download_url
+          );
+          projectFileContent = await contentResponse.text();
+        } else {
+          // Decode base64 content
+          projectFileContent = GlobalVariables.fromBinaryStr(
+            atob(projectFileResponse.data.content)
+          );
+        }
+
+        // Parse the JSON
+        const projectData = JSON.parse(projectFileContent);
+
+        // Update the top molecule name to match the new project name
+        if (projectData && projectData.name) {
+          projectData.name = newRepo.data.name;
+        }
+
+        // Convert back to base64
+        const updatedContent = window.btoa(
+          GlobalVariables.toBinaryStr(JSON.stringify(projectData, null, 4))
+        );
+
+        // Update the file in the new repo
+        await authorizedUserOcto.rest.repos.createOrUpdateFileContents({
+          owner: currentUser,
+          repo: newRepo.data.name,
+          path: "project.abundance",
+          message: `Update top molecule name to ${newRepo.data.name}`,
+          content: updatedContent,
+          sha: projectFileResponse.data.sha,
+        });
+
+        console.log(
+          `Updated top molecule name to ${newRepo.data.name} in duplicated project`
+        );
+      } catch (err) {
+        console.error("Error updating top molecule name:", err);
+        // Continue even if this fails - project is still functional
+      }
+
+      setDuplicateProjectBar(90);
+
       // Copy topics if they exist
       if (currentRepo.topics && currentRepo.topics.length > 0) {
         try {
@@ -393,7 +455,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
         }
       }
 
-      setDuplicateProjectBar(95);
+      setDuplicateProjectBar(93);
 
       // Create AWS node for the new project
       const newProjectBody = {
@@ -562,6 +624,66 @@ export function ProjectProvider({ children, cad, loadProject }) {
 
       const updatedAWSnode = await updateKeysResponse.json();
       console.log("AWS update response:", updatedAWSnode);
+
+      setRenameProgress(75);
+
+      // Update the top molecule name in project.abundance to match the new project name
+      try {
+        // Get the current project.abundance file
+        const projectFileResponse = await authorizedUserOcto.request(
+          "GET /repos/{owner}/{repo}/contents/{path}",
+          {
+            owner: currentUser,
+            repo: newName,
+            path: "project.abundance",
+          }
+        );
+
+        let projectFileContent;
+        if (
+          !projectFileResponse.data.content ||
+          projectFileResponse.data.content.length === 0
+        ) {
+          // Handle large files using download_url
+          const contentResponse = await fetch(
+            projectFileResponse.data.download_url
+          );
+          projectFileContent = await contentResponse.text();
+        } else {
+          // Decode base64 content
+          projectFileContent = GlobalVariables.fromBinaryStr(
+            atob(projectFileResponse.data.content)
+          );
+        }
+
+        // Parse the JSON
+        const projectData = JSON.parse(projectFileContent);
+
+        // Update the top molecule name to match the new project name
+        if (projectData && projectData.name) {
+          projectData.name = newName;
+        }
+
+        // Convert back to base64
+        const updatedContent = window.btoa(
+          GlobalVariables.toBinaryStr(JSON.stringify(projectData, null, 4))
+        );
+
+        // Update the file in the repo
+        await authorizedUserOcto.rest.repos.createOrUpdateFileContents({
+          owner: currentUser,
+          repo: newName,
+          path: "project.abundance",
+          message: `Update top molecule name to ${newName}`,
+          content: updatedContent,
+          sha: projectFileResponse.data.sha,
+        });
+
+        console.log(`Updated top molecule name to ${newName} in renamed project`);
+      } catch (err) {
+        console.error("Error updating top molecule name:", err);
+        // Continue even if this fails - project is still functional
+      }
 
       setRenameProgress(90);
       console.log("Project renamed successfully");

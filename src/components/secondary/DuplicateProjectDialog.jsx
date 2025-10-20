@@ -1,11 +1,6 @@
 import { useState, useEffect } from "react";
 
-function DuplicateProjectDialog({
-  isOpen,
-  onClose,
-  onConfirm,
-  defaultName,
-}) {
+function DuplicateProjectDialog({ isOpen, onClose, onConfirm, defaultName }) {
   const [projectName, setProjectName] = useState(defaultName);
   const [error, setError] = useState("");
 
@@ -13,27 +8,27 @@ function DuplicateProjectDialog({
     if (!name || name.trim() === "") {
       return "Project name cannot be empty";
     }
-    
+
     // Check for spaces
     if (name.includes(" ")) {
       return "Project name cannot contain spaces (use hyphens instead)";
     }
-    
+
     // Check for invalid characters (GitHub allows alphanumeric and hyphens)
     if (!/^[a-zA-Z0-9._-]+$/.test(name)) {
       return "Project name can only contain letters, numbers, dots, underscores, and hyphens";
     }
-    
+
     // Check if starts/ends with hyphen
     if (name.startsWith("-") || name.endsWith("-")) {
       return "Project name cannot start or end with a hyphen";
     }
-    
+
     // Check length
     if (name.length > 100) {
       return "Project name must be 100 characters or less";
     }
-    
+
     return null;
   };
 
@@ -91,11 +86,11 @@ function DuplicateProjectDialog({
       className="share-dialog"
     >
       <h3 style={{ margin: "0 0 15px 0" }}>Duplicate Project</h3>
-      
+
       <label style={{ marginBottom: "5px", fontWeight: "500" }}>
         New project name:
       </label>
-      
+
       <input
         type="text"
         value={projectName}
@@ -114,7 +109,7 @@ function DuplicateProjectDialog({
           borderRadius: "4px",
         }}
       />
-      
+
       {error && (
         <div
           style={{
@@ -126,7 +121,7 @@ function DuplicateProjectDialog({
           {error}
         </div>
       )}
-      
+
       <div
         style={{
           display: "flex",
@@ -149,7 +144,7 @@ function DuplicateProjectDialog({
           style={{
             padding: "8px 16px",
             cursor: "pointer",
-            backgroundColor: "#4CAF50",
+            backgroundColor: "var( --abundance-color-brightPurple)",
             color: "white",
             border: "none",
             borderRadius: "4px",
@@ -158,7 +153,7 @@ function DuplicateProjectDialog({
           Duplicate
         </button>
       </div>
-      
+
       <a
         className="closeButton"
         onClick={onClose}

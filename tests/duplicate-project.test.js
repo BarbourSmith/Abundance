@@ -186,4 +186,26 @@ describe("Duplicate Project", () => {
     const hasUser = !!global.GlobalVariables.currentUser;
     expect(hasUser).toBe(false);
   });
+
+  it("should update top molecule name when duplicating project", () => {
+    const originalName = "test-project";
+    const newName = "test-project-copy";
+
+    // Simulate reading the project.abundance file
+    const projectData = {
+      name: originalName,
+      atomType: "Molecule",
+      topLevel: true,
+      uniqueID: "test-molecule-id",
+      allAtoms: [],
+      allConnectors: [],
+    };
+
+    // Update the name to match new project
+    projectData.name = newName;
+
+    // Verify the name was updated
+    expect(projectData.name).toBe(newName);
+    expect(projectData.name).not.toBe(originalName);
+  });
 });

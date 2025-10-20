@@ -894,7 +894,7 @@ Sidebar navigation
   top: 30%;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 4;
+  z-index: 10;
   box-sizing: border-box;
   padding-right: 50px;
   overflow: hidden;

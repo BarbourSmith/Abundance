@@ -2,7 +2,11 @@ import React, { useEffect, useState, useRef, use } from "react";
 import GlobalVariables from "../../js/globalvariables.js";
 import { Octokit } from "https://esm.sh/octokit@2.0.19";
 import ToggleRunCreate from "../secondary/ToggleRunCreate.jsx";
-import TopMenu, { SaveBar, DuplicateBar, RenameBar } from "../secondary/TopMenu.jsx";
+import TopMenu, {
+  SaveBar,
+  DuplicateBar,
+  RenameBar,
+} from "../secondary/TopMenu.jsx";
 import FlowCanvas from "./flowCanvas.jsx";
 import LowerHalf from "./lowerHalf.jsx";
 import CodeWindow from "../secondary/codeWindow.jsx";
@@ -212,6 +216,7 @@ function CreateMode() {
     // Use ref to always get latest value
     if (settingsPopUpRef.current) return; // Do not trigger shortcuts if settings popup is open
     if (exportPopUpRef.current) return; // Do not trigger shortcuts if export popup is open
+    if (duplicateDialogRef.current) return; // Do not trigger shortcuts if duplicate dialog is open
     if (
       (e.key === "Alt" || e.key === "AltGraph") &&
       !GlobalVariables.ctrlDown
