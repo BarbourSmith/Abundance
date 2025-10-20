@@ -17,6 +17,14 @@ function TopMenu({
   currentMoleculeTop,
   settingsPopUp,
   setSettingsPopUp,
+  duplicatingProject,
+  setDuplicatingProject,
+  duplicateProgress,
+  setDuplicateProgress,
+  renamingProject,
+  setRenamingProject,
+  renameProgress,
+  setRenameProgress,
 }) {
   const { authorizedUserOcto, authRedirectHandler } = useAuth();
   const {
@@ -46,14 +54,10 @@ function TopMenu({
 
   let [shareDialog, setShareDialog] = useState(false);
   let [dialogContent, setDialog] = useState("");
-  let [duplicateProgress, setDuplicateProgress] = useState(0);
-  let [duplicatingProject, setDuplicatingProject] = useState(false);
   let [duplicateDialog, setDuplicateDialog] = useState(false);
   let [duplicateCompleteDialog, setDuplicateCompleteDialog] = useState(false);
   let [duplicatedProjectInfo, setDuplicatedProjectInfo] = useState(null);
   let [renameDialog, setRenameDialog] = useState(false);
-  let [renamingProject, setRenamingProject] = useState(false);
-  let [renameProgress, setRenameProgress] = useState(0);
 
   const navigate = useNavigate();
 
@@ -309,66 +313,7 @@ function TopMenu({
     );
   };
 
-  const SaveBar = ({ saveState, savePopUp, setSavePopUp }) => {
-    if (saveState === 100) {
-      // delay and then set savepopupstate to false
-      var delayInMilliseconds = 2000; //1 second
-      setTimeout(function () {
-        setSavePopUp(false);
-      }, delayInMilliseconds);
-    }
-    return (
-      <>
-        <div className="save-bar">
-          <div className="progress">
-            <div
-              className="progress-done"
-              data-done="70"
-              style={{ width: saveState + "%", opacity: "1" }}
-            >
-              {saveState !== 100 ? saveState + "%" : "Project Saved!"}
-            </div>
-          </div>
-        </div>
-      </>
-    );
-  };
 
-  const DuplicateBar = ({ duplicateProgress, duplicatingProject }) => {
-    return (
-      <>
-        <div className="save-bar">
-          <div className="progress">
-            <div
-              className="progress-done"
-              data-done="70"
-              style={{ width: duplicateProgress + "%", opacity: "1" }}
-            >
-              {duplicateProgress !== 100 ? duplicateProgress + "%" : "Project Duplicated!"}
-            </div>
-          </div>
-        </div>
-      </>
-    );
-  };
-
-  const RenameBar = ({ renameProgress, renamingProject }) => {
-    return (
-      <>
-        <div className="save-bar">
-          <div className="progress">
-            <div
-              className="progress-done"
-              data-done="70"
-              style={{ width: renameProgress + "%", opacity: "1" }}
-            >
-              {renameProgress !== 100 ? renameProgress + "%" : "Project Renamed!"}
-            </div>
-          </div>
-        </div>
-      </>
-    );
-  };
 
   /*{nav bar toggle component}*/
   const Navbar = ({ currentMoleculeTop }) => {
@@ -446,15 +391,6 @@ function TopMenu({
 
   return (
     <>
-      {savePopUp ? (
-        <SaveBar {...{ saveState, savePopUp, setSavePopUp }} />
-      ) : null}
-      {duplicatingProject ? (
-        <DuplicateBar {...{ duplicateProgress, duplicatingProject }} />
-      ) : null}
-      {renamingProject ? (
-        <RenameBar {...{ renameProgress, renamingProject }} />
-      ) : null}
       {settingsPopUp ? (
         <SettingsPopUp
           {...{
@@ -518,5 +454,67 @@ function TopMenu({
     </>
   );
 }
+
+// Export progress bar components for use in CreateMode
+export const SaveBar = ({ saveState, savePopUp, setSavePopUp }) => {
+  if (saveState === 100) {
+    // delay and then set savepopupstate to false
+    var delayInMilliseconds = 2000; //1 second
+    setTimeout(function () {
+      setSavePopUp(false);
+    }, delayInMilliseconds);
+  }
+  return (
+    <>
+      <div className="save-bar">
+        <div className="progress">
+          <div
+            className="progress-done"
+            data-done="70"
+            style={{ width: saveState + "%", opacity: "1" }}
+          >
+            {saveState !== 100 ? saveState + "%" : "Project Saved!"}
+          </div>
+        </div>
+      </div>
+    </>
+  );
+};
+
+export const DuplicateBar = ({ duplicateProgress, duplicatingProject }) => {
+  return (
+    <>
+      <div className="save-bar">
+        <div className="progress">
+          <div
+            className="progress-done"
+            data-done="70"
+            style={{ width: duplicateProgress + "%", opacity: "1" }}
+          >
+            {duplicateProgress !== 100 ? duplicateProgress + "%" : "Project Duplicated!"}
+          </div>
+        </div>
+      </div>
+    </>
+  );
+};
+
+export const RenameBar = ({ renameProgress, renamingProject }) => {
+  return (
+    <>
+      <div className="save-bar">
+        <div className="progress">
+          <div
+            className="progress-done"
+            data-done="70"
+            style={{ width: renameProgress + "%", opacity: "1" }}
+          >
+            {renameProgress !== 100 ? renameProgress + "%" : "Project Renamed!"}
+          </div>
+        </div>
+      </div>
+    </>
+  );
+};
 
 export default TopMenu;

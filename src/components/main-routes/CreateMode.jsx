@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef, use } from "react";
 import GlobalVariables from "../../js/globalvariables.js";
 import { Octokit } from "https://esm.sh/octokit@2.0.19";
 import ToggleRunCreate from "../secondary/ToggleRunCreate.jsx";
-import TopMenu from "../secondary/TopMenu.jsx";
+import TopMenu, { SaveBar, DuplicateBar, RenameBar } from "../secondary/TopMenu.jsx";
 import FlowCanvas from "./flowCanvas.jsx";
 import LowerHalf from "./lowerHalf.jsx";
 import CodeWindow from "../secondary/codeWindow.jsx";
@@ -88,6 +88,12 @@ function CreateMode() {
   useEffect(() => {
     exportPopUpRef.current = exportPopUp;
   }, [exportPopUp]);
+
+  /** State for duplicate and rename progress bars */
+  const [duplicateProgress, setDuplicateProgress] = useState(0);
+  const [duplicatingProject, setDuplicatingProject] = useState(false);
+  const [renameProgress, setRenameProgress] = useState(0);
+  const [renamingProject, setRenamingProject] = useState(false);
 
   /** State for top level molecule */
   const [currentMoleculeTop, setTop] = useState(false);
@@ -942,6 +948,15 @@ function CreateMode() {
           {renderBarVisible ? (
             <RenderProgressBar progress={renderProgress} label="Rendering" />
           ) : null}
+          {savePopUp ? (
+            <SaveBar {...{ saveState, savePopUp, setSavePopUp }} />
+          ) : null}
+          {duplicatingProject ? (
+            <DuplicateBar {...{ duplicateProgress, duplicatingProject }} />
+          ) : null}
+          {renamingProject ? (
+            <RenameBar {...{ renameProgress, renamingProject }} />
+          ) : null}
           <div id="headerBar">
             <img
               className="thumnail-logo"
@@ -1005,6 +1020,14 @@ function CreateMode() {
               currentMoleculeTop,
               settingsPopUp,
               setSettingsPopUp,
+              duplicatingProject,
+              setDuplicatingProject,
+              duplicateProgress,
+              setDuplicateProgress,
+              renamingProject,
+              setRenamingProject,
+              renameProgress,
+              setRenameProgress,
             }}
           />
 
