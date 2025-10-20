@@ -64,6 +64,7 @@ function runMode() {
     redirectType,
     setRedirectType,
     setActiveAtom,
+    errorNotification,
     setErrorNotification,
   } = useAppState();
   const {
@@ -140,6 +141,27 @@ function runMode() {
     }
   }, [wireMesh, mesh]);
 
+  // Check if output has no connections in run mode
+  useEffect(() => {
+    const checkOutputConnection = () => {
+      const molecule = GlobalVariables.topLevelMolecule;
+      if (molecule) {
+        const outputAtom = molecule.getOutputAtom();
+        if (outputAtom && outputAtom.inputs.length === 0) {
+          // Output exists but has no inputs connected
+          setErrorNotification(
+            "Nothing is connected to the output. Connect geometry to the output atom to render something."
+          );
+          setTimeout(() => setErrorNotification(null), 8000);
+        }
+      }
+    };
+
+    // Check after a delay to allow the project to fully load
+    const timer = setTimeout(checkOutputConnection, 2000);
+    return () => clearTimeout(timer);
+  }, [setErrorNotification]);
+
   /** State for menu content collapsing */
   // Which menu is expanded: "params", "render", "bom", or "none"
   const [expandedMenu, setExpandedMenu] = useState(
@@ -207,6 +229,10 @@ function runMode() {
 
   return (
     <>
+      {/* Error notification */}
+      {errorNotification && (
+        <div className="error-notification">{errorNotification}</div>
+      )}
       <ParamsMenu
         activeAtom={activeAtom}
         position={{ top: 30, left: screenWidth - 320 }}
