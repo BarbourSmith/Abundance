@@ -268,8 +268,17 @@ export default class Gcode extends Atom {
                   (bounds.max[1] + bounds.min[1]) / 2,
                   (bounds.max[2] + bounds.min[2]) / 2,
                 ];
-                // Always generate gcode when geometry input is processed
-                this._generateGcode();
+                // Check if output has downstream connections
+                const hasDownstreamConnections = this.output && this.output.connectors && this.output.connectors.length > 0;
+                
+                if (hasDownstreamConnections) {
+                  // Auto-generate gcode when output is connected to pass geometry downstream
+                  this._generateGcode();
+                } else {
+                  // No downstream connections - set ready with input geometry
+                  // User can manually click "Generate Gcode" button if they want visualization
+                  this.setReady(inputID);
+                }
               });
           });
       })
@@ -292,9 +301,17 @@ export default class Gcode extends Atom {
       // Sort parts based on selected direction
       const sortedParts = await this._sortParts(parts);
 
-      // Always generate G-code when assembly is processed
-      // Generate G-code for each part sequentially
-      await this._generateSequentialGcode(sortedParts);
+      // Check if output has downstream connections
+      const hasDownstreamConnections = this.output && this.output.connectors && this.output.connectors.length > 0;
+      
+      if (hasDownstreamConnections) {
+        // Auto-generate gcode when output is connected to pass geometry downstream
+        await this._generateSequentialGcode(sortedParts);
+      } else {
+        // No downstream connections - set ready with input geometry
+        // User can manually click "Generate Gcode" button if they want visualization
+        this.setReady(inputID);
+      }
     } catch (err) {
       console.error("Error processing assembly:", err);
       this.setError(err);
