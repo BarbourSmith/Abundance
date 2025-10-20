@@ -92,6 +92,7 @@ function runMode() {
   // canvas to hide
   const canvasRef = useRef(500);
   const [isItOwned, setOwned] = useState(false);
+  const hasShownNoOutputNotification = useRef(false);
 
   const windowSize = useWindowSize();
 
@@ -144,6 +145,9 @@ function runMode() {
   // Check if output has no connections in run mode
   useEffect(() => {
     const checkOutputConnection = () => {
+      // Only show notification once
+      if (hasShownNoOutputNotification.current) return;
+      
       const molecule = GlobalVariables.topLevelMolecule;
       if (molecule) {
         const outputAtom = molecule.getOutputAtom();
@@ -153,14 +157,18 @@ function runMode() {
             "Nothing is connected to the output. Connect geometry to the output atom to render something."
           );
           setTimeout(() => setErrorNotification(null), 8000);
+          hasShownNoOutputNotification.current = true;
         }
       }
     };
 
     // Check after a delay to allow the project to fully load
-    const timer = setTimeout(checkOutputConnection, 2000);
-    return () => clearTimeout(timer);
-  }, [setErrorNotification]);
+    // Only check once when renderProgress is 0 after 3 seconds
+    if (renderProgress === 0) {
+      const timer = setTimeout(checkOutputConnection, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [setErrorNotification, renderProgress]);
 
   /** State for menu content collapsing */
   // Which menu is expanded: "params", "render", "bom", or "none"
