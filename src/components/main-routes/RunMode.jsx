@@ -63,7 +63,9 @@ function runMode() {
     useAppState();
   const {
     mesh,
+    setMesh,
     wireMesh,
+    setWireMesh,
     outdatedMesh,
     setOutdatedMesh,
     renderProgress,
@@ -156,6 +158,10 @@ function runMode() {
       GlobalVariables.currentMolecule.selected = true;
       setActiveAtom(GlobalVariables.currentMolecule);
     } else {
+      // Reset the render view to blank before loading new project
+      setMesh([]);
+      setWireMesh(null);
+      
       fetch(
         `https://hg5gsgv9te.execute-api.us-east-2.amazonaws.com/abundance-stage/fetchSingleRepo?owner=${owner}&repoName=${repoName}`
       )
