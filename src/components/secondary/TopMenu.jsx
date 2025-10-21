@@ -64,6 +64,16 @@ function TopMenu({
   useProgressBar('duplicate', duplicatingProject, duplicateProgress, 'Duplicating', false);
   useProgressBar('rename', renamingProject, renameProgress, 'Renaming', false);
 
+  // Auto-hide save bar when complete
+  useEffect(() => {
+    if (saveState === 100 && savePopUp) {
+      const timer = setTimeout(() => {
+        setSavePopUp(false);
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [saveState, savePopUp, setSavePopUp]);
+
   /**
    * Handle the duplicate project action - show dialog first
    */
