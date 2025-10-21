@@ -29,6 +29,7 @@ import {
 } from "../../contexts/index.js";
 import { useTutorial } from "../../tutorial/TutorialManager";
 import { TutorialOverlay } from "../../tutorial/TutorialOverlay";
+import { useProgressBar } from "../secondary/ProgressBarManager.jsx";
 
 function useWindowSize() {
   // Initialize state with undefined width/height so server and client renders match
@@ -85,6 +86,9 @@ function runMode() {
   const { loadProject } = useProject();
 
   const navigate = useNavigate();
+
+  // Register render progress bar
+  useProgressBar('render-run', renderBarVisible, renderProgress, 'Rendering', true);
 
   const { next, isActive } = useTutorial();
 
@@ -253,9 +257,6 @@ function runMode() {
         }}
         collapsedOffset={[45, -90]}
       />
-      {renderBarVisible ? (
-        <RenderProgressBar progress={renderProgress} run={true} />
-      ) : null}
       <div id="headerBarRun">
         <img
           className="thumnail-logo"

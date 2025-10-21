@@ -16,6 +16,10 @@ export function RenderingProvider({ children }) {
   const [renderProgress, setRenderProgress] = useState(0);
   const [renderBarVisible, setRenderBarVisible] = useState(true);
 
+  // Build progress state
+  const [buildProgress, setBuildProgress] = useState(0);
+  const [buildBarVisible, setBuildBarVisible] = useState(false);
+
   // Render settings state
   const [gridParam, setGrid] = useState(true);
   const [axesParam, setAxes] = useState(true);
@@ -46,6 +50,12 @@ export function RenderingProvider({ children }) {
     setRenderProgress,
     renderBarVisible,
     setRenderBarVisible,
+
+    // Build progress
+    buildProgress,
+    setBuildProgress,
+    buildBarVisible,
+    setBuildBarVisible,
 
     // Render settings
     gridParam,

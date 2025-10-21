@@ -7,6 +7,7 @@ import RenameProjectDialog from "./RenameProjectDialog.jsx";
 import { useNavigate } from "react-router-dom";
 import SettingsPopUp from "./SettingsPopUp.jsx";
 import { useAuth, useAppState, useRendering, useProject } from "../../contexts/index.js";
+import { useProgressBar } from "./ProgressBarManager.jsx";
 
 function TopMenu({
   savePopUp,
@@ -57,6 +58,11 @@ function TopMenu({
   let [renameProgress, setRenameProgress] = useState(0);
 
   const navigate = useNavigate();
+
+  // Register progress bars with the manager
+  useProgressBar('save', savePopUp, saveState, 'Saving', false);
+  useProgressBar('duplicate', duplicatingProject, duplicateProgress, 'Duplicating', false);
+  useProgressBar('rename', renamingProject, renameProgress, 'Renaming', false);
 
   /**
    * Handle the duplicate project action - show dialog first
@@ -459,15 +465,6 @@ function TopMenu({
 
   return (
     <>
-      {savePopUp ? (
-        <SaveBar {...{ saveState, savePopUp, setSavePopUp }} />
-      ) : null}
-      {duplicatingProject ? (
-        <DuplicateBar {...{ duplicateProgress, duplicatingProject }} />
-      ) : null}
-      {renamingProject ? (
-        <RenameBar {...{ renameProgress, renamingProject }} />
-      ) : null}
       {settingsPopUp ? (
         <SettingsPopUp
           {...{

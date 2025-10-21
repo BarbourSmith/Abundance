@@ -31,6 +31,7 @@ import {
 
 import { TutorialOverlay } from "./tutorial/TutorialOverlay";
 import { TutorialProvider } from "./tutorial/TutorialManager";
+import { ProgressBarProvider } from "./components/secondary/ProgressBarManager.jsx";
 
 /*Import style scripts*/
 import "./styles/maslowCreate.css";
@@ -371,7 +372,9 @@ export default function ReplicadApp() {
         <AppStateProvider>
           <TutorialProvider>
             <RenderingProvider>
-              <AppContent />
+              <ProgressBarProvider>
+                <AppContent />
+              </ProgressBarProvider>
             </RenderingProvider>
           </TutorialProvider>
         </AppStateProvider>
