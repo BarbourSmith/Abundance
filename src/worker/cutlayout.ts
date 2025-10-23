@@ -274,6 +274,11 @@ async function rotateForLayout(
     }
   }
 
+  if (Object.keys(all_candidates).length == 0) {
+    // If no candidates were found, we can't proceed with the layout.
+    throw new Error("No placable parts found for layout. 2D parts are not supported.")
+  }
+
   const rotatedAssembly = await util.actOnLeafs(intermediate, async (leaf) => {
     // @ts-ignore - we just added ID but it's not officially part of the type signature
     const leafID: string = leaf.id;
