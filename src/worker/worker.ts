@@ -449,7 +449,12 @@ async function generateDisplayMesh(
   context: RequestContext
 ): Promise<any[] | undefined> {
   await started;
-  return util.meshProvider?.generateDisplayMesh(assembly, context);
+  return util.meshProvider
+    ?.generateDisplayMesh(assembly, context)
+    .catch((error) => {
+      console.error("Error generating display mesh:", error);
+      throw error;
+    });
 }
 
 /**

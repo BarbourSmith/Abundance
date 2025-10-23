@@ -271,7 +271,8 @@ class MeshProvider {
         };
       }
     } catch (e) {
-      throw new Error("Error generating display mesh" + e);
+      console.error("Error generating mesh:", e);
+      // TODO: issue a warning in some way
     }
 
     if (!resultMesh) {
@@ -308,9 +309,12 @@ class MeshProvider {
       this.CACHE_SIZE = Math.ceil(flattened.length * 1.5);
     }
 
-    const partialMeshes = await Promise.all(
-      flattened.map((leaf) => this.getOrCreateMesh(leaf, context))
-    );
+    // Force this to be sequential. Too many concurrent requests can cause
+    // replicad to fail to generate some of the meshes (I think).
+    const partialMeshes: MeshCacheEntry[] = [];
+    for (const leaf of flattened) {
+      partialMeshes.push(await this.getOrCreateMesh(leaf, context));
+    }
 
     const cameraZoom = this.generateCameraPosition(partialMeshes);
 
