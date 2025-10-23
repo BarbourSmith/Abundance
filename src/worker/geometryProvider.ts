@@ -673,9 +673,10 @@ class GeometryProvider {
   async addSingularToCache(
     geometry: ReplicadObject,
     context: RequestContext,
-    id: string
+    operationName: string,
+    operationArgs: any[]
   ) {
-    id = id;
+    const id: string = this._makeId(operationName, ...operationArgs);
     await this.createIfAbsent(id, context, () => Promise.resolve(geometry));
     return id;
   }
