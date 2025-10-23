@@ -1,6 +1,6 @@
 import * as replicad from "replicad";
 import type { ShapeMesh } from "replicad";
-import { GeometryProvider, ReplicadObject } from "./geometryProvider";
+import { GeometryProvider, RequestContext } from "./geometryProvider";
 import { text } from "./shapes";
 import type { AbundanceObject } from "./util";
 import * as util from "./util";
@@ -94,10 +94,15 @@ class MeshProvider {
    * @param {string} id - The unique identifier to store the default mesh in the library
    * @returns {Promise} A promise that resolves to the default text mesh
    */
-  async generateDefaultMesh(): Promise<DisplayMesh[]> {
+  async generateDefaultMesh(context: RequestContext): Promise<DisplayMesh[]> {
     if (!this.defaultMesh) {
-      const defaultText = await text("No output to display", 28, "ROBOTO");
-      this.defaultMesh = await this.generateDisplayMesh(defaultText);
+      const defaultText = await text(
+        "No output to display",
+        28,
+        "ROBOTO",
+        context
+      );
+      this.defaultMesh = await this.generateDisplayMesh(defaultText, context);
     }
     return this.defaultMesh;
   }
@@ -203,7 +208,8 @@ class MeshProvider {
   }
 
   private async getOrCreateMesh(
-    shape: util.AbundanceLeaf
+    shape: util.AbundanceLeaf,
+    context: RequestContext
   ): Promise<MeshCacheEntry> {
     let cached = this.meshCache.get(shape.geometry);
     if (cached) {
@@ -222,10 +228,16 @@ class MeshProvider {
     // Else build the mesh and bounding box.
     let cleanedGeom;
     // TODO: would love a better way to check if geometry is 2D or 3D.
-    const geom = await this.geometryProvider.get(shape.geometry);
+    const geom = await this.geometryProvider.get(shape.geometry, context);
     if (!("mesh" in geom) || geom.mesh == undefined) {
       cleanedGeom = await this.geometryProvider.get(
-        await this.geometryProvider.extrude(shape.geometry, shape.plane, 0.0001)
+        await this.geometryProvider.extrude(
+          shape.geometry,
+          shape.plane,
+          0.0001,
+          context
+        ),
+        context
       );
     } else {
       cleanedGeom = geom;
@@ -275,13 +287,16 @@ class MeshProvider {
     return result;
   }
 
-  async generateDisplayMesh(id: AbundanceObject): Promise<DisplayMesh[]> {
+  async generateDisplayMesh(
+    id: AbundanceObject,
+    context: RequestContext
+  ): Promise<DisplayMesh[]> {
     console.log("Generating display mesh for ID:", JSON.stringify(id));
     let geom = undefined;
     if (util.isAbundanceObject(id)) {
       geom = id;
     } else {
-      return this.generateDefaultMesh();
+      return this.generateDefaultMesh(context);
     }
 
     // Flatten the assembly to remove hierarchy
@@ -294,7 +309,7 @@ class MeshProvider {
     }
 
     const partialMeshes = await Promise.all(
-      flattened.map((leaf) => this.getOrCreateMesh(leaf))
+      flattened.map((leaf) => this.getOrCreateMesh(leaf, context))
     );
 
     const cameraZoom = this.generateCameraPosition(partialMeshes);

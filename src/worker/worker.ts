@@ -444,9 +444,12 @@ let colorOptions = {
   "Keep Out": "#E0E0E0",
 };
 
-async function generateDisplayMesh(assembly: AbundanceObject) {
+async function generateDisplayMesh(
+  assembly: AbundanceObject,
+  context: RequestContext
+): Promise<any[] | undefined> {
   await started;
-  return util.meshProvider?.generateDisplayMesh(assembly);
+  return util.meshProvider?.generateDisplayMesh(assembly, context);
 }
 
 /**
