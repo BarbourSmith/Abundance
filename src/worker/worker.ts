@@ -105,7 +105,9 @@ function visExport(
         ).visible;
         const cachedGeom = await util.geometryProvider!.addSingularToCache(
           drawingResult,
-          context
+          context,
+          "export",
+          [fileType, input]
         );
         finalGeometry = {
           ...fusedGeometry,
@@ -194,7 +196,8 @@ async function importingSTEP(
     geometry: await util.geometryProvider!.addSingularToCache(
       STEPresult,
       context,
-      await util.hashFileContents(file)
+      "import-step",
+      [await util.hashFileContents(file)]
     ),
     tags: [],
     color: util.defaultColor,
@@ -225,7 +228,8 @@ async function importingSTL(
     geometry: await util.geometryProvider!.addSingularToCache(
       STLresult,
       context,
-      await util.hashFileContents(file)
+      "import-stl",
+      [await util.hashFileContents(file)]
     ),
     tags: [],
     color: util.defaultColor,
@@ -269,7 +273,8 @@ async function importingSVG(
       geometry: await util.geometryProvider!.addSingularToCache(
         drawnSVG.clone().translate(-center[0], -center[1]),
         context,
-        await util.hashString(svg)
+        "import-svg",
+        [await util.hashString(svg)]
       ),
       tags: [],
       plane: util.XYPlane,
@@ -335,7 +340,8 @@ async function visualizeGcode(
     geometry: await util.geometryProvider!.addSingularToCache(
       wire,
       context,
-      util.hashString(gcode)
+      "gcode-vis",
+      [util.hashString(gcode)]
     ),
     tags: [],
     plane: util.XYPlane,
