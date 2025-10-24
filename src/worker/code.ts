@@ -116,7 +116,8 @@ async function toGeometry(
       geometry: await util.geometryProvider!.addSingularToCache(
         input as ReplicadObject,
         context,
-        "code-transient-" + context.nextId++
+        "code-transient-",
+        [context.nextId++]
       ),
     };
   } else {
@@ -549,7 +550,8 @@ async function addAssemblyPartsToCache(
         geometry: await util.geometryProvider!.addSingularToCache(
           assembly.geometry[0],
           context,
-          cacheId + "-" + context.nextId++ // Cache under the code atom's id + an offset within the result structure
+          cacheId,
+          [context.nextId++] // Cache under the code atom's id + an offset within the result structure
         ),
         plane: assembly.plane
           ? util.asSimplePlane(assembly.plane)
