@@ -201,7 +201,13 @@ class MeshProvider {
 
   private generateCameraPosition(meshArray: MeshCacheEntry[]): number {
     // Get the largest bounding box from the mesh array
-    let largestBoundingBox = this.getLargestBoundingBox(meshArray);
+    let largestBoundingBox;
+    try {
+      largestBoundingBox = this.getLargestBoundingBox(meshArray);
+    } catch (e) {
+      console.error("Error getting largest bounding box:", e);
+      throw e;
+    }
     let zoom = this.calculateZoom(largestBoundingBox);
 
     return zoom;
