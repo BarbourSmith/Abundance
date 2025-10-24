@@ -374,6 +374,7 @@ export default class Molecule extends Atom {
     var distFromClick = GlobalVariables.distBetweenPoints(x, this.x, y, this.y);
 
     if (distFromClick < this.radius * 2) {
+      GlobalVariables.writeToDisplay(this, true); // reset display to clear background mesh.
       GlobalVariables.currentMolecule = this; //set this to be the currently displayed molecule
       this.enableAllChildren();
 
@@ -383,6 +384,9 @@ export default class Molecule extends Atom {
        */
       this.selected = false;
       clickProcessed = true;
+
+      // update to the new current molecule's background mesh
+      this.getOutputAtom()?.sendToRender();
     }
 
     return clickProcessed;
@@ -615,7 +619,7 @@ export default class Molecule extends Atom {
     try {
       // Save the current molecule path so we can navigate back to it after undo
       const currentMoleculePath = this.getMoleculePath();
-      
+
       // Get the last saved state and operation info
       let rawFile = JSON.parse(
         GlobalVariables.recentMoleculeRepresentation.pop()
@@ -688,9 +692,11 @@ export default class Molecule extends Atom {
             bomList[bomElement.BOMitemName].numberNeeded +=
               bomElement.numberNeeded;
             // Round to nearest penny to avoid floating-point precision errors
-            bomList[bomElement.BOMitemName].costUSD = Math.round(
-              (bomList[bomElement.BOMitemName].costUSD + bomElement.costUSD) * 100
-            ) / 100;
+            bomList[bomElement.BOMitemName].costUSD =
+              Math.round(
+                (bomList[bomElement.BOMitemName].costUSD + bomElement.costUSD) *
+                  100
+              ) / 100;
           }
         });
 
@@ -882,7 +888,7 @@ export default class Molecule extends Atom {
       GlobalVariables.currentMolecule.nodesOnTheScreen.forEach((atom) => {
         atom.selected = false;
       });
-
+      GlobalVariables.writeToDisplay(this.value, true); // reset the display to clear our background output mesh.
       GlobalVariables.currentMolecule = GlobalVariables.currentMolecule.parent; //set parent this to be the currently displayed molecule
       GlobalVariables.currentMolecule.enableAllChildren();
 
@@ -893,6 +899,9 @@ export default class Molecule extends Atom {
       if (value !== null && value !== undefined) {
         this.setReady(value);
       }
+      this.selected = true;
+      this.sendToRender();
+      GlobalVariables.currentMolecule.getOutputAtom()?.sendToRender();
     }
   }
 
@@ -1592,12 +1601,6 @@ export default class Molecule extends Atom {
     return state;
   }
 
-  sendToRender() {
-    //Send code to JSxCAD to render
-    //console.log(this);
-    GlobalVariables.writeToDisplay(this.value);
-  }
-
   /**
    * Get the path from the top-level molecule to the current molecule
    * @returns {string[]} Array of molecule names representing the path
@@ -1605,18 +1608,18 @@ export default class Molecule extends Atom {
   getMoleculePath() {
     const path = [];
     let currentMolecule = GlobalVariables.currentMolecule;
-    
+
     // Build path from current molecule back to top level
     while (currentMolecule && !currentMolecule.topLevel) {
       path.unshift(currentMolecule.name);
       currentMolecule = currentMolecule.parent;
     }
-    
+
     // Add the top level molecule name if it exists
     if (currentMolecule && currentMolecule.topLevel) {
       path.unshift(currentMolecule.name);
     }
-    
+
     return path;
   }
 
@@ -1627,36 +1630,62 @@ export default class Molecule extends Atom {
   navigateToMoleculePath(moleculePath) {
     // Start from the top level molecule
     GlobalVariables.currentMolecule = GlobalVariables.topLevelMolecule;
-    
+
     // If the path is empty or only contains the top level, we're done
     if (moleculePath.length <= 1) {
       GlobalVariables.currentMolecule.enableAllChildren();
       return;
     }
-    
+
     // Navigate through the path (skip the first element which is the top level)
     for (let i = 1; i < moleculePath.length; i++) {
       const targetMoleculeName = moleculePath[i];
       let foundMolecule = null;
-      
+
       // Look for a molecule with the target name in the current molecule's nodes
       if (GlobalVariables.currentMolecule.nodesOnTheScreen) {
         foundMolecule = GlobalVariables.currentMolecule.nodesOnTheScreen.find(
-          (atom) => 
-            (atom.atomType === "Molecule" || atom.atomType === "GitHubMolecule") && 
+          (atom) =>
+            (atom.atomType === "Molecule" ||
+              atom.atomType === "GitHubMolecule") &&
             atom.name === targetMoleculeName
         );
       }
-      
+
       if (foundMolecule) {
         // Navigate into this molecule
         GlobalVariables.currentMolecule = foundMolecule;
         GlobalVariables.currentMolecule.enableAllChildren();
       } else {
         // If we can't find a molecule in the path, stop at the current level
-        console.warn(`Cannot find molecule "${targetMoleculeName}" in path, stopping navigation at current level`);
+        console.warn(
+          `Cannot find molecule "${targetMoleculeName}" in path, stopping navigation at current level`
+        );
         break;
       }
     }
+  }
+
+  setNewCurrentMolecule(newCurrent) {
+    // Steps:
+    // going up
+    // deselect all atoms on the screen
+    // update currentMolecule to new Current
+    // clear background mesh
+    // enable all children of the new current molecule
+    // set prior current molecule as selected. TODO: does this automatically render it's mesh?
+    // if going up more than one step, then only set the most-recent-child as selected.
+
+    // going down
+    // deselect all atoms on the screen
+    // disable downstream atoms from current?
+    // update current to new value
+    // enable all children
+    // clear background mesh
+    // render output atom as new background mesh
+
+    const prior = GlobalVariables.currentMolecule;
+    GlobalVariables.currentMolecule = newCurrent;
+    GlobalVariables.currentMolecule.enableAllChildren();
   }
 }

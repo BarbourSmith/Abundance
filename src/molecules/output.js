@@ -74,13 +74,31 @@ export default class Output extends Atom {
     return Promise.resolve(argsDict["number or geometry"]);
   }
 
-  /**
-   * Sends output value to render instead of uniqueID
-   */
+  // selfSubscriber and sendToRender override the default behavior. Output
+  // atoms may be rendered as wire-only background objects even when the
+  // output atom isn't selected.
+  selfSubscriber() {
+    const status = this.getState().status;
+    if (status != Status.ERROR) {
+      this.clearAlert();
+    }
+    if (status == Status.READY) {
+      this.sendToRender();
+    }
+  }
+
   sendToRender() {
-    //Send code to JSxCAD to render
     try {
-      GlobalVariables.writeToDisplay(this.value);
+      if (
+        this.parent.uniqueID == GlobalVariables.currentMolecule.uniqueID &&
+        !this.selected
+      ) {
+        // Write self as a wire-only object to provide background context for whatever the
+        // user is currently working on.
+        GlobalVariables.writeToDisplay(this.value, false, true);
+      } else if (this.selected) {
+        GlobalVariables.writeToDisplay(this.value);
+      }
     } catch (err) {
       this.setError(err);
     }

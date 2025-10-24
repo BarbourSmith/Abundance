@@ -145,7 +145,7 @@ function AppContent() {
   }, [shortCutsOn]);
 
   useEffect(() => {
-    GlobalVariables.writeToDisplay = (moleculeValue, resetView = false) => {
+    GlobalVariables.writeToDisplay = (moleculeValue, resetView = false, wireOnly = false) => {
       setOutdatedMesh(true);
       if (resetView) {
         console.log("Resetting view for value:", moleculeValue);
@@ -164,68 +164,23 @@ function AppContent() {
         cad
           .generateDisplayMesh(moleculeValue, GlobalVariables.topLevelMolecule.getContext())
           .then((m) => {
-            setMesh(m);
+            if (wireOnly) {
+              setWireMesh(m);
+            } else {
+              setMesh(m);
+            }
             setOutdatedMesh(false);
           })
           .catch((e) => {
             console.error("Can't display Mesh " + e);
             activeAtom.setError("Can't display Mesh " + e);
+          })
+          .finally(() => {
+            createPuppeteerDiv();
           });
-        /*Set wireMesh*/
-        //Exception: Don't display the mesh if the thing we are displaying is already the output
-        if (GlobalVariables.currentMolecule.value != moleculeValue) {
-          cad
-            .generateDisplayMesh(GlobalVariables.currentMolecule.uniqueID, GlobalVariables.topLevelMolecule.getContext())
-            .then((w) => {
-              setWireMesh(w);
-              // Only create Puppeteer div when displaying the top-level molecule's output
-              if (moleculeValue === GlobalVariables.topLevelMolecule?.value) {
-                createPuppeteerDiv();
-              }
-            })
-            .catch((e) => {
-              console.error("Can't compute Wireframe/No output " + e);
-              // Create div even on error for top-level molecule to prevent hanging
-              if (moleculeValue === GlobalVariables.topLevelMolecule?.value) {
-                createPuppeteerDiv();
-              }
-            });
-        } else {
-          /* reset mesh view if in output mode*/
 
-          cad
-            .resetView()
-            .then((m) => {
-              setWireMesh(m);
-              // Create Puppeteer div when in output mode (displaying top-level molecule)
-              createPuppeteerDiv();
-            })
-            .catch((e) => {
-              console.error("reset view not working" + e);
-              // Create div even on error to prevent hanging
-              createPuppeteerDiv();
-            });
-        }
-
-        // Generate top-level molecule wireframe if we're inside a nested molecule
-        if (
-          GlobalVariables.topLevelMolecule &&
-          GlobalVariables.currentMolecule !== GlobalVariables.topLevelMolecule
-        ) {
-          cad
-            .generateDisplayMesh(GlobalVariables.topLevelMolecule.value)
-            .then((topMesh) => {
-              setTopLevelWireMesh(topMesh);
-            })
-            .catch((e) => {
-              console.error("Can't compute top-level wireframe: " + e);
-            });
-        } else {
-          // Clear top-level wireframe when at top level
-          setTopLevelWireMesh(null);
-        }
       }
-    };
+    }
 
     GlobalVariables.cad = cad;
   }, [activeAtom, setMesh, setWireMesh, setOutdatedMesh, setRenderProgress, setTopLevelWireMesh]);
