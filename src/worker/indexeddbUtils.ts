@@ -155,6 +155,7 @@ export async function shapeExists(
 export async function deleteProjectCache(projectId: string): Promise<void> {
   const db = await openDB();
   return new Promise((resolve, reject) => {
+    console.log("Deleting cache for project:", projectId);
     const tx = db.transaction(STORE_NAME, "readwrite");
     const store = tx.objectStore(STORE_NAME);
     const index = store.index("projectId");
@@ -173,5 +174,6 @@ export async function deleteProjectCache(projectId: string): Promise<void> {
       db.close();
       reject(request.error);
     };
+    console.log("Deletion finished for project:", projectId);
   });
 }
