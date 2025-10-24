@@ -50,6 +50,7 @@ export default class CutLayout extends Atom {
      * @type {array}
      */
     this.placements = [];
+    this.placementsFor = "";
 
     this.progress = 0.0;
 
@@ -163,8 +164,9 @@ export default class CutLayout extends Atom {
     return super.deleteNode(backgroundClickAfter, deletePath, silent);
   }
 
-  handleNewPlacements(placements, isFinalPlacement = false) {
+  handleNewPlacements(placements, forGeom, isFinalPlacement = false) {
     this.placements = placements;
+    this.placementsFor = forGeom;
     this.displayLayout(isFinalPlacement);
     if (this.setInputChanged) {
       this.setInputChanged(this.placements);
@@ -249,12 +251,17 @@ export default class CutLayout extends Atom {
     // However, computation must be manually triggered via the "compute layout" button
     // so there's not much else to do here.
 
-    if (this.placements?.length > 0) {
+    if (
+      this.placements?.length > 0 &&
+      JSON.stringify(this.placementsFor) ==
+        JSON.stringify(this.findIOValue("geometry"))
+    ) {
       this.displayLayout(true).catch(() => {
         // If displayLayout fails we have an inconsistent state between the current geom and whatever
         // saved placements are here. Clear the placements and set ourselves to wait for a new click
         // by the user.
         this.placements = [];
+        this.placementsFor = "";
         this.setWaiting();
       });
     } else {
@@ -298,7 +305,7 @@ export default class CutLayout extends Atom {
             this.setWarning(message);
           }),
           proxy((placements) => {
-            this.handleNewPlacements(placements);
+            this.handleNewPlacements(placements, inputGeom);
           }),
           {
             width: sheetWidth,
@@ -314,7 +321,7 @@ export default class CutLayout extends Atom {
         )
         .then((layoutAndPositions) => {
           const [layout, positions] = layoutAndPositions;
-          this.handleNewPlacements(positions, true);
+          this.handleNewPlacements(positions, inputGeom, true);
         })
         .catch((err) => {
           this.alertingErrorHandler()(err);
@@ -402,7 +409,11 @@ export default class CutLayout extends Atom {
                 placement.translate.x = x;
                 placement.translate.y = y;
                 placement.rotate = z;
-                this.handleNewPlacements(this.getPlacements(), true);
+                this.handleNewPlacements(
+                  this.getPlacements(),
+                  this.placementsFor,
+                  true
+                );
               }
             }
           },
