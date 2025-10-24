@@ -3,21 +3,20 @@
  * 
  * CACHE VERSIONING SYSTEM:
  * ------------------------
- * Each cached geometry record includes a version number (CACHE_VERSION) that tracks
- * the format of serialized data. This allows the system to automatically invalidate
- * outdated cache entries when the serialization format or geometry computation changes.
+ * Each project has a single version number (CACHE_VERSION) that tracks the format
+ * of serialized data. This allows the system to automatically invalidate outdated
+ * cache entries when the serialization format or geometry computation changes.
  * 
  * How it works:
- * - When saving: putShape() automatically adds the current CACHE_VERSION to each record
- * - When reading: getShape() and shapeExists() check the version and treat outdated 
- *   entries as cache misses (returning undefined/false)
- * - On project load: GeometryProvider automatically cleans up outdated cache entries
- *   via deleteOutdatedProjectCache()
+ * - Each project stores its version as a metadata record with shapeKey "__version__"
+ * - When a project is first accessed, its version is checked against CACHE_VERSION
+ * - If the project version is outdated or missing, ALL shapes in that project are evicted
+ * - Operations then proceed as cache misses, rebuilding the cache with the new version
  * 
  * To invalidate all existing caches:
  * - Increment CACHE_VERSION constant below
- * - All cached geometries with older versions will be treated as non-existent
- * - They will be automatically deleted when projects are loaded
+ * - All projects with older versions will have their entire cache evicted
+ * - This happens automatically on first access to each project
  * 
  * This ensures users don't get errors from incompatible cached data after updates.
  */
@@ -27,12 +26,12 @@ export type StoredGeometryRecord = {
   shapeKey: string;
   type: "ReplicadObject" | "AbundanceObject";
   serialized: string; // Your serialized data
-  version?: number; // Cache format version
 };
 
 const DB_NAME = "AbundanceProjectCaches";
 const DB_VERSION = 2;
 const STORE_NAME = "shapes";
+const VERSION_KEY = "__version__"; // Special key for storing project version
 
 // Current cache format version - increment this when making breaking changes
 // to the serialization format or geometry computation
@@ -100,7 +99,6 @@ export async function putShape(
       shapeKey: shapeKey,
       type: isAbundanceObject ? "AbundanceObject" : "ReplicadObject",
       serialized: serializedShape,
-      version: CACHE_VERSION,
     });
     tx.oncomplete = () => {
       db.close();
@@ -124,15 +122,7 @@ export async function getShape(
     const req = store.get([projectId, shapeKey]);
     req.onsuccess = () => {
       db.close();
-      const record = req.result as StoredGeometryRecord | undefined;
-      
-      // If record exists but has no version or an outdated version, treat it as missing
-      if (record && (record.version === undefined || record.version < CACHE_VERSION)) {
-        console.log(`Cache entry for ${projectId}/${shapeKey} has outdated version ${record.version}, treating as cache miss`);
-        resolve(undefined);
-      } else {
-        resolve(record);
-      }
+      resolve(req.result);
     };
     req.onerror = () => {
       db.close();
@@ -178,18 +168,10 @@ export async function shapeExists(
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, "readonly");
     const store = tx.objectStore(STORE_NAME);
-    const req = store.get([projectId, shapeKey]);
+    const req = store.count([projectId, shapeKey]);
     req.onsuccess = () => {
       db.close();
-      const record = req.result as StoredGeometryRecord | undefined;
-      
-      // Only consider the shape to exist if it has the current version
-      if (record && (record.version === undefined || record.version < CACHE_VERSION)) {
-        console.log(`Cache entry for ${projectId}/${shapeKey} has outdated version ${record.version}, treating as non-existent`);
-        resolve(false);
-      } else {
-        resolve(!!record);
-      }
+      resolve(req.result > 0);
     };
     req.onerror = () => {
       db.close();
@@ -223,35 +205,50 @@ export async function deleteProjectCache(projectId: string): Promise<void> {
 }
 
 /**
- * Deletes all cache entries for a project that have outdated versions.
- * This is useful for cleaning up after a version upgrade.
+ * Gets the cache version for a project.
+ * Returns undefined if the project has no version set (i.e., created before versioning).
  */
-export async function deleteOutdatedProjectCache(projectId: string): Promise<number> {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, "readwrite");
-    const store = tx.objectStore(STORE_NAME);
-    const index = store.index("projectId");
-    const request = index.openCursor(IDBKeyRange.only(projectId));
-    let deletedCount = 0;
-    
-    request.onsuccess = (event) => {
-      const cursor = (event.target as IDBRequest<IDBCursorWithValue>).result;
-      if (cursor) {
-        const record = cursor.value as StoredGeometryRecord;
-        if (record.version === undefined || record.version < CACHE_VERSION) {
-          store.delete(cursor.primaryKey as [string, string]);
-          deletedCount++;
-        }
-        cursor.continue();
-      } else {
-        db.close();
-        resolve(deletedCount);
-      }
-    };
-    request.onerror = () => {
-      db.close();
-      reject(request.error);
-    };
-  });
+export async function getProjectVersion(projectId: string): Promise<number | undefined> {
+  const versionRecord = await getShape(projectId, VERSION_KEY);
+  if (versionRecord) {
+    return parseInt(versionRecord.serialized, 10);
+  }
+  return undefined;
+}
+
+/**
+ * Sets the cache version for a project.
+ */
+export async function setProjectVersion(projectId: string, version: number): Promise<void> {
+  await putShape(projectId, VERSION_KEY, version.toString(), false);
+}
+
+/**
+ * Checks if a project's cache version is current.
+ * Returns true if version matches CACHE_VERSION, false otherwise.
+ */
+export async function isProjectVersionCurrent(projectId: string): Promise<boolean> {
+  const projectVersion = await getProjectVersion(projectId);
+  return projectVersion === CACHE_VERSION;
+}
+
+/**
+ * Ensures a project's cache is valid. If the project has an outdated version
+ * or no version, all cache entries for that project are evicted and the version
+ * is updated to the current CACHE_VERSION.
+ * 
+ * This should be called when a project is first accessed (e.g., in updateLRU).
+ * Returns true if the cache was evicted, false if it was already current.
+ */
+export async function ensureProjectVersionCurrent(projectId: string): Promise<boolean> {
+  const isCurrent = await isProjectVersionCurrent(projectId);
+  
+  if (!isCurrent) {
+    console.log(`Project ${projectId} has outdated cache version, evicting all entries`);
+    await deleteProjectCache(projectId);
+    await setProjectVersion(projectId, CACHE_VERSION);
+    return true; // Cache was evicted
+  }
+  
+  return false; // Cache was already current
 }

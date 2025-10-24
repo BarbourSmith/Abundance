@@ -2,34 +2,37 @@
 
 ## Overview
 
-The Abundance project uses IndexedDB to cache serialized geometries and Abundance objects. To prevent issues when the serialization format or geometry computation changes, we've implemented a versioning system that automatically invalidates outdated cache entries.
+The Abundance project uses IndexedDB to cache serialized geometries and Abundance objects. To prevent issues when the serialization format or geometry computation changes, we've implemented a project-level versioning system that automatically invalidates outdated cache entries.
 
 ## How It Works
 
 ### Version Storage
-- Each cached geometry record includes a `version` field containing `CACHE_VERSION`
-- When saving via `putShape()`, the current version is automatically added to the record
-- The version is stored alongside the geometry data in IndexedDB
+- Each project stores a single version number in a special metadata record (key: `__version__`)
+- When any geometry is saved for a project, the project's version is set to `CACHE_VERSION`
+- The version is stored alongside geometry data in IndexedDB
 
 ### Version Validation
-- When reading via `getShape()` or checking via `shapeExists()`, the version is validated
-- Records with missing or outdated versions are treated as cache misses
-- These functions return `undefined` or `false` respectively for outdated entries
+- When a project is first accessed (via `updateLRU()` in GeometryProvider), its version is checked
+- If the project has no version or an outdated version, **all cache entries for that project are evicted**
+- The project version is then updated to the current `CACHE_VERSION`
+- Operations proceed as cache misses, rebuilding the cache with the new version
 
-### Automatic Cleanup
-- When a project is loaded (via `updateLRU()` in GeometryProvider), outdated cache entries are automatically deleted
-- The `deleteOutdatedProjectCache()` function scans and removes all entries with old versions
-- This keeps the cache size manageable and prevents stale data accumulation
+### Why Project-Level Versioning?
+Project-level versioning ensures cache consistency:
+- A project with mixed versions (some old, some new shapes) would be invalid
+- Partial eviction could leave the cache in an inconsistent state
+- All-or-nothing eviction ensures geometries are computed with the same version
 
 ## Implementation Details
 
 ### Key Files
 - `src/worker/indexeddbUtils.ts` - Core cache functions with version checking
-- `src/worker/geometryProvider.ts` - High-level cache management with auto-cleanup
+- `src/worker/geometryProvider.ts` - High-level cache management with auto-eviction
 
 ### Key Constants
 ```typescript
 export const CACHE_VERSION = 1; // Current version in indexeddbUtils.ts
+const VERSION_KEY = "__version__"; // Special key for project version metadata
 ```
 
 ### Data Structure
@@ -39,8 +42,11 @@ export type StoredGeometryRecord = {
   shapeKey: string;
   type: "ReplicadObject" | "AbundanceObject";
   serialized: string;
-  version?: number; // Cache format version
+  // Note: No version field on individual records
 };
+
+// Project version is stored as a special record:
+// { projectId: "myProject", shapeKey: "__version__", serialized: "1" }
 ```
 
 ## When to Increment the Version
@@ -63,18 +69,17 @@ Increment `CACHE_VERSION` when:
    ```typescript
    export const CACHE_VERSION = 2; // Was 1
    ```
-3. All existing cache entries will be treated as outdated
-4. They will be automatically cleaned up when projects are loaded
+3. All projects with version < 2 will have their **entire cache evicted** on first access
+4. The cache will be rebuilt with the new version as geometries are computed
 
 ## Testing
 
 The versioning system is tested in `tests/cache-version.test.ts`, which verifies:
-- Shapes are saved with the current version
-- Shapes with current version can be retrieved
-- Shapes without version are treated as outdated
-- Shapes with old version are treated as outdated
-- Outdated entries can be deleted selectively
-- Both ReplicadObject and AbundanceObject types work with versioning
+- Project version is set when geometries are saved
+- Projects with current version are not evicted
+- Projects without version are evicted entirely
+- Projects with old version are evicted entirely
+- Version checking happens on project access
 
 Run the tests with:
 ```bash
@@ -83,18 +88,19 @@ npm run unit -- tests/cache-version.test.ts
 
 ## Benefits
 
-1. **No Breaking Changes for Users**: Old cache is automatically invalidated, preventing deserialization errors
-2. **Automatic Cleanup**: No manual intervention needed to clear stale caches
-3. **Per-Project Granularity**: Each project's cache is managed independently
-4. **Backward Compatible**: Old code without versioning treats unversioned entries as outdated
-5. **Developer Friendly**: Simple constant increment invalidates all caches
+1. **Cache Consistency**: All shapes in a project are always from the same version
+2. **No Partial State**: Either all shapes are current or all are evicted
+3. **Automatic Cleanup**: No manual intervention needed to clear stale caches
+4. **Developer Friendly**: Single constant increment invalidates all outdated project caches
+5. **Transparent Operation**: Version checking happens automatically on project access
 
 ## Migration Path
 
 The system is designed to handle the initial migration gracefully:
-- Existing cache entries (from before this feature) have no `version` field
-- These are treated as `version = undefined`
-- They're automatically invalidated (treated as outdated)
+- Existing projects (from before this feature) have no version metadata
+- These are treated as `version = undefined` (outdated)
+- On first access, all entries for that project are evicted
 - New cache entries are created with `version = 1` as geometries are recomputed
+- The project version metadata is set to `1`
 
 This ensures a smooth transition without manual cache clearing.

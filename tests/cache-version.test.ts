@@ -2,14 +2,15 @@ import { describe, it, expect, beforeEach } from "vitest";
 import {
   putShape,
   getShape,
-  shapeExists,
   deleteProjectCache,
-  deleteOutdatedProjectCache,
+  getProjectVersion,
+  setProjectVersion,
+  isProjectVersionCurrent,
+  ensureProjectVersionCurrent,
   CACHE_VERSION,
-  StoredGeometryRecord,
 } from "../src/worker/indexeddbUtils";
 
-describe("Cache Version Management", () => {
+describe("Project-Level Cache Version Management", () => {
   const testProjectId = "test-project-versioning";
   const testShapeKey = "test-shape-key";
   const testSerialized = "test-serialized-data";
@@ -19,199 +20,133 @@ describe("Cache Version Management", () => {
     await deleteProjectCache(testProjectId);
   });
 
-  it("should save shapes with current version number", async () => {
-    // Save a shape
-    await putShape(testProjectId, testShapeKey, testSerialized, false);
-
-    // Retrieve it directly from IndexedDB (bypassing version checks)
-    const db = await new Promise<IDBDatabase>((resolve, reject) => {
-      const request = indexedDB.open("AbundanceProjectCaches", 2);
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
-
-    const record = await new Promise<StoredGeometryRecord | undefined>(
-      (resolve, reject) => {
-        const tx = db.transaction("shapes", "readonly");
-        const store = tx.objectStore("shapes");
-        const req = store.get([testProjectId, testShapeKey]);
-        req.onsuccess = () => {
-          db.close();
-          resolve(req.result);
-        };
-        req.onerror = () => {
-          db.close();
-          reject(req.error);
-        };
-      }
-    );
-
-    // Check that the version was saved
-    expect(record).toBeDefined();
-    expect(record?.version).toBe(CACHE_VERSION);
-    expect(record?.serialized).toBe(testSerialized);
+  it("should get undefined version for new project", async () => {
+    const version = await getProjectVersion(testProjectId);
+    expect(version).toBeUndefined();
   });
 
-  it("should retrieve shapes with current version", async () => {
-    // Save a shape with current version
-    await putShape(testProjectId, testShapeKey, testSerialized, false);
-
-    // Retrieve it
-    const shape = await getShape(testProjectId, testShapeKey);
-
-    // Should be found
-    expect(shape).toBeDefined();
-    expect(shape?.serialized).toBe(testSerialized);
-    expect(shape?.version).toBe(CACHE_VERSION);
+  it("should set and get project version", async () => {
+    await setProjectVersion(testProjectId, CACHE_VERSION);
+    const version = await getProjectVersion(testProjectId);
+    expect(version).toBe(CACHE_VERSION);
   });
 
-  it("should treat shapes without version as outdated", async () => {
-    // Manually insert a shape without version
-    const db = await new Promise<IDBDatabase>((resolve, reject) => {
-      const request = indexedDB.open("AbundanceProjectCaches", 2);
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
-
-    await new Promise<void>((resolve, reject) => {
-      const tx = db.transaction("shapes", "readwrite");
-      const store = tx.objectStore("shapes");
-      store.put({
-        projectId: testProjectId,
-        shapeKey: testShapeKey,
-        type: "ReplicadObject",
-        serialized: testSerialized,
-        // Note: no version field
-      });
-      tx.oncomplete = () => {
-        db.close();
-        resolve();
-      };
-      tx.onerror = () => {
-        db.close();
-        reject(tx.error);
-      };
-    });
-
-    // Try to retrieve it - should return undefined (treated as outdated)
-    const shape = await getShape(testProjectId, testShapeKey);
-    expect(shape).toBeUndefined();
-
-    // shapeExists should also return false
-    const exists = await shapeExists(testProjectId, testShapeKey);
-    expect(exists).toBe(false);
+  it("should report project as not current when version is missing", async () => {
+    const isCurrent = await isProjectVersionCurrent(testProjectId);
+    expect(isCurrent).toBe(false);
   });
 
-  it("should treat shapes with older version as outdated", async () => {
-    // Manually insert a shape with old version
-    const db = await new Promise<IDBDatabase>((resolve, reject) => {
-      const request = indexedDB.open("AbundanceProjectCaches", 2);
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
-
-    await new Promise<void>((resolve, reject) => {
-      const tx = db.transaction("shapes", "readwrite");
-      const store = tx.objectStore("shapes");
-      store.put({
-        projectId: testProjectId,
-        shapeKey: testShapeKey,
-        type: "ReplicadObject",
-        serialized: testSerialized,
-        version: CACHE_VERSION - 1, // Old version
-      });
-      tx.oncomplete = () => {
-        db.close();
-        resolve();
-      };
-      tx.onerror = () => {
-        db.close();
-        reject(tx.error);
-      };
-    });
-
-    // Try to retrieve it - should return undefined (treated as outdated)
-    const shape = await getShape(testProjectId, testShapeKey);
-    expect(shape).toBeUndefined();
-
-    // shapeExists should also return false
-    const exists = await shapeExists(testProjectId, testShapeKey);
-    expect(exists).toBe(false);
+  it("should report project as not current when version is outdated", async () => {
+    await setProjectVersion(testProjectId, CACHE_VERSION - 1);
+    const isCurrent = await isProjectVersionCurrent(testProjectId);
+    expect(isCurrent).toBe(false);
   });
 
-  it("should delete outdated cache entries", async () => {
-    const db = await new Promise<IDBDatabase>((resolve, reject) => {
-      const request = indexedDB.open("AbundanceProjectCaches", 2);
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
+  it("should report project as current when version matches", async () => {
+    await setProjectVersion(testProjectId, CACHE_VERSION);
+    const isCurrent = await isProjectVersionCurrent(testProjectId);
+    expect(isCurrent).toBe(true);
+  });
 
-    // Insert some shapes with different versions
-    await new Promise<void>((resolve, reject) => {
-      const tx = db.transaction("shapes", "readwrite");
-      const store = tx.objectStore("shapes");
-      
-      // Old version
-      store.put({
-        projectId: testProjectId,
-        shapeKey: "shape1",
-        type: "ReplicadObject",
-        serialized: "data1",
-        version: CACHE_VERSION - 1,
-      });
-      
-      // No version
-      store.put({
-        projectId: testProjectId,
-        shapeKey: "shape2",
-        type: "ReplicadObject",
-        serialized: "data2",
-      });
-      
-      // Current version
-      store.put({
-        projectId: testProjectId,
-        shapeKey: "shape3",
-        type: "ReplicadObject",
-        serialized: "data3",
-        version: CACHE_VERSION,
-      });
-      
-      tx.oncomplete = () => {
-        db.close();
-        resolve();
-      };
-      tx.onerror = () => {
-        db.close();
-        reject(tx.error);
-      };
-    });
+  it("should evict entire project cache when version is outdated", async () => {
+    // Create some shapes with old version
+    await putShape(testProjectId, "shape1", "data1", false);
+    await putShape(testProjectId, "shape2", "data2", false);
+    await putShape(testProjectId, "shape3", "data3", false);
+    await setProjectVersion(testProjectId, CACHE_VERSION - 1);
 
-    // Delete outdated entries
-    const deletedCount = await deleteOutdatedProjectCache(testProjectId);
-    
-    // Should have deleted 2 entries (old version and no version)
-    expect(deletedCount).toBe(2);
+    // Verify shapes exist
+    let shape1 = await getShape(testProjectId, "shape1");
+    expect(shape1).toBeDefined();
 
-    // Current version should still exist
+    // Ensure version is current (should evict all)
+    const wasEvicted = await ensureProjectVersionCurrent(testProjectId);
+    expect(wasEvicted).toBe(true);
+
+    // Verify all shapes are gone
+    shape1 = await getShape(testProjectId, "shape1");
+    const shape2 = await getShape(testProjectId, "shape2");
     const shape3 = await getShape(testProjectId, "shape3");
-    expect(shape3).toBeDefined();
-    expect(shape3?.serialized).toBe("data3");
+    expect(shape1).toBeUndefined();
+    expect(shape2).toBeUndefined();
+    expect(shape3).toBeUndefined();
+
+    // Verify version is now current
+    const version = await getProjectVersion(testProjectId);
+    expect(version).toBe(CACHE_VERSION);
   });
 
-  it("should handle AbundanceObject type with versioning", async () => {
-    const abundanceData = JSON.stringify({ type: "assembly", parts: [] });
-    
-    // Save an AbundanceObject
-    await putShape(testProjectId, testShapeKey, abundanceData, true);
+  it("should not evict cache when version is already current", async () => {
+    // Create shapes and set current version
+    await putShape(testProjectId, "shape1", "data1", false);
+    await setProjectVersion(testProjectId, CACHE_VERSION);
 
-    // Retrieve it
-    const shape = await getShape(testProjectId, testShapeKey);
+    // Ensure version is current (should NOT evict)
+    const wasEvicted = await ensureProjectVersionCurrent(testProjectId);
+    expect(wasEvicted).toBe(false);
 
-    // Should be found with correct type and version
-    expect(shape).toBeDefined();
-    expect(shape?.type).toBe("AbundanceObject");
-    expect(shape?.version).toBe(CACHE_VERSION);
-    expect(shape?.serialized).toBe(abundanceData);
+    // Verify shape still exists
+    const shape1 = await getShape(testProjectId, "shape1");
+    expect(shape1).toBeDefined();
+  });
+
+  it("should evict all shapes when project has no version", async () => {
+    // Create shapes without setting version (simulates old data)
+    await putShape(testProjectId, "shape1", "data1", false);
+    await putShape(testProjectId, "shape2", "data2", false);
+
+    // Project should not have a version
+    const versionBefore = await getProjectVersion(testProjectId);
+    expect(versionBefore).toBeUndefined();
+
+    // Ensure version is current (should evict all)
+    const wasEvicted = await ensureProjectVersionCurrent(testProjectId);
+    expect(wasEvicted).toBe(true);
+
+    // Verify all shapes are gone
+    const shape1 = await getShape(testProjectId, "shape1");
+    const shape2 = await getShape(testProjectId, "shape2");
+    expect(shape1).toBeUndefined();
+    expect(shape2).toBeUndefined();
+
+    // Verify version is now set
+    const versionAfter = await getProjectVersion(testProjectId);
+    expect(versionAfter).toBe(CACHE_VERSION);
+  });
+
+  it("should handle multiple projects independently", async () => {
+    const project1 = "project1";
+    const project2 = "project2";
+
+    // Clean up
+    await deleteProjectCache(project1);
+    await deleteProjectCache(project2);
+
+    // Set different versions for two projects
+    await putShape(project1, "shape1", "data1", false);
+    await setProjectVersion(project1, CACHE_VERSION);
+
+    await putShape(project2, "shape2", "data2", false);
+    await setProjectVersion(project2, CACHE_VERSION - 1);
+
+    // Ensure version for project1 (should NOT evict)
+    const wasEvicted1 = await ensureProjectVersionCurrent(project1);
+    expect(wasEvicted1).toBe(false);
+
+    // Ensure version for project2 (should evict)
+    const wasEvicted2 = await ensureProjectVersionCurrent(project2);
+    expect(wasEvicted2).toBe(true);
+
+    // Verify project1 shape still exists
+    const shape1 = await getShape(project1, "shape1");
+    expect(shape1).toBeDefined();
+
+    // Verify project2 shape was evicted
+    const shape2 = await getShape(project2, "shape2");
+    expect(shape2).toBeUndefined();
+
+    // Clean up
+    await deleteProjectCache(project1);
+    await deleteProjectCache(project2);
   });
 });

@@ -14,7 +14,7 @@ import {
   shapeExists,
   deleteShape,
   getAllProjectIds,
-  deleteOutdatedProjectCache,
+  ensureProjectVersionCurrent,
 } from "./indexeddbUtils";
 
 type ReplicadObject = replicad.Shape3D | replicad.Drawing | replicad.Wire;
@@ -94,10 +94,10 @@ class GeometryProvider {
         console.log("Eviction complete");
       });
       
-      // Clean up any outdated cache entries for this project
-      deleteOutdatedProjectCache(projectId).then((deletedCount) => {
-        if (deletedCount > 0) {
-          console.log(`Cleaned up ${deletedCount} outdated cache entries for project ${projectId}`);
+      // Ensure project cache version is current, evicting all entries if outdated
+      ensureProjectVersionCurrent(projectId).then((wasEvicted) => {
+        if (wasEvicted) {
+          console.log(`Project ${projectId} cache was outdated and has been evicted`);
         }
       });
     }
