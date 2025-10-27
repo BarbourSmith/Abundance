@@ -65,11 +65,30 @@ export default function GitSearchMenu({
    * @param {object} ev - The event triggered by clicking on a menu item.
    */
   function placeGitHubMolecule(e, item) {
-    GlobalVariables.currentMolecule.loadGithubMoleculeByName(item).catch(() => {
-      setErrorNotification(`Error: Project Missing`);
-      // Auto-dismiss notification after 3 seconds
-      setTimeout(() => setErrorNotification(null), 3000);
-    });
+    // Check if there's a selected GitHubMolecule that hasn't loaded a project yet
+    const selectedAtoms = GlobalVariables.currentMolecule.nodesOnTheScreen.filter(
+      atom => atom.selected && atom.atomType === "GitHubMolecule"
+    );
+    
+    // Use the first selected GitHubMolecule without a parentRepo (i.e., empty/not loaded)
+    const emptyGitHubMolecule = selectedAtoms.find(atom => !atom.parentRepo);
+    
+    if (emptyGitHubMolecule) {
+      // Load into existing empty GitHubMolecule
+      emptyGitHubMolecule.loadContentFromGithub(item).catch(() => {
+        setErrorNotification(`Error: Project Missing`);
+        // Auto-dismiss notification after 3 seconds
+        setTimeout(() => setErrorNotification(null), 3000);
+      });
+    } else {
+      // Fall back to creating a new GitHubMolecule (old behavior)
+      GlobalVariables.currentMolecule.loadGithubMoleculeByName(item).catch(() => {
+        setErrorNotification(`Error: Project Missing`);
+        // Auto-dismiss notification after 3 seconds
+        setTimeout(() => setErrorNotification(null), 3000);
+      });
+    }
+    
     //setIsShortcutTriggered(false);
     setInputValue("");
     setIsHovering(false);

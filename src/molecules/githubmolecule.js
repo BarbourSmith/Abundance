@@ -94,11 +94,29 @@ export default class GitHubMolecule extends Molecule {
     let inputParams = {};
 
     inputParams = super.createInputParams();
-    inputParams["Reload From Github"] = {
-      type: "button",
-      label: "Reload From Github",
-      onClick: () => this.reloadMoleculeFromGithub(),
-    };
+    
+    // Only show reload button if a project has been loaded
+    if (this.parentRepo) {
+      inputParams["Reload From Github"] = {
+        type: "button",
+        label: "Reload From Github",
+        onClick: () => this.reloadMoleculeFromGithub(),
+      };
+    } else {
+      // Show a "Load Project" button if no project has been loaded yet
+      inputParams["Load Project"] = {
+        type: "button",
+        label: "Load Project",
+        onClick: () => {
+          // Trigger the git search menu to open
+          const gitSearchEvent = new CustomEvent('openGitSearch', { 
+            detail: { targetMolecule: this }
+          });
+          window.dispatchEvent(gitSearchEvent);
+        },
+      };
+    }
+    
     return inputParams;
   }
 
@@ -122,5 +140,70 @@ export default class GitHubMolecule extends Molecule {
       githubMoleculeObjectPreReload,
       githubMoleculeParentObjectConnectorsPreReload
     );
+  }
+
+  /**
+   * Load content from GitHub into this existing GitHubMolecule
+   * @param {object} gitObj - An object containing the GitHub repository information (owner, repoName, etc).
+   */
+  async loadContentFromGithub(gitObj) {
+    const { Octokit } = await import("https://esm.sh/octokit@2.0.19");
+    let octokit = new Octokit();
+    
+    try {
+      const response = await octokit.request("GET /repos/{owner}/{repo}/contents/project.abundance", {
+        owner: gitObj.owner,
+        repo: gitObj.repoName,
+      });
+
+      let rawFileContent;
+      // Handle large files (>1MB) using download_url
+      if (!response.data.content || response.data.content.length === 0) {
+        const fileResponse = await fetch(response.data.download_url);
+        rawFileContent = await fileResponse.text();
+      } else {
+        // Handle small files using base64 content with UTF-8 encoding
+        rawFileContent = GlobalVariables.fromBinaryStr(
+          atob(response.data.content)
+        );
+      }
+
+      let rawFile;
+      try {
+        rawFile = await this.asyncJsonParse(rawFileContent);
+      } catch (err) {
+        console.error("Failed to parse project.abundance:", err);
+        throw err;
+      }
+
+      // Store the parent repo information
+      this.parentRepo = gitObj;
+      
+      // Update the name to match the loaded project
+      if (rawFile.name) {
+        this.name = rawFile.name;
+      }
+
+      // Clear existing children before loading new content
+      const nodesCopy = [...this.nodesOnTheScreen];
+      nodesCopy.forEach((atom) => {
+        try {
+          atom.deleteNode(false, false, true);
+        } catch (error) {
+          console.warn("Error deleting atom during GitHub load:", error);
+        }
+      });
+      this.nodesOnTheScreen = [];
+
+      // Deserialize the loaded content into this molecule
+      await this.deserialize(rawFile, { parentRepo: gitObj, topLevel: false }, true);
+      
+      // Enable the molecule after loading
+      this.enable();
+      
+    } catch (error) {
+      console.error("Error loading GitHub molecule content:", error);
+      throw new Error("Failed to load GitHub molecule: " + error.message);
+    }
   }
 }

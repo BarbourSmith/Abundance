@@ -28,6 +28,9 @@ const createCMenu = (targetElement, setExpandedMenu) => {
 
         subMenu.click = function menuClick(e, title) {
           if (title.icon === "GitHubMolecule") {
+            // Place the GitHubMolecule atom first, then open the search menu
+            e.target.id = title.name;
+            placeNewNode(e);
             setExpandedMenu("git-search");
             if (e.type === "touchend") {
               //need to prevent mousedown from running to keep gitsearch open
