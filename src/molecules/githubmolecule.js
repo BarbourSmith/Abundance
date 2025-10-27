@@ -185,6 +185,7 @@ export default class GitHubMolecule extends Molecule {
       }
 
       // Clear existing children before loading new content
+      // Make a copy to avoid modifying the array while iterating
       const nodesCopy = [...this.nodesOnTheScreen];
       nodesCopy.forEach((atom) => {
         try {
@@ -193,7 +194,6 @@ export default class GitHubMolecule extends Molecule {
           console.warn("Error deleting atom during GitHub load:", error);
         }
       });
-      this.nodesOnTheScreen = [];
 
       // Deserialize the loaded content into this molecule
       await this.deserialize(rawFile, { parentRepo: gitObj, topLevel: false }, true);

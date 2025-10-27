@@ -5,6 +5,9 @@ import GlobalVariables from "../../js/globalvariables";
 import { useQuery } from "react-query";
 import useDebounce from "../../hooks/useDebounce.js";
 
+// Constants
+const GITHUB_MOLECULE_ATOM_TYPE = "GitHubMolecule";
+
 export default function GitSearchMenu({
   id,
   contentCollapsed,
@@ -67,7 +70,7 @@ export default function GitSearchMenu({
   function placeGitHubMolecule(e, item) {
     // Check if there's a selected GitHubMolecule that hasn't loaded a project yet
     const selectedAtoms = GlobalVariables.currentMolecule.nodesOnTheScreen.filter(
-      atom => atom.selected && atom.atomType === "GitHubMolecule"
+      atom => atom.selected && atom.atomType === GITHUB_MOLECULE_ATOM_TYPE
     );
     
     // Use the first selected GitHubMolecule without a parentRepo (i.e., empty/not loaded)
