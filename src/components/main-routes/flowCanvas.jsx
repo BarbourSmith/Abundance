@@ -410,7 +410,16 @@ export default memo(function FlowCanvas({
 
       // Set the active atom after all atoms have been processed
       if (activeAtom) {
-        setExpandedMenu("params");
+        /* If it's an unloaded GitHub molecule, show GitHub search menu otherwise show params */
+        if (
+          activeAtom.atomType == "GitHubMolecule" &&
+          activeAtom.parentRepo == null
+        ) {
+          // Show GitHub-specific options
+          setExpandedMenu("git-search");
+        } else {
+          setExpandedMenu("params");
+        }
         setActiveAtom(activeAtom);
       }
       //

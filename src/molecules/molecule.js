@@ -3,7 +3,7 @@ import Connector from "../prototypes/connector.js";
 import AttachmentPoint from "../prototypes/attachmentpoint.js";
 import GlobalVariables from "../js/globalvariables.js";
 
-import { Octokit } from "https://esm.sh/octokit@2.0.19";
+import { Octokit } from "octokit";
 import { BOMEntry } from "../js/BOM";
 
 import { Status } from "../prototypes/observableEntity.js";
@@ -1111,7 +1111,8 @@ export default class Molecule extends Atom {
   async loadGithubMoleculeByName(
     gitObj,
     oldObject = {},
-    oldParentObjectConnectors = []
+    oldParentObjectConnectors = [],
+    position
   ) {
     let octokit = new Octokit();
     try {
@@ -1158,17 +1159,9 @@ export default class Molecule extends Atom {
               ioValues: oldObject.ioValues,
             };
           } else {
-            let xPos = 0.5;
-            let yPos = 0.6;
-            //If there's no last click default to middle of screen
-            if (GlobalVariables.lastClick) {
-              xPos = GlobalVariables.pixelsToWidth(
-                GlobalVariables.lastClick[0]
-              );
-              yPos = GlobalVariables.pixelsToHeight(
-                GlobalVariables.lastClick[1]
-              );
-            }
+            let xPos = position ? position.x : 0.5;
+            let yPos = position ? position.y : 0.6;
+
             valuesToOverwriteInLoadedVersion = {
               uniqueID: newMoleculeUniqueID,
               parentRepo: gitObj,

@@ -99,8 +99,8 @@ class GeometryProvider {
   private async createIfAbsent(
     id: string,
     context: RequestContext,
-    builder: () => Promise<ReplicadObject>
-  ): Promise<string> {
+    builder: () => Promise<ReplicadObject | undefined>
+  ): Promise<string | undefined> {
     this.updateLRU(context.project);
     if (
       this.getFromWarmCache(id, context) ||
@@ -110,6 +110,11 @@ class GeometryProvider {
     } else {
       const start = performance.now();
       const geometry = await builder();
+      if (geometry === undefined) {
+        // builder produced nonexistent geometry (eg: intersect of nonoverlapping shapes)
+        console.log("Geometry builder returned undefined for id:", id);
+        return undefined;
+      }
       if (context.operationId) {
         this.putInWarmCache(id, context.operationId, geometry);
         if (context.persistIntermediates) {
@@ -420,9 +425,9 @@ class GeometryProvider {
     input1ID: string,
     inputID2: string,
     context: RequestContext
-  ): Promise<string> {
+  ): Promise<string | undefined> {
     const id = this._makeId("intersect", input1ID, inputID2);
-    await this.createIfAbsent(id, context, async () => {
+    return await this.createIfAbsent(id, context, async () => {
       const args = [
         await this.get(input1ID, context),
         await this.get(inputID2, context),
@@ -430,7 +435,12 @@ class GeometryProvider {
       // Intersect only allowed between matching types. 2 drawings or 2 3d shapes.
 
       if (this.areAllDrawings(args)) {
-        return args[0].intersect(args[1]);
+        const result = args[0].intersect(args[1]);
+        //@ts-ignore - no other way to check if the generated shape is nonexistent
+        if (!result.innerShape) {
+          return undefined;
+        }
+        return result;
       } else if (this.areAll3DShapes(args)) {
         return this.as3dShapeOrThrow(args[0].intersect(args[1]));
       } else {
@@ -442,7 +452,6 @@ class GeometryProvider {
         );
       }
     });
-    return id;
   }
 
   // Fuse 1 or more geometries together.
