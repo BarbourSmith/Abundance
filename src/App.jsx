@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Octokit } from "https://esm.sh/octokit@2.0.19";
+import { Octokit } from "octokit";
 import {
   HashRouter as Router,
   // BrowserRouter as Router,
@@ -68,8 +68,14 @@ function AppContent() {
     authRedirectHandler,
   } = useAuth();
 
-  const { activeAtom, setActiveAtom, shortCutsOn, setRedirectType, errorNotification, setErrorNotification } =
-    useAppState();
+  const {
+    activeAtom,
+    setActiveAtom,
+    shortCutsOn,
+    setRedirectType,
+    errorNotification,
+    setErrorNotification,
+  } = useAppState();
 
   const navigate = useNavigate();
 
@@ -162,7 +168,10 @@ function AppContent() {
       } else {
         console.log("Generating mesh for value:", moleculeValue);
         cad
-          .generateDisplayMesh(moleculeValue, GlobalVariables.topLevelMolecule.getContext())
+          .generateDisplayMesh(
+            moleculeValue,
+            GlobalVariables.topLevelMolecule.getContext()
+          )
           .then((m) => {
             if (wireOnly) {
               setWireMesh(m);
@@ -183,7 +192,14 @@ function AppContent() {
     }
 
     GlobalVariables.cad = cad;
-  }, [activeAtom, setMesh, setWireMesh, setOutdatedMesh, setRenderProgress, setTopLevelWireMesh]);
+  }, [
+    activeAtom,
+    setMesh,
+    setWireMesh,
+    setOutdatedMesh,
+    setRenderProgress,
+    setTopLevelWireMesh,
+  ]);
 
   /**
    * Load a project from the repository

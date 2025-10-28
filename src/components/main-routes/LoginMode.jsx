@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
 import GlobalVariables from "../../js/globalvariables.js";
-import { Octokit } from "https://esm.sh/octokit@2.0.19";
 import { Link } from "react-router-dom";
 import globalvariables from "../../js/globalvariables.js";
 import NewProjectPopUp from "../secondary/NewProjectPopUp.jsx";
@@ -1185,7 +1184,7 @@ function LoginMode() {
 
   // Check if we're coming from run mode (Browse Projects was clicked)
   const fromRunMode = location.state?.fromRunMode;
-  
+
   const [noUserBrowsing, setNoUserBrowsing] = useState(fromRunMode || false);
   const [projectToShow, setProjectsToShow] = useState("all");
 

@@ -134,12 +134,16 @@ async function intersect(
   await util.init();
   return util.actOnLeafs(shape1, async (leaf: AbundanceLeaf) => {
     const shapeToIntersectWith = await fuseAssembly(shape2, context);
+    const resultGeom = await util.geometryProvider!.intersect(
+      leaf.geometry,
+      shapeToIntersectWith.geometry,
+      context
+    );
+    if (resultGeom === undefined) {
+      return undefined;
+    }
     return {
-      geometry: await util.geometryProvider!.intersect(
-        leaf.geometry,
-        shapeToIntersectWith.geometry,
-        context
-      ),
+      geometry: resultGeom,
       tags: leaf.tags,
       color: leaf.color,
       plane: leaf.plane,

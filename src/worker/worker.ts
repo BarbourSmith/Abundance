@@ -606,7 +606,7 @@ async function generateDisplayMesh(
   await started;
   console.log("Generating display mesh for ID:", JSON.stringify(id));
   let geom = undefined;
-  if (util.isAbundanceObject(id)) {
+  if (util.isAbundanceObject(id) && id.geometry.length !== 0) {
     geom = id;
   } else {
     return generateDefaultMesh(context);

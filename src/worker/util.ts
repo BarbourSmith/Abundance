@@ -131,7 +131,9 @@ function actOnLeafsSync(
 
 async function actOnLeafs(
   assembly: AbundanceObject,
-  action: (leaf: AbundanceLeaf) => AbundanceLeaf | Promise<AbundanceLeaf>,
+  action: (
+    leaf: AbundanceLeaf
+  ) => AbundanceLeaf | Promise<AbundanceLeaf | undefined>,
   plane?: SimplePlane
 ): Promise<AbundanceObject> {
   if (!isAbundanceObject(assembly)) {
@@ -140,13 +142,23 @@ async function actOnLeafs(
   plane = plane || assembly.plane;
 
   if (isLeaf(assembly)) {
-    return await action(assembly);
+    const result = await action(assembly);
+    if (result != undefined) {
+      return result;
+    } else {
+      // Empty geometry represented as branch with no leafs
+      return {
+        ...assembly,
+        plane: plane,
+        geometry: [],
+      };
+    }
   } else {
     let children = assembly.geometry as AbundanceObject[];
     let transformedAssembly: any[] = [];
     for (const subAssembly of children) {
       const result = await actOnLeafs(subAssembly, action);
-      if (result != undefined) {
+      if (result != undefined && result.geometry?.length > 0) {
         transformedAssembly.push(result);
       }
     }
