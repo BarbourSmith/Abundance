@@ -152,7 +152,7 @@ const generateGcode = (
             tool: 1000,
             spindle: 1000,
             down: down,
-            step: 1,
+            step: toolSize * 0.9,
             rate: speed,
             plunge: speed,
             leave: 0,
