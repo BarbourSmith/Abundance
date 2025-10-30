@@ -2,10 +2,13 @@ import { expect, test, describe } from "vitest";
 
 describe("G-code Pocket/Rough Operations", () => {
   // Mock the operation generation logic from KirimotoUpdate.js
-  const generateOperations = (passes, z, extra, speed, toolSize = 6.35) => {
+  const generateOperations = (passes, z, extra, speed, toolSize = 6.35, isMetric = true) => {
     const operations = [];
     const totalDepth = z + extra;
     const down = passes === 1 ? 1000 : totalDepth / (passes - 1);
+
+    // Convert toolSize to mm if needed (widget coordinates are always in mm after scaling)
+    const toolSizeInMM = isMetric ? toolSize : toolSize * 25.4;
 
     // First operation: Rough operation for pockets (inside only)
     operations.push({
@@ -13,7 +16,7 @@ describe("G-code Pocket/Rough Operations", () => {
       tool: 1000,
       spindle: 1000,
       down: down,
-      step: toolSize * 0.9,
+      step: toolSizeInMM * 0.9,
       rate: speed,
       plunge: speed,
       leave: 0,
@@ -114,19 +117,20 @@ describe("G-code Pocket/Rough Operations", () => {
 
   test("rough operation should use 90% stepover of tool size", () => {
     const toolSize = 6.35; // Default tool size in mm
-    const operations = generateOperations(2, 5, 1.5, 1500, toolSize);
+    const operations = generateOperations(2, 5, 1.5, 1500, toolSize, true);
 
     const roughOp = operations[0];
     const expectedStep = toolSize * 0.9;
     expect(roughOp.step).toBe(expectedStep);
     expect(roughOp.step).toBe(5.715); // 6.35 * 0.9
 
-    // Test with different tool size (imperial)
+    // Test with imperial units - toolSize should be converted to mm internally
     const toolSizeInches = 0.25;
-    const operationsInches = generateOperations(2, 5, 1.5, 1500, toolSizeInches);
+    const operationsInches = generateOperations(2, 5, 1.5, 1500, toolSizeInches, false);
     const roughOpInches = operationsInches[0];
-    expect(roughOpInches.step).toBe(toolSizeInches * 0.9);
-    expect(roughOpInches.step).toBe(0.225); // 0.25 * 0.9
+    const expectedStepInches = toolSizeInches * 25.4 * 0.9; // Convert inches to mm, then 90%
+    expect(roughOpInches.step).toBe(expectedStepInches);
+    expect(roughOpInches.step).toBe(5.715); // 0.25 * 25.4 * 0.9 = 5.715mm
   });
 
   test("should demonstrate operation order: rough -> inside outline -> outside outline", () => {

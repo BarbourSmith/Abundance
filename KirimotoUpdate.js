@@ -130,6 +130,13 @@ const generateGcode = (
       const validPasses = passes;
       const down = validPasses == 1 ? 1000 : zBottom / (validPasses - 1);
 
+      // Determine if project uses metric units
+      const projectUnits = GlobalVariables.topLevelMolecule?.unitsKey || "MM";
+      const isMetric = projectUnits === "MM";
+      
+      // Convert toolSize to mm if needed (widget coordinates are always in mm after scaling)
+      const toolSizeInMM = isMetric ? toolSize : toolSize * 25.4;
+
       return eng.setProcess({
         camEaseAngle: 10,
         camEaseDown: true,
@@ -152,7 +159,7 @@ const generateGcode = (
             tool: 1000,
             spindle: 1000,
             down: down,
-            step: toolSize * 0.9,
+            step: toolSizeInMM * 0.9,
             rate: speed,
             plunge: speed,
             leave: 0,
