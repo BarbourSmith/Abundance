@@ -20,6 +20,7 @@ describe("G-code Rough and Outline Operations", () => {
       rate: speed,
       plunge: speed,
       leave: 0,
+      all: false,
       voids: false,
       flats: false,
       inside: true,

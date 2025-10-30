@@ -163,6 +163,7 @@ const generateGcode = (
             rate: speed,
             plunge: speed,
             leave: 0,
+            all: false,
             voids: false,
             flats: false,
             inside: true,
