@@ -1,6 +1,6 @@
 import { expect, test, describe } from "vitest";
 
-describe("G-code Rough and Outline Operations", () => {
+describe("G-code Pocket/Rough Operations", () => {
   // Mock the operation generation logic from KirimotoUpdate.js
   const generateOperations = (passes, z, extra, speed, toolSize = 6.35, isMetric = true) => {
     const operations = [];
@@ -10,7 +10,7 @@ describe("G-code Rough and Outline Operations", () => {
     // Convert toolSize to mm if needed (widget coordinates are always in mm after scaling)
     const toolSizeInMM = isMetric ? toolSize : toolSize * 25.4;
 
-    // First operation: Rough operation for internal cavities only
+    // First operation: Rough operation for pockets (inside only)
     operations.push({
       type: "rough",
       tool: 1000,
@@ -20,16 +20,18 @@ describe("G-code Rough and Outline Operations", () => {
       rate: speed,
       plunge: speed,
       leave: 0,
-      voids: false,
-      flats: false,
+      leavez: 0,
+      all: false,
+      voids: true,
+      flats: true,
       inside: true,
       omitthru: true,
-      top: false,
       ov_topz: 0,
       ov_botz: 0,
+      ov_conv: false,
     });
 
-    // Second operation: Outline (omits through cuts and pockets)
+    // Second operation: Outline for inside cuts
     operations.push({
       type: "outline",
       tool: 1000,
@@ -40,7 +42,29 @@ describe("G-code Rough and Outline Operations", () => {
       rate: speed,
       plunge: speed,
       dogbones: false,
-      omitvoid: true,
+      omitvoid: false,
+      omitthru: false,
+      outside: false,
+      inside: true,
+      wide: false,
+      top: false,
+      ov_topz: 0,
+      ov_botz: 0,
+      ov_conv: true,
+    });
+
+    // Third operation: Outline for outside cuts (omits through cuts)
+    operations.push({
+      type: "outline",
+      tool: 1000,
+      spindle: 1000,
+      step: 0.4,
+      steps: 1,
+      down: down,
+      rate: speed,
+      plunge: speed,
+      dogbones: false,
+      omitvoid: false,
       omitthru: true,
       outside: false,
       inside: false,
@@ -58,7 +82,7 @@ describe("G-code Rough and Outline Operations", () => {
     const operations = generateOperations(2, 5, 1.5, 1500);
 
     // Should have 3 operations: rough, outline (inside), outline (outside)
-    expect(operations.length).toBe(2);
+    expect(operations.length).toBe(3);
 
     // First operation should be rough
     const firstOp = operations[0];
@@ -109,23 +133,25 @@ describe("G-code Rough and Outline Operations", () => {
     expect(roughOpInches.step).toBe(5.715); // 0.25 * 25.4 * 0.9 = 5.715mm
   });
 
-  test("should demonstrate operation order: rough -> outline", () => {
+  test("should demonstrate operation order: rough -> inside outline -> outside outline", () => {
     const operations = generateOperations(1, 5, 1.5, 1500);
 
-    expect(operations.length).toBe(2);
+    expect(operations.length).toBe(3);
 
     // First: Rough operation for pockets
     expect(operations[0].type).toBe("rough");
     expect(operations[0].inside).toBe(true);
     expect(operations[0].omitthru).toBe(true);
-    expect(operations[0].voids).toBe(false);
-    expect(operations[0].flats).toBe(false);
 
-    // Second: Outline (omits through cuts and pockets)
+    // Second: Outline for inside cuts
     expect(operations[1].type).toBe("outline");
-    expect(operations[1].inside).toBe(false);
-    expect(operations[1].omitthru).toBe(true);
-    expect(operations[1].omitvoid).toBe(true);
+    expect(operations[1].inside).toBe(true);
+    expect(operations[1].omitthru).toBe(false);
+
+    // Third: Outline for outside cuts (omits through cuts)
+    expect(operations[2].type).toBe("outline");
+    expect(operations[2].inside).toBe(false);
+    expect(operations[2].omitthru).toBe(true);
   });
 
   test("rough operation should have correct pocket milling parameters", () => {
@@ -134,27 +160,28 @@ describe("G-code Rough and Outline Operations", () => {
     const roughOp = operations[0];
 
     // Check pocket-specific parameters
-    expect(roughOp.inside).toBe(true); // Only process inside features (pockets)
-    expect(roughOp.omitthru).toBe(true); // Skip through cuts
+    expect(roughOp.voids).toBe(true); // Cut voids/pockets
+    expect(roughOp.flats).toBe(true); // Cut flat areas
+    expect(roughOp.all).toBe(false); // Not all areas
     expect(roughOp.leave).toBe(0); // No material left for finishing
+    expect(roughOp.leavez).toBe(0); // No Z-axis material left
   });
 
   test("rough operation omitthru=true ensures through cuts handled by outline", () => {
     const operations = generateOperations(2, 5, 1.5, 1500);
 
     const roughOp = operations[0];
-    const outline = operations[1];
+    const insideOutline = operations[1];
+    const outsideOutline = operations[2];
 
     // Rough operation omits through cuts
     expect(roughOp.omitthru).toBe(true);
 
-    // Rough operation has voids and flats disabled to match UI settings
-    expect(roughOp.voids).toBe(false);
-    expect(roughOp.flats).toBe(false);
+    // Inside outline does NOT omit through cuts (handles them)
+    expect(insideOutline.omitthru).toBe(false);
 
-    // Outline omits through cuts and voids/pockets
-    expect(outline.omitthru).toBe(true);
-    expect(outline.omitvoid).toBe(true);
+    // Outside outline omits through cuts
+    expect(outsideOutline.omitthru).toBe(true);
   });
 
   test("should validate all operations use same tool and spindle", () => {
@@ -170,8 +197,9 @@ describe("G-code Rough and Outline Operations", () => {
     const operations = generateOperations(2, 5, 1.5, 1500);
 
     // This test documents the intended cutting sequence:
-    // 1. Rough operation cuts pockets (inside only, omits through cuts, voids/flats disabled)
-    // 2. Outline cuts around the part (omits through cuts and pockets)
+    // 1. Rough operation cuts pockets (inside only, omits through cuts)
+    // 2. Inside outline refines inside edges (handles through cuts)
+    // 3. Outside outline cuts around the part (omits through cuts already handled)
 
     const cuttingSequence = operations.map((op, index) => ({
       step: index + 1,
@@ -181,7 +209,9 @@ describe("G-code Rough and Outline Operations", () => {
       purpose:
         op.type === "rough"
           ? "Remove bulk material from pockets"
-          : "Cut around edges",
+          : op.inside
+          ? "Refine inside edges"
+          : "Cut outside edges",
     }));
 
     expect(cuttingSequence).toEqual([
@@ -195,9 +225,16 @@ describe("G-code Rough and Outline Operations", () => {
       {
         step: 2,
         type: "outline",
+        inside: true,
+        omitthru: false,
+        purpose: "Refine inside edges",
+      },
+      {
+        step: 3,
+        type: "outline",
         inside: false,
         omitthru: true,
-        purpose: "Cut around edges",
+        purpose: "Cut outside edges",
       },
     ]);
   });
