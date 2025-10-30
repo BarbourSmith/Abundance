@@ -23,6 +23,9 @@
 .login-content-div {
   display: flex;
   flex-direction: row;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 .left-login-div {
   display: none;
@@ -40,6 +43,9 @@
   justify-content: center;
   width: 95%;
   height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 .login-nav-item {
   padding: 3px;
@@ -625,13 +631,17 @@
   overflow-y: scroll;
   width: 100%;
   padding: 10px;
-  height: calc(100vh - 300px);
   margin-left: -10px;
+  flex: 1;
+  min-height: 0;
 }
 
 .project-items-div {
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 .project_name {
   font-size: 1.2em;
@@ -905,9 +915,13 @@
     margin: 0% 5% 0 0;
     width: 75%;
     height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
   }
   .project-item-div {
-    height: 400px;
+    flex: 1;
+    min-height: 0;
   }
   #sorting-button-div {
     display: flex;
