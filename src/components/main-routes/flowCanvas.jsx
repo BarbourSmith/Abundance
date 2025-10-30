@@ -64,7 +64,10 @@ export default memo(function FlowCanvas({
       GlobalVariables.currentMolecule = GlobalVariables.topLevelMolecule;
 
       /*if you've been redirected after reauthentication*/
-      if (redirectType === "save" && authorizedUserOcto) {
+      if (
+        (redirectType === "save" || redirectType === "reauth") &&
+        authorizedUserOcto
+      ) {
         console.log("Loading pending project after reauthentication...");
         // If there's a pending project save in local storage, load it
         const pendingProject = localStorage.getItem("pendingProjectSave");
@@ -88,6 +91,10 @@ export default memo(function FlowCanvas({
               setSavePopUp(false);
             }
           );
+        } else {
+          console.warn("No pending project found in local storage.");
+          // If no pending project found, just load the current project
+          loadProject(GlobalVariables.currentAWSnode, authorizedUserOcto);
         }
       } else {
         loadProject(GlobalVariables.currentAWSnode, authorizedUserOcto);

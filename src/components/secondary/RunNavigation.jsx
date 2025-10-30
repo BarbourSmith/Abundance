@@ -397,11 +397,7 @@ function RunNavigation({
         />
       ) : null}
       {forkBarVisible ? (
-        <RenderProgressBar
-          progress={forkProgress}
-          label="Forking"
-          run={true}
-        />
+        <RenderProgressBar progress={forkProgress} label="Forking" run={true} />
       ) : null}
       <div className="run-navigation">
         {/* Share Button */}
@@ -435,10 +431,6 @@ function RunNavigation({
                 ? forkProject(authorizedUserOcto)
                 : authRedirectHandler({
                     authType: "fork",
-                    currentRepo: {
-                      owner: GlobalVariables.currentAWSnode.owner,
-                      repo: GlobalVariables.currentAWSnode.repoName,
-                    },
                   });
             }}
             onMouseEnter={() => handleTooltip("Fork", true)}
@@ -467,10 +459,6 @@ function RunNavigation({
                 ? unlikeProject(authorizedUserOcto)
                 : authRedirectHandler({
                     authType: "like",
-                    currentRepo: {
-                      owner: GlobalVariables.currentAWSnode.owner,
-                      repo: GlobalVariables.currentAWSnode.repoName,
-                    },
                   });
             }}
             onMouseEnter={() => handleTooltip("Star", true)}

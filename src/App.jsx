@@ -321,6 +321,7 @@ function AppContent() {
           // alert("Session expired or bad credentials. Please re-authenticate.");
           //
           // Redirect to /callback or trigger your OAuth flow here
+          console.warn("Authentication error, redirecting to re-authenticate.");
           authRedirectHandler({
             authType: "reauth",
             currentProjectRep: undefined,

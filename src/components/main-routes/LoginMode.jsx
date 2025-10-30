@@ -1297,20 +1297,13 @@ function LoginMode() {
             <label className="menu-button-container" htmlFor="menu-toggle">
               <div className="menu-button"></div>
             </label>
-            <button
-              className="longButton"
-              onClick={() => {
-                logoutHandler();
-              }}
-            >
-              <span> Log out </span>
-            </button>
 
             <div className="menu">
               <div
                 className="login-nav-item"
                 onClick={() => {
                   setExportPopUp(true);
+                  document.getElementById("menu-toggle").checked = false;
                 }}
               >
                 <p>New project</p>
@@ -1322,6 +1315,7 @@ function LoginMode() {
                 }
                 onClick={(e) => {
                   setProjectsToShow("owned");
+                  document.getElementById("menu-toggle").checked = false;
                 }}
               >
                 <p>My Projects</p>
@@ -1333,6 +1327,7 @@ function LoginMode() {
                 }
                 onClick={() => {
                   setProjectsToShow("liked");
+                  document.getElementById("menu-toggle").checked = false;
                 }}
               >
                 <p> Liked Projects</p>
@@ -1344,6 +1339,7 @@ function LoginMode() {
                 }
                 onClick={() => {
                   setProjectsToShow("featured");
+                  document.getElementById("menu-toggle").checked = false;
                 }}
               >
                 <p> Browse Featured Projects</p>
@@ -1355,6 +1351,53 @@ function LoginMode() {
                 }
                 onClick={() => {
                   setProjectsToShow("all");
+                  document.getElementById("menu-toggle").checked = false;
+                }}
+              >
+                <p> Browse All Other Projects</p>
+              </div>
+            </div>
+          </section>
+        ) : noUserBrowsing ? (
+          <section id="mobile-nav" className="top-nav">
+            <input id="menu-toggle-guest" type="checkbox" />
+            <label
+              className="menu-button-container"
+              htmlFor="menu-toggle-guest"
+            >
+              <div className="menu-button"></div>
+            </label>
+
+            <div className="menu">
+              <div
+                className="login-nav-item"
+                onClick={() => {
+                  setNoUserBrowsing(false);
+                  document.getElementById("menu-toggle-guest").checked = false;
+                }}
+              >
+                <p>Login</p>
+              </div>
+              <div
+                className={
+                  "login-nav-item" +
+                  (projectToShow == "featured" ? " login-nav-item-clicked" : "")
+                }
+                onClick={() => {
+                  setProjectsToShow("featured");
+                  document.getElementById("menu-toggle-guest").checked = false;
+                }}
+              >
+                <p> Browse Featured Projects</p>
+              </div>
+              <div
+                className={
+                  "login-nav-item" +
+                  (projectToShow == "all" ? " login-nav-item-clicked" : "")
+                }
+                onClick={() => {
+                  setProjectsToShow("all");
+                  document.getElementById("menu-toggle-guest").checked = false;
                 }}
               >
                 <p> Browse All Other Projects</p>
