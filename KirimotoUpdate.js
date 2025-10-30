@@ -164,7 +164,7 @@ const generateGcode = (
             plunge: speed,
             leave: 0,
             all: false,
-            voids: false,
+            voids: true,
             flats: false,
             inside: true,
             omitthru: true,

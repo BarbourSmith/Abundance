@@ -21,7 +21,7 @@ describe("G-code Rough and Outline Operations", () => {
       plunge: speed,
       leave: 0,
       all: false,
-      voids: false,
+      voids: true,
       flats: false,
       inside: true,
       omitthru: true,
@@ -119,7 +119,7 @@ describe("G-code Rough and Outline Operations", () => {
     expect(operations[0].type).toBe("rough");
     expect(operations[0].inside).toBe(true);
     expect(operations[0].omitthru).toBe(true);
-    expect(operations[0].voids).toBe(false);
+    expect(operations[0].voids).toBe(true);
     expect(operations[0].flats).toBe(false);
 
     // Second: Outline (omits through cuts and pockets)
@@ -149,8 +149,8 @@ describe("G-code Rough and Outline Operations", () => {
     // Rough operation omits through cuts
     expect(roughOp.omitthru).toBe(true);
 
-    // Rough operation has voids and flats disabled
-    expect(roughOp.voids).toBe(false);
+    // Rough operation has voids enabled to cut pockets, but flats disabled to prevent top surface
+    expect(roughOp.voids).toBe(true);
     expect(roughOp.flats).toBe(false);
 
     // Outline omits through cuts and voids/pockets
