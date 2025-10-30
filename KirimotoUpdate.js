@@ -169,6 +169,7 @@ const generateGcode = (
             flats: false,
             inside: true,
             omitthru: true,
+            top: false,
             ov_topz: 0,
             ov_botz: 0,
             ov_conv: false,
