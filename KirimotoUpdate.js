@@ -155,7 +155,7 @@ const generateGcode = (
         camFastFeedZ: speed, // Match Z feed to speed to maintain feedrate during ramp down
         ops: [
           {
-            type: "pocket",
+            type: "rough",
             tool: 1000,
             spindle: 1000,
             down: down,
@@ -163,6 +163,8 @@ const generateGcode = (
             rate: speed,
             plunge: speed,
             leave: 0,
+            voids: false,
+            flats: false,
             inside: true,
             omitthru: true,
             ov_topz: 0,
@@ -178,7 +180,7 @@ const generateGcode = (
             rate: speed,
             plunge: speed, // Match plunge rate to XY feedrate for consistent speed during ramp down
             dogbones: false,
-            omitvoid: false,
+            omitvoid: true,
             omitthru: true,
             outside: false,
             inside: false,

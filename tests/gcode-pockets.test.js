@@ -1,6 +1,6 @@
 import { expect, test, describe } from "vitest";
 
-describe("G-code Pocket Operations", () => {
+describe("G-code Rough and Outline Operations", () => {
   // Mock the operation generation logic from KirimotoUpdate.js
   const generateOperations = (passes, z, extra, speed, toolSize = 6.35, isMetric = true) => {
     const operations = [];
@@ -10,9 +10,9 @@ describe("G-code Pocket Operations", () => {
     // Convert toolSize to mm if needed (widget coordinates are always in mm after scaling)
     const toolSizeInMM = isMetric ? toolSize : toolSize * 25.4;
 
-    // First operation: Pocket operation for internal cavities only
+    // First operation: Rough operation for internal cavities only
     operations.push({
-      type: "pocket",
+      type: "rough",
       tool: 1000,
       spindle: 1000,
       down: down,
@@ -20,13 +20,15 @@ describe("G-code Pocket Operations", () => {
       rate: speed,
       plunge: speed,
       leave: 0,
+      voids: false,
+      flats: false,
       inside: true,
       omitthru: true,
       ov_topz: 0,
       ov_botz: 0,
     });
 
-    // Second operation: Outline for inside cuts
+    // Second operation: Outline (omits through cuts and pockets)
     operations.push({
       type: "outline",
       tool: 1000,
@@ -37,29 +39,7 @@ describe("G-code Pocket Operations", () => {
       rate: speed,
       plunge: speed,
       dogbones: false,
-      omitvoid: false,
-      omitthru: false,
-      outside: false,
-      inside: true,
-      wide: false,
-      top: false,
-      ov_topz: 0,
-      ov_botz: 0,
-      ov_conv: true,
-    });
-
-    // Third operation: Outline for outside cuts (omits through cuts)
-    operations.push({
-      type: "outline",
-      tool: 1000,
-      spindle: 1000,
-      step: 0.4,
-      steps: 1,
-      down: down,
-      rate: speed,
-      plunge: speed,
-      dogbones: false,
-      omitvoid: false,
+      omitvoid: true,
       omitthru: true,
       outside: false,
       inside: false,
@@ -73,108 +53,107 @@ describe("G-code Pocket Operations", () => {
     return operations;
   };
 
-  test("should have pocket operation as first operation", () => {
+  test("should have rough operation as first operation", () => {
     const operations = generateOperations(2, 5, 1.5, 1500);
 
     // Should have 3 operations: rough, outline (inside), outline (outside)
-    expect(operations.length).toBe(3);
+    expect(operations.length).toBe(2);
 
     // First operation should be rough
     const firstOp = operations[0];
-    expect(firstOp.type).toBe("pocket");
+    expect(firstOp.type).toBe("rough");
   });
 
-  test("pocket operation should have inside=true and omitthru=true", () => {
+  test("rough operation should have inside=true and omitthru=true", () => {
     const operations = generateOperations(2, 5, 1.5, 1500);
 
-    const pocketOp = operations[0];
-    expect(pocketOp.type).toBe("pocket");
-    expect(pocketOp.inside).toBe(true);
-    expect(pocketOp.omitthru).toBe(true);
+    const roughOp = operations[0];
+    expect(roughOp.type).toBe("rough");
+    expect(roughOp.inside).toBe(true);
+    expect(roughOp.omitthru).toBe(true);
   });
 
-  test("pocket operation should use speed parameter for rate and plunge", () => {
+  test("rough operation should use speed parameter for rate and plunge", () => {
     const speed = 1500;
     const operations = generateOperations(2, 5, 1.5, speed);
 
-    const pocketOp = operations[0];
-    expect(pocketOp.rate).toBe(speed);
-    expect(pocketOp.plunge).toBe(speed);
+    const roughOp = operations[0];
+    expect(roughOp.rate).toBe(speed);
+    expect(roughOp.plunge).toBe(speed);
   });
 
-  test("pocket operation should use dynamic down parameter", () => {
+  test("rough operation should use dynamic down parameter", () => {
     const operations = generateOperations(2, 5, 1.5, 1500);
 
-    const pocketOp = operations[0];
+    const roughOp = operations[0];
     const expectedDown = (5 + 1.5) / (2 - 1); // totalDepth / (passes - 1)
-    expect(pocketOp.down).toBe(expectedDown);
+    expect(roughOp.down).toBe(expectedDown);
   });
 
-  test("pocket operation should use 90% stepover of tool size", () => {
+  test("rough operation should use 90% stepover of tool size", () => {
     const toolSize = 6.35; // Default tool size in mm
     const operations = generateOperations(2, 5, 1.5, 1500, toolSize, true);
 
-    const pocketOp = operations[0];
+    const roughOp = operations[0];
     const expectedStep = toolSize * 0.9;
-    expect(pocketOp.step).toBe(expectedStep);
-    expect(pocketOp.step).toBe(5.715); // 6.35 * 0.9
+    expect(roughOp.step).toBe(expectedStep);
+    expect(roughOp.step).toBe(5.715); // 6.35 * 0.9
 
     // Test with imperial units - toolSize should be converted to mm internally
     const toolSizeInches = 0.25;
     const operationsInches = generateOperations(2, 5, 1.5, 1500, toolSizeInches, false);
-    const pocketOpInches = operationsInches[0];
+    const roughOpInches = operationsInches[0];
     const expectedStepInches = toolSizeInches * 25.4 * 0.9; // Convert inches to mm, then 90%
-    expect(pocketOpInches.step).toBe(expectedStepInches);
-    expect(pocketOpInches.step).toBe(5.715); // 0.25 * 25.4 * 0.9 = 5.715mm
+    expect(roughOpInches.step).toBe(expectedStepInches);
+    expect(roughOpInches.step).toBe(5.715); // 0.25 * 25.4 * 0.9 = 5.715mm
   });
 
-  test("should demonstrate operation order: rough -> inside outline -> outside outline", () => {
+  test("should demonstrate operation order: rough -> outline", () => {
     const operations = generateOperations(1, 5, 1.5, 1500);
 
-    expect(operations.length).toBe(3);
+    expect(operations.length).toBe(2);
 
-    // First: Pocket operation for pockets
-    expect(operations[0].type).toBe("pocket");
+    // First: Rough operation for pockets
+    expect(operations[0].type).toBe("rough");
     expect(operations[0].inside).toBe(true);
     expect(operations[0].omitthru).toBe(true);
+    expect(operations[0].voids).toBe(false);
+    expect(operations[0].flats).toBe(false);
 
-    // Second: Outline for inside cuts
+    // Second: Outline (omits through cuts and pockets)
     expect(operations[1].type).toBe("outline");
-    expect(operations[1].inside).toBe(true);
-    expect(operations[1].omitthru).toBe(false);
-
-    // Third: Outline for outside cuts (omits through cuts)
-    expect(operations[2].type).toBe("outline");
-    expect(operations[2].inside).toBe(false);
-    expect(operations[2].omitthru).toBe(true);
+    expect(operations[1].inside).toBe(false);
+    expect(operations[1].omitthru).toBe(true);
+    expect(operations[1].omitvoid).toBe(true);
   });
 
-  test("pocket operation should have correct pocket milling parameters", () => {
+  test("rough operation should have correct pocket milling parameters", () => {
     const operations = generateOperations(2, 5, 1.5, 1500);
 
-    const pocketOp = operations[0];
+    const roughOp = operations[0];
 
     // Check pocket-specific parameters
-    expect(pocketOp.inside).toBe(true); // Only process inside features (pockets)
-    expect(pocketOp.omitthru).toBe(true); // Skip through cuts
-    expect(pocketOp.leave).toBe(0); // No material left for finishing
+    expect(roughOp.inside).toBe(true); // Only process inside features (pockets)
+    expect(roughOp.omitthru).toBe(true); // Skip through cuts
+    expect(roughOp.leave).toBe(0); // No material left for finishing
   });
 
-  test("pocket operation omitthru=true ensures through cuts handled by outline", () => {
+  test("rough operation omitthru=true ensures through cuts handled by outline", () => {
     const operations = generateOperations(2, 5, 1.5, 1500);
 
-    const pocketOp = operations[0];
-    const insideOutline = operations[1];
-    const outsideOutline = operations[2];
+    const roughOp = operations[0];
+    const outline = operations[1];
 
-    // Pocket operation omits through cuts
-    expect(pocketOp.omitthru).toBe(true);
+    // Rough operation omits through cuts
+    expect(roughOp.omitthru).toBe(true);
 
-    // Inside outline does NOT omit through cuts (handles them)
-    expect(insideOutline.omitthru).toBe(false);
+    // Rough operation has voids and flats disabled
+    expect(roughOp.voids).toBe(false);
+    expect(roughOp.flats).toBe(false);
 
-    // Outside outline omits through cuts
-    expect(outsideOutline.omitthru).toBe(true);
+    // Outline omits through cuts and voids/pockets
+    expect(outline.omitthru).toBe(true);
+    expect(outline.omitvoid).toBe(true);
   });
 
   test("should validate all operations use same tool and spindle", () => {
@@ -190,9 +169,8 @@ describe("G-code Pocket Operations", () => {
     const operations = generateOperations(2, 5, 1.5, 1500);
 
     // This test documents the intended cutting sequence:
-    // 1. Pocket operation cuts pockets (inside only, omits through cuts)
-    // 2. Inside outline refines inside edges (handles through cuts)
-    // 3. Outside outline cuts around the part (omits through cuts already handled)
+    // 1. Rough operation cuts pockets (inside only, omits through cuts, voids/flats disabled)
+    // 2. Outline cuts around the part (omits through cuts and pockets)
 
     const cuttingSequence = operations.map((op, index) => ({
       step: index + 1,
@@ -200,17 +178,15 @@ describe("G-code Pocket Operations", () => {
       inside: op.inside,
       omitthru: op.omitthru,
       purpose:
-        op.type === "pocket"
+        op.type === "rough"
           ? "Remove bulk material from pockets"
-          : op.inside
-          ? "Refine inside edges"
-          : "Cut outside edges",
+          : "Cut around edges",
     }));
 
     expect(cuttingSequence).toEqual([
       {
         step: 1,
-        type: "pocket",
+        type: "rough",
         inside: true,
         omitthru: true,
         purpose: "Remove bulk material from pockets",
@@ -218,16 +194,9 @@ describe("G-code Pocket Operations", () => {
       {
         step: 2,
         type: "outline",
-        inside: true,
-        omitthru: false,
-        purpose: "Refine inside edges",
-      },
-      {
-        step: 3,
-        type: "outline",
         inside: false,
         omitthru: true,
-        purpose: "Cut outside edges",
+        purpose: "Cut around edges",
       },
     ]);
   });
