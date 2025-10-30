@@ -500,20 +500,43 @@ function getLargestBoundingBox(meshArray: ReplicadObject[]): {
       throw new Error("meshArray is not defined or not an array");
     }
     meshArray.forEach((mesh, idx) => {
-      //console.log(mesh.boundingBox.bounds);
-      if (!mesh.boundingBox || !Array.isArray(mesh.boundingBox.bounds)) {
+      // Check if boundingBox property exists
+      if (!mesh.boundingBox) {
         console.error(
-          `mesh[${idx}] missing boundingBox or bounds:`,
-          mesh.boundingBox
+          `mesh[${idx}] missing boundingBox property. Mesh type:`,
+          mesh.constructor?.name,
+          "Has mesh property:",
+          "mesh" in mesh
         );
-        throw new Error("Invalid mesh geometry or boundingBox structure");
+        throw new Error("Invalid mesh geometry - missing boundingBox");
       }
 
-      if (mesh.boundingBox.bounds instanceof Error) {
-        throw new Error("Bounding box calculation error");
-        // handle or skip this mesh
+      // Try to access bounds safely with detailed error logging
+      let boundingBox;
+      try {
+        boundingBox = mesh.boundingBox.bounds;
+        
+        // Log detailed type information if bounds is not an array
+        if (!Array.isArray(boundingBox)) {
+          console.error(
+            `mesh[${idx}] boundingBox.bounds is not an array.`,
+            "Type:", typeof boundingBox,
+            "Value:", boundingBox,
+            "Constructor:", boundingBox?.constructor?.name,
+            "Mesh type:", mesh.constructor?.name
+          );
+          throw new Error(`boundingBox.bounds is ${typeof boundingBox}, expected array`);
+        }
+      } catch (accessError) {
+        console.error(
+          `mesh[${idx}] error accessing boundingBox.bounds:`,
+          accessError,
+          "Mesh type:", mesh.constructor?.name,
+          "boundingBox type:", mesh.boundingBox.constructor?.name
+        );
+        throw new Error("Failed to access bounding box bounds: " + accessError);
       }
-      const boundingBox = mesh.boundingBox.bounds;
+
       if (
         boundingBox.length < 2 ||
         !Array.isArray(boundingBox[0]) ||
@@ -521,9 +544,12 @@ function getLargestBoundingBox(meshArray: ReplicadObject[]): {
       ) {
         console.error(
           `mesh[${idx}] boundingBox bounds not properly defined:`,
-          boundingBox
+          "length:", boundingBox.length,
+          "bounds[0] is array:", Array.isArray(boundingBox[0]),
+          "bounds[1] is array:", Array.isArray(boundingBox[1]),
+          "actual bounds:", boundingBox
         );
-        throw new Error("boundingBox bounds are not properly defined");
+        throw new Error("boundingBox bounds array structure is invalid");
       }
 
       let min = boundingBox[0];
