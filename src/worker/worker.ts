@@ -551,7 +551,7 @@ function getLargestBoundingBox(meshArray: ReplicadObject[]): {
   } catch (error) {
     console.error("Error in getLargestBoundingBox:", error);
     // Return a default bounding box if error occurs
-    //return { width: 0, height: 0, depth: 0 };
+    return { width: 100, height: 100, depth: 100 };
   }
 }
 
