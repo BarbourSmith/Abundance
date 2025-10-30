@@ -23,7 +23,7 @@ describe("G-code Pocket/Rough Operations", () => {
       leavez: 0,
       all: false,
       voids: true,
-      flats: true,
+      flats: false,
       inside: true,
       omitthru: true,
       ov_topz: 0,
@@ -161,7 +161,7 @@ describe("G-code Pocket/Rough Operations", () => {
 
     // Check pocket-specific parameters
     expect(roughOp.voids).toBe(true); // Cut voids/pockets
-    expect(roughOp.flats).toBe(true); // Cut flat areas
+    expect(roughOp.flats).toBe(false); // Do NOT cut flat top surfaces (only pockets)
     expect(roughOp.all).toBe(false); // Not all areas
     expect(roughOp.leave).toBe(0); // No material left for finishing
     expect(roughOp.leavez).toBe(0); // No Z-axis material left
