@@ -218,9 +218,11 @@ function TopMenu({
       id: "Re-authenticate",
       buttonFunc: () => {
         // Re-authentication logic - redirect to GitHub OAuth
+        // Save current project state before redirecting
+        const jsonRepOfProject = GlobalVariables.topLevelMolecule.serialize();
         authRedirectHandler({
           authType: "reauth",
-          currentRepo: GlobalVariables.currentRepo,
+          currentProjectRep: JSON.stringify(jsonRepOfProject),
           returnTo: `/${GlobalVariables.currentAWSnode.owner}/${GlobalVariables.currentAWSnode.repoName}`,
         });
       },
