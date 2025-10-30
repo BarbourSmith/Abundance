@@ -24,6 +24,7 @@ describe("G-code Rough and Outline Operations", () => {
       flats: false,
       inside: true,
       omitthru: true,
+      top: false,
       ov_topz: 0,
       ov_botz: 0,
     });
