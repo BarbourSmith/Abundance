@@ -1,6 +1,6 @@
 import React, { useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Octokit } from "https://esm.sh/octokit@2.0.19";
+import { Octokit } from "octokit";
 import GlobalVariables from "../../js/globalvariables.js";
 
 import { useAuth } from "../../contexts/AuthContext";

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 import * as THREE from "three";
-import { Octokit } from "https://esm.sh/octokit@2.0.19";
+import { Octokit } from "octokit";
 import GlobalVariables from "../../js/globalvariables.js";
 
 /**

@@ -38,6 +38,7 @@
     "js-sha256": "^0.11.1",
     "mathjs": "^12.4.3",
     "oauthio-web": "^0.6.2",
+    "octokit": "^5.0.4",
     "playwright": "^1.56.0",
     "polygon-packer": "file:vendor/polygon-packer",
     "puppeteer": "^24.3.0",

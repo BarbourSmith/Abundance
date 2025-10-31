@@ -272,6 +272,8 @@
   z-index: 5;
   top: 20%;
   left: 10%;
+  max-height: 80vh;
+  overflow-y: auto;
 }
 .export-div label {
   float: left;
@@ -292,6 +294,8 @@
   width: 80%;
   text-align: center;
   box-shadow: 0 0 20px 0 rgba(0, 0, 0, 0.2), 0 5px 5px 0 rgba(0, 0, 0, 0.24);
+  max-height: 75vh;
+  overflow-y: auto;
 }
 
 .form-row .submit-btn {
@@ -814,11 +818,13 @@
   padding: 10px;
   display: flex;
   align-items: center;
-  position: absolute;
-  right: 35%;
+  position: fixed;
+  left: 50%;
   top: 45%;
+  transform: translateX(-50%);
   border-radius: 5px;
   width: 400px;
+  max-width: 90%;
   z-index: 5;
 }
 .save-bar-label {
@@ -862,6 +868,15 @@
     width: 90%;
     margin: 30px 10px;
     padding: 30px 10px;
+  }
+  .save-bar-run {
+    width: 90%;
+    max-width: 350px;
+    font-size: 12px;
+    padding: 8px;
+  }
+  .save-bar-run .progress {
+    width: 100%;
   }
 }
 
