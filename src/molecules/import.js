@@ -146,6 +146,9 @@ export default class Import extends Atom {
           return result;
         })
         .catch(this.alertingErrorHandler());
+    } else {
+      // Return a rejected promise when no file is loaded
+      return Promise.reject(new Error("No file loaded. Please load a file first."));
     }
   }
 
