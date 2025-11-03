@@ -274,7 +274,7 @@ async function importingSVG(
         drawnSVG.clone().translate(-center[0], -center[1]),
         context,
         "import-svg",
-        [await util.hashString(svg)]
+        [await util.hashString(svg), width]
       ),
       tags: [],
       plane: util.XYPlane,
