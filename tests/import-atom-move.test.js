@@ -1,6 +1,6 @@
 // Test for Import atom error when moving into a new molecule
 // Issue: When moving an import molecule into a new molecule (with cmd+m),
-// the import atom displays an error "Ready:must have a value"
+// the import atom displays an error "Ready: must have a value"
 
 import { describe, it, expect } from 'vitest';
 
