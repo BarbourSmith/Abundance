@@ -20,6 +20,7 @@ const SettingsPopUp = ({
   setSaveState,
   setSavePopUp,
   handleRenameProject,
+  cad,
 }) => {
   let repoTopics = [];
   if (Globalvariables.currentAWSnode.topics.length > 0) {
@@ -81,6 +82,7 @@ const SettingsPopUp = ({
     ),
     atomSize: Globalvariables.atomSize * 1000,
     projectDescription: Globalvariables.currentAWSnode.description,
+    maxCachedProjects: parseInt(localStorage.getItem("maxCachedProjects") || "4"),
   });
 
   const handleValueChange = (event) => {
@@ -101,6 +103,13 @@ const SettingsPopUp = ({
         "canvasFont",
         `${event.target.value}px Work Sans Bold`
       );
+    }
+    if (event.target.name === "maxCachedProjects") {
+      localStorage.setItem("maxCachedProjects", event.target.value);
+      // Update the worker with the new cache size
+      if (cad) {
+        cad.setMaxCachedProjects(parseInt(event.target.value, 10));
+      }
     }
   };
 
@@ -273,6 +282,42 @@ const SettingsPopUp = ({
                   {state.atomSize}
                 </span>
               </div>
+              <div style={{ borderTop: "1px solid #eee", margin: "10px 0" }} />
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  margin: "10px 0 4px 0",
+                }}
+              >
+                <label className="settings-labels" style={{ minWidth: 80 }}>
+                  Cached Projects
+                </label>
+                <input
+                  type="range"
+                  min={1}
+                  max={10}
+                  value={state.maxCachedProjects}
+                  onChange={handleValueChange}
+                  name="maxCachedProjects"
+                  className="settings-sliders"
+                  style={{ width: 140 }}
+                />
+                <span style={{ fontSize: 13, color: "#888", marginLeft: 6 }}>
+                  {state.maxCachedProjects}
+                </span>
+              </div>
+              <span
+                style={{
+                  color: "#666",
+                  fontSize: "12px",
+                  display: "block",
+                  marginTop: "4px",
+                }}
+              >
+                Number of recent projects to cache for faster loading. Increase for better performance, decrease to save storage space.
+              </span>
             </div>
           </CustomTabPanel>
           <CustomTabPanel value={value} index={2}>

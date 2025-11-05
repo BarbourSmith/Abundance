@@ -35,7 +35,7 @@ type RequestContext = {
  * or retrieve the geometry via `get(id)`.
  */
 class GeometryProvider {
-  private MAX_PROJECTS = 4;
+  private maxProjects: number = 4;
   private projectLRU: string[] = [];
   private cacheHitMetrics: Record<string, [number, number, number]>; // hits, misses, total-miss-duration-ms
   private nextId: number;
@@ -49,6 +49,26 @@ class GeometryProvider {
     setInterval(() => {
       console.log(this.cacheHitMetrics);
     }, 10000);
+  }
+
+  /**
+   * Set the maximum number of projects to cache.
+   * @param max - The maximum number of projects (1-10)
+   */
+  setMaxProjects(max: number): void {
+    if (max >= 1 && max <= 10) {
+      this.maxProjects = max;
+      console.log(`Cache size set to ${max} projects`);
+    } else {
+      console.warn(`Invalid cache size ${max}, must be between 1 and 10`);
+    }
+  }
+
+  /**
+   * Get the current maximum number of projects to cache.
+   */
+  getMaxProjects(): number {
+    return this.maxProjects;
   }
 
   private cacheHit(id: string): void {
@@ -76,11 +96,11 @@ class GeometryProvider {
     }
     this.projectLRU.push(projectId);
     if (newProject) {
-      if (this.projectLRU.length > this.MAX_PROJECTS) {
+      if (this.projectLRU.length > this.maxProjects) {
         this.projectLRU.shift();
       }
       getAllProjectIds().then(async (allIds) => {
-        if (allIds.size <= this.MAX_PROJECTS) {
+        if (allIds.size <= this.maxProjects) {
           return;
         }
         const evictIds = Array.from(allIds).filter(

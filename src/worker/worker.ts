@@ -700,6 +700,14 @@ async function clearCache(context: RequestContext): Promise<boolean> {
   return util.geometryProvider!.clearCache(context);
 }
 
+/**
+ * Set the maximum number of projects to cache.
+ * @param {number} max - The maximum number of projects (1-10)
+ */
+function setMaxCachedProjects(max: number): void {
+  util.setMaxCachedProjects(max);
+}
+
 if (
   typeof self !== "undefined" &&
   typeof self.addEventListener === "function" &&
@@ -746,6 +754,7 @@ if (
     getBoundingBox,
     isAssembly,
     extractParts,
+    setMaxCachedProjects,
   });
 }
 
@@ -782,6 +791,7 @@ export {
   regularPolygon,
   rotate,
   scale,
+  setMaxCachedProjects,
   shrinkWrapSketches,
   started,
   tag,

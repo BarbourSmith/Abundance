@@ -265,6 +265,16 @@ function hashString(str: string): string {
   return hash.toString(16).padStart(8, "0");
 }
 
+/**
+ * Set the maximum number of projects to cache.
+ * @param {number} max - The maximum number of projects (1-10)
+ */
+function setMaxCachedProjects(max: number): void {
+  if (geometryProvider) {
+    geometryProvider.setMaxProjects(max);
+  }
+}
+
 export {
   AbundanceLeaf,
   AbundanceObject,
@@ -286,6 +296,7 @@ export {
   isLeaf,
   isWireGeometry,
   replicad,
+  setMaxCachedProjects,
   SimplePlane,
   XYPlane,
 };

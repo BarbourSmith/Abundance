@@ -49,7 +49,7 @@ function TopMenu({
     showBackgroundModel,
     setShowBackgroundModel,
   } = useRendering();
-  const { duplicateProject, renameProject, loadProject } = useProject();
+  const { duplicateProject, renameProject, loadProject, cad } = useProject();
 
   let [shareDialog, setShareDialog] = useState(false);
   let [dialogContent, setDialog] = useState("");
@@ -528,6 +528,7 @@ function TopMenu({
             setSaveState,
             setSavePopUp,
             handleRenameProject,
+            cad,
           }}
         />
       ) : null}

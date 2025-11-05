@@ -99,6 +99,10 @@ function AppContent() {
     if (element && storedClass) {
       element.className = storedClass;
     }
+
+    // Set the cache size in the worker
+    const maxCachedProjects = parseInt(localStorage.getItem("maxCachedProjects") || "4");
+    cad.setMaxCachedProjects(maxCachedProjects);
   }, []);
 
   useEffect(() => {
