@@ -105,10 +105,14 @@ const SettingsPopUp = ({
       );
     }
     if (event.target.name === "maxCachedProjects") {
-      localStorage.setItem("maxCachedProjects", event.target.value);
-      // Update the worker with the new cache size
-      if (cad) {
-        cad.setMaxCachedProjects(parseInt(event.target.value, 10));
+      const value = parseInt(event.target.value, 10);
+      // Validate range (1-10)
+      if (!isNaN(value) && value >= 1 && value <= 10) {
+        localStorage.setItem("maxCachedProjects", value.toString());
+        // Update the worker with the new cache size
+        if (cad) {
+          cad.setMaxCachedProjects(value);
+        }
       }
     }
   };

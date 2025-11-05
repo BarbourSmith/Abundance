@@ -35,7 +35,7 @@ type RequestContext = {
  * or retrieve the geometry via `get(id)`.
  */
 class GeometryProvider {
-  private maxProjects: number = 4;
+  private maxProjects: number = GeometryProvider.DEFAULT_MAX_PROJECTS;
   private projectLRU: string[] = [];
   private cacheHitMetrics: Record<string, [number, number, number]>; // hits, misses, total-miss-duration-ms
   private nextId: number;
@@ -51,16 +51,19 @@ class GeometryProvider {
     }, 10000);
   }
 
+  private static readonly MIN_PROJECTS = 1;
+  private static readonly MAX_PROJECTS_LIMIT = 10;
+  private static readonly DEFAULT_MAX_PROJECTS = 4;
+
   /**
    * Set the maximum number of projects to cache.
    * @param max - The maximum number of projects (1-10)
    */
   setMaxProjects(max: number): void {
-    if (max >= 1 && max <= 10) {
+    if (max >= GeometryProvider.MIN_PROJECTS && max <= GeometryProvider.MAX_PROJECTS_LIMIT) {
       this.maxProjects = max;
-      console.log(`Cache size set to ${max} projects`);
     } else {
-      console.warn(`Invalid cache size ${max}, must be between 1 and 10`);
+      console.warn(`Invalid cache size ${max}, must be between ${GeometryProvider.MIN_PROJECTS} and ${GeometryProvider.MAX_PROJECTS_LIMIT}`);
     }
   }
 
