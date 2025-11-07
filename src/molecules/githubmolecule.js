@@ -92,7 +92,6 @@ export default class GitHubMolecule extends Molecule {
 
   createInputParams() {
     let inputParams = {};
-
     inputParams = super.createInputParams();
     inputParams["Reload From Github"] = {
       type: "button",

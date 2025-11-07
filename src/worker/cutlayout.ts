@@ -274,6 +274,13 @@ async function rotateForLayout(
     }
   }
 
+  if (Object.keys(all_candidates).length == 0) {
+    // If no candidates were found, we can't proceed with the layout.
+    throw new Error(
+      "No placable parts found for layout. 2D parts are not supported."
+    );
+  }
+
   const rotatedAssembly = await util.actOnLeafs(intermediate, async (leaf) => {
     // @ts-ignore - we just added ID but it's not officially part of the type signature
     const leafID: string = leaf.id;
@@ -365,7 +372,11 @@ async function rotateForLayout(
       ...leaf,
       geometry: await util.geometryProvider!.addSingularToCache(
         newGeom,
-        context
+        context,
+        // Next args are constituents of the cache ID for this new leaf, must amount to a
+        // UUID for this leaf among all other leafs in this layout or other layouts in this project.
+        "rotateForLayout",
+        [assembly, layoutConfig, leafID]
       ),
       id: leafID,
       referencePoint: selected.face.center,

@@ -110,12 +110,6 @@ export default class Gcode extends Atom {
     this.center = [0, 0, 0]; //Used to correctly position the gcode
 
     /**
-     * Flag to track if we're processing an assembly
-     * @type {boolean}
-     */
-    this._isProcessingAssembly = false;
-
-    /**
      * Direction to sort parts in assemblies
      * @type {string}
      */
@@ -247,7 +241,6 @@ export default class Gcode extends Atom {
    * @param {string} inputID - The input geometry ID
    */
   async _processSinglePart(inputID) {
-    this._isProcessingAssembly = false;
     GlobalVariables.cad
       .visExport(inputID, "STL")
       .then((visExported) => {
@@ -286,8 +279,6 @@ export default class Gcode extends Atom {
    */
   async _processAssembly(inputID) {
     try {
-      this._isProcessingAssembly = true;
-
       // Extract individual parts from assembly
       const parts = await this._extractPartsFromAssembly(inputID);
 
@@ -568,7 +559,7 @@ export default class Gcode extends Atom {
     let inputParams = super.createInputParams();
 
     //Temporarily disable the "Cut Through" input parameter
-    inputParams[this.uniqueID + "Cut Through"].disabled = true;
+    //inputParams[this.uniqueID + "Cut Through"].disabled = true;
 
     /*inputParams[this.uniqueID + "Tool"] = {
       type: "select",
@@ -600,21 +591,15 @@ export default class Gcode extends Atom {
     };
 
     const partName = this.findIOValue("Part Name") || this.partName || "output";
-    // For assemblies, show "Assembly" in the button name, otherwise use the part name
-    const displayName = this._isProcessingAssembly
-      ? `${partName}_assembly`
-      : partName;
-    inputParams[`Download Gcode - ${displayName}`] = {
+    inputParams[`Download Gcode - ${partName}`] = {
       type: "button",
-      label: `Download Gcode - ${displayName}`,
+      label: `Download Gcode - ${partName}`,
       onClick: () => {
         if (this.gcodeGenerated && this.gcodeString) {
           // Get the current part name dynamically when button is clicked
           const currentPartName =
             this.findIOValue("Part Name") || this.partName || "output";
-          const fileName = this._isProcessingAssembly
-            ? `${currentPartName}_assembly.gcode`
-            : `${currentPartName}.gcode`;
+          const fileName = `${currentPartName}.gcode`;
           this.downloadGcode(this.gcodeString, fileName);
         } else {
           console.warn("No G-code available. Please generate G-code first.");

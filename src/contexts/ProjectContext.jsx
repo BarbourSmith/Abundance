@@ -86,6 +86,11 @@ export function ProjectProvider({ children, cad, loadProject }) {
       );
     }
 
+    // Update the top molecule name to match the project name
+    if (GlobalVariables.topLevelMolecule) {
+      GlobalVariables.topLevelMolecule.name = currentRepoName;
+    }
+
     var jsonRepOfProject = GlobalVariables.topLevelMolecule.serialize();
     jsonRepOfProject.filetypeVersion = 1;
     const projectContent = window.btoa(

@@ -30,7 +30,7 @@ describe("G-code Speed/Feedrate Configuration", () => {
             steps: 1,
             down: down,
             rate: speed, // This should use the user-provided speed as feedrate
-            plunge: 51,
+            plunge: speed, // Match plunge to speed for consistent feedrate during ramp down
             dogbones: false,
             omitvoid: false,
             omitthru: false,
@@ -50,7 +50,7 @@ describe("G-code Speed/Feedrate Configuration", () => {
             steps: 1,
             down: down,
             rate: speed, // This should also use the user-provided speed as feedrate
-            plunge: 51,
+            plunge: speed, // Match plunge to speed for consistent feedrate during ramp down
             dogbones: false,
             omitvoid: false,
             omitthru: true,
@@ -90,6 +90,12 @@ describe("G-code Speed/Feedrate Configuration", () => {
     expect(result.ops[1].rate).toBe(customSpeed);
     expect(result.ops[0].rate).not.toBe(635); // Should not be the old hardcoded value
     expect(result.ops[1].rate).not.toBe(635); // Should not be the old hardcoded value
+    
+    // Both outline operations should use the speed as plunge rate for consistent ramp down speed
+    expect(result.ops[0].plunge).toBe(customSpeed);
+    expect(result.ops[1].plunge).toBe(customSpeed);
+    expect(result.ops[0].plunge).not.toBe(300); // Should not be the old hardcoded plunge value
+    expect(result.ops[1].plunge).not.toBe(300); // Should not be the old hardcoded plunge value
   });
 
   test("should accept different speed values as feedrate", () => {
@@ -119,36 +125,44 @@ describe("G-code Speed/Feedrate Configuration", () => {
 
       expect(result.ops[0].rate).toBe(speed);
       expect(result.ops[1].rate).toBe(speed);
+      expect(result.ops[0].plunge).toBe(speed);
+      expect(result.ops[1].plunge).toBe(speed);
     });
   });
 
-  test("should demonstrate the fix for the feedrate issue", () => {
-    // BEFORE FIX: Both operations would have hardcoded rate: 635
+  test("should demonstrate the fix for the feedrate and plunge rate issue", () => {
+    // BEFORE FIX: Operations would have hardcoded rate: 635 and plunge: 300
     const oldConfig = {
       ops: [
-        { type: "outline", rate: 635 }, // hardcoded
-        { type: "outline", rate: 635 }, // hardcoded
+        { type: "outline", rate: 635, plunge: 300 }, // hardcoded values
+        { type: "outline", rate: 635, plunge: 300 }, // hardcoded values
       ],
     };
 
-    // AFTER FIX: Both operations should use user-provided speed as feedrate
+    // AFTER FIX: Both operations should use user-provided speed for both rate and plunge
     const userSpeed = 1200;
     const newConfig = {
       ops: [
-        { type: "outline", rate: userSpeed }, // uses user input speed
-        { type: "outline", rate: userSpeed }, // uses user input speed
+        { type: "outline", rate: userSpeed, plunge: userSpeed }, // uses user input speed
+        { type: "outline", rate: userSpeed, plunge: userSpeed }, // uses user input speed
       ],
     };
 
     // Verify the old config would ignore user input
     expect(oldConfig.ops[0].rate).toBe(635);
     expect(oldConfig.ops[1].rate).toBe(635);
+    expect(oldConfig.ops[0].plunge).toBe(300);
+    expect(oldConfig.ops[1].plunge).toBe(300);
 
-    // Verify the new config uses user input
+    // Verify the new config uses user input for both rate and plunge
     expect(newConfig.ops[0].rate).toBe(userSpeed);
     expect(newConfig.ops[1].rate).toBe(userSpeed);
+    expect(newConfig.ops[0].plunge).toBe(userSpeed);
+    expect(newConfig.ops[1].plunge).toBe(userSpeed);
     expect(newConfig.ops[0].rate).not.toBe(635);
     expect(newConfig.ops[1].rate).not.toBe(635);
+    expect(newConfig.ops[0].plunge).not.toBe(300);
+    expect(newConfig.ops[1].plunge).not.toBe(300);
   });
 
   test("should maintain backward compatibility with default speed", () => {
@@ -173,6 +187,8 @@ describe("G-code Speed/Feedrate Configuration", () => {
 
     expect(result.ops[0].rate).toBe(defaultSpeed);
     expect(result.ops[1].rate).toBe(defaultSpeed);
+    expect(result.ops[0].plunge).toBe(defaultSpeed);
+    expect(result.ops[1].plunge).toBe(defaultSpeed);
   });
 
   test("should use default spindle speed (1000) regardless of user speed input", () => {
@@ -203,10 +219,47 @@ describe("G-code Speed/Feedrate Configuration", () => {
       expect(result.ops[0].spindle).toBe(1000);
       expect(result.ops[1].spindle).toBe(1000);
       
-      // Rate (feedrate) should use the user-provided speed
+      // Rate (feedrate) and plunge should use the user-provided speed
       expect(result.ops[0].rate).toBe(speed);
       expect(result.ops[1].rate).toBe(speed);
+      expect(result.ops[0].plunge).toBe(speed);
+      expect(result.ops[1].plunge).toBe(speed);
     });
+  });
+
+  test("should maintain consistent XY feedrate during ramp down by matching plunge to rate", () => {
+    // This test verifies the fix for the ramp down speed issue
+    // When camEaseDown is enabled, the machine ramps down gradually
+    // The plunge rate should match the XY feedrate to maintain consistent speed
+    const mockGenerateGcode = createMockGenerateGcode();
+    
+    const testSpeed = 1500; // Default speed
+    const result = mockGenerateGcode(
+      "mock-stl-url",
+      [0, 0, 0],
+      6.35, // toolSize
+      2, // passes
+      testSpeed, // speed
+      1.35, // cutThrough
+      () => {}, // gcodeCallback
+      () => {}, // progressCallback
+      () => {}, // partProgressCallback
+      null // tool
+    );
+
+    // Both operations should have matching rate and plunge for consistent ramp down speed
+    expect(result.ops[0].rate).toBe(testSpeed);
+    expect(result.ops[0].plunge).toBe(testSpeed);
+    expect(result.ops[0].rate).toBe(result.ops[0].plunge);
+    
+    expect(result.ops[1].rate).toBe(testSpeed);
+    expect(result.ops[1].plunge).toBe(testSpeed);
+    expect(result.ops[1].rate).toBe(result.ops[1].plunge);
+    
+    // Verify the old problematic behavior is fixed
+    // Old behavior: plunge would be 300 while rate is 1500, causing slowdown
+    expect(result.ops[0].plunge).not.toBe(300);
+    expect(result.ops[1].plunge).not.toBe(300);
   });
 
   test("should confirm gcodePre contains feedrate initialization commands", () => {

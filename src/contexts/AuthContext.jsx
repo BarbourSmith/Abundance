@@ -15,7 +15,7 @@ export function AuthProvider({ children }) {
   /**
    * Unified handler for login and re-authentication.
    * @param {Object} options
-   *   - redirectType: "fork" | "like" | "reauth" | undefined
+   *   - authType: "fork" | "like" | "reauth" | "save" |undefined
    *   - currentProjectRep: string (optional, for re-auth)
    *   - returnTo: string (optional, for re-auth)
    */
@@ -24,6 +24,11 @@ export function AuthProvider({ children }) {
     currentProjectRep,
     returnTo,
   } = {}) => {
+    // Helper to build the GitHub OAuth URL
+    function buildOAuthUrl({ client_id, scope, csrfToken, stateObj }) {
+      const state = encodeURIComponent(JSON.stringify(stateObj));
+      return `https://github.com/login/oauth/authorize?client_id=${client_id}&response_type=code&scope=${scope}&redirect_uri=${window.origin}/callback&state=${state}`;
+    }
     // Save project if provided (for re-auth)
     if (currentProjectRep) {
       localStorage.setItem("pendingProjectSave", currentProjectRep);
@@ -52,7 +57,6 @@ export function AuthProvider({ children }) {
         repo: GlobalVariables.currentRepo.name,
       };
     }
-
     // Build state param
     const stateObj = {
       authType: authType,
@@ -61,10 +65,7 @@ export function AuthProvider({ children }) {
     };
     if (returnTo) stateObj.returnTo = returnTo;
 
-    const state = JSON.stringify(stateObj);
-    const link = `https://github.com/login/oauth/authorize?client_id=${client_id}&response_type=code&scope=repo&redirect_uri=${
-      window.origin
-    }/callback&state=${encodeURIComponent(state)}&scope=${scope}`;
+    const link = buildOAuthUrl({ client_id, scope, csrfToken, stateObj });
     window.location.assign(link);
   };
 

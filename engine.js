@@ -1,3 +1,4 @@
+//This is the kirimoto engine pulled from https://grid.space/lib/kiri/run/engine.js on oct 30/25
 var __create = Object.create;
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
@@ -2853,6 +2854,7 @@ var require_parser = __commonJS({
 var require_pngjs = __commonJS({
   "src/ext/pngjs.js"(exports, module) {
     (function (f) {
+      globalThis.png = f();
       if (typeof exports === "object" && typeof module !== "undefined") {
         module.exports = f();
       } else if (typeof define === "function" && define.amd) {
@@ -6050,11 +6052,11 @@ var require_pngjs = __commonJS({
                   return str2;
                 }
                 function arrayToHash(array) {
-                  var hash = {};
+                  var hash2 = {};
                   array.forEach(function (val, idx) {
-                    hash[val] = true;
+                    hash2[val] = true;
                   });
-                  return hash;
+                  return hash2;
                 }
                 function formatValue(ctx, value, recurseTimes) {
                   if (
@@ -8652,10 +8654,10 @@ var require_pngjs = __commonJS({
                   newBuf.__proto__ = Buffer2.prototype;
                   return newBuf;
                 };
-                function checkOffset(offset2, ext2, length2) {
+                function checkOffset(offset2, ext, length2) {
                   if (offset2 % 1 !== 0 || offset2 < 0)
                     throw new RangeError("offset is not uint");
-                  if (offset2 + ext2 > length2)
+                  if (offset2 + ext > length2)
                     throw new RangeError(
                       "Trying to access beyond buffer length"
                     );
@@ -8864,14 +8866,14 @@ var require_pngjs = __commonJS({
                   if (!noAssert) checkOffset(offset2, 8, this.length);
                   return ieee754.read(this, offset2, false, 52, 8);
                 };
-                function checkInt(buf, value, offset2, ext2, max2, min2) {
+                function checkInt(buf, value, offset2, ext, max2, min2) {
                   if (!Buffer2.isBuffer(buf))
                     throw new TypeError(
                       '"buffer" argument must be a Buffer instance'
                     );
                   if (value > max2 || value < min2)
                     throw new RangeError('"value" argument is out of bounds');
-                  if (offset2 + ext2 > buf.length)
+                  if (offset2 + ext > buf.length)
                     throw new RangeError("Index out of range");
                 }
                 Buffer2.prototype.writeUIntLE = function writeUIntLE(
@@ -9112,8 +9114,8 @@ var require_pngjs = __commonJS({
                   this[offset2 + 3] = value & 255;
                   return offset2 + 4;
                 };
-                function checkIEEE754(buf, value, offset2, ext2, max2, min2) {
-                  if (offset2 + ext2 > buf.length)
+                function checkIEEE754(buf, value, offset2, ext, max2, min2) {
+                  if (offset2 + ext > buf.length)
                     throw new RangeError("Index out of range");
                   if (offset2 < 0) throw new RangeError("Index out of range");
                 }
@@ -13939,8 +13941,9 @@ var require_pngjs = __commonJS({
                 }
                 node = elems;
                 do {
-                  n = s.heap[1];
-                  /*SMALLEST*/
+                  n =
+                    s.heap[1];
+                    /*SMALLEST*/
                   s.heap[1] = s.heap[s.heap_len--];
                   /*SMALLEST*/
                   pqdownheap(
@@ -13949,8 +13952,9 @@ var require_pngjs = __commonJS({
                     1
                     /*SMALLEST*/
                   );
-                  m = s.heap[1];
-                  /*SMALLEST*/
+                  m =
+                    s.heap[1];
+                    /*SMALLEST*/
                   s.heap[--s.heap_max] = n;
                   s.heap[--s.heap_max] = m;
                   tree[node * 2] = tree[n * 2] + tree[m * 2];
@@ -13958,7 +13962,7 @@ var require_pngjs = __commonJS({
                     (s.depth[n] >= s.depth[m] ? s.depth[n] : s.depth[m]) + 1;
                   tree[n * 2 + 1] = tree[m * 2 + 1] = node;
                   s.heap[1] =
-                    /*SMALLEST*/
+                  /*SMALLEST*/
                     node++;
                   pqdownheap(
                     s,
@@ -13967,8 +13971,9 @@ var require_pngjs = __commonJS({
                     /*SMALLEST*/
                   );
                 } while (s.heap_len >= 2);
-                s.heap[--s.heap_max] = s.heap[1];
-                /*SMALLEST*/
+                s.heap[--s.heap_max] =
+                  s.heap[1];
+                  /*SMALLEST*/
                 gen_bitlen(s, desc);
                 gen_codes(tree, max_code, s.bl_count);
               }
@@ -16821,6 +16826,193 @@ var require_pngjs = __commonJS({
         {},
         [20]
       )(20);
+    });
+  },
+});
+
+// node_modules/base64-js/base64js.min.js
+var require_base64js_min = __commonJS({
+  "node_modules/base64-js/base64js.min.js"(exports, module) {
+    (function (a) {
+      if ("object" == typeof exports && "undefined" != typeof module)
+        module.exports = a();
+      else if ("function" == typeof define && define.amd) define([], a);
+      else {
+        var b;
+        (b =
+          "undefined" == typeof window
+            ? "undefined" == typeof global
+              ? "undefined" == typeof self
+                ? this
+                : self
+              : global
+            : window),
+          (b.base64js = a());
+      }
+    })(function () {
+      return /* @__PURE__ */ (function () {
+        function b(d2, e, g) {
+          function a(j, i) {
+            if (!e[j]) {
+              if (!d2[j]) {
+                var f = "function" == typeof __require && __require;
+                if (!i && f) return f(j, true);
+                if (h2) return h2(j, true);
+                var c2 = new Error("Cannot find module '" + j + "'");
+                throw ((c2.code = "MODULE_NOT_FOUND"), c2);
+              }
+              var k = (e[j] = { exports: {} });
+              d2[j][0].call(
+                k.exports,
+                function (b2) {
+                  var c3 = d2[j][1][b2];
+                  return a(c3 || b2);
+                },
+                k,
+                k.exports,
+                b,
+                d2,
+                e,
+                g
+              );
+            }
+            return e[j].exports;
+          }
+          for (
+            var h2 = "function" == typeof __require && __require, c = 0;
+            c < g.length;
+            c++
+          )
+            a(g[c]);
+          return a;
+        }
+        return b;
+      })()(
+        {
+          "/": [
+            function (a, b, c) {
+              "use strict";
+              function d2(a2) {
+                var b2 = a2.length;
+                if (0 < b2 % 4)
+                  throw new Error(
+                    "Invalid string. Length must be a multiple of 4"
+                  );
+                var c2 = a2.indexOf("=");
+                -1 === c2 && (c2 = b2);
+                var d3 = c2 === b2 ? 0 : 4 - (c2 % 4);
+                return [c2, d3];
+              }
+              function e(a2, b2, c2) {
+                return (3 * (b2 + c2)) / 4 - c2;
+              }
+              function f(a2) {
+                var b2,
+                  c2,
+                  f2 = d2(a2),
+                  g2 = f2[0],
+                  h3 = f2[1],
+                  j2 = new m(e(a2, g2, h3)),
+                  k2 = 0,
+                  n2 = 0 < h3 ? g2 - 4 : g2;
+                for (c2 = 0; c2 < n2; c2 += 4)
+                  (b2 =
+                    (l[a2.charCodeAt(c2)] << 18) |
+                    (l[a2.charCodeAt(c2 + 1)] << 12) |
+                    (l[a2.charCodeAt(c2 + 2)] << 6) |
+                    l[a2.charCodeAt(c2 + 3)]),
+                    (j2[k2++] = 255 & (b2 >> 16)),
+                    (j2[k2++] = 255 & (b2 >> 8)),
+                    (j2[k2++] = 255 & b2);
+                return (
+                  2 === h3 &&
+                    ((b2 =
+                      (l[a2.charCodeAt(c2)] << 2) |
+                      (l[a2.charCodeAt(c2 + 1)] >> 4)),
+                    (j2[k2++] = 255 & b2)),
+                  1 === h3 &&
+                    ((b2 =
+                      (l[a2.charCodeAt(c2)] << 10) |
+                      (l[a2.charCodeAt(c2 + 1)] << 4) |
+                      (l[a2.charCodeAt(c2 + 2)] >> 2)),
+                    (j2[k2++] = 255 & (b2 >> 8)),
+                    (j2[k2++] = 255 & b2)),
+                  j2
+                );
+              }
+              function g(a2) {
+                return (
+                  k[63 & (a2 >> 18)] +
+                  k[63 & (a2 >> 12)] +
+                  k[63 & (a2 >> 6)] +
+                  k[63 & a2]
+                );
+              }
+              function h2(a2, b2, c2) {
+                for (var d3, e2 = [], f2 = b2; f2 < c2; f2 += 3)
+                  (d3 =
+                    (16711680 & (a2[f2] << 16)) +
+                    (65280 & (a2[f2 + 1] << 8)) +
+                    (255 & a2[f2 + 2])),
+                    e2.push(g(d3));
+                return e2.join("");
+              }
+              function j(a2) {
+                for (
+                  var b2,
+                    c2 = a2.length,
+                    d3 = c2 % 3,
+                    e2 = [],
+                    f2 = 16383,
+                    g2 = 0,
+                    j2 = c2 - d3;
+                  g2 < j2;
+                  g2 += f2
+                )
+                  e2.push(h2(a2, g2, g2 + f2 > j2 ? j2 : g2 + f2));
+                return (
+                  1 === d3
+                    ? ((b2 = a2[c2 - 1]),
+                      e2.push(k[b2 >> 2] + k[63 & (b2 << 4)] + "=="))
+                    : 2 === d3 &&
+                      ((b2 = (a2[c2 - 2] << 8) + a2[c2 - 1]),
+                      e2.push(
+                        k[b2 >> 10] +
+                          k[63 & (b2 >> 4)] +
+                          k[63 & (b2 << 2)] +
+                          "="
+                      )),
+                  e2.join("")
+                );
+              }
+              (c.byteLength = function (a2) {
+                var b2 = d2(a2),
+                  c2 = b2[0],
+                  e2 = b2[1];
+                return (3 * (c2 + e2)) / 4 - e2;
+              }),
+                (c.toByteArray = f),
+                (c.fromByteArray = j);
+              for (
+                var k = [],
+                  l = [],
+                  m = "undefined" == typeof Uint8Array ? Array : Uint8Array,
+                  n =
+                    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/",
+                  o = 0,
+                  p = n.length;
+                o < p;
+                ++o
+              )
+                (k[o] = n[o]), (l[n.charCodeAt(o)] = o);
+              (l[45] = 62), (l[95] = 63);
+            },
+            {},
+          ],
+        },
+        {},
+        []
+      )("/");
     });
   },
 });
@@ -21356,19 +21548,19 @@ function warnOnce(message) {
 }
 function probeAsync(gl, sync, interval) {
   return new Promise(function (resolve, reject) {
-    function probe2() {
+    function probe() {
       switch (gl.clientWaitSync(sync, gl.SYNC_FLUSH_COMMANDS_BIT, 0)) {
         case gl.WAIT_FAILED:
           reject();
           break;
         case gl.TIMEOUT_EXPIRED:
-          setTimeout(probe2, interval);
+          setTimeout(probe, interval);
           break;
         default:
           resolve();
       }
     }
-    setTimeout(probe2, interval);
+    setTimeout(probe, interval);
   });
 }
 function toNormalizedProjectionMatrix(projectionMatrix) {
@@ -22446,8 +22638,8 @@ var Vector4 = class _Vector4 {
    */
   setAxisAngleFromRotationMatrix(m) {
     let angle, x2, y2, z2;
-    const epsilon = 0.01,
-      epsilon2 = 0.1,
+    const epsilon2 = 0.01,
+      epsilon22 = 0.1,
       te = m.elements,
       m11 = te[0],
       m12 = te[4],
@@ -22459,15 +22651,15 @@ var Vector4 = class _Vector4 {
       m32 = te[6],
       m33 = te[10];
     if (
-      Math.abs(m12 - m21) < epsilon &&
-      Math.abs(m13 - m31) < epsilon &&
-      Math.abs(m23 - m32) < epsilon
+      Math.abs(m12 - m21) < epsilon2 &&
+      Math.abs(m13 - m31) < epsilon2 &&
+      Math.abs(m23 - m32) < epsilon2
     ) {
       if (
-        Math.abs(m12 + m21) < epsilon2 &&
-        Math.abs(m13 + m31) < epsilon2 &&
-        Math.abs(m23 + m32) < epsilon2 &&
-        Math.abs(m11 + m22 + m33 - 3) < epsilon2
+        Math.abs(m12 + m21) < epsilon22 &&
+        Math.abs(m13 + m31) < epsilon22 &&
+        Math.abs(m23 + m32) < epsilon22 &&
+        Math.abs(m11 + m22 + m33 - 3) < epsilon22
       ) {
         this.set(1, 0, 0, 0);
         return this;
@@ -22480,7 +22672,7 @@ var Vector4 = class _Vector4 {
       const xz = (m13 + m31) / 4;
       const yz = (m23 + m32) / 4;
       if (xx > yy && xx > zz) {
-        if (xx < epsilon) {
+        if (xx < epsilon2) {
           x2 = 0;
           y2 = 0.707106781;
           z2 = 0.707106781;
@@ -22490,7 +22682,7 @@ var Vector4 = class _Vector4 {
           z2 = xz / x2;
         }
       } else if (yy > zz) {
-        if (yy < epsilon) {
+        if (yy < epsilon2) {
           x2 = 0.707106781;
           y2 = 0;
           z2 = 0.707106781;
@@ -22500,7 +22692,7 @@ var Vector4 = class _Vector4 {
           z2 = yz / y2;
         }
       } else {
-        if (zz < epsilon) {
+        if (zz < epsilon2) {
           x2 = 0.707106781;
           y2 = 0.707106781;
           z2 = 0;
@@ -36908,7 +37100,7 @@ var EdgesGeometry = class extends BufferGeometry {
           const vecHash1 = hashes[jNext];
           const v0 = _triangle[vertKeys[j]];
           const v1 = _triangle[vertKeys[jNext]];
-          const hash = `${vecHash0}_${vecHash1}`;
+          const hash2 = `${vecHash0}_${vecHash1}`;
           const reverseHash = `${vecHash1}_${vecHash0}`;
           if (reverseHash in edgeData && edgeData[reverseHash]) {
             if (_normal.dot(edgeData[reverseHash].normal) <= thresholdDot) {
@@ -36916,8 +37108,8 @@ var EdgesGeometry = class extends BufferGeometry {
               vertices.push(v1.x, v1.y, v1.z);
             }
             edgeData[reverseHash] = null;
-          } else if (!(hash in edgeData)) {
-            edgeData[hash] = {
+          } else if (!(hash2 in edgeData)) {
+            edgeData[hash2] = {
               index0: indexArr[j],
               index1: indexArr[jNext],
               normal: _normal.clone(),
@@ -57442,18 +57634,18 @@ function WebGLLights(extensions) {
     state.ambient[0] = r;
     state.ambient[1] = g;
     state.ambient[2] = b;
-    const hash = state.hash;
+    const hash2 = state.hash;
     if (
-      hash.directionalLength !== directionalLength ||
-      hash.pointLength !== pointLength ||
-      hash.spotLength !== spotLength ||
-      hash.rectAreaLength !== rectAreaLength ||
-      hash.hemiLength !== hemiLength ||
-      hash.numDirectionalShadows !== numDirectionalShadows ||
-      hash.numPointShadows !== numPointShadows ||
-      hash.numSpotShadows !== numSpotShadows ||
-      hash.numSpotMaps !== numSpotMaps ||
-      hash.numLightProbes !== numLightProbes
+      hash2.directionalLength !== directionalLength ||
+      hash2.pointLength !== pointLength ||
+      hash2.spotLength !== spotLength ||
+      hash2.rectAreaLength !== rectAreaLength ||
+      hash2.hemiLength !== hemiLength ||
+      hash2.numDirectionalShadows !== numDirectionalShadows ||
+      hash2.numPointShadows !== numPointShadows ||
+      hash2.numSpotShadows !== numSpotShadows ||
+      hash2.numSpotMaps !== numSpotMaps ||
+      hash2.numLightProbes !== numLightProbes
     ) {
       state.directional.length = directionalLength;
       state.spot.length = spotLength;
@@ -57473,16 +57665,16 @@ function WebGLLights(extensions) {
       state.spotLightMap.length = numSpotMaps;
       state.numSpotLightShadowsWithMaps = numSpotShadowsWithMaps;
       state.numLightProbes = numLightProbes;
-      hash.directionalLength = directionalLength;
-      hash.pointLength = pointLength;
-      hash.spotLength = spotLength;
-      hash.rectAreaLength = rectAreaLength;
-      hash.hemiLength = hemiLength;
-      hash.numDirectionalShadows = numDirectionalShadows;
-      hash.numPointShadows = numPointShadows;
-      hash.numSpotShadows = numSpotShadows;
-      hash.numSpotMaps = numSpotMaps;
-      hash.numLightProbes = numLightProbes;
+      hash2.directionalLength = directionalLength;
+      hash2.pointLength = pointLength;
+      hash2.spotLength = spotLength;
+      hash2.rectAreaLength = rectAreaLength;
+      hash2.hemiLength = hemiLength;
+      hash2.numDirectionalShadows = numDirectionalShadows;
+      hash2.numPointShadows = numPointShadows;
+      hash2.numSpotShadows = numSpotShadows;
+      hash2.numSpotMaps = numSpotMaps;
+      hash2.numLightProbes = numLightProbes;
       state.version = nextVersion++;
     }
   }
@@ -58010,14 +58202,11 @@ function WebGLState(gl, extensions) {
     return {
       setReversed: function (reversed) {
         if (currentReversed !== reversed) {
-          const ext2 = extensions.get("EXT_clip_control");
+          const ext = extensions.get("EXT_clip_control");
           if (reversed) {
-            ext2.clipControlEXT(ext2.LOWER_LEFT_EXT, ext2.ZERO_TO_ONE_EXT);
+            ext.clipControlEXT(ext.LOWER_LEFT_EXT, ext.ZERO_TO_ONE_EXT);
           } else {
-            ext2.clipControlEXT(
-              ext2.LOWER_LEFT_EXT,
-              ext2.NEGATIVE_ONE_TO_ONE_EXT
-            );
+            ext.clipControlEXT(ext.LOWER_LEFT_EXT, ext.NEGATIVE_ONE_TO_ONE_EXT);
           }
           currentReversed = reversed;
           const oldDepth = currentDepthClear;
@@ -67507,20 +67696,20 @@ function mergeVertices(geometry, tolerance = 1e-4) {
   const hashAdditive = halfTolerance * hashMultiplier;
   for (let i = 0; i < vertexCount; i++) {
     const index2 = indices ? indices.getX(i) : i;
-    let hash = "";
+    let hash2 = "";
     for (let j = 0, l = attributeNames.length; j < l; j++) {
       const name = attributeNames[j];
       const attribute = geometry.getAttribute(name);
       const itemSize = attribute.itemSize;
       for (let k = 0; k < itemSize; k++) {
-        hash += `${~~(
+        hash2 += `${~~(
           attribute[getters[k]](index2) * hashMultiplier +
           hashAdditive
         )},`;
       }
     }
-    if (hash in hashToIndex) {
-      newIndices.push(hashToIndex[hash]);
+    if (hash2 in hashToIndex) {
+      newIndices.push(hashToIndex[hash2]);
     } else {
       for (let j = 0, l = attributeNames.length; j < l; j++) {
         const name = attributeNames[j];
@@ -67543,7 +67732,7 @@ function mergeVertices(geometry, tolerance = 1e-4) {
           }
         }
       }
-      hashToIndex[hash] = nextIndex;
+      hashToIndex[hash2] = nextIndex;
       newIndices.push(nextIndex);
       nextIndex++;
     }
@@ -67945,11 +68134,11 @@ function toCreasedNormals(geometry, creaseAngle = Math.PI / 3) {
     const normal = new Vector3().crossVectors(tempVec1, tempVec2).normalize();
     for (let n = 0; n < 3; n++) {
       const vert = verts2[n];
-      const hash = hashVertex(vert);
-      if (!(hash in vertexMap)) {
-        vertexMap[hash] = [];
+      const hash2 = hashVertex(vert);
+      if (!(hash2 in vertexMap)) {
+        vertexMap[hash2] = [];
       }
-      vertexMap[hash].push(normal);
+      vertexMap[hash2].push(normal);
     }
   }
   const normalArray = new Float32Array(posAttr.count * 3);
@@ -67964,8 +68153,8 @@ function toCreasedNormals(geometry, creaseAngle = Math.PI / 3) {
     tempNorm.crossVectors(tempVec1, tempVec2).normalize();
     for (let n = 0; n < 3; n++) {
       const vert = verts2[n];
-      const hash = hashVertex(vert);
-      const otherNormals = vertexMap[hash];
+      const hash2 = hashVertex(vert);
+      const otherNormals = vertexMap[hash2];
       tempNorm2.set(0, 0, 0);
       for (let k = 0, lk = otherNormals.length; k < lk; k++) {
         const otherNorm = otherNormals[k];
@@ -75307,7 +75496,7 @@ function device_from_code(code, mode3) {
   if (code.internal >= 0) return code;
   let cmd = code.cmd || {},
     set = code.settings || {},
-    ext2 = code.extruders;
+    ext = code.extruders;
   let device2 = {
     noclone: valueOf(code.no_clone, false),
     mode: mode3 || code.mode || "",
@@ -75347,8 +75536,8 @@ function device_from_code(code, mode3) {
     gcodeLaserOff: valueOf(code["laser-off"], []),
     extruders: [],
   };
-  if (ext2) {
-    ext2.forEach((rec) => {
+  if (ext) {
+    ext.forEach((rec) => {
       let e = clone(conf.defaults.fdm.d.extruders[0]);
       if (rec.nozzle) e.extNozzle = rec.nozzle;
       if (rec.filament) e.extFilament = rec.filament;
@@ -75396,33 +75585,33 @@ function normalize2(settings4) {
   return settings4;
 }
 var renamed = {
-  roughingTool: "camRoughTool",
-  roughingSpindle: "camRoughSpindle",
-  roughingDown: "camRoughDown",
-  roughingOver: "camRoughOver",
-  roughingSpeed: "camRoughSpeed",
-  roughingPlunge: "camRoughPlunge",
-  roughingStock: "camRoughStock",
-  roughingPocket: "camRoughVoid",
-  roughingOn: "camRoughOn",
-  finishingTool: "camOutlineTool",
-  finishingSpindle: "camOutlineSpindle",
+  camWideCutout: "camOutlineWide",
+  drillDown: "camDrillDown",
+  drillDownSpeed: "camDrillDownSpeed",
+  drillDwell: "camDrillDwell",
+  drillingOn: "camDrillingOn",
+  drillLift: "camDrillLift",
+  drillSpindle: "camDrillSpindle",
+  drillTool: "camDrillTool",
   finishingDown: "camOutlineDown",
-  finishingOver: "camContourOver",
-  finishingSpeed: "camOutlineSpeed",
-  finishingPlunge: "camOutlinePlunge",
   finishingOn: "camOutlineOn",
+  finishingOver: "camContourOver",
+  finishingPlunge: "camOutlinePlunge",
+  finishingSpeed: "camOutlineSpeed",
+  finishingSpindle: "camOutlineSpindle",
+  finishingTool: "camOutlineTool",
   finishingXOn: "camContourXOn",
   finishingYOn: "camContourYOn",
-  drillTool: "camDrillTool",
-  drillSpindle: "camDrillSpindle",
-  drillDownSpeed: "camDrillDownSpeed",
-  drillDown: "camDrillDown",
-  drillDwell: "camDrillDwell",
-  drillLift: "camDrillLift",
-  drillingOn: "camDrillingOn",
-  camWideCutout: "camOutlineWide",
   outputClockwise: "camConventional",
+  roughingDown: "camRoughDown",
+  roughingOn: "camRoughOn",
+  roughingOver: "camRoughOver",
+  roughingPlunge: "camRoughPlunge",
+  roughingPocket: "camRoughVoid",
+  roughingSpeed: "camRoughSpeed",
+  roughingSpindle: "camRoughSpindle",
+  roughingStock: "camRoughStock",
+  roughingTool: "camRoughTool",
 };
 var conf = {
   // --------------- helper functions
@@ -75473,93 +75662,94 @@ var conf = {
       },
       // process defaults FDM:Process
       p: {
+        antiBacklash: 0,
+        arcTolerance: 0,
+        firstLayerBedTemp: 0,
+        firstLayerBeltBump: 0,
+        firstLayerBeltLead: 3,
+        firstLayerBrim: 0,
+        firstLayerBrimGap: 0,
+        firstLayerBrimIn: 0,
+        firstLayerBrimTrig: 0,
+        firstLayerFanSpeed: 0,
+        firstLayerFillRate: 35,
+        firstLayerFlatten: 0,
+        firstLayerNozzleTemp: 0,
+        firstLayerRate: 30,
+        firstLayerYOffset: 0,
+        firstSliceHeight: 0.25,
+        outputAlternating: false,
+        outputAvoidGaps: true,
+        outputBedTemp: 60,
+        outputBeltFirst: false,
+        outputBrimCount: 2,
+        outputBrimOffset: 2,
+        outputCoastDist: 0,
+        outputDraftShield: false,
+        outputFanLayer: 1,
+        outputFanSpeed: 255,
+        outputFeedrate: 50,
+        outputFillMult: 1.25,
+        outputFinishrate: 50,
+        outputInvertX: false,
+        outputInvertY: false,
+        outputLayerRetract: false,
+        outputLoops: 0,
+        outputMaxFlowrate: 15,
+        outputMinLayerTime: 10,
+        outputMinSpeed: 5,
+        outputPurgeTower: 0,
+        outputRaft: false,
+        outputRaftSpacing: 0.2,
+        outputRetractDist: 1.5,
+        outputRetractDwell: 20,
+        outputRetractSpeed: 40,
+        outputRetractWipe: 0,
+        outputScarfLength: 0,
+        outputSeekrate: 80,
+        outputShellMult: 1.25,
+        outputShortPoly: 0,
+        outputSparseMult: 1.25,
+        outputTemp: 200,
         processName: "default",
+        ranges: [],
+        sliceAdaptive: false,
         sliceAngle: 45,
+        sliceBottomLayers: 3,
+        sliceCompInner: 0,
+        sliceCompOuter: 0,
+        sliceDetectThin: "basic",
+        sliceFillAngle: 45,
+        sliceFillGrow: 0,
+        sliceFillOverlap: 0.35,
+        sliceFillRepeat: 1,
+        sliceFillSparse: 0.25,
+        sliceFillType: "hex",
+        sliceFillWidth: 1,
         sliceHeight: 0.25,
-        sliceShells: 3,
-        sliceShellOrder: "in-out",
         sliceLayerStart: "last",
         sliceLayerStartX: 0,
         sliceLayerStartY: 0,
         sliceLineWidth: 0,
-        sliceFillGrow: 0,
-        sliceFillAngle: 45,
-        sliceFillWidth: 1,
-        sliceFillOverlap: 0.35,
-        sliceFillSparse: 0.25,
-        sliceFillRepeat: 1,
-        sliceFillRate: 0,
-        sliceSolidRate: 0,
-        sliceFillType: "hex",
-        sliceSupportDensity: 0.1,
-        sliceSupportOffset: 1,
-        sliceSupportGap: 1,
-        sliceSupportSize: 5,
-        sliceSupportArea: 0.1,
-        sliceSupportSpan: 5,
-        sliceSupportGrow: 0,
-        sliceSupportExtra: 0,
-        sliceSupportAngle: 50,
-        sliceSupportNozzle: 0,
-        sliceSupportEnable: false,
-        sliceSupportOutline: true,
-        sliceZInterleave: false,
-        sliceSolidMinArea: 1,
-        sliceBottomLayers: 3,
-        sliceTopLayers: 3,
-        firstSliceHeight: 0.25,
-        firstLayerRate: 30,
-        firstLayerFillRate: 35,
-        firstLayerPrintMult: 1,
-        firstLayerLineMult: 1,
-        firstLayerYOffset: 0,
-        firstLayerNozzleTemp: 0,
-        firstLayerBedTemp: 0,
-        firstLayerBrim: 0,
-        firstLayerBrimIn: 0,
-        firstLayerBrimTrig: 0,
-        firstLayerBrimGap: 0,
-        firstLayerBeltLead: 3,
-        firstLayerBeltBump: 0,
-        firstLayerFanSpeed: 0,
-        firstLayerFlatten: 0,
-        outputRaft: false,
-        outputRaftSpacing: 0.2,
-        outputDraftShield: false,
-        outputTemp: 200,
-        outputBedTemp: 60,
-        outputFeedrate: 50,
-        outputFinishrate: 50,
-        outputSeekrate: 80,
-        outputShellMult: 1.25,
-        outputFillMult: 1.25,
-        outputSparseMult: 1.25,
-        outputFanLayer: 1,
-        outputFanSpeed: 255,
-        outputRetractDist: 1.5,
-        outputRetractSpeed: 40,
-        outputRetractWipe: 0,
-        outputRetractDwell: 20,
-        outputBrimCount: 2,
-        outputBrimOffset: 2,
-        outputShortPoly: 100,
-        outputMinSpeed: 10,
-        outputCoastDist: 0,
-        outputPurgeTower: 0,
-        outputBeltFirst: false,
-        outputAvoidGaps: true,
-        outputAlternating: false,
-        outputLayerRetract: false,
-        outputLoops: 0,
-        outputInvertX: false,
-        outputInvertY: false,
-        sliceDetectThin: "off",
         sliceMinHeight: 0,
-        sliceAdaptive: false,
+        sliceShellOrder: "in-out",
+        sliceShells: 3,
+        sliceSolidMinArea: 1,
+        sliceSupportAngle: 50,
+        sliceSupportArea: 0.1,
+        sliceSupportDensity: 0.1,
+        sliceSupportEnable: false,
+        sliceSupportExtra: 0,
+        sliceSupportGap: 1,
+        sliceSupportGrow: 0,
+        sliceSupportNozzle: 0,
+        sliceSupportOffset: 1,
+        sliceSupportOutline: true,
+        sliceSupportSize: 5,
+        sliceSupportSpan: 5,
+        sliceTopLayers: 3,
+        sliceZInterleave: false,
         zHopDistance: 0.2,
-        arcTolerance: 0,
-        antiBacklash: 0,
-        ranges: [],
       },
     },
     sla: {
@@ -75633,188 +75823,191 @@ var conf = {
       },
       // process defaults CAM:Process
       p: {
-        processName: "default",
-        camLevelTool: 1e3,
-        camLevelSpindle: 1e3,
-        camLevelOver: 0.75,
-        camLevelStepZ: 0,
-        camLevelSpeed: 1e3,
-        camLevelDown: 0,
-        camLevelInset: 0.5,
-        camLevelStock: true,
-        camRoughTool: 1e3,
-        camRoughSpindle: 1e3,
-        camRoughDown: 2,
-        camRoughOver: 0.4,
-        camRoughSpeed: 1e3,
-        camRoughPlunge: 250,
-        camRoughStock: 0,
-        camRoughStockZ: 0,
-        camRoughAll: true,
-        camRoughVoid: false,
-        camRoughFlat: true,
-        camRoughTop: true,
-        camRoughIn: true,
-        camRoughOn: true,
-        camRoughOmitThru: false,
-        camRoughOmitVoid: false,
-        camOutlineTool: 1e3,
-        camOutlineSpindle: 1e3,
-        camOutlineTop: true,
-        camOutlineDown: 3,
-        camOutlineOver: 0.4,
-        camOutlineOverCount: 1,
-        camOutlineSpeed: 800,
-        camOutlinePlunge: 250,
-        camOutlineWide: false,
-        camOutlineDogbone: false,
-        camOutlineOmitThru: false,
-        camOutlineOmitVoid: false,
-        camOutlineOut: true,
-        camOutlineIn: false,
-        camOutlineOn: true,
-        camContourTool: 1e3,
-        camContourSpindle: 1e3,
-        camContourOver: 0.5,
-        camContourSpeed: 1e3,
+        camArcEnabled: false,
+        camArcResolution: 5,
+        camArcTolerance: 0.15,
         camContourAngle: 85,
-        camContourLeave: 0,
-        camContourReduce: 2,
         camContourBottom: false,
+        camContourBridge: 0,
         camContourCurves: false,
         camContourIn: false,
+        camContourLeave: 0,
+        camContourOver: 0.5,
+        camContourReduce: 2,
+        camContourSpeed: 1e3,
+        camContourSpindle: 1e3,
+        camContourTool: 1e3,
         camContourXOn: true,
         camContourYOn: true,
-        camLatheTool: 1e3,
-        camLatheSpindle: 1e3,
-        camLatheOver: 0.1,
-        camLatheAngle: 1,
-        camLatheSpeed: 500,
-        camLatheLinear: true,
-        camTolerance: 0,
-        camTraceTool: 1e3,
-        camTraceSpindle: 1e3,
-        camTraceType: "follow",
-        camTraceOver: 0.5,
-        camTraceDown: 0,
-        camTraceThru: 0,
-        camTraceSpeed: 250,
-        camTracePlunge: 200,
-        camTraceOffOver: 0,
-        camTraceDogbone: false,
-        camTraceMerge: false,
-        camTraceLines: false,
-        camTraceZTop: 0,
-        camTraceZBottom: 0,
-        camPocketSpindle: 1e3,
-        camPocketTool: 1e3,
-        camPocketOver: 0.25,
-        camPocketDown: 1,
-        camPocketSpeed: 250,
-        camPocketPlunge: 200,
-        camPocketExpand: 0,
-        camPocketSmooth: 0,
-        camPocketRefine: 20,
-        camPocketFollow: 5,
-        camPocketContour: false,
-        camPocketEngrave: false,
-        camPocketOutline: false,
-        camPocketZTop: 0,
-        camPocketZBottom: 0,
-        camDrillTool: 1006,
-        camDrillSpindle: 1e3,
-        camDrillDownSpeed: 250,
-        camDrillDown: 5,
-        camDrillDwell: 250,
-        camDrillLift: 2,
-        camDrillMark: false,
-        camDrillFromStockTop: false,
-        camDrillThru: 5,
-        camDrillPrecision: 1,
-        camDrillingOn: false,
-        camRegisterSpeed: 1e3,
-        camRegisterThru: 5,
-        camRegisterOffset: 10,
-        camHelicalTool: 1e3,
-        camHelicalSpindle: 1e3,
-        camHelicalDownSpeed: 250,
-        camHelicalSpeed: 1e3,
-        camHelicalDown: 5,
-        camHelicalBottomFinish: true,
-        camHelicalThru: 0,
-        camHelicalOffset: "auto",
-        camHelicalForceStartAngle: false,
-        camHelicalStartAngle: 0,
-        camHelicalOffsetOverride: 0,
-        camHelicalEntry: false,
-        camHelicalEntryOffset: 0,
-        camHelicalReverse: false,
-        camHelicalClockwise: true,
-        camFlipAxis: "X",
-        camFlipOther: "",
-        camLaserEnable: ["M321"],
-        camLaserDisable: ["M322"],
-        camLaserOn: ["M3"],
-        camLaserOff: ["M5"],
-        camLaserSpeed: 100,
-        camLaserPower: 1,
-        camLaserAdaptive: false,
-        camLaserAdaptMod: false,
-        camLaserFlatten: false,
-        camLaserFlatZ: 0,
-        camLaserPowerMin: 0,
-        camLaserPowerMax: 1,
-        camLaserZMin: 0,
-        camLaserZMax: 0,
-        camTabsWidth: 5,
-        camTabsHeight: 5,
-        camTabsDepth: 5,
-        camTabsMidline: false,
-        camDepthFirst: false,
-        camEaseDown: false,
-        camEaseAngle: 10,
-        camOriginTop: true,
-        camZAnchor: "middle",
-        camZOffset: 0,
-        camZTop: 0,
-        camZBottom: 0,
-        camZClearance: 1,
-        camZThru: 0,
-        camFastFeed: 6e3,
-        camFastFeedZ: 300,
-        camTolerance: 0,
-        camFlatness: 1e-3,
-        camContourBridge: 0,
-        camStockX: 5,
-        camStockY: 5,
-        camStockZ: 5,
-        camStockOffset: true,
-        camStockClipTo: false,
-        camStockIndexed: false,
-        camStockIndexGrid: true,
-        camIndexAxis: 0,
-        camIndexAbs: true,
         camConventional: false,
         // outputClockwise
+        camDepthFirst: false,
+        camDrillDown: 5,
+        camDrillDownSpeed: 250,
+        camDrillDwell: 250,
+        camDrillFromStockTop: false,
+        camDrillingOn: false,
+        camDrillLift: 2,
+        camDrillMark: false,
+        camDrillPrecision: 1,
+        camDrillSpindle: 1e3,
+        camDrillThru: 5,
+        camDrillTool: 1006,
+        camEaseAngle: 10,
+        camEaseDown: false,
+        camExpertFast: false,
+        camFastFeed: 6e3,
+        camFastFeedZ: 300,
+        camFirstZMax: false,
+        camFlatness: 1e-3,
+        camFlipAxis: "X",
+        camFlipOther: "",
+        camForceZMax: false,
+        camFullEngage: 0.8,
+        camHelicalBottomFinish: true,
+        camHelicalClockwise: true,
+        camHelicalDown: 5,
+        camHelicalDownSpeed: 250,
+        camHelicalEntry: false,
+        camHelicalEntryOffset: 0,
+        camHelicalForceStartAngle: false,
+        camHelicalOffset: "auto",
+        camHelicalOffsetOverride: 0,
+        camHelicalReverse: false,
+        camHelicalSpeed: 1e3,
+        camHelicalSpindle: 1e3,
+        camHelicalStartAngle: 0,
+        camHelicalThru: 0,
+        camHelicalTool: 1e3,
+        camIndexAbs: true,
+        camIndexAxis: 0,
+        camInnerFirst: false,
+        camLaserAdaptive: false,
+        camLaserAdaptMod: false,
+        camLaserDisable: ["M322"],
+        camLaserEnable: ["M321"],
+        camLaserFlatten: false,
+        camLaserFlatZ: 0,
+        camLaserOff: ["M5"],
+        camLaserOn: ["M3"],
+        camLaserPower: 1,
+        camLaserPowerMax: 1,
+        camLaserPowerMin: 0,
+        camLaserSpeed: 100,
+        camLaserZMax: 0,
+        camLaserZMin: 0,
+        camLatheAngle: 1,
+        camLatheLinear: true,
+        camLatheOver: 0.1,
+        camLatheSpeed: 500,
+        camLatheSpindle: 1e3,
+        camLatheTool: 1e3,
+        camLatheOffStart: 0,
+        camLatheOffEnd: 0,
+        camLevelDown: 0,
+        camLevelInset: 0.5,
+        camLevelOver: 0.75,
+        camLevelSpeed: 1e3,
+        camLevelSpindle: 1e3,
+        camLevelStepZ: 0,
+        camLevelStock: true,
+        camLevelTool: 1e3,
         camOriginCenter: false,
         camOriginOffX: 0,
         camOriginOffY: 0,
         camOriginOffZ: 0,
-        outputInvertX: false,
-        outputInvertY: false,
-        camExpertFast: false,
-        camTrueShadow: false,
-        camArcEnabled: false,
-        camArcTolerance: 0.15,
-        camArcResolution: 5,
-        camForceZMax: false,
-        camFirstZMax: false,
+        camOriginTop: true,
+        camOutlineDogbone: false,
+        camOutlineDown: 3,
+        camOutlineIn: false,
+        camOutlineOmitThru: false,
+        camOutlineOmitVoid: false,
+        camOutlineOn: true,
+        camOutlineOut: true,
+        camOutlineOver: 0.4,
+        camOutlineOverCount: 1,
+        camOutlinePlunge: 250,
+        camOutlineSpeed: 800,
+        camOutlineSpindle: 1e3,
+        camOutlineTool: 1e3,
+        camOutlineTop: true,
+        camOutlineWide: false,
+        camPocketContour: false,
+        camPocketDown: 1,
+        camPocketEngrave: false,
+        camPocketExpand: 0,
+        camPocketFollow: 5,
+        camPocketOutline: false,
+        camPocketOver: 0.25,
+        camPocketPlunge: 200,
+        camPocketRefine: 20,
+        camPocketSmooth: 0,
+        camPocketSpeed: 250,
+        camPocketSpindle: 1e3,
+        camPocketTool: 1e3,
+        camPocketZBottom: 0,
+        camPocketZTop: 0,
+        camRegisterOffset: 10,
+        camRegisterSpeed: 1e3,
+        camRegisterThru: 5,
+        camRoughAll: true,
+        camRoughDown: 2,
+        camRoughFlat: true,
+        camRoughIn: true,
+        camRoughOmitThru: false,
+        camRoughOmitVoid: false,
+        camRoughOn: true,
+        camRoughOver: 0.4,
+        camRoughPlunge: 250,
+        camRoughSpeed: 1e3,
+        camRoughSpindle: 1e3,
+        camRoughStock: 0,
+        camRoughStockZ: 0,
+        camRoughTool: 1e3,
+        camRoughTop: true,
+        camRoughVoid: false,
+        camStockClipTo: false,
+        camStockIndexed: false,
+        camStockIndexGrid: true,
+        camStockOffset: true,
+        camStockX: 5,
+        camStockY: 5,
+        camStockZ: 5,
+        camTabsDepth: 5,
+        camTabsHeight: 5,
+        camTabsMidline: false,
+        camTabsWidth: 5,
+        camTolerance: 0,
+        camTolerance: 0,
         camToolInit: true,
-        camFullEngage: 0.8,
-        ops: [],
-        // current ops
+        camTraceDogbone: false,
+        camTraceDown: 0,
+        camTraceLines: false,
+        camTraceMerge: false,
+        camTraceOffOver: 0,
+        camTraceOver: 0.5,
+        camTracePlunge: 200,
+        camTraceSpeed: 250,
+        camTraceSpindle: 1e3,
+        camTraceThru: 0,
+        camTraceTool: 1e3,
+        camTraceType: "follow",
+        camTraceZBottom: 0,
+        camTraceZTop: 0,
+        camTrueShadow: false,
+        camZAnchor: "middle",
+        camZBottom: 0,
+        camZClearance: 1,
+        camZOffset: 0,
+        camZThru: 0,
+        camZTop: 0,
         op2: [],
         // flip ops
+        ops: [],
+        // current ops
+        outputInvertX: false,
+        outputInvertY: false,
+        processName: "default",
       },
     },
     laser: {
@@ -75857,9 +76050,6 @@ var conf = {
         ctOriginBounds: false,
         outputInvertX: false,
         outputInvertY: false,
-        ctOutKnifeDepth: 1,
-        ctOutKnifePasses: 1,
-        ctOutKnifeTip: 2,
         ctOutInches: false,
         ctOutShaper: false,
       },
@@ -75946,9 +76136,6 @@ var conf = {
         ctOriginBounds: false,
         outputInvertX: false,
         outputInvertY: false,
-        ctOutKnifeDepth: 1,
-        ctOutKnifePasses: 1,
-        ctOutKnifeTip: 2,
         ctOutStack: false,
       },
     },
@@ -76136,43 +76323,43 @@ var conf = {
     devproc: {},
     // application ui and control preferences (Q menu)
     controller: {
-      view: null,
-      dark: false,
-      shiny: false,
-      drawer: false,
-      scrolls: true,
-      zoomSpeed: 1,
-      lineType: "path",
-      autoSave: true,
+      animesh: "800",
       antiAlias: true,
+      assembly: false,
+      autoLayout: true,
+      autoSave: true,
+      dark: false,
+      detail: "50",
+      devel: false,
+      drawer: false,
+      edgeangle: 20,
+      exportOcto: false,
+      exportPreview: false,
+      exportThumb: false,
+      freeLayout: true,
+      healMesh: false,
+      lineType: "path",
+      ortho: false,
       reverseZoom: true,
+      scrolls: true,
+      shiny: true,
       showOrigin: false,
       showRulers: true,
       showSpeeds: true,
-      freeLayout: true,
-      autoLayout: true,
-      spaceRandoX: false,
       spaceLayout: 1,
-      edgeangle: 20,
-      units: "mm",
-      exportOcto: false,
-      exportGhost: false,
-      exportLocal: false,
-      exportThumb: false,
-      exportPreview: false,
-      detail: "50",
-      animesh: "800",
-      healMesh: false,
+      spaceRandoX: false,
       threaded: true,
-      assembly: false,
-      ortho: false,
-      devel: false,
+      units: "mm",
+      view: null,
+      zoomSpeed: 1,
     },
     // default hidden ui groups
     hidden: {
       "fdm-base": true,
       "fdm-cool": true,
+      "fdm-heat": true,
       "fdm-fill": true,
+      "fdm-solid": true,
       "fdm-supp": true,
       "fdm-xprt": true,
     },
@@ -76445,10 +76632,15 @@ var Point = class {
   toString() {
     return this.key;
   }
-  clone() {
+  clone(keys) {
     let p = newPoint(this.x, this.y, this.z, this._key);
     if (this.a !== void 0) {
       p.a = this.a;
+    }
+    if (keys) {
+      for (let key2 of keys) {
+        p[key2] = this[key2];
+      }
     }
     return p;
   }
@@ -77549,12 +77741,12 @@ function area2(p1, p2, p3) {
   return pac(p1, p2) + pac(p2, p3) + pac(p3, p1);
 }
 function isCloseTo(v1, v2, dist) {
-  return Math.abs(v1 - v2) <= (dist || base2.config.precision_merge);
+  return Math.abs(v1 - v2) <= (dist ?? base2.config.precision_merge);
 }
-function inCloseRange(val, min2, max2) {
+function inCloseRange(val, min2, max2, precisiom) {
   return (
-    (isCloseTo(val, min2) || val >= min2) &&
-    (isCloseTo(val, max2) || val <= max2)
+    (isCloseTo(val, min2, precisiom) || val >= min2) &&
+    (isCloseTo(val, max2, precisiom) || val <= max2)
   );
 }
 function sqr(v) {
@@ -77651,7 +77843,7 @@ function intersect2(p1, p2, p3, p4, test, parallelok) {
   ip.p2 = p4;
   return ip;
 }
-function intersectRayLine(ro, s1, p1, p2, infinite) {
+function intersectRayLine(ro, s1, p1, p2) {
   let keys = base2.key,
     p1x = ro.x,
     p1y = ro.y,
@@ -77673,8 +77865,8 @@ function intersectRayLine(ro, s1, p1, p2, infinite) {
   }
   a = n1 / d2;
   b = n2 / d2;
-  if (infinite || (inCloseRange(b, 0, 1) && a >= 0)) {
-    let ip = newPoint(p1x + a * s1x, p1y + a * s1y, p2.z || ro.z, keys.NONE);
+  if (inCloseRange(b, 0, 1, 0) && a >= 0) {
+    let ip = newPoint(p1x + a * s1x, p1y + a * s1y, p2.z ?? ro.z, keys.NONE);
     ip.dist = a;
     ip.p1 = p1;
     ip.p2 = p2;
@@ -85427,7 +85619,8 @@ function offset(polys, dist, opts = {}) {
       tree = new PolyTree();
     for (let poly of polys) {
       poly = poly.toClipper();
-      if (clean) poly = CleanPolygons(poly, config.clipperClean);
+      if (clean)
+        poly = CleanPolygons(poly, opts.cleanDist ?? config.clipperClean);
       if (simple) poly = SimplifyPolygons(poly, fill2);
       coff.AddPaths(poly, join, type);
     }
@@ -85594,6 +85787,7 @@ function fillArea(polys, angle, spacing, output, minLen, maxLen) {
   return rayint;
 }
 function rayIntersect(start2, slope, polygons2, for_fill) {
+  throw "deprecated";
   let i = 0,
     flat2 = [],
     points2 = [],
@@ -86003,9 +86197,10 @@ var Polygon = class _Polygon {
   // of the polygon with the noodle removed (for the next pass)
   noodle(width2) {
     let clone5 = this.clone(true);
-    let ins = clone5.offset(width2);
+    let ins = clone5.offset(width2) ?? [];
+    let remain = ins.clone(true);
     let nood = polygons.nest(polygons.flatten([clone5, ...ins], [], true));
-    return { noodle: nood, remain: ins };
+    return { noodle: nood, remain };
   }
   // generate center crossing point cloud
   // only used for fdm thin-wall type 1 (fdm/post.js)
@@ -86374,7 +86569,7 @@ var Polygon = class _Polygon {
       td += d2;
       if (ap.length === 1 && td >= pe1) {
         ap.push(np);
-      } else if (ap.length === 2 && td >= pe2) {
+      } else if (ap.length === 2 && (td >= pe2 || i >= l)) {
         ap.push(np);
         break;
       }
@@ -86692,8 +86887,8 @@ var Polygon = class _Polygon {
    * @param {*} epsilon allowed Z variance
    * @returns {boolean} true if all points Z within epsilon of value
    */
-  onZ(z2, epsilon = 1e-3) {
-    return Math.max(...this.points.map((p) => Math.abs(z2 - p.z))) < epsilon;
+  onZ(z2, epsilon2 = 1e-3) {
+    return Math.max(...this.points.map((p) => Math.abs(z2 - p.z))) < epsilon2;
   }
   /**
    */
@@ -86779,6 +86974,17 @@ var Polygon = class _Polygon {
   }
   appearsClosed() {
     return this.first().isEqual(this.last());
+  }
+  closeIf(dist = 1) {
+    let closeDist = this.first().distTo2D(this.last());
+    if (closeDist < 1e-3) {
+      this.points.pop();
+      return this.setClosed();
+    } else if (closeDist <= dist) {
+      return this.setClosed();
+    } else {
+      return this.setOpen();
+    }
   }
   fixClosed() {
     if (this.appearsClosed()) {
@@ -86960,15 +87166,15 @@ var Polygon = class _Polygon {
         pp2.pos = ip2;
       }
     });
-    list.sort(function (p1, p2) {
-      return util.distSq(lp1, p1) - util.distSq(lp1, p2);
-    });
     if (deep && this.inner) {
       this.inner.forEach((p) => {
         let ints = p.intersections(lp1, lp2);
         if (ints) list.appendAll(ints);
       });
     }
+    list.sort(function (p1, p2) {
+      return util.distSq(lp1, p1) - util.distSq(lp1, p2);
+    });
     return list;
   }
   // return true if any line segments on either poly crosses the other
@@ -87027,6 +87233,31 @@ var Polygon = class _Polygon {
     );
     poly.push(i2);
     return poly;
+  }
+  /**
+   * emit the shortest poly that connects two points on a closed CW poly
+   * because traveling around the 'end point' may yield a shorter route.
+   * if the poly is open, use emitSegment()
+   */
+  emitShortestSegment(i1, i2) {
+    if (this.open) {
+      return this.emitSegment(i1, i2);
+    }
+    let start2 = i1.p2.pos,
+      end = i2.p1.pos,
+      points2 = this.points,
+      seg0 = new _Polygon([
+        i1,
+        ...points2.slice(start2, end + 1),
+        i2,
+      ]).setOpen(),
+      seg1 = new _Polygon([
+        i2,
+        ...points2.slice(end + 1),
+        ...points2.slice(0, start2),
+        i1,
+      ]).setOpen();
+    return seg0.perimeter() < seg1.perimeter() ? seg0 : seg1;
   }
   /**
    * @param {Polygon} poly
@@ -87644,13 +87875,9 @@ var Polygon = class _Polygon {
   simplify(opt = {}) {
     let z2 = this.getZ();
     if (opt.pump) {
-      let p2 = polygons.offset([this], opt.pump, {
-        z: z2,
-      });
+      let p2 = polygons.offset([this], opt.pump, { z: z2 });
       if (p2) {
-        p2 = polygons.offset(p2, -opt.pump, {
-          z: z2,
-        });
+        p2 = polygons.offset(p2, -opt.pump, { z: z2 });
         return p2;
       }
       return null;
@@ -87886,9 +88113,12 @@ var Polygon = class _Polygon {
     }
     return obj2;
   }
-  // split long straight lines into segments no longer than max
-  // and return a new polygon
-  segment(max2 = 1) {
+  // split long straight lines into segments no longer than `max`
+  // and return a new polygon. optionally `mark` points with their
+  // derived segment start point (hinting for thin walls), `wrap`
+  // the poly first point by appending to the end (adaptive walls),
+  // or stopping segmentation at `maxoff`
+  segment(max2 = 1, mark2 = false, wrap = false, maxoff = Infinity) {
     const newp = [];
     const points2 = this.points;
     const length2 = points2.length;
@@ -87900,9 +88130,11 @@ var Polygon = class _Polygon {
       const dy = p2.y - p1.y;
       const dl = Math.sqrt(dx * dx + dy * dy);
       newp.push(p1);
-      if (dl < max2) {
+      if (mark2) p1.segment = p1;
+      if (dl < max2 || maxoff < 0) {
         continue;
       }
+      maxoff -= dl;
       const div = dl / max2;
       const fit = div | 0;
       const add2 = fit - 1;
@@ -87914,11 +88146,15 @@ var Polygon = class _Polygon {
         newp.push(newPoint(ox, oy, (p1.z + p2.z) / 2));
         ox += ix;
         oy += iy;
+        if (mark2) newp.peek().segment = p1;
       }
     }
     if (newp.length > length2) {
+      if (wrap) {
+        newp.push(newp[0]);
+      }
       return newPolygon()
-        .addPoints(newp.map((p) => p.clone()))
+        .addPoints(newp.map((p) => p.clone(["segment"])))
         .setOpenValue(this.open);
     }
     return this;
@@ -88380,9 +88616,9 @@ var Slice = class {
       return top;
     } else {
       let top = new Top(data2.poly);
-      top.thin_fill = data2.thin_fill
-        ? data2.thin_fill.map((p) => newPoint(p.x, p.y, p.z))
-        : void 0;
+      top.thin_fill = data2.thin_fill?.map((p) => newPoint(p.x, p.y, p.z));
+      top.thin_wall = data2.thin_wall;
+      top.thin_sort = data2.thin_sort;
       top.fill_lines = data2.fill_lines;
       top.fill_sparse = data2.fill_sparse;
       top.fill_off = data2.fill_off;
@@ -88570,7 +88806,7 @@ function restore(id) {
   MOID = id;
   local.setItem(KEY, MOID);
 }
-var ajax2 = {
+var ajax = {
   new: (cb, rt) => new Ajax(cb, rt),
   call,
   restore,
@@ -88602,8 +88838,8 @@ function encodeOpt(opt) {
   });
   return out.length ? "?" + out.join(",") : "";
 }
-function ajax3(url, fn, rt, po, hd) {
-  return ajax2.new(fn, rt).request(url, po, hd);
+function ajax2(url, fn, rt, po, hd) {
+  return ajax.new(fn, rt).request(url, po, hd);
 }
 function o2js(o, def) {
   return o ? JSON.stringify(o) : def || null;
@@ -88670,7 +88906,7 @@ var utils = {
   parseOpt,
   encodeOpt,
   noop,
-  ajax: ajax3,
+  ajax: ajax2,
   o2js,
   js2o: js2o2,
   ls2o,
@@ -88685,7 +88921,7 @@ function verticesToPoints(array, options2) {
     i = 0,
     j = 0,
     t = Date.now(),
-    hash = {},
+    hash2 = {},
     unique = 0,
     passes = 0,
     points2,
@@ -88699,10 +88935,10 @@ function verticesToPoints(array, options2) {
     while (i < array.length) {
       let p = newPoint(array[i++], array[i++], array[i++]),
         k = p.key,
-        m = hash[k];
+        m = hash2[k];
       if (!m) {
         m = p;
-        hash[k] = p;
+        hash2[k] = p;
         unique++;
       }
       parr[j++] = m;
@@ -89753,7 +89989,6 @@ var psize = {};
 var fontColor = "#333333";
 var fontScale = 1.4;
 var rulerColor;
-var axisColor;
 var axesOn = true;
 var volumeOn = true;
 var viewControl;
@@ -90027,7 +90262,6 @@ function setPlatformColor(color) {
 function setFont(options2) {
   if (options2.color) fontColor = options2.color;
   if (options2.scale) fontScale = options2.scale;
-  if (options2.axisColor) axisColor = options2.axisColor;
   if (options2.rulerColor) rulerColor = options2.rulerColor;
   updateRulers();
 }
@@ -93602,9 +93836,9 @@ var terms = {
   COPYRIGHT:
     "Copyright (C) Stewart Allen <sa@grid.space> - All Rights Reserved",
   LICENSE: "See the license.md file included with the source distribution",
-  VERSION: "4.3.0",
+  VERSION: "4.3.4",
 };
-var beta = 1;
+var beta = 0;
 var version = terms.VERSION;
 
 // src/mesh/group.js
@@ -94702,16 +94936,16 @@ var file = {
     if (recs.length === 0) {
       return log2(`no models to export`);
     }
-    function doit2(ext2 = "obj") {
+    function doit2(ext = "obj") {
       log2(`exporting ${recs.length} model(s)`);
       let file2 = api3.modal.bound.filename.value || "export.obj";
-      if (file2.toLowerCase().indexOf(`.${ext2}`) < 0) {
-        file2 = `${file2}.${ext2}`;
+      if (file2.toLowerCase().indexOf(`.${ext}`) < 0) {
+        file2 = `${file2}.${ext}`;
       }
       worker5
         .file_export({
           recs,
-          format: ext2,
+          format: ext,
         })
         .then((data2) => {
           if (data2.length) {
@@ -95185,14 +95419,15 @@ var prefs = {
       scale_group_Z: true,
     },
     space: {
+      bounds: false,
+      center: false,
+      dark: false,
+      floor: false,
+      grid: true,
+      select: [],
       snap: 1,
       snapon: false,
-      center: false,
-      floor: false,
       wire: false,
-      grid: true,
-      dark: false,
-      select: [],
     },
     sketch: {
       open_close: false,
@@ -96011,6 +96246,9 @@ var Widget = class {
     this.setWireframe(wires ?? false);
     this.setOpacity(opacity2 ?? 1);
   }
+  refreshVisualState() {
+    this.setVisualState(this.getVisualState());
+  }
   restoreVisualState() {
     if (this.cache.vizstate) {
       this.setVisualState(this.cache.vizstate);
@@ -96251,6 +96489,7 @@ var Widget = class {
     this.roto = [];
     this.center();
     this.setModified();
+    this.refreshVisualState();
   }
   mirror() {
     this.group.forEach((w) => {
@@ -96400,9 +96639,11 @@ var Widget = class {
     }
     if (set) {
       let dark = this.api.space.is_dark();
+      let cam = this.api.mode.is_cam();
+      let color = dark && !cam ? 16777215 : 0;
       let angle = this.api.conf.get().controller.edgeangle || 20;
       let edges2 = new THREE.EdgesGeometry(mesh.geometry, angle);
-      let material2 = new THREE.LineBasicMaterial({ color: 0 });
+      let material2 = new THREE.LineBasicMaterial({ color });
       this.outline = new THREE.LineSegments(edges2, material2);
       this.outline.renderOrder = -20;
       mesh.add(this.outline);
@@ -96769,6 +97010,8 @@ Widget.prototype.encode = function (state) {
     group: this.group.id,
     track: this.track,
     geo: json ? Array.from(geo3) : geo3,
+    meta: this.meta,
+    anno: this.anno,
   };
   return coded;
 };
@@ -96776,7 +97019,11 @@ registerDecoder(TYPE.WIDGET, function (v, state) {
   const id = v.id,
     group3 = v.group || id,
     track = v.track || void 0,
-    widget = newWidget(id, Widget.Groups.forid(group3));
+    widget = newWidget(id, Widget.Groups.forid(group3)),
+    meta = v.meta || widget.meta,
+    anno = v.anno || widget.anno;
+  widget.meta = meta;
+  widget.anno = anno;
   widget.loadVertices(v.json ? v.geo.toFloat32() : v.geo);
   widget.saved = Date.now();
   if (track && track.pos) {
@@ -96831,7 +97078,7 @@ Polygon.prototype.encode = function (state) {
     return { type: TYPE.POLY, ref: this.id };
   }
   state.poly[this.id] = this;
-  return {
+  let enc = {
     type: TYPE.POLY,
     id: this.id,
     array: encodePointArray(this.points, state, this.z),
@@ -96841,6 +97088,17 @@ Polygon.prototype.encode = function (state) {
     color: this.color,
     open: this.open,
   };
+  if (this._epk) {
+    let epk = (enc.epk = {});
+    for (let key2 of this._epk) {
+      let arr = (epk[key2] = []);
+      let pts = this.points;
+      for (let i = 0, l = pts.length; i < l; i++) {
+        if (pts[i][key2]) arr.push(i, pts[i][key2]);
+      }
+    }
+  }
+  return enc;
 };
 registerDecoder(TYPE.POLY, function (v, state) {
   if (!state.poly) state.poly = {};
@@ -96852,6 +97110,16 @@ registerDecoder(TYPE.POLY, function (v, state) {
   const poly = newPolygon();
   for (let vid = 0; vid < length2; ) {
     poly.push(newPoint(array[vid++], array[vid++], array[vid++]));
+  }
+  if (v.epk) {
+    let pts = poly.points;
+    for (let [key2, arr] of Object.entries(v.epk)) {
+      for (let i = 0; i < arr.length; ) {
+        let pos = arr[i++];
+        let val = arr[i++];
+        pts[pos][key2] = val;
+      }
+    }
   }
   state.poly[v.id] = poly;
   poly.id = v.id;
@@ -96986,6 +97254,7 @@ var LISTS = {
     { name: "center" },
     { name: "origin" },
     { name: "random" },
+    { name: "spiral" },
   ],
   infill: [
     { name: "none" },
@@ -97037,9 +97306,10 @@ var LISTS = {
   regpoints: [{ name: "2" }, { name: "3" }],
   thin: [
     { name: "off" },
-    { name: "type 1" },
-    { name: "type 2" },
-    { name: "type 3" },
+    { name: "basic" },
+    { name: "adaptive" },
+    { name: "legacy 1" },
+    { name: "legacy 2" },
   ],
 };
 var MODES = {
@@ -105538,8 +105808,9 @@ var __webpack_modules__ = {
                   }
                   node = elems;
                   do {
-                    n = s.heap[1];
-                    /*SMALLEST*/
+                    n =
+                      s.heap[1];
+                      /*SMALLEST*/
                     s.heap[1] = s.heap[s.heap_len--];
                     /*SMALLEST*/
                     pqdownheap(
@@ -105548,8 +105819,9 @@ var __webpack_modules__ = {
                       1
                       /*SMALLEST*/
                     );
-                    m = s.heap[1];
-                    /*SMALLEST*/
+                    m =
+                      s.heap[1];
+                      /*SMALLEST*/
                     s.heap[--s.heap_max] = n;
                     s.heap[--s.heap_max] = m;
                     tree[node * 2] = tree[n * 2] + tree[m * 2];
@@ -105557,7 +105829,7 @@ var __webpack_modules__ = {
                       (s.depth[n] >= s.depth[m] ? s.depth[n] : s.depth[m]) + 1;
                     tree[n * 2 + 1] = tree[m * 2 + 1] = node;
                     s.heap[1] =
-                      /*SMALLEST*/
+                    /*SMALLEST*/
                       node++;
                     pqdownheap(
                       s,
@@ -105566,8 +105838,9 @@ var __webpack_modules__ = {
                       /*SMALLEST*/
                     );
                   } while (s.heap_len >= 2);
-                  s.heap[--s.heap_max] = s.heap[1];
-                  /*SMALLEST*/
+                  s.heap[--s.heap_max] =
+                    s.heap[1];
+                    /*SMALLEST*/
                   gen_bitlen(s, desc);
                   gen_codes(tree, max_code, s.bl_count);
                 }
@@ -106161,7 +106434,7 @@ function updateFieldsFromSettings(setrec, uirec = api2.ui, opt = {}) {
 }
 function updateExtruderFields(device2) {
   const { ui } = api2;
-  const { LANG: LANG3 } = api2.const;
+  const { current: LANG3 } = api2.const.LANG;
   if (device2.extruders && device2.extruders[device2.internal]) {
     updateFieldsFromSettings(device2.extruders[device2.internal]);
     ui.extruder.innerHTML = `${LANG3.dv_gr_ext}<label class='grow'></label>${
@@ -106414,11 +106687,10 @@ function settingsImport(data2, ask) {
     }
   }
   if (api2.const.LOCAL) console.log("import", data2);
-  let isSettings = data2.settings && data2.version && data2.time;
-  let isProcess =
-    data2.process && data2.version && data2.time && data2.mode && data2.name;
-  let isDevice = data2.device && data2.version && data2.time;
-  let isTools = data2.tools && data2.version && data2.time;
+  let isSettings = data2.settings && data2.time;
+  let isProcess = data2.process && data2.time && data2.mode && data2.name;
+  let isDevice = data2.device && data2.time;
+  let isTools = data2.tools && data2.time;
   let isWork = data2.work;
   if (!isSettings && !isDevice && !isProcess && !isTools) {
     uc.alert("invalid settings or device format");
@@ -107173,7 +107445,7 @@ var Print = class {
     this.nextType = void 0;
     return lastOut;
   }
-  addPrintPoints(input, output, startPoint, tool2) {
+  addPrintPoints(input, output) {
     if (this.startPoint && input.length > 0) {
       this.lastPoint = this.startPoint;
     }
@@ -107188,6 +107460,7 @@ var Print = class {
    * @param {Array} output - the array to print to
    * @param {Object} [options] - optional parameters
    * @param {boolean} [options.ccw] - set the polygon to be counter-clockwise
+   * @param {boolean} [options.scarf] - scarf seam permitted
    * @param {number} [options.extrude] - extrude factor for the polygon
    * @param {number} [options.rate] - print speed in mm/s
    * @param {number} [options.coast] - distance to coast at the end of the polygon
@@ -107207,18 +107480,20 @@ var Print = class {
     const scope = this;
     const { settings: settings4 } = scope;
     const { process: process3 } = settings4;
-    let shortDist = process3.outputShortDistance,
-      shellMult = numOrDefault3(options2.extrude, process3.outputShellMult),
+    let shellMult = numOrDefault3(options2.extrude, process3.outputShellMult),
       printSpeed = options2.rate || process3.outputFeedrate,
       moveSpeed = process3.outputSeekrate,
       minSpeed = process3.outputMinSpeed,
+      nozzleSize = options2.nozzleSize,
       coastDist = options2.coast || 0,
       closest = options2.simple
         ? poly.first()
         : poly.findClosestPointTo(startPoint),
       perimeter = poly.perimeter(),
       close = !options2.open,
+      scarf = !poly.open ? options2.scarf ?? 0 : false,
       tool2 = options2.tool,
+      zmax = options2.zmax,
       last = startPoint,
       first = true;
     if (perimeter < process3.outputShortPoly) {
@@ -107226,38 +107501,98 @@ var Print = class {
         minSpeed +
         (printSpeed - minSpeed) * (perimeter / process3.outputShortPoly);
     }
-    poly.forEachPoint(
-      (point, pos, points2, count) => {
-        if (first) {
-          if (options2.onfirst) {
-            options2.onfirst(point);
-          }
-          let out = scope.addOutput(output, point, 0, moveSpeed, tool2);
-          if (options2.onfirstout) {
-            options2.onfirstout(out);
-          }
-          first = false;
-        } else {
-          let seglen = last.distTo2D(point);
-          if (coastDist && shellMult && perimeter - seglen <= coastDist) {
-            let delta = perimeter - coastDist;
-            let offset2 = seglen - delta;
-            let offPoint = last.offsetPointFrom(point, offset2);
-            scope.addOutput(output, offPoint, shellMult, printSpeed, tool2);
-            shellMult = 0;
-          }
-          perimeter -= seglen;
-          scope.addOutput(output, point, shellMult, printSpeed, tool2);
+    let pp = poly.points;
+    if (closest.index > 0) {
+      let cio = pp.indexOf(closest.point);
+      pp = poly.points = [...pp.slice(cio), ...pp.slice(0, cio)];
+    }
+    if (scarf) {
+      if (pp.filter((p) => p.skip || p.moved).length) {
+        scarf = 0;
+      } else {
+        let z0 = pp[0].z;
+        let zd = 0;
+        for (let p of pp) zd += Math.abs(p.z - z0);
+        if (zd) scarf = 0;
+      }
+    }
+    if (scarf) {
+      let epz = Math.max(...poly.points.map((p) => p.z));
+      let spz = startPoint.z;
+      poly = poly.segment(options2.nozzleSize ?? 0.4, false, false, scarf * 2);
+      pp = poly.points;
+      let lp,
+        sp = [];
+      for (let p of pp) {
+        let d2 = lp?.distTo2D(p) ?? 0;
+        sp.push((lp = p));
+        scarf -= d2;
+        if (scarf <= 0) break;
+      }
+      let fcs = 1;
+      let fco = (1 / sp.length) * 0;
+      let zd = (epz - spz) / sp.length;
+      let zi = 1;
+      for (let p of sp) {
+        p.z -= zd * (sp.length - zi);
+        p.moved = (zi++ / sp.length) * fcs - 1 - fco;
+      }
+      let esp = sp.map((p) => p.clone());
+      for (let p of esp) {
+        p.z = epz;
+        p.moved = (--zi / esp.length) * fcs - 1 - fco;
+      }
+      pp.push(...esp);
+      scarf = true;
+    }
+    if (close && !scarf) {
+      pp.push(pp[0]);
+    }
+    let lpo;
+    for (let point of pp) {
+      if (point.skip && lpo?.skip) {
+        scope.addOutput(output, point, 0, moveSpeed, tool2);
+      } else if (first) {
+        if (options2.onfirst) {
+          options2.onfirst(point, output);
         }
-        last = point;
-      },
-      close,
-      closest.index
-    );
+        let out = scope.addOutput(output, point, 0, moveSpeed, tool2);
+        if (options2.onfirstout) {
+          options2.onfirstout(out);
+        }
+        first = false;
+      } else {
+        let seglen = last.distTo2D(point);
+        if (
+          !scarf &&
+          coastDist &&
+          shellMult &&
+          perimeter - seglen <= coastDist
+        ) {
+          let delta = perimeter - coastDist;
+          let offset2 = seglen - delta;
+          let offPoint = last.offsetPointFrom(point, offset2);
+          scope.addOutput(output, offPoint, shellMult, printSpeed, tool2);
+          shellMult = 0;
+        }
+        perimeter -= seglen;
+        let multOut = shellMult + (point.moved ?? 0);
+        scope.addOutput(output, point, multOut, printSpeed, tool2);
+      }
+      last = lpo = point;
+    }
     this.lastPoly = poly;
     return output.last().point;
   }
   constReplace(str, consts, start, pad, short) {
+    function tryeval(str) {
+      try {
+        return eval(`{ ${str} }`);
+      } catch (e) {
+        console.log({ eval_error: e, str });
+        return str;
+      }
+    }
     let cs = str.indexOf("{", start || 0),
       ce = str.indexOf("}", cs),
       tok,
@@ -107285,8 +107620,7 @@ var Print = class {
         `function range(a,b) { return (a + (layer / layers) * (b-a)).round(4) }`
       );
       eva.push(`try {( ${tok} )} catch (e) {console.log(e);0}`);
-      let scr = eva.join("");
-      let evl = eval(`{ ${scr} }`);
+      let evl = tryeval(eva.join(""));
       nutok = evl;
       if (pad === 666) {
         return evl;
@@ -107433,7 +107767,6 @@ var Print = class {
           else if (axis == "Y") point.y = factor2 * pos.Y + xoff.y + off.y;
           else if (axis == "Z") point.z = factor2 * pos.Z + xoff.z + off.z + dz;
         } else {
-          mov[axis] = val;
           pos[axis] += val;
         }
       });
@@ -107506,7 +107839,7 @@ var Print = class {
       outputPoint(point, prevPoint, emit, { center, arcPoints });
     }
     function G0G1(g0, line) {
-      const mov2 = {};
+      const mov = {};
       const axes = {};
       lastG = g0 ? "G0" : "G1";
       const { point, prevPoint } = processLine(line, axes);
@@ -107575,11 +107908,11 @@ var Print = class {
       let cmd = ["X", "Y", "Z"].indexOf(c0) >= 0 ? lastG : line.shift();
       if (!cmd) return;
       if (cmd.charAt(0) === "T") {
-        let ext2 = scope.settings.device.extruders;
+        let ext = scope.settings.device.extruders;
         let pos2 = parseInt(cmd.charAt(1));
-        if (ext2 && ext2[pos2]) {
-          xoff.X = -ext2[pos2].extOffsetX;
-          xoff.Y = -ext2[pos2].extOffsetY;
+        if (ext && ext[pos2]) {
+          xoff.X = -ext[pos2].extOffsetX;
+          xoff.Y = -ext[pos2].extOffsetY;
         }
       }
       pos.E = 0;
@@ -116014,6 +116347,415 @@ var devices = {
         build_height: 150,
       },
     },
+    "flashforge.5m.pro": {
+      version: "4.2.3",
+      device: "Flashforge 5M Pro",
+      process: {
+        processName: "Flashforge 5m Pro .2 Height",
+        sliceHeight: 0.2,
+        sliceShells: 3,
+        sliceShellOrder: "in-out",
+        sliceLayerStart: "last",
+        sliceFillAngle: 45,
+        sliceFillOverlap: 0.6,
+        sliceFillSparse: 0.08,
+        sliceFillRate: 300,
+        sliceFillType: "hex",
+        sliceSupportDensity: 0.2,
+        sliceSupportOffset: 1,
+        sliceSupportGap: 1,
+        sliceSupportSize: 5,
+        sliceSupportArea: 10,
+        sliceSupportExtra: 3,
+        sliceSupportAngle: 50,
+        sliceSupportNozzle: "0",
+        sliceSupportEnable: false,
+        sliceSolidMinArea: 1.2,
+        sliceBottomLayers: 2,
+        sliceTopLayers: 2,
+        firstSliceHeight: 0.2,
+        firstLayerRate: 30,
+        firstLayerFillRate: 40,
+        firstLayerPrintMult: 1,
+        firstLayerLineMult: 1,
+        firstLayerYOffset: 0,
+        firstLayerNozzleTemp: 205,
+        firstLayerBedTemp: 56,
+        firstLayerBrim: 0,
+        firstLayerBrimTrig: 0,
+        firstLayerBeltLead: 3,
+        outputRaft: false,
+        outputRaftSpacing: 0.2,
+        outputTemp: 205,
+        outputBedTemp: 56,
+        outputFeedrate: 500,
+        outputFinishrate: 250,
+        outputSeekrate: 500,
+        outputShellMult: 1.25,
+        outputFillMult: 1.25,
+        outputSparseMult: 1.3,
+        outputRetractDist: 4,
+        outputRetractSpeed: 40,
+        outputRetractDwell: 20,
+        outputBrimCount: 2,
+        outputBrimOffset: 4,
+        outputShortPoly: 100,
+        outputMinSpeed: 10,
+        outputCoastDist: 0,
+        outputLayerRetract: false,
+        outputInvertX: false,
+        outputInvertY: false,
+        sliceMinHeight: 0,
+        sliceAdaptive: false,
+        zHopDistance: 0.2,
+        antiBacklash: 1,
+        sliceFillWidth: 1,
+        firstLayerFanSpeed: 0,
+        outputFanSpeed: 255,
+        outputRetractWipe: 4,
+        outputPurgeTower: 0,
+        arcTolerance: 0.15,
+        ranges: [],
+        sliceLineWidth: 0,
+        sliceFillRepeat: 1,
+        sliceSupportSpan: 5,
+        sliceSupportOutline: false,
+        firstLayerBrimIn: 0,
+        firstLayerBrimGap: 0,
+        firstLayerBeltBump: 0,
+        firstLayerFlatten: 0,
+        outputDraftShield: false,
+        outputBeltFirst: false,
+        outputAvoidGaps: true,
+        outputLoops: 0,
+        sliceFillGrow: 0,
+        sliceSolidRate: 200,
+        outputAlternating: false,
+        sliceDetectThin: "off",
+        sliceLayerStartX: 0,
+        sliceLayerStartY: 0,
+        sliceSupportGrow: 3,
+        sliceAngle: 45,
+        outputFanLayer: 1,
+        sliceZInterleave: false,
+      },
+      code: {
+        mode: "FDM",
+        internal: 0,
+        bedHeight: 2.5,
+        bedWidth: 225,
+        bedDepth: 225,
+        bedRound: false,
+        bedBelt: false,
+        deviceZMax: 0,
+        gcodeTime: 1,
+        maxHeight: 225,
+        originCenter: true,
+        gcodeFan: ["M106 S{fan_speed}"],
+        gcodeFeature: [],
+        gcodeTrack: [],
+        gcodeLayer: [";AFTER_LAYER_CHANGE", ";[layer_z]"],
+        gcodePre: [
+          "; EXECUTABLE_BLOCK_START",
+          "M73 P0 R80",
+          "M106 S0",
+          "M106 P2 S0",
+          ";TYPE:Custom",
+          "M190 S55",
+          "M104 S210",
+          "G90",
+          "M83",
+          "G1 Z5 F6000",
+          "G1 E-0.2 F800",
+          "G1 X110 Y-110 F6000",
+          "G1 E2 F800",
+          "G1 Y-110 X55 Z0.25 F4800",
+          "G1 X-55 E8 F2400",
+          "G1 Y-109.6 F2400",
+          "G1 X55 E5 F2400",
+          "G1 Y-110 X55 Z0.45 F4800",
+          "G1 X-55 E8 F2400",
+          "G1 Y-109.6 F2400",
+          "G1 X55 E5 F2400",
+          "G92 E0",
+          "G90",
+          "G21",
+          "M83 ; use relative distances for extrusion",
+          "; filament start gcode",
+          ";right_extruder_material: PLA",
+          "SET_PRESSURE_ADVANCE ADVANCE=0; Override pressure advance value",
+          "M106 S0",
+          "M106 P2 S0",
+          ";LAYER_CHANGE",
+          ";Z:0.2",
+          ";HEIGHT:0.2",
+          ";BEFORE_LAYER_CHANGE",
+          ";0.2",
+          "G1 E-.8 F2100",
+          ";AFTER_LAYER_CHANGE",
+          ";0.2",
+          ";_SET_FAN_SPEED_CHANGING_LAYER",
+          "SET_VELOCITY_LIMIT ACCEL=500",
+          "G1 X-25.945 Y-17.607 F30000",
+          "G1 Z.4",
+          "G1 Z.2",
+          "G1 E.8 F2100",
+        ],
+        gcodePost: [
+          "M106 S0",
+          "M106 P2 S0",
+          ";TYPE:Custom",
+          "; filament end gcode",
+          "G1 E-3 F3600",
+          "G0 X50 Y50 F30000",
+          "M104 S0 ; turn off temperature",
+          "M73 P100 R0",
+        ],
+        gcodeProc: "",
+        gcodeFExt: "gcode",
+        extruders: [
+          {
+            extFilament: 1.75,
+            extNozzle: 0.4,
+            extSelect: ["T0"],
+            extDeselect: [],
+            extOffsetX: 0,
+            extOffsetY: 0,
+          },
+          {
+            extFilament: 1.75,
+            extNozzle: 0.4,
+            extSelect: ["T1"],
+            extDeselect: [],
+            extOffsetX: 30,
+            extOffsetY: 0,
+          },
+        ],
+        new: false,
+        deviceName: "Flashforge 5M Pro",
+        imageURL: "",
+        fwRetract: true,
+        filamentSource: "direct",
+        profiles: [],
+        extras: {
+          palette: {
+            printer: "6806c3eabbdb",
+            ping: null,
+            feed: null,
+            push: null,
+            offset: null,
+            heat: null,
+            cool: null,
+            press: null,
+          },
+        },
+        gcodeChange: ["T{tool}"],
+      },
+      time: 1756051792656,
+      mode: "FDM",
+      name: "Flashforge 5m Pro .2 Height",
+    },
+    "taz.lulzbot.747": {
+      version: "4.2.3",
+      device: "Taz LulzBot 747",
+      process: {
+        processName: "747 .3 LH",
+        sliceHeight: 0.3,
+        sliceShells: 3,
+        sliceShellOrder: "in-out",
+        sliceLayerStart: "last",
+        sliceFillAngle: 45,
+        sliceFillOverlap: 0.3,
+        sliceFillSparse: 0.07,
+        sliceFillRate: 70,
+        sliceFillType: "hex",
+        sliceSupportDensity: 0.1,
+        sliceSupportOffset: 1,
+        sliceSupportGap: 1,
+        sliceSupportSize: 25,
+        sliceSupportArea: 0.1,
+        sliceSupportExtra: 0,
+        sliceSupportAngle: 50,
+        sliceSupportNozzle: 0,
+        sliceSupportEnable: false,
+        sliceSolidMinArea: 1,
+        sliceBottomLayers: 2,
+        sliceTopLayers: 3,
+        firstSliceHeight: 0.3,
+        firstLayerRate: 15,
+        firstLayerFillRate: 15,
+        firstLayerPrintMult: 1,
+        firstLayerLineMult: 1,
+        firstLayerYOffset: 0,
+        firstLayerNozzleTemp: 210,
+        firstLayerBedTemp: 56,
+        firstLayerBrim: 0,
+        firstLayerBrimTrig: 0,
+        firstLayerBeltLead: 3,
+        outputRaft: false,
+        outputRaftSpacing: 0.2,
+        outputTemp: 210,
+        outputBedTemp: 56,
+        outputFeedrate: 80,
+        outputFinishrate: 40,
+        outputSeekrate: 120,
+        outputShellMult: 1.15,
+        outputFillMult: 1.15,
+        outputSparseMult: 1.15,
+        outputRetractDist: 0.9,
+        outputRetractSpeed: 25,
+        outputRetractDwell: 20,
+        outputBrimCount: 2,
+        outputBrimOffset: 4,
+        outputShortPoly: 100,
+        outputMinSpeed: 10,
+        outputCoastDist: 0,
+        outputLayerRetract: true,
+        outputInvertX: false,
+        outputInvertY: false,
+        sliceMinHeight: 0,
+        sliceAdaptive: false,
+        zHopDistance: 0.6,
+        antiBacklash: 1,
+        sliceFillWidth: 1,
+        firstLayerFanSpeed: 200,
+        outputFanSpeed: 255,
+        outputRetractWipe: 0,
+        outputPurgeTower: 0,
+        arcTolerance: 0,
+        ranges: [],
+        sliceLineWidth: 0,
+        sliceFillRepeat: 1,
+        sliceSupportSpan: 5,
+        sliceSupportOutline: false,
+        firstLayerBrimIn: 0,
+        firstLayerBrimGap: 0,
+        firstLayerBeltBump: 0,
+        firstLayerFlatten: 0,
+        outputDraftShield: false,
+        outputBeltFirst: false,
+        outputAvoidGaps: true,
+        outputLoops: 0,
+        sliceFillGrow: 0,
+        sliceSolidRate: 40,
+        outputAlternating: false,
+        sliceDetectThin: "off",
+        sliceLayerStartX: 0,
+        sliceLayerStartY: 0,
+        sliceSupportGrow: 0,
+        sliceAngle: 45,
+        outputFanLayer: 1,
+        sliceZInterleave: false,
+      },
+      code: {
+        mode: "FDM",
+        internal: 0,
+        imageURL: "",
+        bedHeight: 2.5,
+        bedWidth: 231,
+        bedDepth: 231,
+        bedRound: false,
+        bedBelt: false,
+        deviceZMax: 0,
+        gcodeTime: 1,
+        maxHeight: 248,
+        originCenter: false,
+        gcodeFan: ["M106 S{fan_speed}"],
+        gcodeFeature: [],
+        gcodeTrack: [],
+        gcodeLayer: [],
+        gcodePre: [
+          ";Generated by Cura LulzBot Edition GCodeWriter Version: 3.6.37",
+          ";FLAVOR:Marlin",
+          ";TIME:7538",
+          ";Filament used: 5.35322m",
+          ";Layer height: 0.18",
+          ";Generated with Cura_SteamEngine 3.6.37-win10",
+          "M82 ;absolute extrusion mode",
+          ";This G-Code has been generated specifically for the LulzBot Sidekick with a Universal Tool Head",
+          ";",
+          ";The following lines can be uncommented for printer specific fine tuning",
+          ";More information can be found at https://marlinfw.org/meta/gcode/ (Note: current values are based on SE Tool Head)",
+          ";",
+          "M92 E420                 ;Set Axis Steps-per-unit",
+          "M301 P21.0 I1.78 D61.93  ;Set Hotend PID",
+          "M906 E960                ;TMC Motor Current",
+          ";",
+          "G90                       ; absolute coordinate",
+          "M82                       ; set extruder to absolute mode",
+          "G92 E0                    ; set extruder position to 0",
+          "M117 Heating...           ; progress indicator message on LCD",
+          "M140 S50.0   ; start bed heating up",
+          "M109 R140        ; soften filament before homing Z",
+          "G28                       ; Home all axis",
+          "G1 E-15 F100              ; retract filament",
+          "M104 S140         ; start extruder heating to probe temp",
+          "M190 S57.0   ; wait for bed to reach printing temp",
+          "G29                                        ; start auto leveling",
+          "G0 X0 Y0 F5000",
+          "M109 R210 ; wait for extruder to reach initial printing temp",
+          "M117 SideKick Printing...                  ; progress indicator message on LCD",
+          "G1 Z2 E0 F75                               ; prime tiny bit of filament into the nozzle",
+          "M221 S100 T0",
+          "G92 E0",
+          "G1 F600 E-1.75",
+        ],
+        gcodePost: [
+          ";This G-Code has been generated specifically for the LulzBot Sidekick with a Universal Tool Head",
+          "M400                                      ; wait for moves to finish",
+          "M140 S45.0 ; start bed cooling",
+          "M104 S0                                   ; disable hotend",
+          "M107                                      ; disable fans",
+          "G92 E5                                    ; set extruder to 5mm for retract on print end",
+          "M117 Cooling please wait                  ; progress indicator message on LCD",
+          "G1 Y-10 Z251.3 E0 F3000                ; move to cooling position",
+          "G1 E5                                     ; re-prime extruder",
+          "M190 R45.0 ; wait for bed to cool down to removal temp",
+          "G27                            ; present finished print",
+          "M140 S0; keep temperature or cool down",
+          "M77					                      ; End GLCD Print Timer",
+          "G90                                       ; absolute positioning",
+          "M18 X E				                  	  ; turn off x and e axis",
+          "M117 Print Complete.                      ; print complete message",
+          "M82 ;absolute extrusion mode",
+          "M104 S0",
+          ";End of Gcode",
+        ],
+        gcodeProc: "",
+        gcodeFExt: "gcode",
+        extruders: [
+          {
+            extFilament: 1.75,
+            extNozzle: 0.5,
+            extSelect: ["T0"],
+            extDeselect: [],
+            extOffsetX: 0,
+            extOffsetY: 0,
+          },
+        ],
+        new: false,
+        deviceName: "Taz LulzBot 747",
+        fwRetract: false,
+        filamentSource: "direct",
+        profiles: [],
+        extras: {
+          palette: {
+            printer: "6806c3eabbdb",
+            ping: null,
+            feed: null,
+            push: null,
+            offset: null,
+            heat: null,
+            cool: null,
+            press: null,
+          },
+        },
+        gcodeChange: ["T{tool}"],
+      },
+      time: 1756051830810,
+      mode: "FDM",
+      name: "747 .3 LH",
+    },
   },
   laser: {
     "Any.Generic.Laser": {
@@ -116522,10 +117264,10 @@ function setDeviceCode(code, devicename) {
       dev.ctOriginCenter || dev.originCenter || dev.bedRound;
     ui.fwRetract.checked = dev.fwRetract;
     if (dev.extruders) {
-      let ext2 = (api2.lists.extruders = []);
+      let ext = (api2.lists.extruders = []);
       dev.internal = 0;
       for (let i = 0; i < dev.extruders.length; i++) {
-        ext2.push({ id: i, name: i });
+        ext.push({ id: i, name: i });
       }
     }
     [
@@ -116677,7 +117419,7 @@ function renderDevices(devices3) {
   };
   ui.deviceExport.onclick = function (event3) {
     const record = {
-      version: kiri.version,
+      version: api2.version,
       device: selected3,
       process: api2.process.code(),
       profiles: event3.altKey ? apiSet.prof() : void 0,
@@ -117477,8 +118219,8 @@ var Module = (() => {
           circularSegments
         );
       };
-      Module2.CrossSection.prototype.simplify = function (epsilon = 1e-6) {
-        return this._Simplify(epsilon);
+      Module2.CrossSection.prototype.simplify = function (epsilon2 = 1e-6) {
+        return this._Simplify(epsilon2);
       };
       Module2.CrossSection.prototype.extrude = function (
         height2,
@@ -117999,12 +118741,12 @@ var Module = (() => {
       });
       Module2.triangulate = function (
         polygons2,
-        epsilon = -1,
+        epsilon2 = -1,
         allowConvex = true
       ) {
         const polygonsVec = polygons2vec(polygons2);
         const result = fromVec(
-          Module2._Triangulate(polygonsVec, epsilon, allowConvex),
+          Module2._Triangulate(polygonsVec, epsilon2, allowConvex),
           (x2) => [x2[0], x2[1], x2[2]]
         );
         disposePolygons(polygonsVec);
@@ -120744,11 +121486,11 @@ var Module = (() => {
       a: __embind_register_class_function,
       G: __embind_register_emval,
       t: __embind_register_enum,
-      f: __embind_register_enum_value,
+      e: __embind_register_enum_value,
       x: __embind_register_float,
       c: __embind_register_function,
       j: __embind_register_integer,
-      e: __embind_register_memory_view,
+      f: __embind_register_memory_view,
       k: __embind_register_optional,
       w: __embind_register_std_string,
       s: __embind_register_std_wstring,
@@ -120952,7 +121694,7 @@ function indexVertices(pos) {
 var Instance;
 manifold_default({
   locateFile() {
-    return "/wasm/manifold.wasm";
+    return "../wasm/manifold.wasm";
   },
 }).then((inst) => {
   inst.setup();
@@ -121154,7 +121896,7 @@ function parse3(text) {
 
 // src/ext/pngjs.esm.js
 var import_pngjs = __toESM(require_pngjs());
-var PNG = self.png ? self.png.PNG : null;
+var PNG = globalThis.png ? globalThis.png.PNG : null;
 
 // src/load/png.js
 var load = {
@@ -121457,14 +122199,14 @@ function nameOf(file2, part, i) {
   }
   return part ? part : `${file2}_${i}`;
 }
-function load_data(data2, file2, ext2, opt = {}) {
-  ext2 = ext2 || file2.name.toLowerCase().split(".").pop();
+function load_data(data2, file2, ext, opt = {}) {
+  ext = ext || file2.name.toLowerCase().split(".").pop();
   return new Promise((resolve, reject) => {
-    let fn = types[ext2];
+    let fn = types[ext];
     if (fn) {
       fn(data2, file2, resolve, reject, opt);
     } else {
-      reject(`unknown file type: "${ext2}" from ${file2}`);
+      reject(`unknown file type: "${ext}" from ${file2}`);
     }
   });
 }
@@ -121478,14 +122220,14 @@ function load_file(file2, opt) {
     }
     let reader = new FileReader();
     let name = file2.name;
-    let ext2 = name.toLowerCase().split(".").pop();
+    let ext = name.toLowerCase().split(".").pop();
     reader.file = file2;
     reader.onloadend = function (event2) {
-      load_data(event2.target.result, name, ext2, opt)
+      load_data(event2.target.result, name, ext, opt)
         .then((data2) => resolve(data2))
         .catch((e) => reject(e));
     };
-    if (as_buffer.indexOf(ext2) >= 0) {
+    if (as_buffer.indexOf(ext) >= 0) {
       reader.readAsArrayBuffer(reader.file);
     } else {
       reader.readAsBinaryString(reader.file);
@@ -121611,6 +122353,9 @@ window.addEventListener("message", (msg) => {
     show3.progress(data2.progress, data2.message);
   }
 });
+
+// src/kiri/core/main.js
+var import_base64 = __toESM(require_base64js_min());
 
 // src/kiri/core/lang.js
 var LANG = (self.lang = { current: {} });
@@ -121859,7 +122604,7 @@ SP.init = function (options2 = {}) {
   try {
     request = IDB.open(name, this.version);
     request.onupgradeneeded = function (event2) {
-      let db = (storage.db = request.result);
+      let db = request.result;
       let current2 = [...db.objectStoreNames];
       let stores = storage.stores;
       for (let store of stores) {
@@ -121873,13 +122618,11 @@ SP.init = function (options2 = {}) {
       }
       for (let curr of current2) {
         if (stores.indexOf(curr) < 0) {
-          storage.db.deleteObjectStore(curr);
+          db.deleteObjectStore(curr);
           console.log({ index_dropped: curr });
         }
       }
-      event2.target.transaction.oncomplete = function (event3) {
-        storage.runQueue();
-      };
+      storage.db = db;
     };
     request.onsuccess = function (event2) {
       storage.current = storage.stores[0];
@@ -121954,7 +122697,11 @@ SP.put = function (key2, value, callback, store = this.current) {
       };
     }
   } catch (e) {
-    console.log(e);
+    if (e.name === "InvalidStateError") {
+      console.log({ putRetry: key2 });
+      return this.queue.push(["put", key2, value, callback, store]);
+    }
+    console.log(e.name, e);
     if (callback) callback(false);
   }
 };
@@ -121978,6 +122725,10 @@ SP.get = function (key2, callback, store = this.current) {
       };
     }
   } catch (e) {
+    if (e.name === "InvalidStateError") {
+      console.log({ getRetry: key2 });
+      return this.queue.push(["get", key2, callback, store]);
+    }
     console.log(e);
     if (callback) callback(null);
   }
@@ -122588,8 +123339,8 @@ function platformUpdateSelected() {
     }
     selection3.for_widgets((w) => {
       w.setColor(COLOR.selected);
-      let ext2 = api2.widgets.annotate(w.id).extruder || 0;
-      let b = $(`sel-ext-${ext2}`);
+      let ext = api2.widgets.annotate(w.id).extruder || 0;
+      let b = $(`sel-ext-${ext}`);
       if (b) b.classList.add("pop-sel");
       w.saveState();
     }, true);
@@ -122663,7 +123414,7 @@ function platformLoad(url, onload) {
   if (url.toLowerCase().indexOf(".stl") > 0) {
     platform2.load_stl(url, onload);
   } else {
-    ajax3(url, (vertices) => {
+    ajax2(url, (vertices) => {
       vertices = js2o2(vertices).toFloat32();
       let widget = newWidget().loadVertices(vertices);
       widget.meta.url = url;
@@ -123428,7 +124179,7 @@ var MeshTool = class {
     let fcac = {};
     let fnew = [];
     let nuvt = [];
-    let hash = {};
+    let hash2 = {};
     let prec = this.precision;
     let dups = 0;
     let cull = 0;
@@ -123442,9 +124193,9 @@ var MeshTool = class {
       let y2 = vertices[i + 1];
       let z2 = vertices[i + 2];
       let key2 = [(x2 * prec) | 0, (y2 * prec) | 0, (z2 * prec) | 0].join("");
-      let vpos = hash[key2];
+      let vpos = hash2[key2];
       if (vpos === void 0) {
-        hash[key2] = vpos = nuvt.length;
+        hash2[key2] = vpos = nuvt.length;
         nuvt.push(x2);
         nuvt.push(y2);
         nuvt.push(z2);
@@ -123803,7 +124554,7 @@ var MeshTool = class {
   patch(opt = { merge: true }) {
     let vertices = this.checkVertices(this.uvert);
     let faces2 = this.faces;
-    let hash = {};
+    let hash2 = {};
     let vmap = {};
     let lines = [];
     class Line5 {
@@ -123864,9 +124615,9 @@ var MeshTool = class {
       let s1 = vertices[v1] + vertices[v1 + 1] * 1e3 + vertices[v1 + 2] * 1e5;
       let s2 = vertices[v2] + vertices[v2 + 1] * 1e3 + vertices[v2 + 2] * 1e5;
       let key2 = s1 <= s2 ? [v1, v2].join("-") : [v2, v1].join("-");
-      let line = hash[key2];
+      let line = hash2[key2];
       if (!line) {
-        line = hash[key2] = new Line5(v1, v2);
+        line = hash2[key2] = new Line5(v1, v2);
         line.key = key2;
         lines.push(line);
         let lm1 = (vmap[v1] = vmap[v1] || []);
@@ -124264,8 +125015,12 @@ function update_info() {
   let bounds = new three_module_namespaceObject.Box3(),
     track;
   for_meshes((mesh) => {
-    bounds = bounds.union(mesh.getBoundingBox());
+    let box = mesh.getBoundingBox().clone();
     track = mesh.widget.track;
+    let { pos } = track;
+    box.min.add(pos);
+    box.max.add(pos);
+    bounds = bounds.union(box);
   });
   if (bounds.min.x === Infinity) {
     if (selectedMeshes.length === 0) {
@@ -124622,6 +125377,16 @@ var Stats = class {
 };
 var stats = new Stats();
 
+// src/kiri/mode/cam/tool.js
+var HPI = Math.PI / 2;
+var RAD2DEG3 = 180 / Math.PI;
+function calcTaperAngle(rad, len) {
+  return Math.atan(rad / len) * RAD2DEG3;
+}
+function calcTaperLength(rad, angle) {
+  return rad / Math.tan(angle);
+}
+
 // src/kiri/mode/cam/tools.js
 var DEG2RAD6 = Math.PI / 180;
 var { MODES: MODES2 } = consts2;
@@ -124660,7 +125425,7 @@ function selectTool(tool2) {
   ui.toolMetric.checked = tool2.metric;
   ui.toolType.selectedIndex = toolNames.indexOf(tool2.type);
   if (tool2 === "tapermill") {
-    ui.toolTaperAngle.value = kiri.driver.CAM.calcTaperAngle(
+    ui.toolTaperAngle.value = calcTaperAngle(
       (tool2.flute_diam - tool2.taper_tip) / 2,
       tool2.flute_len
     ).round(1);
@@ -124874,16 +125639,15 @@ function updateTool(ev) {
   selectedTool.metric = ui.toolMetric.checked;
   selectedTool.type = toolNames[ui.toolType.selectedIndex];
   if (selectedTool.type === "tapermill") {
-    const CAM = kiri.driver.CAM;
     const rad = (selectedTool.flute_diam - selectedTool.taper_tip) / 2;
     if (ev && ev.target === ui.toolTaperAngle) {
       const angle = parseFloat(ev.target.value);
-      const len = CAM.calcTaperLength(rad, angle * DEG2RAD6);
+      const len = calcTaperLength(rad, angle * DEG2RAD6);
       selectedTool.flute_len = len;
       ui.toolTaperAngle.value = angle.round(1);
       ui.toolFluteLen.value = selectedTool.flute_len.round(4);
     } else {
-      ui.toolTaperAngle.value = CAM.calcTaperAngle(
+      ui.toolTaperAngle.value = calcTaperAngle(
         rad,
         selectedTool.flute_len
       ).round(1);
@@ -124990,7 +125754,7 @@ function _showTools() {
         return;
       }
       const record = {
-        version: kiri.version,
+        version: api2.version,
         tools: api2.conf.get().tools,
         time: Date.now(),
       };
@@ -125113,11 +125877,6 @@ var mode2 = {
       api2.mode.is_laser()
     );
   },
-};
-var probe = {
-  live: "https://live.grid.space",
-  grid: noop,
-  local: noop,
 };
 var process2 = {
   code: currentProcessCode,
@@ -125765,51 +126524,7 @@ function showHelpFile(local4, then) {
   showModal("help");
   api2.event.emit("help.show", local4);
 }
-function showLocal() {
-  showModal("local");
-  api2.probe.local((err, data2) => {
-    let devc = 0;
-    let bind = [];
-    let html = ["<table>"];
-    html.push(
-      `<thead><tr><th>device</th><th>type</th><th>status</th><th></th></tr></thead>`
-    );
-    html.push(`<tbody>`);
-    let recs = [];
-    for (let k in data2) {
-      recs.push(data2[k].stat);
-    }
-    recs.sort((a, b) => {
-      return a.device.name < b.device.name ? -1 : 1;
-    });
-    for (let r of recs) {
-      bind.push({
-        uuid: r.device.uuid,
-        host: r.device.addr[0],
-        port: r.device.port,
-      });
-      html.push(`<tr>`);
-      html.push(`<td>${r.device.name}</td>`);
-      html.push(`<td>${r.device.mode}</td>`);
-      html.push(`<td>${r.state}</td>`);
-      html.push(`<td><button id="${r.device.uuid}">admin</button></td>`);
-      html.push(`</tr>`);
-      devc++;
-    }
-    html.push(`</tbody>`);
-    html.push(`</table>`);
-    if (devc) {
-      $("mod-local").innerHTML = html.join("");
-    } else {
-      $("mod-local").innerHTML = `<br><b>no local devices</b>`;
-    }
-    bind.forEach((rec) => {
-      $(rec.uuid).onclick = () => {
-        window.open(`http://${rec.host}:${rec.port || 4080}/`);
-      };
-    });
-  });
-}
+function showLocal() {}
 function setViewMode(mode3) {
   const isCAM = apiSet.mode() === "CAM";
   viewMode = mode3;
@@ -126396,6 +127111,7 @@ var render = {
 };
 
 // src/geo/slicer.js
+var epsilon = 1e-4;
 function dval(v, dv) {
   return v !== void 0 ? v : dv;
 }
@@ -126448,7 +127164,11 @@ async function slice(points2, options2 = {}) {
     p3 = points2[i++];
     zSum +=
       Math.abs(p1.z - p2.z) + Math.abs(p2.z - p3.z) + Math.abs(p3.z - p1.z);
-    if (p1.z === p2.z && p2.z === p3.z && p1.z >= zMin) {
+    if (
+      Math.abs(p1.z - p2.z) < epsilon &&
+      Math.abs(p2.z - p3.z) < epsilon &&
+      p1.z >= zMin
+    ) {
       let zkey = p1.z,
         area3 = Math.abs(base2.util.area2(p1, p2, p3)) / 2;
       if (!zFlat[zkey]) {
@@ -127888,9 +128608,9 @@ function printDownload(output, api4, names) {
     volume: volume2,
   } = output;
   const fileroot = names[0] || "print";
-  const filename = `${fileroot}-${
-    /* @__PURE__ */ new Date().getTime().toString(36)
-  }`;
+  const filename = `${fileroot}-${/* @__PURE__ */ new Date()
+    .getTime()
+    .toString(36)}`;
   api4.modal.show("xsla");
   let settings4 = api4.conf.get(),
     process3 = settings4.process,
@@ -127946,9 +128666,177 @@ function printDownload(output, api4, names) {
       break;
   }
 }
-function saveFile(api4, file2, ext2) {
-  api4.util.download(file2, $("print-filename-sla").value + ext2);
+function saveFile(api4, file2, ext) {
+  api4.util.download(file2, $("print-filename-sla").value + ext);
   api4.modal.hide();
+}
+
+// src/ext/md5.js
+function hash(e) {
+  function h2(a2, b2) {
+    var c2, d3, e2, f2, g;
+    e2 = a2 & 2147483648;
+    f2 = b2 & 2147483648;
+    c2 = a2 & 1073741824;
+    d3 = b2 & 1073741824;
+    g = (a2 & 1073741823) + (b2 & 1073741823);
+    return c2 & d3
+      ? g ^ 2147483648 ^ e2 ^ f2
+      : c2 | d3
+      ? g & 1073741824
+        ? g ^ 3221225472 ^ e2 ^ f2
+        : g ^ 1073741824 ^ e2 ^ f2
+      : g ^ e2 ^ f2;
+  }
+  function k(a2, b2, c2, d3, e2, f2, g) {
+    a2 = h2(a2, h2(h2((b2 & c2) | (~b2 & d3), e2), g));
+    return h2((a2 << f2) | (a2 >>> (32 - f2)), b2);
+  }
+  function l(a2, b2, c2, d3, e2, f2, g) {
+    a2 = h2(a2, h2(h2((b2 & d3) | (c2 & ~d3), e2), g));
+    return h2((a2 << f2) | (a2 >>> (32 - f2)), b2);
+  }
+  function m(a2, b2, d3, c2, e2, f2, g) {
+    a2 = h2(a2, h2(h2(b2 ^ d3 ^ c2, e2), g));
+    return h2((a2 << f2) | (a2 >>> (32 - f2)), b2);
+  }
+  function n(a2, b2, d3, c2, e2, f2, g) {
+    a2 = h2(a2, h2(h2(d3 ^ (b2 | ~c2), e2), g));
+    return h2((a2 << f2) | (a2 >>> (32 - f2)), b2);
+  }
+  function p(a2) {
+    var b2 = "",
+      d3 = "",
+      c2;
+    for (c2 = 0; 3 >= c2; c2++)
+      (d3 = (a2 >>> (8 * c2)) & 255),
+        (d3 = "0" + d3.toString(16)),
+        (b2 += d3.substr(d3.length - 2, 2));
+    return b2;
+  }
+  var f = [],
+    q,
+    r,
+    s,
+    t,
+    a,
+    b,
+    c,
+    d2;
+  e = (function (a2) {
+    a2 = a2.replace(/\r\n/g, "\n");
+    for (var b2 = "", d3 = 0; d3 < a2.length; d3++) {
+      var c2 = a2.charCodeAt(d3);
+      128 > c2
+        ? (b2 += String.fromCharCode(c2))
+        : (127 < c2 && 2048 > c2
+            ? (b2 += String.fromCharCode((c2 >> 6) | 192))
+            : ((b2 += String.fromCharCode((c2 >> 12) | 224)),
+              (b2 += String.fromCharCode(((c2 >> 6) & 63) | 128))),
+          (b2 += String.fromCharCode((c2 & 63) | 128)));
+    }
+    return b2;
+  })(e);
+  f = (function (b2) {
+    var a2,
+      c2 = b2.length;
+    a2 = c2 + 8;
+    for (
+      var d3 = 16 * ((a2 - (a2 % 64)) / 64 + 1),
+        e2 = Array(d3 - 1),
+        f2 = 0,
+        g = 0;
+      g < c2;
+
+    )
+      (a2 = (g - (g % 4)) / 4),
+        (f2 = (g % 4) * 8),
+        (e2[a2] |= b2.charCodeAt(g) << f2),
+        g++;
+    a2 = (g - (g % 4)) / 4;
+    e2[a2] |= 128 << ((g % 4) * 8);
+    e2[d3 - 2] = c2 << 3;
+    e2[d3 - 1] = c2 >>> 29;
+    return e2;
+  })(e);
+  a = 1732584193;
+  b = 4023233417;
+  c = 2562383102;
+  d2 = 271733878;
+  for (e = 0; e < f.length; e += 16)
+    (q = a),
+      (r = b),
+      (s = c),
+      (t = d2),
+      (a = k(a, b, c, d2, f[e + 0], 7, 3614090360)),
+      (d2 = k(d2, a, b, c, f[e + 1], 12, 3905402710)),
+      (c = k(c, d2, a, b, f[e + 2], 17, 606105819)),
+      (b = k(b, c, d2, a, f[e + 3], 22, 3250441966)),
+      (a = k(a, b, c, d2, f[e + 4], 7, 4118548399)),
+      (d2 = k(d2, a, b, c, f[e + 5], 12, 1200080426)),
+      (c = k(c, d2, a, b, f[e + 6], 17, 2821735955)),
+      (b = k(b, c, d2, a, f[e + 7], 22, 4249261313)),
+      (a = k(a, b, c, d2, f[e + 8], 7, 1770035416)),
+      (d2 = k(d2, a, b, c, f[e + 9], 12, 2336552879)),
+      (c = k(c, d2, a, b, f[e + 10], 17, 4294925233)),
+      (b = k(b, c, d2, a, f[e + 11], 22, 2304563134)),
+      (a = k(a, b, c, d2, f[e + 12], 7, 1804603682)),
+      (d2 = k(d2, a, b, c, f[e + 13], 12, 4254626195)),
+      (c = k(c, d2, a, b, f[e + 14], 17, 2792965006)),
+      (b = k(b, c, d2, a, f[e + 15], 22, 1236535329)),
+      (a = l(a, b, c, d2, f[e + 1], 5, 4129170786)),
+      (d2 = l(d2, a, b, c, f[e + 6], 9, 3225465664)),
+      (c = l(c, d2, a, b, f[e + 11], 14, 643717713)),
+      (b = l(b, c, d2, a, f[e + 0], 20, 3921069994)),
+      (a = l(a, b, c, d2, f[e + 5], 5, 3593408605)),
+      (d2 = l(d2, a, b, c, f[e + 10], 9, 38016083)),
+      (c = l(c, d2, a, b, f[e + 15], 14, 3634488961)),
+      (b = l(b, c, d2, a, f[e + 4], 20, 3889429448)),
+      (a = l(a, b, c, d2, f[e + 9], 5, 568446438)),
+      (d2 = l(d2, a, b, c, f[e + 14], 9, 3275163606)),
+      (c = l(c, d2, a, b, f[e + 3], 14, 4107603335)),
+      (b = l(b, c, d2, a, f[e + 8], 20, 1163531501)),
+      (a = l(a, b, c, d2, f[e + 13], 5, 2850285829)),
+      (d2 = l(d2, a, b, c, f[e + 2], 9, 4243563512)),
+      (c = l(c, d2, a, b, f[e + 7], 14, 1735328473)),
+      (b = l(b, c, d2, a, f[e + 12], 20, 2368359562)),
+      (a = m(a, b, c, d2, f[e + 5], 4, 4294588738)),
+      (d2 = m(d2, a, b, c, f[e + 8], 11, 2272392833)),
+      (c = m(c, d2, a, b, f[e + 11], 16, 1839030562)),
+      (b = m(b, c, d2, a, f[e + 14], 23, 4259657740)),
+      (a = m(a, b, c, d2, f[e + 1], 4, 2763975236)),
+      (d2 = m(d2, a, b, c, f[e + 4], 11, 1272893353)),
+      (c = m(c, d2, a, b, f[e + 7], 16, 4139469664)),
+      (b = m(b, c, d2, a, f[e + 10], 23, 3200236656)),
+      (a = m(a, b, c, d2, f[e + 13], 4, 681279174)),
+      (d2 = m(d2, a, b, c, f[e + 0], 11, 3936430074)),
+      (c = m(c, d2, a, b, f[e + 3], 16, 3572445317)),
+      (b = m(b, c, d2, a, f[e + 6], 23, 76029189)),
+      (a = m(a, b, c, d2, f[e + 9], 4, 3654602809)),
+      (d2 = m(d2, a, b, c, f[e + 12], 11, 3873151461)),
+      (c = m(c, d2, a, b, f[e + 15], 16, 530742520)),
+      (b = m(b, c, d2, a, f[e + 2], 23, 3299628645)),
+      (a = n(a, b, c, d2, f[e + 0], 6, 4096336452)),
+      (d2 = n(d2, a, b, c, f[e + 7], 10, 1126891415)),
+      (c = n(c, d2, a, b, f[e + 14], 15, 2878612391)),
+      (b = n(b, c, d2, a, f[e + 5], 21, 4237533241)),
+      (a = n(a, b, c, d2, f[e + 12], 6, 1700485571)),
+      (d2 = n(d2, a, b, c, f[e + 3], 10, 2399980690)),
+      (c = n(c, d2, a, b, f[e + 10], 15, 4293915773)),
+      (b = n(b, c, d2, a, f[e + 1], 21, 2240044497)),
+      (a = n(a, b, c, d2, f[e + 8], 6, 1873313359)),
+      (d2 = n(d2, a, b, c, f[e + 15], 10, 4264355552)),
+      (c = n(c, d2, a, b, f[e + 6], 15, 2734768916)),
+      (b = n(b, c, d2, a, f[e + 13], 21, 1309151649)),
+      (a = n(a, b, c, d2, f[e + 4], 6, 4149444226)),
+      (d2 = n(d2, a, b, c, f[e + 11], 10, 3174756917)),
+      (c = n(c, d2, a, b, f[e + 2], 15, 718787259)),
+      (b = n(b, c, d2, a, f[e + 9], 21, 3951481745)),
+      (a = h2(a, q)),
+      (b = h2(b, r)),
+      (c = h2(c, s)),
+      (d2 = h2(d2, t));
+  return (p(a) + p(b) + p(c) + p(d2)).toLowerCase();
 }
 
 // src/kiri/core/export.js
@@ -128115,7 +129003,7 @@ function exportGCodeDialog(gcode, sections, info, names) {
   function sendto_octoprint() {
     if (!(octo_host && octo_apik)) return;
     let form = new FormData(),
-      ajax4 = new XMLHttpRequest(),
+      ajax3 = new XMLHttpRequest(),
       host = octo_host.value.toLowerCase(),
       apik = octo_apik.value;
     if (host.indexOf("http") !== 0) {
@@ -128130,9 +129018,9 @@ function exportGCodeDialog(gcode, sections, info, names) {
     localSet("octo-apik", apik.trim());
     filename = $("print-filename").value;
     form.append("file", getBlob(), filename + "." + fileext);
-    ajax4.onreadystatechange = function () {
-      if (ajax4.readyState === 4) {
-        let status = ajax4.status;
+    ajax3.onreadystatechange = function () {
+      if (ajax3.readyState === 4) {
+        let status = ajax3.status;
         api2.stats.add(`ua_${api2.mode.get_lower()}_print_octo_${status}`);
         if (status >= 200 && status < 300) {
           api2.modal.hide();
@@ -128141,226 +129029,21 @@ function exportGCodeDialog(gcode, sections, info, names) {
             "octoprint error\nstatus: " +
               status +
               "\nmessage: " +
-              ajax4.responseText
+              ajax3.responseText
           );
         }
         api2.show.progress(0);
       }
       api2.show.progress(0);
     };
-    ajax4.upload.addEventListener("progress", function (evt) {
+    ajax3.upload.addEventListener("progress", function (evt) {
       api2.show.progress(evt.loaded / evt.total, "sending");
     });
-    ajax4.open("POST", host + "/api/files/local");
+    ajax3.open("POST", host + "/api/files/local");
     if (apik) {
-      ajax4.setRequestHeader("X-Api-Key", apik);
+      ajax3.setRequestHeader("X-Api-Key", apik);
     }
-    ajax4.send(form);
-  }
-  function gridhost_tracker(host, key2) {
-    ajax(host + "/api/check?key=" + key2, function (data2) {
-      data2 = js2o(data2);
-      console.log(data2);
-      if (!(data2.done || data2.error)) {
-        setTimeout(function () {
-          gridhost_tracker(host, key2);
-        }, 1e3);
-      }
-    });
-  }
-  function gridlocal_probe(ev, devs) {
-    if (ev && ev.code !== "Enter") return;
-    if (!devs && api2.probe.local(gridlocal_probe)) return;
-    grid_local = devs;
-    let gdev = localGet("grid-local");
-    let gloc = $("grid-local");
-    let html = [];
-    for (let uuid in devs) {
-      gdev = gdev || uuid;
-      let dev = devs[uuid];
-      let sel = uuid === gdev ? " selected" : "";
-      html.push(
-        `<option id="gl-${uuid}" value="${uuid}" ${sel}>${dev.stat.device.name}</option>`
-      );
-    }
-    if (html.length) {
-      gloc.innerHTML = html.join("\n");
-      gloc.onchange = (ev2) => {
-        localSet("grid-local", gloc.options[gloc.selectedIndex].value);
-      };
-      $("send-to-gridhead").style.display = "flex";
-      $("send-to-gridspool").style.display = "flex";
-    } else {
-      $("send-to-gridhead").style.display = "";
-      $("send-to-gridspool").style.display = "";
-    }
-  }
-  function sendto_gridlocal() {
-    let uuid = $("grid-local").value;
-    let dev = grid_local[uuid];
-    if (dev) {
-      let file2 = $("print-filename").value;
-      fetch(
-        `${
-          api2.probe.live
-        }/api/grid_send?uuid=${uuid}&file=${encodeURIComponent(
-          file2 + "." + fileext
-        )}`,
-        { method: "POST", body: gcode }
-      )
-        .then((t) => t.text())
-        .then((t) => {
-          api2.stats.add(`ua_${api2.mode.get_lower()}_print_local_ok`);
-          console.log({ grid_spool_said: t });
-        })
-        .catch((e) => {
-          api2.stats.add(`ua_${api2.mode.get_lower()}_print_local_err`);
-          console.log({ grid_local_spool_error: e });
-        })
-        .finally(() => {
-          api2.modal.hide();
-        });
-    }
-  }
-  function admin_gridlocal() {
-    let dev = grid_local[$("grid-local").value];
-    if (dev && dev.stat && dev.stat.device) {
-      let dsd = dev.stat.device;
-      window.open(`http://${dsd.addr[0]}:${dsd.port || 4080}`, "_grid_admin");
-    }
-  }
-  function gridhost_probe(ev, set_host) {
-    if (ev && ev.code !== "Enter") return;
-    if (!(grid_host && grid_apik)) return;
-    if (set_host) grid_host.value = set_host;
-    let xhtr = new XMLHttpRequest(),
-      host = grid_host.value,
-      apik = grid_apik.value,
-      target2 = grid_target.value;
-    if (!apik) $("gpapik").style.display = "none";
-    if (!host && api2.probe.grid(gridhost_probe)) return;
-    if (!host) return;
-    xhtr.onreadystatechange = function () {
-      if (xhtr.readyState === 4) {
-        if (xhtr.status >= 200 && xhtr.status < 300) {
-          localSet("grid-host", host);
-          localSet("grid-apik", apik);
-          let res = JSON.parse(xhtr.responseText);
-          let sel = false;
-          let match = false;
-          let first = null;
-          let html = [];
-          grid_targets = {};
-          for (let key2 in res) {
-            first = first || key2;
-            if (!localGet("grid-target")) {
-              localSet("grid-target", key2);
-              sel = true;
-            } else {
-              sel = localGet("grid-target") === key2;
-            }
-            match = match || sel;
-            grid_targets[html.length] = key2;
-            html.push(
-              "<option id='gpo-'" +
-                key2 +
-                " value='" +
-                key2 +
-                "'" +
-                (sel ? " selected" : "") +
-                ">" +
-                (res[key2].comment || key2) +
-                "</option>"
-            );
-          }
-          if (!match) {
-            localSet("grid-target", first);
-          }
-          grid_target.innerHTML = html.join("\n");
-        } else if (xhtr.status === 401) {
-          $("gpapik").style.display = "";
-        } else {
-          local4.removeItem("grid-host");
-          local4.removeItem("grid-apik");
-          console.log("invalid grid:host url");
-        }
-      }
-    };
-    xhtr.open("GET", host + "/api/active?key=" + apik);
-    xhtr.send();
-  }
-  function sendto_gridhost() {
-    if (!(grid_host && grid_apik)) return;
-    let xhtr = new XMLHttpRequest(),
-      host = grid_host.value,
-      apik = grid_apik.value,
-      target2 = localGet("grid-target") || "";
-    if (target2 === "") {
-      api2.show.alert("invalid or missing target");
-      return;
-    }
-    if (host.indexOf("http") !== 0) {
-      api2.show.alert("host missing protocol (http:// or https://)");
-      return;
-    }
-    if (host.indexOf("://") < 0) {
-      api2.show.alert("host:port malformed");
-      return;
-    }
-    if (api2.const.SECURE && !api2.util.isSecure(host)) {
-      api2.show.alert("host must begin with 'https' on a secure site");
-      return;
-    }
-    localSet("grid-host", host.trim());
-    localSet("grid-apik", apik.trim());
-    xhtr.onreadystatechange = function () {
-      if (xhtr.readyState === 4) {
-        let status = xhtr.status;
-        api2.stats.add(`ua_${api2.mode.get_lower()}_print_grid_${status}`);
-        if (status >= 200 && status < 300) {
-          let json = js2o(xhtr.responseText);
-          gridhost_tracker(host, json.key);
-          api2.ajax(host + "/api/wait?key=" + json.key, function (data2) {
-            data2 = js2o(data2);
-            console.log(data2);
-            api2.show.alert("print to " + target2 + ": " + data2.status, 600);
-          });
-        } else {
-          api2.show.alert(
-            "grid:host error\nstatus: " +
-              status +
-              "\nmessage: " +
-              xhtr.responseText,
-            1e4
-          );
-        }
-        api2.show.progress(0);
-      }
-    };
-    xhtr.upload.addEventListener("progress", function (evt) {
-      api2.show.progress(evt.loaded / evt.total, "sending");
-    });
-    filename = $("print-filename").value;
-    xhtr.open(
-      "POST",
-      host +
-        "/api/print?filename=" +
-        filename +
-        "&target=" +
-        target2 +
-        "&key=" +
-        apik +
-        "&time=" +
-        Math.round(info.time) +
-        "&length=" +
-        Math.round(info.distance) +
-        "&image=" +
-        filename
-    );
-    xhtr.setRequestHeader("Content-Type", "text/plain");
-    let snapshot = api2.view.snapshot;
-    xhtr.send(snapshot ? [gcode, snapshot].join("\0") : gcode);
-    api2.modal.hide();
+    ajax3.send(form);
   }
   function download() {
     filename = $("print-filename").value;
@@ -128399,8 +129082,6 @@ function exportGCodeDialog(gcode, sections, info, names) {
   let set = api2.conf.get();
   let fdm = MODE2 === MODES.FDM;
   let octo = set.controller.exportOcto && MODE2 !== MODES.CAM;
-  let ghost = set.controller.exportGhost;
-  let local4 = set.controller.exportLocal;
   let preview = set.controller.exportPreview;
   $("code-preview-head").style.display = preview ? "" : "none";
   $("code-preview").style.display = preview ? "" : "none";
@@ -128418,8 +129099,6 @@ function exportGCodeDialog(gcode, sections, info, names) {
   }
   bindField("octo-host", "octo-host");
   bindField("octo-apik", "octo-apik");
-  bindField("grid-host", "grid-host");
-  bindField("grid-apik", "grid-apik");
   let downloadZip = $("print-zip");
   downloadZip.style.display = sections ? "flex" : "none";
   downloadZip.onclick = function () {
@@ -128596,7 +129275,7 @@ function exportGCodeDialog(gcode, sections, info, names) {
       },
       {
         name: `Metadata/plate_1.gcode.md5`,
-        data: ext.md5.hash(gcode),
+        data: hash(gcode),
       },
       {
         name: `Metadata/plate_1_small.png`,
@@ -128648,37 +129327,9 @@ function exportGCodeDialog(gcode, sections, info, names) {
         $("ophost").style.display = "none";
         $("opapik").style.display = "none";
         $("oph1nt").style.display = "none";
-        $("send-to-gridhost").style.display = "none";
       }
       octo_host.value = localGet("octo-host") || "";
       octo_apik.value = localGet("octo-apik") || "";
-    } catch (e) {
-      console.log(e);
-    }
-  $("send-to-hosthead").style.display = ghost ? "" : "none";
-  $("send-to-gridhost").style.display = ghost ? "" : "none";
-  if (ghost)
-    try {
-      $("print-gridhost").onclick = sendto_gridhost;
-      $("grid-host").onkeyup = gridhost_probe;
-      $("grid-apik").onkeyup = gridhost_probe;
-      grid_host = $("grid-host");
-      grid_apik = $("grid-apik");
-      grid_target = $("grid-target");
-      grid_target.onchange = function (ev) {
-        localSet("grid-target", grid_targets[grid_target.selectedIndex]);
-      };
-      grid_host.value = localGet("grid-host") || "";
-      grid_apik.value = localGet("grid-apik") || "";
-      gridhost_probe();
-    } catch (e) {
-      console.log(e);
-    }
-  if (local4)
-    try {
-      gridlocal_probe();
-      $("print-gridlocal").onclick = sendto_gridlocal;
-      $("admin-gridlocal").onclick = admin_gridlocal;
     } catch (e) {
       console.log(e);
     }
@@ -129196,7 +129847,7 @@ function replace(vertices, sel) {
     onload(vertices);
   } else {
     $("load-file").onchange = function (event2) {
-      load_file.File.load(event2.target.files[0])
+      load_file(event2.target.files[0])
         .then((data2) => onload(data2[0].mesh))
         .catch((error) => console.log({ error }));
     };
@@ -130162,6 +130813,7 @@ var local3 = {
   put: (key2, val) => localSet2(key2, val),
   set: (key2, val) => localSet2(key2, val),
   setItem: (key2, val) => localSet2(key2, val),
+  removeItem: (key2) => localRemove(key2),
 };
 var tweak = {
   line_precision(v) {
@@ -130185,8 +130837,12 @@ function localSet2(key2, val) {
   sloc[key2] = api2.sdb[key2] = val;
   return val;
 }
+function localRemove(key2) {
+  let sloc = api2.conf.get().local;
+  return delete sloc[key2];
+}
 var api2 = {
-  ajax: ajax3,
+  ajax: ajax2,
   beta,
   alerts: alerts_default,
   busy,
@@ -130222,7 +130878,6 @@ var api2 = {
   o2js,
   onkey,
   platform: platform2,
-  probe,
   process: process2,
   sdb: local,
   selection: selection2,
@@ -130359,6 +131014,9 @@ var Engine = class {
     process3.camStockZ = stock.z;
     return this;
   }
+  setTopOffset(offset2 = 0) {
+    this.topOffset = offset2;
+  }
   setOrigin(x2, y2, z2) {
     this.settings.origin = { x: x2, y: y2, z: z2 };
     return this;
@@ -130380,6 +131038,7 @@ var Engine = class {
     return this;
   }
   slice() {
+    this.widget.setTopZ((this.settings?.stock?.z || 0) - (this.topOffset || 0));
     return new Promise((accept, reject) => {
       client2.clear();
       client2.sync([this.widget]);

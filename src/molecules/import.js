@@ -1,6 +1,6 @@
 import Atom from "../prototypes/atom.js";
 import GlobalVariables from "../js/globalvariables.js";
-import { Octokit } from "https://esm.sh/octokit@2.0.19";
+import { Octokit } from "octokit";
 
 /**
  * This class creates an atom which supports uploading a .svg file
@@ -289,6 +289,7 @@ export default class Import extends Atom {
     superSerialObject.type = this.type;
     superSerialObject.repoOwner = this.repoOwner;
     superSerialObject.repoName = this.repoName;
+    superSerialObject.SVGwidth = this.SVGwidth;
 
     return superSerialObject;
   }

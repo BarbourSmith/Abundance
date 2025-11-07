@@ -196,6 +196,7 @@ export default class CutLayout extends Atom {
       var partPadding = this.findIOValue("Part Padding");
       const priorStatus = this.status;
       this.setProcessing();
+      console.trace("Displaying layout with " + placements.length + " sheets.");
       return GlobalVariables.cad
         .displayLayout(
           inputGeom,
@@ -227,6 +228,8 @@ export default class CutLayout extends Atom {
             this.value = result;
           }
         });
+    } else {
+      return Promise.resolve();
     }
   }
 
@@ -246,10 +249,14 @@ export default class CutLayout extends Atom {
     // However, computation must be manually triggered via the "compute layout" button
     // so there's not much else to do here.
 
-    // TODO: add logic for whether upstream changes have made the current
-    // placements stale.
     if (this.placements?.length > 0) {
-      this.displayLayout(true);
+      this.displayLayout(true).catch(() => {
+        // If displayLayout fails we have an inconsistent state between the current geom and whatever
+        // saved placements are here. Clear the placements and set ourselves to wait for a new click
+        // by the user.
+        this.placements = [];
+        this.setWaiting();
+      });
     } else {
       this.setWaiting();
     }
@@ -258,7 +265,7 @@ export default class CutLayout extends Atom {
   /**
    * Pass the input geometry to a worker function to compute the translation.
    */
-  updateValueButton(setInputsChanged) {
+  updateValueButton(setInputChanged) {
     //this.setInputsChanged = setInputsChanged;
     if (this.inputsAreReady()) {
       // Only checks AP inputs, not the placement values themselves.
@@ -309,7 +316,10 @@ export default class CutLayout extends Atom {
           const [layout, positions] = layoutAndPositions;
           this.handleNewPlacements(positions, true);
         })
-        .catch(this.alertingErrorHandler())
+        .catch((err) => {
+          this.alertingErrorHandler()(err);
+          this.selected = false; // Deselect self so that the atom renders in red with the warning attached.
+        })
         .finally(() => {
           this.cancelationHandle = undefined;
           this.progress = 1.0;
@@ -323,10 +333,9 @@ export default class CutLayout extends Atom {
       this.cancelationHandle = undefined;
     }
     this.progress = 1.0;
+    this.setWaiting();
     if (this.placements != undefined) {
       this.displayLayout(true);
-    } else {
-      this.setWaiting();
     }
   }
 
@@ -346,7 +355,7 @@ export default class CutLayout extends Atom {
         if (this.getState().status == Status.PROCESSING) {
           this.haltAndDisplay();
         } else {
-          this.updateValueButton();
+          this.updateValueButton(setInputChanged);
         }
         setInputChanged();
       },

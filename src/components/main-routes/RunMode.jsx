@@ -4,7 +4,6 @@ import ReplicadMesh from "../render/ReplicadMesh.jsx";
 
 import WireframeMesh from "../render/WireframeMesh.jsx";
 import GlobalVariables from "../../js/globalvariables.js";
-import { Octokit } from "https://esm.sh/octokit@2.0.19";
 
 import ToggleRunCreate from "../secondary/ToggleRunCreate.jsx";
 import RunNavigation from "../secondary/RunNavigation.jsx";
@@ -117,9 +116,16 @@ function runMode() {
       console.log("Puppeteer element created for run mode");
     }
   };
+  useEffect(() => {
+    /*Reset the camera zoom to 1 when a new molecule is loaded*/
+    setCameraZoom(1);
+  }, [GlobalVariables.currentAWSnode]);
 
   useEffect(() => {
-    setCameraZoom(mesh[0] ? mesh[0].cameraZoom : 1);
+    if (cameraZoom == 1 && mesh[0]) {
+      console.log("Setting camera zoom", mesh[0].cameraZoom);
+      setCameraZoom(mesh[0].cameraZoom);
+    }
   }, [mesh]);
 
   // Create Puppeteer element when render is complete

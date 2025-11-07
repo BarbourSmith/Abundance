@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState } from "react";
 
 const RenderingContext = createContext();
 
@@ -11,6 +11,8 @@ export function RenderingProvider({ children }) {
   const [mesh, setMesh] = useState({});
   const [wireMesh, setWireMesh] = useState(null);
   const [outdatedMesh, setOutdatedMesh] = useState(false);
+  const [plane, setPlane] = useState(null);
+  const [geometryType, setGeometryType] = useState(null);
 
   // Render progress state
   const [renderProgress, setRenderProgress] = useState(0);
@@ -44,6 +46,10 @@ export function RenderingProvider({ children }) {
     setWireMesh,
     outdatedMesh,
     setOutdatedMesh,
+    plane,
+    setPlane,
+    geometryType,
+    setGeometryType,
 
     // Render progress
     renderProgress,
@@ -97,7 +103,7 @@ export function RenderingProvider({ children }) {
 export function useRendering() {
   const context = useContext(RenderingContext);
   if (!context) {
-    throw new Error('useRendering must be used within a RenderingProvider');
+    throw new Error("useRendering must be used within a RenderingProvider");
   }
   return context;
 }

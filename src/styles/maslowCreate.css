@@ -1303,6 +1303,9 @@ Sidebar navigation
     width: 100%;
     height: 100%;
   }
+  .starred {
+    background-color: rgb(255, 230, 89);
+  }
   /* The switch - the box around the slider */
   .switch_run {
     top: 20px;

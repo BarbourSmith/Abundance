@@ -64,13 +64,18 @@ export default memo(function FlowCanvas({
       GlobalVariables.currentMolecule = GlobalVariables.topLevelMolecule;
 
       /*if you've been redirected after reauthentication*/
-      if (redirectType === "save" && authorizedUserOcto) {
+      if (
+        (redirectType === "save" || redirectType === "reauth") &&
+        authorizedUserOcto
+      ) {
         console.log("Loading pending project after reauthentication...");
         // If there's a pending project save in local storage, load it
         const pendingProject = localStorage.getItem("pendingProjectSave");
         if (pendingProject) {
           // Only deserialize after all atoms have been deleted
           let rawFile = JSON.parse(pendingProject);
+          // Reset ID counter to avoid collisions with existing IDs
+          GlobalVariables.resetIdCounter(rawFile);
           if (rawFile.filetypeVersion == 1) {
             GlobalVariables.topLevelMolecule.deserialize(rawFile);
           } else {
@@ -88,6 +93,10 @@ export default memo(function FlowCanvas({
               setSavePopUp(false);
             }
           );
+        } else {
+          console.warn("No pending project found in local storage.");
+          // If no pending project found, just load the current project
+          loadProject(GlobalVariables.currentAWSnode, authorizedUserOcto);
         }
       } else {
         loadProject(GlobalVariables.currentAWSnode, authorizedUserOcto);
@@ -410,7 +419,16 @@ export default memo(function FlowCanvas({
 
       // Set the active atom after all atoms have been processed
       if (activeAtom) {
-        setExpandedMenu("params");
+        /* If it's an unloaded GitHub molecule, show GitHub search menu otherwise show params */
+        if (
+          activeAtom.atomType == "GitHubMolecule" &&
+          activeAtom.parentRepo == null
+        ) {
+          // Show GitHub-specific options
+          setExpandedMenu("git-search");
+        } else {
+          setExpandedMenu("params");
+        }
         setActiveAtom(activeAtom);
       }
       //

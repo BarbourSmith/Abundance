@@ -175,15 +175,15 @@ function RunNavigation({
         const isLiked = awsUserJson.repos.some(
           (project) => project.owner === owner && project.repoName === repoName
         );
-        if (isLiked) {
-          setStarred(true);
-        }
+        // Sync starred state with server state
+        setStarred(isLiked);
         // now handle the redirect action that was requested
         if (redirectType === "fork") {
           forkProject(authorizedUserOcto);
         }
         if (redirectType === "like") {
-          !starredState
+          // Use fresh isLiked value instead of potentially stale starredState
+          !isLiked
             ? likeProject(authorizedUserOcto)
             : unlikeProject(authorizedUserOcto);
         }
@@ -397,11 +397,7 @@ function RunNavigation({
         />
       ) : null}
       {forkBarVisible ? (
-        <RenderProgressBar
-          progress={forkProgress}
-          label="Forking"
-          run={true}
-        />
+        <RenderProgressBar progress={forkProgress} label="Forking" run={true} />
       ) : null}
       <div className="run-navigation">
         {/* Share Button */}
@@ -435,10 +431,6 @@ function RunNavigation({
                 ? forkProject(authorizedUserOcto)
                 : authRedirectHandler({
                     authType: "fork",
-                    currentRepo: {
-                      owner: GlobalVariables.currentAWSnode.owner,
-                      repo: GlobalVariables.currentAWSnode.repoName,
-                    },
                   });
             }}
             onMouseEnter={() => handleTooltip("Fork", true)}
@@ -467,10 +459,6 @@ function RunNavigation({
                 ? unlikeProject(authorizedUserOcto)
                 : authRedirectHandler({
                     authType: "like",
-                    currentRepo: {
-                      owner: GlobalVariables.currentAWSnode.owner,
-                      repo: GlobalVariables.currentAWSnode.repoName,
-                    },
                   });
             }}
             onMouseEnter={() => handleTooltip("Star", true)}

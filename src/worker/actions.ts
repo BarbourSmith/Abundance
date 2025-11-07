@@ -63,8 +63,16 @@ async function move(
     );
   } else {
     const zTranslate = (plane: any, z: number) => {
+      const repPlane = util.asReplicadPlane(plane);
+      const normalArr = repPlane.zDir.toTuple();
+      const originArr = repPlane.origin.toTuple();
+      const newOrigin = [
+        originArr[0] + normalArr[0] * z,
+        originArr[1] + normalArr[1] * z,
+        originArr[2] + normalArr[2] * z,
+      ] as [number, number, number];
       return util.asSimplePlane(
-        util.asReplicadPlane(plane).translate([0, 0, z])
+        new util.replicad.Plane(newOrigin, repPlane.xDir.toTuple(), normalArr)
       );
     };
     return util.actOnLeafs(

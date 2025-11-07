@@ -8,8 +8,8 @@ import {
   shrinkWrapSketches,
 } from "../src/worker/interaction";
 import { circle, rectangle } from "../src/worker/shapes";
-import { extrude } from "../src/worker/actions";
-import { init } from "../src/worker/util";
+import { extrude, move } from "../src/worker/actions";
+import { init, is3D } from "../src/worker/util";
 import { describe, it, expect, beforeEach } from "vitest";
 import { RequestContext } from "../src/worker/geometryProvider";
 
@@ -122,13 +122,14 @@ describe("interaction.ts", () => {
       expect(Array.isArray(result.geometry)).toBe(true);
     });
   });
+  */
 
   describe("loftShapes", () => {
     it("should create a loft between multiple 2D sketches", async () => {
-      const c1 = circle(10);
-      const c2 = circle(6);
+      const c1 = await circle(10, context);
+      const c2 = await circle(6, context);
 
-      const result = await loftShapes([c1, c2]);
+      const result = await loftShapes([c1, c2], context);
 
       expect(result).toBeDefined();
       expect(result.geometry).toHaveLength(1);
@@ -136,17 +137,41 @@ describe("interaction.ts", () => {
     });
 
     it("should handle lofting between different shape types", async () => {
-      const c1 = circle(8);
-      const r1 = rectangle(10, 6);
+      const c1 = await circle(8, context);
+      const r1 = await rectangle(10, 6, context);
 
-      const result = await loftShapes([c1, r1]);
+      const result = await loftShapes([c1, r1], context);
 
       expect(result).toBeDefined();
       expect(result.geometry).toHaveLength(1);
       expect(is3D(result)).toBe(true);
     });
+
+    it("should create different lofts when sketches are at different heights", async () => {
+      // Create first loft with sketches at default (z=0) and z=10
+      const c1 = await circle(10, context);
+      const c2a = await circle(6, context);
+      const c2aMoved = await move(c2a, 0, 0, 10, context);
+      const loft1 = await loftShapes([c1, c2aMoved], context);
+
+      // Create second loft with same sketches but at z=0 and z=20
+      const c3 = await circle(10, context);
+      const c4 = await circle(6, context);
+      const c4Moved = await move(c4, 0, 0, 20, context);
+      const loft2 = await loftShapes([c3, c4Moved], context);
+
+      // Both lofts should be defined and 3D
+      expect(loft1).toBeDefined();
+      expect(loft2).toBeDefined();
+      expect(is3D(loft1)).toBe(true);
+      expect(is3D(loft2)).toBe(true);
+
+      // The lofts should be different (different geometry IDs means different cached geometries)
+      expect(loft1.geometry).not.toEqual(loft2.geometry);
+    });
   });
 
+  /*
   describe("shrinkWrapSketches", () => {
     it("should create a boundary around multiple 2D sketches", async () => {
       const c1 = circle(5);

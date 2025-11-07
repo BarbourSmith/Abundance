@@ -6,6 +6,7 @@ import { useQuery } from "react-query";
 import useDebounce from "../../hooks/useDebounce.js";
 
 export default function GitSearchMenu({
+  activeAtom,
   id,
   contentCollapsed,
   setContentCollapsed,
@@ -64,12 +65,14 @@ export default function GitSearchMenu({
    * Runs when a menu option is clicked to place a new atom from searching on GitHub.
    * @param {object} ev - The event triggered by clicking on a menu item.
    */
-  function placeGitHubMolecule(e, item) {
-    GlobalVariables.currentMolecule.loadGithubMoleculeByName(item).catch(() => {
-      setErrorNotification(`Error: Project Missing`);
-      // Auto-dismiss notification after 3 seconds
-      setTimeout(() => setErrorNotification(null), 3000);
-    });
+  function placeGitHubMolecule(e, item, position) {
+    GlobalVariables.currentMolecule
+      .loadGithubMoleculeByName(item, {}, [], position)
+      .catch(() => {
+        setErrorNotification(`Error: Project Missing`);
+        // Auto-dismiss notification after 3 seconds
+        setTimeout(() => setErrorNotification(null), 3000);
+      });
     //setIsShortcutTriggered(false);
     setInputValue("");
     setIsHovering(false);
@@ -80,19 +83,15 @@ export default function GitSearchMenu({
    * @param {object} ev - The event triggered by clicking on a menu item.
    * @param {string} atomType - The type of atom to place.
    */
-  function placeLocalAtom(e, atomType) {
+  function placeLocalAtom(e, atomType, position) {
     GlobalVariables.currentMolecule.placeAtom(
       {
-        x: GlobalVariables.pixelsToWidth(
-          GlobalVariables.lastClick
-            ? GlobalVariables.lastClick[0]
-            : window.innerWidth * 0.75
-        ),
-        y: GlobalVariables.pixelsToHeight(
-          GlobalVariables.lastClick
-            ? GlobalVariables.lastClick[1]
-            : window.innerHeight * 0.37
-        ),
+        x: position.x
+          ? position.x
+          : GlobalVariables.pixelsToWidth(window.innerWidth * 0.75),
+        y: position.y
+          ? position.y
+          : GlobalVariables.pixelsToHeight(window.innerHeight * 0.37),
         parent: GlobalVariables.currentMolecule,
         atomType: atomType,
         uniqueID: GlobalVariables.generateUniqueID(),
@@ -304,12 +303,21 @@ export default function GitSearchMenu({
     if (item.isLoading || item.isError || item.isNoResults) {
       return;
     }
-
     setIsHovering(false);
+    let position;
+    if (
+      activeAtom &&
+      activeAtom.atomType == "GitHubMolecule" &&
+      !activeAtom.parentRepo
+    ) {
+      console.log(activeAtom);
+      position = { x: activeAtom.x, y: activeAtom.y };
+      activeAtom.deleteNode();
+    }
     if (item.isLocal) {
-      placeLocalAtom(e, item.atomType);
+      placeLocalAtom(e, item.atomType, position);
     } else {
-      placeGitHubMolecule(e, item);
+      placeGitHubMolecule(e, item, position);
     }
   };
 
@@ -351,7 +359,7 @@ export default function GitSearchMenu({
       CutLayout: "/imgs/cutlayout.png",
       GeneticAlgorithm: "/imgs/genetic.svg",
     };
-    
+
     // Return the icon path or a default thumbnail
     return iconMap[atomType] || "/imgs/defaultThumbnail.svg";
   }
@@ -453,7 +461,7 @@ export default function GitSearchMenu({
           }}
         >
           <div className="GitInfoLeft">
-            <img 
+            <img
               src={panelItem.isLocal ? panelItem.iconPath : panelItem.svgURL}
               onError={({ currentTarget }) => {
                 currentTarget.onerror = null; // prevents looping

@@ -1,5 +1,4 @@
 import { create, all } from "mathjs";
-import { v4 as uuidv4 } from "uuid";
 import Assembly from "../molecules/assembly.js";
 import Circle from "../molecules/circle.js";
 import Color from "../molecules/color.js";
@@ -290,6 +289,13 @@ class GlobalVariables {
     this.undoOperationHistory = [];
 
     /**
+     * A counter for generating short, sequential unique IDs instead of long UUIDs.
+     * This significantly reduces project file sizes.
+     * @type {number}
+     */
+    this.idCounter = 1;
+
+    /**
      * A string to indicate a stored user font for the canvas.
      * @type {string}
      */
@@ -465,9 +471,57 @@ class GlobalVariables {
 
   /**
    * A function to generate a unique ID value.
+   * Uses a sequential counter instead of UUIDs to reduce file size.
    */
   generateUniqueID() {
-    return uuidv4();
+    return `id-${this.idCounter++}`;
+  }
+
+  /**
+   * Resets the ID counter based on existing IDs in a deserialized project.
+   * Scans through the project JSON to find the highest ID number and sets
+   * the counter to start from there + 1 to avoid collisions.
+   * @param {object} projectJson - The deserialized project JSON
+   */
+  resetIdCounter(projectJson) {
+    let maxId = 0;
+
+    const extractIdNumber = (id) => {
+      if (typeof id === 'string' && id.startsWith('id-')) {
+        const num = parseInt(id.substring(3), 10);
+        if (!isNaN(num)) {
+          return num;
+        }
+      }
+      return 0;
+    };
+
+    const scanForIds = (obj) => {
+      if (!obj || typeof obj !== 'object') {
+        return;
+      }
+
+      // Check uniqueID at this level
+      if (obj.uniqueID) {
+        const idNum = extractIdNumber(obj.uniqueID);
+        if (idNum > maxId) {
+          maxId = idNum;
+        }
+      }
+
+      // Recursively scan arrays
+      if (Array.isArray(obj)) {
+        obj.forEach(item => scanForIds(item));
+      } else {
+        // Recursively scan object properties
+        Object.values(obj).forEach(value => scanForIds(value));
+      }
+    };
+
+    scanForIds(projectJson);
+
+    // Set counter to start from max + 1
+    this.idCounter = maxId + 1;
   }
 
   /**

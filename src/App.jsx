@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Octokit } from "https://esm.sh/octokit@2.0.19";
+import { Octokit } from "octokit";
 import {
   HashRouter as Router,
   // BrowserRouter as Router,
@@ -13,6 +13,7 @@ import GlobalVariables from "./js/globalvariables.js";
 import LoginMode from "./components/main-routes/LoginMode.jsx";
 import RunMode from "./components/main-routes/RunMode.jsx";
 import CreateMode from "./components/main-routes/CreateMode.jsx";
+import UserGuidePage from "./components/main-routes/UserGuidePage.jsx";
 import cadWorker from "./worker/worker.ts?worker";
 
 import { QueryClient, QueryClientProvider } from "react-query";
@@ -38,6 +39,7 @@ import "./styles/maslowCreate.css";
 import "./styles/menuIcons.css";
 import "./styles/login.css";
 import "./styles/codemirror.css";
+import "./styles/readme.css";
 
 const queryClient = new QueryClient();
 /**
@@ -59,6 +61,8 @@ function AppContent() {
     setRenderProgress,
     setRenderBarVisible,
     setTopLevelWireMesh,
+    setPlane,
+    setGeometryType,
   } = useRendering();
 
   const {
@@ -69,8 +73,14 @@ function AppContent() {
     authRedirectHandler,
   } = useAuth();
 
-  const { activeAtom, setActiveAtom, shortCutsOn, setRedirectType, errorNotification, setErrorNotification } =
-    useAppState();
+  const {
+    activeAtom,
+    setActiveAtom,
+    shortCutsOn,
+    setRedirectType,
+    errorNotification,
+    setErrorNotification,
+  } = useAppState();
 
   const navigate = useNavigate();
 
@@ -163,10 +173,16 @@ function AppContent() {
       } else {
         console.log("Generating mesh for value:", moleculeValue);
         cad
-          .generateDisplayMesh(moleculeValue, GlobalVariables.topLevelMolecule.getContext())
+          .generateDisplayMesh(
+            moleculeValue,
+            GlobalVariables.topLevelMolecule.getContext()
+          )
           .then((m) => {
             setMesh(m);
             setOutdatedMesh(false);
+            /*Set plane and geometry type for ThreeContext*/
+            setPlane(moleculeValue?.plane);
+            setGeometryType(moleculeValue?.dimension);
           })
           .catch((e) => {
             console.error("Can't display Mesh " + e);
@@ -176,7 +192,10 @@ function AppContent() {
         //Exception: Don't display the mesh if the thing we are displaying is already the output
         if (GlobalVariables.currentMolecule.value != moleculeValue) {
           cad
-            .generateDisplayMesh(GlobalVariables.currentMolecule.uniqueID, GlobalVariables.topLevelMolecule.getContext())
+            .generateDisplayMesh(
+              GlobalVariables.currentMolecule.uniqueID,
+              GlobalVariables.topLevelMolecule.getContext()
+            )
             .then((w) => {
               setWireMesh(w);
               // Only create Puppeteer div when displaying the top-level molecule's output
@@ -229,7 +248,14 @@ function AppContent() {
     };
 
     GlobalVariables.cad = cad;
-  }, [activeAtom, setMesh, setWireMesh, setOutdatedMesh, setRenderProgress, setTopLevelWireMesh]);
+  }, [
+    activeAtom,
+    setMesh,
+    setWireMesh,
+    setOutdatedMesh,
+    setRenderProgress,
+    setTopLevelWireMesh,
+  ]);
 
   /**
    * Load a project from the repository
@@ -281,6 +307,9 @@ function AppContent() {
 
         let rawFile = JSON.parse(rawFileContent);
 
+        // Reset ID counter to avoid collisions with existing IDs
+        GlobalVariables.resetIdCounter(rawFile);
+
         if (rawFile.filetypeVersion == 1) {
           GlobalVariables.topLevelMolecule.deserialize(rawFile);
         } else {
@@ -301,6 +330,7 @@ function AppContent() {
           // alert("Session expired or bad credentials. Please re-authenticate.");
           //
           // Redirect to /callback or trigger your OAuth flow here
+          console.warn("Authentication error, redirecting to re-authenticate.");
           authRedirectHandler({
             authType: "reauth",
             currentProjectRep: undefined,
@@ -345,18 +375,22 @@ function AppContent() {
           }
         />
         <Route
-          path="/:owner/:repoName"
-          element={
-            <ProjectProvider cad={cad} loadProject={loadProject}>
-              <CreateMode />
-            </ProjectProvider>
-          }
+          path="/user-guide"
+          element={<UserGuidePage />}
         />
         <Route
           path="/run/:owner/:repoName"
           element={
             <ProjectProvider cad={cad} loadProject={loadProject}>
               <RunMode />
+            </ProjectProvider>
+          }
+        />
+        <Route
+          path="/:owner/:repoName"
+          element={
+            <ProjectProvider cad={cad} loadProject={loadProject}>
+              <CreateMode />
             </ProjectProvider>
           }
         />

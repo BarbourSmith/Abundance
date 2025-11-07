@@ -105,7 +105,9 @@ function visExport(
         ).visible;
         const cachedGeom = await util.geometryProvider!.addSingularToCache(
           drawingResult,
-          context
+          context,
+          "export",
+          [fileType, input]
         );
         finalGeometry = {
           ...fusedGeometry,
@@ -194,7 +196,8 @@ async function importingSTEP(
     geometry: await util.geometryProvider!.addSingularToCache(
       STEPresult,
       context,
-      await util.hashFileContents(file)
+      "import-step",
+      [await util.hashFileContents(file)]
     ),
     tags: [],
     color: util.defaultColor,
@@ -225,7 +228,8 @@ async function importingSTL(
     geometry: await util.geometryProvider!.addSingularToCache(
       STLresult,
       context,
-      await util.hashFileContents(file)
+      "import-stl",
+      [await util.hashFileContents(file)]
     ),
     tags: [],
     color: util.defaultColor,
@@ -269,7 +273,8 @@ async function importingSVG(
       geometry: await util.geometryProvider!.addSingularToCache(
         drawnSVG.clone().translate(-center[0], -center[1]),
         context,
-        await util.hashString(svg)
+        "import-svg",
+        [await util.hashString(svg), width]
       ),
       tags: [],
       plane: util.XYPlane,
@@ -335,7 +340,8 @@ async function visualizeGcode(
     geometry: await util.geometryProvider!.addSingularToCache(
       wire,
       context,
-      util.hashString(gcode)
+      "gcode-vis",
+      [util.hashString(gcode)]
     ),
     tags: [],
     plane: util.XYPlane,
@@ -489,48 +495,64 @@ function getLargestBoundingBox(meshArray: ReplicadObject[]): {
   let overallMin: [number, number, number] = [Infinity, Infinity, Infinity];
   let overallMax: [number, number, number] = [-Infinity, -Infinity, -Infinity];
 
-  if (!Array.isArray(meshArray)) {
-    throw new Error("meshArray is not defined or not an array");
+  try {
+    if (!Array.isArray(meshArray)) {
+      throw new Error("meshArray is not defined or not an array");
+    }
+    meshArray.forEach((mesh, idx) => {
+      //console.log(mesh.boundingBox.bounds);
+      if (!mesh.boundingBox || !Array.isArray(mesh.boundingBox.bounds)) {
+        console.error(
+          `mesh[${idx}] missing boundingBox or bounds:`,
+          mesh.boundingBox
+        );
+        throw new Error("Invalid mesh geometry or boundingBox structure");
+      }
+
+      if (mesh.boundingBox.bounds instanceof Error) {
+        throw new Error("Bounding box calculation error");
+        // handle or skip this mesh
+      }
+      const boundingBox = mesh.boundingBox.bounds;
+      if (
+        boundingBox.length < 2 ||
+        !Array.isArray(boundingBox[0]) ||
+        !Array.isArray(boundingBox[1])
+      ) {
+        console.error(
+          `mesh[${idx}] boundingBox bounds not properly defined:`,
+          boundingBox
+        );
+        throw new Error("boundingBox bounds are not properly defined");
+      }
+
+      let min = boundingBox[0];
+      let max = boundingBox[1];
+
+      // Update overall minimum coordinates
+      overallMin[0] = Math.min(overallMin[0], min[0]);
+      overallMin[1] = Math.min(overallMin[1], min[1]);
+      if (min[2] != undefined) {
+        overallMin[2] = Math.min(overallMin[2], min[2]);
+      }
+      // Update overall maximum coordinates
+      overallMax[0] = Math.max(overallMax[0], max[0]);
+      overallMax[1] = Math.max(overallMax[1], max[1]);
+      if (max[2] != undefined) {
+        overallMax[2] = Math.max(overallMax[2], max[2]);
+      }
+    });
+
+    return {
+      width: overallMax[0] - overallMin[0],
+      height: overallMax[1] - overallMin[1],
+      depth: overallMax[2] - overallMin[2],
+    };
+  } catch (error) {
+    console.error("Error in getLargestBoundingBox:", error);
+    // Return a default bounding box if error occurs
+    //return { width: 0, height: 0, depth: 0 };
   }
-
-  meshArray.forEach((mesh) => {
-    if (!mesh.boundingBox || !Array.isArray(mesh.boundingBox.bounds)) {
-      throw new Error("Invalid mesh geometry or boundingBox structure");
-    }
-
-    let boundingBox = mesh.boundingBox.bounds;
-    if (
-      boundingBox.length < 2 ||
-      !Array.isArray(boundingBox[0]) ||
-      !Array.isArray(boundingBox[1])
-    ) {
-      throw new Error("boundingBox bounds are not properly defined");
-    }
-
-    let min = boundingBox[0];
-    let max = boundingBox[1];
-
-    // Update overall minimum coordinates
-    overallMin[0] = Math.min(overallMin[0], min[0]);
-    overallMin[1] = Math.min(overallMin[1], min[1]);
-    if (min[2] != undefined) {
-      overallMin[2] = Math.min(overallMin[2], min[2]);
-    }
-
-    // Update overall maximum coordinates
-    overallMax[0] = Math.max(overallMax[0], max[0]);
-    overallMax[1] = Math.max(overallMax[1], max[1]);
-    if (max[2] != undefined) {
-      overallMax[2] = Math.max(overallMax[2], max[2]);
-    }
-  });
-
-  // Calculate the width, height, and depth
-  let width = overallMax[0] - overallMin[0];
-  let height = overallMax[1] - overallMin[1];
-  let depth = overallMax[2] - overallMin[2];
-
-  return { width, height, depth };
 }
 
 function calculateZoom(boundingBox: {
@@ -562,7 +584,11 @@ function calculateZoom(boundingBox: {
     );
 
     // Calculate the zoom level based on the proportional relationship
-    const zoom = (exampleZoom * exampleDiagonal) / diagonal;
+    // Apply a margin factor (0.9) to leave visual breathing room around the object
+    // This prevents thumbnails from appearing too zoomed in
+    // The 0.9 factor means objects fill ~90% of the viewport, providing subtle margins
+    const marginFactor = 0.9;
+    const zoom = (exampleZoom * exampleDiagonal * marginFactor) / diagonal;
     return zoom;
   } catch (e) {
     throw new Error("Error calculating zoom level");
@@ -573,7 +599,7 @@ function generateCameraPosition(meshArray: ReplicadObject[]): number {
   // Get the largest bounding box from the mesh array
   let largestBoundingBox = getLargestBoundingBox(meshArray);
   let zoom = calculateZoom(largestBoundingBox);
-
+  console.log("Generated camera zoom:", zoom);
   return zoom;
 }
 
@@ -582,9 +608,9 @@ async function generateDisplayMesh(
   context: RequestContext
 ): Promise<DisplayMesh[]> {
   await started;
-  console.log("Generating display mesh for ID:", JSON.stringify(id));
+  console.log("Generating display mesh for ID:" /*JSON.stringify(id)*/);
   let geom = undefined;
-  if (util.isAbundanceObject(id)) {
+  if (util.isAbundanceObject(id) && id.geometry.length !== 0) {
     geom = id;
   } else {
     return generateDefaultMesh(context);
@@ -626,6 +652,7 @@ async function generateDisplayMesh(
   try {
     cameraZoom = generateCameraPosition(meshArray.map((m) => m.geometry));
   } catch (e) {
+    console.error("Error generating camera position:", e);
     cameraZoom = 1;
   }
 

@@ -1,4 +1,4 @@
-import React, { memo, useEffect, useRef, useState } from "react";
+import React, { memo, useEffect, useRef, useState, forwardRef } from "react";
 import ThreeContext from "../render/ThreeContext.jsx";
 import ReplicadMesh from "../render/ReplicadMesh.jsx";
 import WireframeMesh from "../render/WireframeMesh.jsx";
@@ -6,7 +6,7 @@ import TopLevelWireframeMesh from "../render/TopLevelWireframeMesh.jsx";
 import globalvariables from "../../js/globalvariables.js";
 import { useRendering } from "../../contexts/index.js";
 
-export default memo(function LowerHalf({ windowSize }) {
+const LowerHalf = forwardRef(function LowerHalf({ windowSize }, ref) {
   const { mesh, wireMesh, wireParam, solidParam } = useRendering();
 
   const [cameraZoom, setCameraZoom] = useState(1);
@@ -14,12 +14,12 @@ export default memo(function LowerHalf({ windowSize }) {
   useEffect(() => {
     /*Reset the camera zoom to 1 when a new molecule is loaded*/
     setCameraZoom(1);
-  }, [globalvariables.topLevelMolecule]);
+  }, [globalvariables.currentAWSnode]);
 
   useEffect(() => {
     if (cameraZoom == 1 && mesh[0]) {
+      console.log("mesh[0].cameraZoom", mesh[0].cameraZoom);
       setCameraZoom(mesh[0].cameraZoom);
-      console.log("cameraZoom", cameraZoom);
     }
   }, [mesh]);
 
@@ -47,7 +47,11 @@ export default memo(function LowerHalf({ windowSize }) {
             >
               {wireParam ? <WireframeMesh /> : null}
               <TopLevelWireframeMesh />
-              <ReplicadMesh isSolid={solidParam} />
+              <ReplicadMesh
+                isSolid={solidParam}
+                ref={ref}
+                cameraZoom={cameraZoom}
+              />
             </ThreeContext>
           ) : (
             <div
@@ -66,3 +70,4 @@ export default memo(function LowerHalf({ windowSize }) {
     </>
   );
 });
+export default memo(LowerHalf);
