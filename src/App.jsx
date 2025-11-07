@@ -310,10 +310,10 @@ function AppContent() {
         GlobalVariables.resetIdCounter(rawFile);
 
         if (rawFile.filetypeVersion == 1) {
-          GlobalVariables.topLevelMolecule.deserialize(rawFile);
+          await GlobalVariables.topLevelMolecule.deserialize(rawFile);
         } else {
           // For older file versions, try to deserialize directly for now
-          GlobalVariables.topLevelMolecule.deserialize(rawFile);
+          await GlobalVariables.topLevelMolecule.deserialize(rawFile);
         }
         GlobalVariables.currentMolecule = GlobalVariables.topLevelMolecule;
         GlobalVariables.currentMolecule.selected = true;

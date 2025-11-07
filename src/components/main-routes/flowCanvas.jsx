@@ -76,23 +76,23 @@ export default memo(function FlowCanvas({
           let rawFile = JSON.parse(pendingProject);
           // Reset ID counter to avoid collisions with existing IDs
           GlobalVariables.resetIdCounter(rawFile);
-          if (rawFile.filetypeVersion == 1) {
-            GlobalVariables.topLevelMolecule.deserialize(rawFile);
-          } else {
-            // For older file versions, try to deserialize directly for now
-            GlobalVariables.topLevelMolecule.deserialize(rawFile);
-          }
-          setActiveAtom(GlobalVariables.currentMolecule);
-          GlobalVariables.currentMolecule.selected = true;
-          GlobalVariables.currentMolecule = GlobalVariables.topLevelMolecule;
-          //trigger a save to clear the pending project
-          setSavePopUp(true);
-          saveProject(setSaveState, "auto-save after reauthentication").then(
-            () => {
-              localStorage.removeItem("pendingProjectSave");
-              setSavePopUp(false);
-            }
-          );
+          const deserializePromise = rawFile.filetypeVersion == 1
+            ? GlobalVariables.topLevelMolecule.deserialize(rawFile)
+            : GlobalVariables.topLevelMolecule.deserialize(rawFile);
+          
+          deserializePromise.then(() => {
+            setActiveAtom(GlobalVariables.currentMolecule);
+            GlobalVariables.currentMolecule.selected = true;
+            GlobalVariables.currentMolecule = GlobalVariables.topLevelMolecule;
+            //trigger a save to clear the pending project
+            setSavePopUp(true);
+            saveProject(setSaveState, "auto-save after reauthentication").then(
+              () => {
+                localStorage.removeItem("pendingProjectSave");
+                setSavePopUp(false);
+              }
+            );
+          });
         } else {
           console.warn("No pending project found in local storage.");
           // If no pending project found, just load the current project
