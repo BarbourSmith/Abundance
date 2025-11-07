@@ -559,7 +559,7 @@ export default class Gcode extends Atom {
     let inputParams = super.createInputParams();
 
     //Temporarily disable the "Cut Through" input parameter
-    inputParams[this.uniqueID + "Cut Through"].disabled = true;
+    //inputParams[this.uniqueID + "Cut Through"].disabled = true;
 
     /*inputParams[this.uniqueID + "Tool"] = {
       type: "select",

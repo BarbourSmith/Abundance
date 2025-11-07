@@ -13,6 +13,7 @@ import GlobalVariables from "./js/globalvariables.js";
 import LoginMode from "./components/main-routes/LoginMode.jsx";
 import RunMode from "./components/main-routes/RunMode.jsx";
 import CreateMode from "./components/main-routes/CreateMode.jsx";
+import UserGuidePage from "./components/main-routes/UserGuidePage.jsx";
 import cadWorker from "./worker/worker.ts?worker";
 
 import { QueryClient, QueryClientProvider } from "react-query";
@@ -37,6 +38,7 @@ import "./styles/maslowCreate.css";
 import "./styles/menuIcons.css";
 import "./styles/login.css";
 import "./styles/codemirror.css";
+import "./styles/readme.css";
 
 const queryClient = new QueryClient();
 /**
@@ -372,18 +374,22 @@ function AppContent() {
           }
         />
         <Route
-          path="/:owner/:repoName"
-          element={
-            <ProjectProvider cad={cad} loadProject={loadProject}>
-              <CreateMode />
-            </ProjectProvider>
-          }
+          path="/user-guide"
+          element={<UserGuidePage />}
         />
         <Route
           path="/run/:owner/:repoName"
           element={
             <ProjectProvider cad={cad} loadProject={loadProject}>
               <RunMode />
+            </ProjectProvider>
+          }
+        />
+        <Route
+          path="/:owner/:repoName"
+          element={
+            <ProjectProvider cad={cad} loadProject={loadProject}>
+              <CreateMode />
             </ProjectProvider>
           }
         />
