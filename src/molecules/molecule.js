@@ -395,20 +395,11 @@ export default class Molecule extends Atom {
    * so onscreen nodes are always computed
    */
   enableAllChildren() {
-    console.log('[ENABLE_ALL_CHILDREN] Starting, nodesOnTheScreen:', this.nodesOnTheScreen.length);
     this.nodesOnTheScreen.forEach((atom) => {
-      console.log('[ENABLE_ALL_CHILDREN] Checking atom:', {
-        name: atom.name,
-        atomType: atom.atomType,
-        status: atom.status,
-        isDisabled: atom.status === Status.DISABLED
-      });
       if (atom.status === Status.DISABLED) {
-        console.log('[ENABLE_ALL_CHILDREN] Enabling atom:', atom.name);
         atom.enable();
       }
     });
-    console.log('[ENABLE_ALL_CHILDREN] Finished');
   }
 
   /**
@@ -1072,24 +1063,12 @@ export default class Molecule extends Atom {
         this.uniqueID,
         false
       );
-      console.log('[DESERIALIZE] Checking enablement conditions:', {
-        thisName: this.name,
-        thisUniqueID: this.uniqueID,
-        thisTopLevel: this.topLevel,
-        currentMoleculeName: GlobalVariables.currentMolecule?.name,
-        currentMoleculeID: GlobalVariables.currentMolecule?.uniqueID,
-        areEqual: GlobalVariables.currentMolecule === this,
-        forceEnable: forceEnable,
-        nodesOnScreen: this.nodesOnTheScreen.length
-      });
       
       // Always enable top-level molecules and their children after deserialization
       if (this.topLevel || GlobalVariables.currentMolecule === this || forceEnable) {
-        console.log('[DESERIALIZE] Calling this.enable() - topLevel:', this.topLevel);
         this.enable(); // Enable self and all child nodes upstream of output.
       }
       if (this.topLevel || GlobalVariables.currentMolecule === this) {
-        console.log('[DESERIALIZE] Calling this.enableAllChildren() - topLevel:', this.topLevel);
         this.enableAllChildren(); // For the currently rendered moleucle, also
         // enable all children visible on the screen
       }
