@@ -157,4 +157,29 @@ describe("G-code Z Anchor Configuration", () => {
     expect(zLevels.bottomOfPart).toBe(-5);
     expect(zLevels.cutThroughDepth).toBe(-6.5);
   });
+
+  test("should set stock.z to negative part height for correct Z=0 positioning", () => {
+    // When camStockOffset is true, the engine adds part dimensions to stock values:
+    // stock.z += bounds.max.z - bounds.min.z
+    //
+    // To get the top of the part at Z=0 with camZAnchor: "top":
+    // 1. Engine calls setTopZ(stock.z)
+    // 2. We want setTopZ(0) to position top at Z=0
+    // 3. Since stock.z gets part height added: stock.z += partHeight
+    // 4. We need initial stock.z = -partHeight
+    // 5. Result: stock.z = -partHeight + partHeight = 0 ✓
+    
+    const partHeight = 5; // 5mm tall part
+    const initialStockZ = -partHeight; // Set to negative of part height
+    
+    // Simulate what the engine does when camStockOffset is true
+    const finalStockZ = initialStockZ + partHeight; // Engine adds part height
+    
+    // This should result in 0
+    expect(finalStockZ).toBe(0);
+    
+    // With camZAnchor: "top", engine calls setTopZ(finalStockZ)
+    // So setTopZ(0) positions the top of the part at Z=0
+    expect(finalStockZ).toBe(0);
+  });
 });

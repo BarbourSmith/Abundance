@@ -85,11 +85,11 @@ const generateGcode = (
     })
     .then((eng) => {
       if (progressCallback) progressCallback(0.15); // 15% - Mode set to CAM
-      //const bounds = eng.widget.getBoundingBox();
-      //const x = bounds.max.x - bounds.min.x;
-      //const y = bounds.max.y - bounds.min.y;
-      //const z = bounds.max.z - bounds.min.z;
-      return eng.setStock({ x: 5, y: 5, z: 0 }); // camStockOffset is true so set offset by 5mm in each direction for safety margin
+      const bounds = eng.widget.getBoundingBox();
+      const partHeight = bounds.max.z - bounds.min.z;
+      // Set stock.z to negative of part height so that when camStockOffset adds the part height,
+      // the result is 0, positioning the top of the part at Z=0
+      return eng.setStock({ x: 5, y: 5, z: -partHeight }); // camStockOffset is true so set offset by 5mm in each direction for safety margin
     })
     .then((eng) => {
       if (progressCallback) progressCallback(0.2); // 20% - Stock set
