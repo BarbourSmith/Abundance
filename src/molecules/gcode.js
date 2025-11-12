@@ -180,6 +180,10 @@ export default class Gcode extends Atom {
     // Initialize progress tracking
     this.progress = 0.0;
     this.processing = true;
+    
+    // Show progress bar
+    GlobalVariables.setGcodeBarVisible(true);
+    GlobalVariables.setGcodeProgress(0.0, 'Initializing');
 
     try {
       // Get the current input ID
@@ -201,6 +205,8 @@ export default class Gcode extends Atom {
       this.setError(err);
       this.progress = 1.0;
       this.processing = false;
+      // Hide progress bar
+      GlobalVariables.setGcodeBarVisible(false);
       //this.sendToRender();
     }
   }
@@ -373,6 +379,10 @@ export default class Gcode extends Atom {
       try {
         // Update progress
         this.progress = partProgress;
+        const label = sortedPartIDs.length > 1 
+          ? `Generating Part ${i + 1} of ${sortedPartIDs.length}`
+          : 'Generating GCode';
+        GlobalVariables.setGcodeProgress(partProgress, label);
         //this.sendToRender();
 
         // Generate STL for this part
@@ -420,6 +430,7 @@ export default class Gcode extends Atom {
     }
 
     // Concatenate all G-code
+    GlobalVariables.setGcodeProgress(0.95, 'Finalizing');
     this.gcodeString = this._concatenateGcode(allGcode);
     this.gcodeGenerated = true;
 
@@ -431,6 +442,13 @@ export default class Gcode extends Atom {
     );
     this.setReady(gcodeWire);
     this.progress = 1.0;
+    
+    // Complete and hide progress bar after a delay
+    GlobalVariables.setGcodeProgress(1.0, 'GCode Generation');
+    setTimeout(() => {
+      GlobalVariables.setGcodeBarVisible(false);
+    }, 1000);
+    
     return gcodeWire;
   }
 
@@ -449,7 +467,20 @@ export default class Gcode extends Atom {
 
       const partProgressCallback = (progress) => {
         // Update overall progress within this part's range
-        // Each part gets equal weight in the overall progress
+        // Pass through the progress with more detailed labels
+        let label = 'Generating GCode';
+        if (progress < 0.25) {
+          label = 'Loading STL';
+        } else if (progress < 0.5) {
+          label = 'Configuring Toolpaths';
+        } else if (progress < 0.8) {
+          label = 'Slicing Model';
+        } else if (progress < 0.95) {
+          label = 'Preparing Export';
+        } else {
+          label = 'Generating GCode';
+        }
+        GlobalVariables.setGcodeProgress(progress, label);
       };
 
       // Use the same tool selection logic as single-part

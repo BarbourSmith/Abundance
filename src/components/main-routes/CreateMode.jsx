@@ -46,6 +46,9 @@ function CreateMode() {
     exportPopUp,
     setExportPopUp,
     redirectType,
+    gcodeProgress,
+    gcodeBarVisible,
+    gcodeLabel,
   } = useAppState();
   const {
     setMesh,
@@ -81,6 +84,15 @@ function CreateMode() {
     renderBarVisible,
     renderProgress,
     "Rendering",
+    false
+  );
+
+  // Register gcode progress bar
+  useProgressBar(
+    "gcode",
+    gcodeBarVisible,
+    gcodeProgress,
+    gcodeLabel,
     false
   );
 

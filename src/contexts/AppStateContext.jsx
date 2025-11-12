@@ -15,6 +15,11 @@ export function AppStateProvider({ children }) {
   const [redirectType, setRedirectType] = useState(null);
   const [errorNotification, setErrorNotification] = useState(null);
 
+  // GCode generation progress state
+  const [gcodeProgress, setGcodeProgress] = useState(0);
+  const [gcodeBarVisible, setGcodeBarVisible] = useState(false);
+  const [gcodeLabel, setGcodeLabel] = useState('Generating GCode');
+
   const value = {
     activeAtom,
     setActiveAtom,
@@ -26,6 +31,13 @@ export function AppStateProvider({ children }) {
     setRedirectType,
     errorNotification,
     setErrorNotification,
+    // GCode progress
+    gcodeProgress,
+    setGcodeProgress,
+    gcodeBarVisible,
+    setGcodeBarVisible,
+    gcodeLabel,
+    setGcodeLabel,
   };
 
   return (

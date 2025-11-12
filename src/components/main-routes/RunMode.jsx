@@ -65,6 +65,9 @@ function runMode() {
     setRedirectType,
     setActiveAtom,
     setErrorNotification,
+    gcodeProgress,
+    gcodeBarVisible,
+    gcodeLabel,
   } = useAppState();
   const {
     mesh,
@@ -88,6 +91,9 @@ function runMode() {
 
   // Register render progress bar
   useProgressBar('render-run', renderBarVisible, renderProgress, 'Rendering', true);
+
+  // Register gcode progress bar
+  useProgressBar('gcode-run', gcodeBarVisible, gcodeProgress, gcodeLabel, true);
 
   const { next, isActive } = useTutorial();
 

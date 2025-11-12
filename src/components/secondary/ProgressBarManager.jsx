@@ -94,7 +94,7 @@ function ProgressBarDisplay({ bars }) {
     .filter(([_, bar]) => bar.visible)
     .sort(([idA], [idB]) => {
       // Define a consistent order for bars
-      const order = ["save", "duplicate", "rename", "render", "fork", "build"];
+      const order = ["save", "duplicate", "rename", "render", "fork", "build", "gcode"];
       const indexA = order.findIndex((prefix) => idA.startsWith(prefix));
       const indexB = order.findIndex((prefix) => idB.startsWith(prefix));
       return indexA - indexB;

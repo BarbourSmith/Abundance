@@ -80,6 +80,9 @@ function AppContent() {
     setRedirectType,
     errorNotification,
     setErrorNotification,
+    setGcodeProgress,
+    setGcodeBarVisible,
+    setGcodeLabel,
   } = useAppState();
 
   const navigate = useNavigate();
@@ -135,6 +138,24 @@ function AppContent() {
       return () => clearTimeout(timeout);
     }
   }, [renderProgress, setRenderBarVisible]);
+
+  // Set up GCode progress callbacks
+  useEffect(() => {
+    GlobalVariables.setGcodeProgressCallback = (progress, label) => {
+      setGcodeProgress(Math.floor(progress * 100));
+      if (label) {
+        setGcodeLabel(label);
+      }
+    };
+    GlobalVariables.setGcodeBarVisibleCallback = (visible) => {
+      setGcodeBarVisible(visible);
+    };
+    
+    return () => {
+      GlobalVariables.setGcodeProgressCallback = null;
+      GlobalVariables.setGcodeBarVisibleCallback = null;
+    };
+  }, [setGcodeProgress, setGcodeBarVisible, setGcodeLabel]);
 
   /* Creates an element to check with Puppeteer if the molecule is fully loaded*/
   const createPuppeteerDiv = () => {

@@ -362,6 +362,22 @@ class GlobalVariables {
   }
 
   /**
+   * Sets the GCode generation progress and visibility
+   * These are called from gcode.js to update the UI progress bar
+   */
+  setGcodeProgress(progress, label) {
+    if (this.setGcodeProgressCallback) {
+      this.setGcodeProgressCallback(progress, label);
+    }
+  }
+
+  setGcodeBarVisible(visible) {
+    if (this.setGcodeBarVisibleCallback) {
+      this.setGcodeBarVisibleCallback(visible);
+    }
+  }
+
+  /**
    * Snaps the given x,y coordinates to the nearest point within the canvas boundaries. Where x
    * and y are width fraction and heigh fraction respectively.
    * @param {} x
