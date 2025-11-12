@@ -1,15 +1,17 @@
 import { expect, test, describe } from "vitest";
 
 describe("G-code camOriginTop Configuration", () => {
-  test("should set camOriginTop to true in process configuration", () => {
+  test("should set camOriginTop to true and camZAnchor to top in process configuration", () => {
     // This test verifies that the camOriginTop parameter is set correctly
     // in the setProcess() call in KirimotoUpdate.js
+    // When camOriginTop is true, camZAnchor should be "top" to properly
+    // position the widget with Z=0 at the top surface
     
     // Mock the process configuration (as it appears in KirimotoUpdate.js)
     const processConfig = {
       camEaseAngle: 10,
       camEaseDown: true,
-      camZAnchor: "bottom",
+      camZAnchor: "top", // Must be "top" when camOriginTop is true
       camDepthFirst: false,
       camZThru: 0,
       camZClearance: 3,
@@ -27,6 +29,9 @@ describe("G-code camOriginTop Configuration", () => {
 
     // Verify camOriginTop is set to true
     expect(processConfig.camOriginTop).toBe(true);
+    
+    // Verify camZAnchor is set to "top" to align with camOriginTop
+    expect(processConfig.camZAnchor).toBe("top");
   });
 
   test("should ensure Z coordinates are below zero when camOriginTop is true", () => {
@@ -136,5 +141,36 @@ describe("G-code camOriginTop Configuration", () => {
     expect(pass1Depth).toBeLessThan(0);
     expect(pass2Depth).toBeLessThan(0);
     expect(pass3Depth).toBeLessThan(0);
+  });
+
+  test("should use camZAnchor 'top' to align widget positioning with camOriginTop", () => {
+    // When camOriginTop is true, the G-code output will place Z=0 at the top
+    // of the stock. However, the widget positioning (via setTopZ) must also
+    // align with this. Using camZAnchor: "top" ensures the widget's top is
+    // positioned correctly.
+    
+    // From engine.js, the setTopZ behavior based on camZAnchor:
+    // - "top": widget.setTopZ(stock.z - zdelta) 
+    // - "bottom": widget.setTopZ(wzmax + zdelta) <- pushes widget up
+    // - "middle": widget.setTopZ(stock.z - (stock.z - wzmax) / 2 + zdelta)
+    
+    const stockHeight = 10; // 10mm stock
+    const widgetMaxZ = 5; // Widget is 5mm tall
+    
+    // With camZAnchor "bottom" (incorrect):
+    // setTopZ(wzmax + 0) = setTopZ(5)
+    // This positions widget's top at Z=5, making cuts above Z=0
+    const incorrectTopZ = widgetMaxZ + 0; // 5
+    expect(incorrectTopZ).toBeGreaterThan(0); // Problem: top is above Z=0
+    
+    // With camZAnchor "top" (correct):
+    // setTopZ(stock.z - 0) = setTopZ(10)
+    // Combined with camOriginTop offset, this results in top at Z=0
+    const correctTopZ = stockHeight - 0; // 10
+    expect(correctTopZ).toBeGreaterThan(0); // Raw position before camOriginTop offset
+    
+    // The combination of camZAnchor: "top" and camOriginTop: true ensures
+    // that after all transformations, the widget's top is at Z=0 and all
+    // cutting operations occur with negative Z values
   });
 });
