@@ -85,23 +85,16 @@ const generateGcode = (
     })
     .then((eng) => {
       if (progressCallback) progressCallback(0.15); // 15% - Mode set to CAM
-      const bounds = eng.widget.getBoundingBox();
-      const partWidth = bounds.max.x - bounds.min.x;
-      const partDepth = bounds.max.y - bounds.min.y;
-      const partHeight = bounds.max.z - bounds.min.z;
-      // Set stock dimensions explicitly with 5mm margins in X/Y and use part height for Z
-      // With camStockOffset: false, these are the actual stock dimensions
-      return eng.setStock({ x: partWidth + 10, y: partDepth + 10, z: partHeight });
+      return eng.setStock({ x: 5, y: 5, z: 0 }); // camStockOffset is true so set offset by 5mm in each direction for safety margin
     })
     .then((eng) => {
       if (progressCallback) progressCallback(0.2); // 20% - Stock set
-      // Note: We don't set Z position here - let setTopZ handle it via camZAnchor and camZOffset
       if (GlobalVariables.topLevelMolecule?.unitsKey === "Inches") {
         eng.widget.scale(25.4, 25.4, 25.4); // Scale from mm to inches (1 inch = 25.4 mm)
-        eng.moveTo(centerPos[0] * 25.4, centerPos[1] * 25.4, undefined); // Center X/Y only, Z handled by setTopZ
+        eng.moveTo(centerPos[0] * 25.4, centerPos[1] * 25.4, 0); // move part so top is at Z=0
         return eng;
       }
-      eng.moveTo(centerPos[0], centerPos[1], undefined); // Center X/Y only, Z handled by setTopZ
+      eng.moveTo(centerPos[0], centerPos[1], 0); // move part so top is at Z=0
       return eng;
     })
     .then((eng) => {
@@ -152,15 +145,12 @@ const generateGcode = (
       return eng.setProcess({
         camEaseAngle: 10,
         camEaseDown: true,
-        camZAnchor: "top",
-        camZOffset: 0, // Explicitly set to 0 - no offset, let camZAnchor and camOriginTop align naturally
-        camOriginCenter: false, // Don't center origin - required for camOriginTop to work
-        camOriginTop: true, // Set G-code origin at top of stock
+        camZAnchor: "bottom",
         camDepthFirst: false,
         camZThru: camZThru,
         camZClearance: 3,
-        camZTop: 0, //top of stock
-        camStockOffset: false,
+        camZTop: -zBottom, // Set top of stock at negative of part height to position Z=0 at top surface
+        camStockOffset: true,
         camZBottom: camZBottom, //-zBottom, // temp hack to get around setTopZ bug
         camToolInit: true,
         camOutlineSpeed: speed,
