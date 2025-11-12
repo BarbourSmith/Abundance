@@ -154,6 +154,7 @@ const generateGcode = (
         camEaseDown: true,
         camZAnchor: "top",
         camZOffset: zBottom, // Offset to position top at Z=0 (stock.z - camZOffset = zBottom - zBottom = 0)
+        camOriginTop: true, // Set G-code origin at top of stock
         camDepthFirst: false,
         camZThru: camZThru,
         camZClearance: 3,
