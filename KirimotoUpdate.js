@@ -154,6 +154,7 @@ const generateGcode = (
         camEaseDown: true,
         camZAnchor: "top",
         camZOffset: 0, // Explicitly set to 0 - no offset, let camZAnchor and camOriginTop align naturally
+        camOriginCenter: false, // Don't center origin - required for camOriginTop to work
         camOriginTop: true, // Set G-code origin at top of stock
         camDepthFirst: false,
         camZThru: camZThru,
