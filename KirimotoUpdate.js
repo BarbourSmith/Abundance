@@ -130,28 +130,28 @@ const generateGcode = (
 
       /*End Hack for kiri 4.3.0, add cut through in down value and set camzThru to 0 to avoid extra pass, set camZBottom to real value (not 1000)*/
       const down = (zBottom + CUT_THROUGH) / passes;
-      const camZBottom = -zBottom - CUT_THROUGH;
+      const camZBottom = -zBottom - CUT_THROUGH; // Negative: cuts from Z=0 (top) down through part
       const camZThru = passes > 1 ? 0 : CUT_THROUGH;
       const roughingStepOver = 0.6;
 
       console.log("Down per pass:", down);
       console.log("CAM Z Bottom:", camZBottom);
       console.log("CAM Z Thru:", camZThru);
-      console.log("CAM Z Offset:", zBottom);
-      console.log("Stock Z:", z);
+      console.log("Part Height (zBottom):", zBottom);
+      console.log("Stock Z offset:", z);
       console.log("Tool Size:", toolSize);
       console.log("Roughing step over:", roughingStepOver);
 
       return eng.setProcess({
         camEaseAngle: 10,
         camEaseDown: true,
-        camZAnchor: "bottom",
+        camZAnchor: "top", // Use top as anchor so Z=0 is at top surface
         camDepthFirst: false,
         camZThru: camZThru,
         camZClearance: 3,
-        camZTop: -zBottom, // Set top of stock at negative of part height to position Z=0 at top surface
+        camZTop: 0, // Top surface at Z=0
         camStockOffset: true,
-        camZBottom: camZBottom, //-zBottom, // temp hack to get around setTopZ bug
+        camZBottom: camZBottom, // Negative value: cut depth from top surface
         camToolInit: true,
         camOutlineSpeed: speed,
         camRetractFeed: 300,
