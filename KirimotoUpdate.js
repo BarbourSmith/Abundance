@@ -86,11 +86,12 @@ const generateGcode = (
     .then((eng) => {
       if (progressCallback) progressCallback(0.15); // 15% - Mode set to CAM
       const bounds = eng.widget.getBoundingBox();
+      const partWidth = bounds.max.x - bounds.min.x;
+      const partDepth = bounds.max.y - bounds.min.y;
       const partHeight = bounds.max.z - bounds.min.z;
-      // Set stock.z to negative of part height plus a small offset (0.1mm) so that when 
-      // camStockOffset adds the part height, the result is 0.1mm, positioning the top 
-      // of the part very close to Z=0 and avoiding the "stock dimensions is zero" error
-      return eng.setStock({ x: 5, y: 5, z: -partHeight + 0.1 }); // camStockOffset is true so set offset by 5mm in each direction for safety margin
+      // Set stock dimensions explicitly with 5mm margins in X/Y and use part height for Z
+      // With camStockOffset: false, these are the actual stock dimensions
+      return eng.setStock({ x: partWidth + 10, y: partDepth + 10, z: partHeight });
     })
     .then((eng) => {
       if (progressCallback) progressCallback(0.2); // 20% - Stock set
@@ -149,11 +150,12 @@ const generateGcode = (
         camEaseAngle: 10,
         camEaseDown: true,
         camZAnchor: "top",
+        camZOffset: zBottom, // Offset to position top at Z=0 (stock.z - camZOffset = zBottom - zBottom = 0)
         camDepthFirst: false,
         camZThru: camZThru,
         camZClearance: 3,
         camZTop: 0, //top of stock
-        camStockOffset: true,
+        camStockOffset: false,
         camZBottom: camZBottom, //-zBottom, // temp hack to get around setTopZ bug
         camToolInit: true,
         camOutlineSpeed: speed,

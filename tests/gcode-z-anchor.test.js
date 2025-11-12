@@ -158,30 +158,30 @@ describe("G-code Z Anchor Configuration", () => {
     expect(zLevels.cutThroughDepth).toBe(-6.5);
   });
 
-  test("should set stock.z to negative part height for correct Z=0 positioning", () => {
-    // When camStockOffset is true, the engine adds part dimensions to stock values:
-    // stock.z += bounds.max.z - bounds.min.z
-    //
-    // To get the top of the part near Z=0 with camZAnchor: "top":
-    // 1. Engine calls setTopZ(stock.z)
-    // 2. We want setTopZ(~0) to position top near Z=0
-    // 3. Since stock.z gets part height added: stock.z += partHeight
-    // 4. We set initial stock.z = -partHeight + 0.1 (small offset to avoid zero validation error)
-    // 5. Result: stock.z = -partHeight + 0.1 + partHeight = 0.1 ✓
+  test("should use camZOffset to position top at Z=0 with explicit stock dimensions", () => {
+    // With camStockOffset: false, stock dimensions are explicit (not calculated)
+    // To get the top of the part at Z=0 with camZAnchor: "top":
+    // 1. Set stock.z = partHeight (explicit stock height)
+    // 2. Set camZOffset = partHeight
+    // 3. Engine calls setTopZ(stock.z - camZOffset)
+    // 4. Result: setTopZ(partHeight - partHeight) = setTopZ(0) ✓
     
     const partHeight = 5; // 5mm tall part
-    const smallOffset = 0.1; // Small offset to avoid "stock dimensions is zero" error
-    const initialStockZ = -partHeight + smallOffset; // Set to negative of part height plus small offset
+    const stockZ = partHeight; // Stock height equals part height
+    const camZOffset = partHeight; // Offset to shift positioning
     
-    // Simulate what the engine does when camStockOffset is true
-    const finalStockZ = initialStockZ + partHeight; // Engine adds part height
+    // Simulate what the engine does with camZAnchor: "top"
+    const topPosition = stockZ - camZOffset;
     
-    // This should result in small positive value (0.1mm)
-    expect(finalStockZ).toBeCloseTo(0.1, 5);
+    // This should result in 0
+    expect(topPosition).toBe(0);
     
-    // With camZAnchor: "top", engine calls setTopZ(finalStockZ)
-    // So setTopZ(0.1) positions the top of the part at Z=0.1 (very close to Z=0)
-    expect(finalStockZ).toBeGreaterThan(0); // Avoids zero validation error
-    expect(finalStockZ).toBeLessThan(1); // Still very close to 0
+    // Verify stock dimensions are valid (non-zero)
+    expect(stockZ).toBeGreaterThan(0);
+    
+    // With this approach:
+    // - Stock dimensions are valid (stock.z = partHeight > 0)
+    // - Top positioned at Z=0
+    // - All cutting operations use negative Z values
   });
 });
