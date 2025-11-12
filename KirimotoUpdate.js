@@ -155,6 +155,7 @@ const generateGcode = (
         camStockOffset: true,
         camZBottom: camZBottom, //-zBottom, // temp hack to get around setTopZ bug
         camToolInit: true,
+        camOriginTop: true, // Set origin to top to ensure all cuts happen with Z below zero
         camOutlineSpeed: speed,
         camRetractFeed: 300,
         camSpindleSpeed: speed,
