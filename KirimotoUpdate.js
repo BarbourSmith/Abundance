@@ -95,12 +95,13 @@ const generateGcode = (
     })
     .then((eng) => {
       if (progressCallback) progressCallback(0.2); // 20% - Stock set
+      // Note: We don't set Z position here - let setTopZ handle it via camZAnchor and camZOffset
       if (GlobalVariables.topLevelMolecule?.unitsKey === "Inches") {
         eng.widget.scale(25.4, 25.4, 25.4); // Scale from mm to inches (1 inch = 25.4 mm)
-        eng.moveTo(centerPos[0] * 25.4, centerPos[1] * 25.4, 0); // move part so top is at Z=0
+        eng.moveTo(centerPos[0] * 25.4, centerPos[1] * 25.4, undefined); // Center X/Y only, Z handled by setTopZ
         return eng;
       }
-      eng.moveTo(centerPos[0], centerPos[1], 0); // move part so top is at Z=0
+      eng.moveTo(centerPos[0], centerPos[1], undefined); // Center X/Y only, Z handled by setTopZ
       return eng;
     })
     .then((eng) => {
@@ -143,6 +144,8 @@ const generateGcode = (
       console.log("Down per pass:", down);
       console.log("CAM Z Bottom:", camZBottom);
       console.log("CAM Z Thru:", camZThru);
+      console.log("CAM Z Offset:", zBottom);
+      console.log("Stock Z:", z);
       console.log("Tool Size:", toolSize);
       console.log("Roughing step over:", roughingStepOver);
 
