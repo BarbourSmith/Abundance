@@ -153,7 +153,7 @@ const generateGcode = (
         camZClearance: 3,
         camZTop: 1, //top of stock
         camStockOffset: true,
-        camZBottom: camZBottom, //-zBottom, // temp hack to get around setTopZ bug
+        camZBottom: -1000, //-zBottom, // temp hack to get around setTopZ bug
         camToolInit: true,
         camOutlineSpeed: speed,
         camRetractFeed: 300,
