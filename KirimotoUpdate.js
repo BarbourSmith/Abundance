@@ -85,7 +85,9 @@ const generateGcode = (
     })
     .then((eng) => {
       if (progressCallback) progressCallback(0.15); // 15% - Mode set to CAM
-      return eng.setStock({ x: 5, y: 5, z: 0 }); // camStockOffset is true so set offset by 5mm in each direction for safety margin
+      const bounds = eng.widget.getBoundingBox();
+      const partHeight = bounds.max.z - bounds.min.z;
+      return eng.setStock({ x: 5, y: 5, z: partHeight }); // Set stock height to part height for correct Z positioning
     })
     .then((eng) => {
       if (progressCallback) progressCallback(0.2); // 20% - Stock set
@@ -150,7 +152,7 @@ const generateGcode = (
         camZThru: camZThru,
         camZClearance: 3,
         camZTop: 0, // Top surface at Z=0
-        camStockOffset: true,
+        camStockOffset: false, // Use explicit stock dimensions, don't auto-offset
         camZBottom: camZBottom, // Negative value: cut depth from top surface
         camToolInit: true,
         camOutlineSpeed: speed,
