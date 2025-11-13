@@ -86,8 +86,11 @@ const generateGcode = (
     .then((eng) => {
       if (progressCallback) progressCallback(0.15); // 15% - Mode set to CAM
       const bounds = eng.widget.getBoundingBox();
+      const partWidth = bounds.max.x - bounds.min.x;
+      const partDepth = bounds.max.y - bounds.min.y;
       const partHeight = bounds.max.z - bounds.min.z;
-      return eng.setStock({ x: 5, y: 5, z: partHeight }); // Set stock height to part height for correct Z positioning
+      // Set stock dimensions with margins and explicit height for correct Z positioning
+      return eng.setStock({ x: partWidth + 10, y: partDepth + 10, z: partHeight });
     })
     .then((eng) => {
       if (progressCallback) progressCallback(0.2); // 20% - Stock set
