@@ -85,11 +85,11 @@ const generateGcode = (
     })
     .then((eng) => {
       if (progressCallback) progressCallback(0.15); // 15% - Mode set to CAM
-      const bounds = eng.widget.getBoundingBox();
-      const x = bounds.max.x - bounds.min.x;
-      const y = bounds.max.y - bounds.min.y;
-      const z = bounds.max.z - bounds.min.z;
-      return eng.setStock({ x: 5, y: 5, z: z }); // camStockOffset is true so set offset by 5mm in each direction for safety margin, z is the part height for camOriginTop
+      //const bounds = eng.widget.getBoundingBox();
+      //const x = bounds.max.x - bounds.min.x;
+      //const y = bounds.max.y - bounds.min.y;
+      //const z = bounds.max.z - bounds.min.z;
+      return eng.setStock({ x: 5, y: 5, z: 0 }); // camStockOffset is true so set offset by 5mm in each direction for safety margin
     })
     .then((eng) => {
       if (progressCallback) progressCallback(0.2); // 20% - Stock set
@@ -147,7 +147,7 @@ const generateGcode = (
       return eng.setProcess({
         camEaseAngle: 10,
         camEaseDown: true,
-        camZAnchor: "top",
+        camZAnchor: "bottom",
         camDepthFirst: false,
         camZThru: camZThru,
         camZClearance: 3,
