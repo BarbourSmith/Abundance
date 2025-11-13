@@ -147,7 +147,7 @@ const generateGcode = (
       return eng.setProcess({
         camEaseAngle: 10,
         camEaseDown: true,
-        camZAnchor: "bottom",
+        camZAnchor: "top",
         camDepthFirst: false,
         camZThru: camZThru,
         camZClearance: 3,
