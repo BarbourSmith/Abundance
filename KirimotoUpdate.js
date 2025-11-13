@@ -151,7 +151,7 @@ const generateGcode = (
         camDepthFirst: false,
         camZThru: camZThru,
         camZClearance: 3,
-        camZTop: 0, //top of stock
+        camZTop: 1, //top of stock
         camStockOffset: true,
         camZBottom: camZBottom, //-zBottom, // temp hack to get around setTopZ bug
         camToolInit: true,
