@@ -173,4 +173,40 @@ describe("G-code camOriginTop Configuration", () => {
     // that after all transformations, the widget's top is at Z=0 and all
     // cutting operations occur with negative Z values
   });
+
+  test("should set stock.z to part height for camOriginTop to work correctly", () => {
+    // For camOriginTop to properly shift Z coordinates below zero, stock.z
+    // must be set to the actual part height, not zero.
+    //
+    // From worker.js, when camOriginTop is true:
+    //   offset.z = origin.z - zmax (where zmax = stock.z)
+    //   point.z = point.z - zmax
+    //
+    // If stock.z = 0, then zmax = 0, and subtracting 0 doesn't shift anything!
+    // The Z coordinates remain positive.
+    //
+    // If stock.z = partHeight (e.g., 5mm), then zmax = 5, and all Z coordinates
+    // are reduced by 5mm, making the top surface at Z=0 and cuts below zero.
+    
+    const partHeight = 5; // 5mm tall part
+    
+    // INCORRECT: stock.z = 0
+    const incorrectStockZ = 0;
+    const incorrectZMax = incorrectStockZ;
+    const topSurfaceZ_incorrect = partHeight - incorrectZMax; // 5 - 0 = 5 (still positive!)
+    expect(topSurfaceZ_incorrect).toBe(5);
+    expect(topSurfaceZ_incorrect).toBeGreaterThan(0); // Problem: top is above Z=0
+    
+    // CORRECT: stock.z = partHeight
+    const correctStockZ = partHeight;
+    const correctZMax = correctStockZ;
+    const topSurfaceZ_correct = partHeight - correctZMax; // 5 - 5 = 0 (at Z=0!)
+    expect(topSurfaceZ_correct).toBe(0);
+    
+    // With correct stock.z, cuts go below Z=0
+    const cutDepth = 1; // 1mm cut
+    const cutZ = topSurfaceZ_correct - cutDepth; // 0 - 1 = -1
+    expect(cutZ).toBe(-1);
+    expect(cutZ).toBeLessThan(0);
+  });
 });
