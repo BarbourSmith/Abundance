@@ -7,3 +7,4 @@ coverage/
 Puppet/images/*.png
 # Vitest test screenshots (generated during tests)
 tests/__screenshots__/
+public/localStorage-demo.html
