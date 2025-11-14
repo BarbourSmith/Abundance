@@ -81,23 +81,15 @@ const generateGcode = (
     })
     .then((eng) => {
       if (progressCallback) progressCallback(0.15); // 15% - Mode set to CAM
-      
-      // Get the bounding box to compute stock dimensions dynamically
-      const bounds = eng.widget.getBoundingBox();
-      const x = bounds.max.x - bounds.min.x;
-      const y = bounds.max.y - bounds.min.y;
-      const z = bounds.max.z - bounds.min.z;
-      
-      // Add 5mm margin on each side (camStockOffset is true, so these are offsets)
-      return eng.setStock({ 
-        x: 5, 
-        y: 5, 
-        z: 0,
+      return eng.setStock({
+        x: 80,
+        y: 80,
+        z: 10,
         center: {
           x: 0,
           y: 0,
-          z: z / 2,
-        }
+          z: 5,
+        },
       });
     })
     .then((eng) => {
@@ -111,10 +103,6 @@ const generateGcode = (
       return eng;
     })
     .then((eng) => {
-      // Determine if project uses metric units
-      const projectUnits = GlobalVariables.topLevelMolecule?.unitsKey || "MM";
-      const isMetric = projectUnits === "MM";
-
       return eng.setTools([
         {
           id: 1000,
