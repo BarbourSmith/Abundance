@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import GlobalVariables from "../../js/globalvariables.js";
 import { Link, useNavigate } from "react-router-dom";
+import { safeSaveToLocalStorage } from "../../js/localStorageManager.js";
 
 function ToggleRunCreate({ run, isItOwned, setActiveAtom }) {
   const [runModeon, setRunMode] = useState(run);
@@ -22,7 +23,12 @@ function ToggleRunCreate({ run, isItOwned, setActiveAtom }) {
       const projectState = GlobalVariables.topLevelMolecule.serialize();
       projectState.filetypeVersion = 1;
       const projectKey = `unsavedProject_${GlobalVariables.currentAWSnode.owner}_${GlobalVariables.currentAWSnode.repoName}`;
-      localStorage.setItem(projectKey, JSON.stringify(projectState));
+      
+      // Use safe save that handles quota exceeded errors
+      const saved = safeSaveToLocalStorage(projectKey, JSON.stringify(projectState));
+      if (!saved) {
+        console.warn('Failed to save project state before switching to Run mode. Unsaved changes may be lost.');
+      }
     }
     handleChange();
   };
@@ -35,7 +41,12 @@ function ToggleRunCreate({ run, isItOwned, setActiveAtom }) {
       const projectState = GlobalVariables.topLevelMolecule.serialize();
       projectState.filetypeVersion = 1;
       const projectKey = `unsavedProject_${GlobalVariables.currentAWSnode.owner}_${GlobalVariables.currentAWSnode.repoName}`;
-      localStorage.setItem(projectKey, JSON.stringify(projectState));
+      
+      // Use safe save that handles quota exceeded errors
+      const saved = safeSaveToLocalStorage(projectKey, JSON.stringify(projectState));
+      if (!saved) {
+        console.warn('Failed to save project state before browsing projects. Unsaved changes may be lost.');
+      }
     }
     navigate("/", { state: { fromRunMode: true } });
   };
