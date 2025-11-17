@@ -897,6 +897,37 @@ function CreateMode() {
       setSaveProgress(10);
       var jsonRepOfProject = GlobalVariables.topLevelMolecule.serialize();
       jsonRepOfProject.filetypeVersion = 1;
+      
+      // Debug: Check the size of the serialized data
+      console.log(`[SAVE DEBUG] Serialized project object keys:`, Object.keys(jsonRepOfProject));
+      console.log(`[SAVE DEBUG] Number of atoms in allAtoms:`, jsonRepOfProject.allAtoms?.length || 0);
+      
+      // Check for unexpectedly large fields
+      const checkFieldSize = (obj, path = 'root') => {
+        if (!obj || typeof obj !== 'object') return;
+        
+        for (const [key, value] of Object.entries(obj)) {
+          if (value && typeof value === 'object') {
+            const jsonSize = JSON.stringify(value).length;
+            if (jsonSize > 1000000) { // More than 1MB
+              console.warn(`[SAVE DEBUG] Large field detected: ${path}.${key} = ${(jsonSize / 1024 / 1024).toFixed(2)} MB`);
+            }
+          }
+        }
+      };
+      
+      checkFieldSize(jsonRepOfProject);
+      if (jsonRepOfProject.allAtoms) {
+        console.log(`[SAVE DEBUG] Checking individual atoms...`);
+        jsonRepOfProject.allAtoms.forEach((atom, index) => {
+          const atomSize = JSON.stringify(atom).length;
+          if (atomSize > 100000) { // More than 100KB
+            console.warn(`[SAVE DEBUG] Large atom ${index} (${atom.name || atom.atomType}): ${(atomSize / 1024).toFixed(2)} KB`);
+            checkFieldSize(atom, `atom[${index}]`);
+          }
+        });
+      }
+      
       const projectContent = JSON.stringify(jsonRepOfProject, null, 2);
       // format and compile the BOM
       let bomContent = GlobalVariables.topLevelMolecule.formatBom();
