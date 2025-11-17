@@ -924,6 +924,21 @@ function CreateMode() {
           if (atomSize > 100000) { // More than 100KB
             console.warn(`[SAVE DEBUG] Large atom ${index} (${atom.name || atom.atomType}): ${(atomSize / 1024).toFixed(2)} KB`);
             checkFieldSize(atom, `atom[${index}]`);
+            
+            // Check ioValues in detail
+            if (atom.ioValues && atom.ioValues.length > 0) {
+              console.log(`[SAVE DEBUG]   - ioValues count: ${atom.ioValues.length}`);
+              atom.ioValues.forEach((io, ioIndex) => {
+                const ioSize = JSON.stringify(io).length;
+                if (ioSize > 10000) { // More than 10KB
+                  console.warn(`[SAVE DEBUG]   - Large ioValue ${ioIndex} (${io.name}): ${(ioSize / 1024).toFixed(2)} KB`);
+                  console.warn(`[SAVE DEBUG]     - ioValue type: ${typeof io.ioValue}, value type: ${typeof io.ioValue === 'object' ? Object.prototype.toString.call(io.ioValue) : typeof io.ioValue}`);
+                  if (typeof io.ioValue === 'object' && io.ioValue !== null) {
+                    console.warn(`[SAVE DEBUG]     - ioValue is object with keys:`, Object.keys(io.ioValue).slice(0, 10));
+                  }
+                }
+              });
+            }
           }
         });
       }
