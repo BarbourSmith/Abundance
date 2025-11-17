@@ -496,6 +496,8 @@ function CreateMode() {
         const totalFiles = filePaths.length;
         const treeEntries = [];
 
+        console.log(`[SAVE DEBUG] Starting blob creation for ${totalFiles} files`);
+
         // Create blobs for each file (progress: 50-60%)
         for (let i = 0; i < filePaths.length; i++) {
           const path = filePaths[i];
@@ -504,22 +506,38 @@ function CreateMode() {
           if (content != null) {
             // Create a blob for this file using base64 encoding for large files
             // Convert content to base64 to handle large files more efficiently
+            const contentSize = content.length;
+            console.log(`[SAVE DEBUG] File ${i + 1}/${totalFiles}: ${path}`);
+            console.log(`[SAVE DEBUG]   - Original size: ${contentSize} bytes (${(contentSize / 1024 / 1024).toFixed(2)} MB)`);
+            
             const base64Content = btoa(unescape(encodeURIComponent(content)));
-            const blobResponse = await octokit.rest.git.createBlob({
-              owner,
-              repo,
-              content: base64Content,
-              encoding: "base64",
-            });
+            const base64Size = base64Content.length;
+            console.log(`[SAVE DEBUG]   - Base64 size: ${base64Size} bytes (${(base64Size / 1024 / 1024).toFixed(2)} MB)`);
+            
+            try {
+              const blobResponse = await octokit.rest.git.createBlob({
+                owner,
+                repo,
+                content: base64Content,
+                encoding: "base64",
+              });
+              console.log(`[SAVE DEBUG]   - Blob created successfully: ${blobResponse.data.sha}`);
 
-            treeEntries.push({
-              path,
-              mode: "100644",
-              type: "blob",
-              sha: blobResponse.data.sha,
-            });
+              treeEntries.push({
+                path,
+                mode: "100644",
+                type: "blob",
+                sha: blobResponse.data.sha,
+              });
+            } catch (blobError) {
+              console.error(`[SAVE DEBUG]   - FAILED to create blob for ${path}:`, blobError);
+              console.error(`[SAVE DEBUG]   - Error message:`, blobError.message);
+              console.error(`[SAVE DEBUG]   - Error status:`, blobError.status);
+              throw blobError; // Re-throw to maintain error handling
+            }
           } else {
             // File deletion
+            console.log(`[SAVE DEBUG] File ${i + 1}/${totalFiles}: ${path} (deletion)`);
             treeEntries.push({
               path,
               mode: "100644",
@@ -532,6 +550,8 @@ function CreateMode() {
           setSaveProgress(blobProgress);
         }
 
+        console.log(`[SAVE DEBUG] All blobs created successfully, creating tree with ${treeEntries.length} entries`);
+
         // Create tree with blob references (no size limit)
         const treeResponse = await octokit.rest.git.createTree({
           owner,
@@ -540,6 +560,7 @@ function CreateMode() {
           tree: treeEntries,
         });
 
+        console.log(`[SAVE DEBUG] Tree created successfully: ${treeResponse.data.sha}`);
         setSaveProgress(60);
         const newTreeSha = treeResponse.data.sha;
 
