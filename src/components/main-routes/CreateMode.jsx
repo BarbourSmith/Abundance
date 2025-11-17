@@ -502,12 +502,14 @@ function CreateMode() {
           const content = changes.files[path];
 
           if (content != null) {
-            // Create a blob for this file
+            // Create a blob for this file using base64 encoding for large files
+            // Convert content to base64 to handle large files more efficiently
+            const base64Content = btoa(unescape(encodeURIComponent(content)));
             const blobResponse = await octokit.rest.git.createBlob({
               owner,
               repo,
-              content: content,
-              encoding: "utf-8",
+              content: base64Content,
+              encoding: "base64",
             });
 
             treeEntries.push({
