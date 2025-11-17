@@ -490,25 +490,52 @@ function CreateMode() {
         let latestCommitSha = commitsResponse.data[0].sha;
         const treeSha = commitsResponse.data[0].commit.tree.sha;
 
+        // For large projects, create blobs first to avoid GitHub API limits
+        // GitHub limits createTree to ~7MB of inline content
+        const filePaths = Object.keys(changes.files);
+        const totalFiles = filePaths.length;
+        const treeEntries = [];
+
+        // Create blobs for each file (progress: 50-60%)
+        for (let i = 0; i < filePaths.length; i++) {
+          const path = filePaths[i];
+          const content = changes.files[path];
+
+          if (content != null) {
+            // Create a blob for this file
+            const blobResponse = await octokit.rest.git.createBlob({
+              owner,
+              repo,
+              content: content,
+              encoding: "utf-8",
+            });
+
+            treeEntries.push({
+              path,
+              mode: "100644",
+              type: "blob",
+              sha: blobResponse.data.sha,
+            });
+          } else {
+            // File deletion
+            treeEntries.push({
+              path,
+              mode: "100644",
+              sha: null,
+            });
+          }
+
+          // Update progress during blob creation
+          const blobProgress = 50 + Math.floor((i + 1) / totalFiles * 10);
+          setSaveProgress(blobProgress);
+        }
+
+        // Create tree with blob references (no size limit)
         const treeResponse = await octokit.rest.git.createTree({
           owner,
           repo,
           base_tree: treeSha,
-          tree: Object.keys(changes.files).map((path) => {
-            if (changes.files[path] != null) {
-              return {
-                path,
-                mode: "100644",
-                content: changes.files[path],
-              };
-            } else {
-              return {
-                path,
-                mode: "100644",
-                sha: null,
-              };
-            }
-          }),
+          tree: treeEntries,
         });
 
         setSaveProgress(60);
