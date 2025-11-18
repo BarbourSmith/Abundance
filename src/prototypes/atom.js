@@ -684,12 +684,17 @@ export default class Atom extends ObservableEntity {
     //Offsets are used to make copy and pasted atoms move over a little bit
     var ioValues = [];
     this.inputs.forEach((ap) => {
+      // Get the value once to ensure consistency
+      const currentValue = ap.getValue();
+      
+      // CRITICAL: Only save primitive values (numbers and strings), never objects
+      // Objects like geometry data should NEVER be serialized
       if (
-        typeof ap.getValue() == "number" ||
-        typeof ap.getValue() == "string"
+        (typeof currentValue === "number" || typeof currentValue === "string") &&
+        currentValue !== null &&
+        currentValue !== undefined
       ) {
         // Only save values that differ from defaults or have custom equations
-        const currentValue = ap.getValue();
         const hasCustomEquation = ap.currentEquation && ap.currentEquation.trim() !== '';
         const isDifferentFromDefault = ap.defaultValue !== currentValue;
         
@@ -705,6 +710,10 @@ export default class Atom extends ObservableEntity {
           }
           ioValues.push(saveIO);
         }
+      } else if (typeof currentValue === "object" && currentValue !== null) {
+        // Log a warning if we're trying to save an object (this should never happen)
+        console.warn(`[SERIALIZE] Skipping object value for attachment point "${ap.name}":`, 
+          Object.keys(currentValue).slice(0, 10));
       }
     });
     var object = {
