@@ -26,6 +26,26 @@ import { useRendering } from "../../contexts/index.js";
 import { SVGRenderer } from "three/examples/jsm/renderers/SVGRenderer.js";
 import globalvariables from "../../js/globalvariables.js";
 
+// Special material color constants
+const SPECIAL_COLORS = {
+  KEEP_OUT: "#D9544D",
+  GLASS: "#E6F3FF",
+  STEEL: "#B0C4DE",
+  BRASS: "#B5A642",
+  ALUMINUM: "#A8A9AD",
+};
+
+// Helper functions for material type checking
+const isMetalMaterial = (color) => {
+  return color === SPECIAL_COLORS.STEEL || 
+         color === SPECIAL_COLORS.BRASS || 
+         color === SPECIAL_COLORS.ALUMINUM;
+};
+
+const isTransparentMaterial = (color) => {
+  return color === SPECIAL_COLORS.KEEP_OUT || color === SPECIAL_COLORS.GLASS;
+};
+
 export default React.memo(
   forwardRef(function ShapeMeshes({ isSolid, cameraZoom }, ref) {
     const { mesh, setOutdatedMesh, plane } = useRendering();
@@ -59,7 +79,7 @@ export default React.memo(
         const thisLines = lines;
         const thisColor = m.color;
         // If the color is keep out or glass make it transparent
-        if (thisColor == "#D9544D" || thisColor == "#E6F3FF") {
+        if (isTransparentMaterial(thisColor)) {
           meshArray.push({
             body: thisBody,
             lines: thisLines,
@@ -327,7 +347,7 @@ export default React.memo(
               {!isSolid ? (
                 <mesh geometry={m.body} key={"mesh" + m.color}>
                   {/*the offsets are here to avoid z fighting between the mesh and the lines*/}
-                  {m.color != "#D9544D" && m.color != "#E6F3FF" && m.color != "#B0C4DE" && m.color != "#B5A642" && m.color != "#A8A9AD" ? (
+                  {!isTransparentMaterial(m.color) && !isMetalMaterial(m.color) ? (
                     <meshMatcapMaterial
                       color={m.color}
                       key={"material" + m.color}
@@ -335,7 +355,7 @@ export default React.memo(
                       polygonOffsetFactor={2.0}
                       polygonOffsetUnits={1.0}
                     />
-                  ) : m.color == "#E6F3FF" ? (
+                  ) : m.color === SPECIAL_COLORS.GLASS ? (
                     <meshPhysicalMaterial
                       color={m.color}
                       transparent={true}
@@ -347,7 +367,7 @@ export default React.memo(
                       clearcoatRoughness={0}
                       ior={1.5}
                     />
-                  ) : m.color == "#B0C4DE" || m.color == "#B5A642" || m.color == "#A8A9AD" ? (
+                  ) : isMetalMaterial(m.color) ? (
                     <meshPhysicalMaterial
                       color={m.color}
                       metalness={1}
