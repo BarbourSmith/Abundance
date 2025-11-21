@@ -788,13 +788,14 @@ function CreateMode() {
       );
       return null;
     }
-    return await GlobalVariables.cad
-      .generateDisplayMesh(
+
+    return GlobalVariables.pool.proxy().then((worker) => {
+      return worker.generateDisplayMesh(
         GlobalVariables.topLevelMolecule.value,
         GlobalVariables.topLevelMolecule.getContext()
-      )
+      )})
       .then(async (m) => {
-        const svg = await meshRef.current.buildThumbnail(m);
+        const svg = await meshRef.current.buildThumbnail(m.mesh);
         console.log("Project thumbnail generated.");
         return svg;
       });
