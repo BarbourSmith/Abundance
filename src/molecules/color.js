@@ -63,6 +63,9 @@ export default class Color extends Atom {
       Black: "#5A5A5A",
       White: "#FFFCF7",
       Glass: "#E6F3FF",
+      Steel: "#B0C4DE",
+      Brass: "#B5A642",
+      Aluminum: "#A8A9AD",
       "Keep Out": "#D9544D",
     };
     this.addAllIOs([

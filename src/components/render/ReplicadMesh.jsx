@@ -327,7 +327,7 @@ export default React.memo(
               {!isSolid ? (
                 <mesh geometry={m.body} key={"mesh" + m.color}>
                   {/*the offsets are here to avoid z fighting between the mesh and the lines*/}
-                  {m.color != "#D9544D" && m.color != "#E6F3FF" ? (
+                  {m.color != "#D9544D" && m.color != "#E6F3FF" && m.color != "#B0C4DE" && m.color != "#B5A642" && m.color != "#A8A9AD" ? (
                     <meshMatcapMaterial
                       color={m.color}
                       key={"material" + m.color}
@@ -346,6 +346,17 @@ export default React.memo(
                       clearcoat={1}
                       clearcoatRoughness={0}
                       ior={1.5}
+                    />
+                  ) : m.color == "#B0C4DE" || m.color == "#B5A642" || m.color == "#A8A9AD" ? (
+                    <meshPhysicalMaterial
+                      color={m.color}
+                      metalness={1}
+                      roughness={0.3}
+                      clearcoat={0.5}
+                      clearcoatRoughness={0.1}
+                      polygonOffset
+                      polygonOffsetFactor={2.0}
+                      polygonOffsetUnits={1.0}
                     />
                   ) : (
                     <meshBasicMaterial

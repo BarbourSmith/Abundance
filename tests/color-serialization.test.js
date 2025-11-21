@@ -39,6 +39,9 @@ describe("Color atom serialization", () => {
         Black: "#5A5A5A",
         White: "#FFFCF7",
         Glass: "#E6F3FF",
+        Steel: "#B0C4DE",
+        Brass: "#B5A642",
+        Aluminum: "#A8A9AD",
         "Keep Out": "#D9544D",
       };
     }
@@ -105,7 +108,24 @@ describe("Color atom serialization", () => {
       
       const colorAtom2 = new MockColor();
       colorAtom2.setValues({ selectedColor: "Keep Out" });
-      expect(colorAtom2.selectedColorIndex).toBe(23); // Keep Out position
+      expect(colorAtom2.selectedColorIndex).toBe(26); // Keep Out position (moved after adding metals)
+    });
+
+    it("should handle metal materials like Steel, Brass, and Aluminum", () => {
+      const steelAtom = new MockColor();
+      steelAtom.setValues({ selectedColor: "Steel" });
+      expect(steelAtom.selectedColorIndex).toBe(23); // Steel position
+      expect(Object.values(steelAtom.colorOptions)[23]).toBe("#B0C4DE"); // Steel color
+      
+      const brassAtom = new MockColor();
+      brassAtom.setValues({ selectedColor: "Brass" });
+      expect(brassAtom.selectedColorIndex).toBe(24); // Brass position
+      expect(Object.values(brassAtom.colorOptions)[24]).toBe("#B5A642"); // Brass color
+      
+      const aluminumAtom = new MockColor();
+      aluminumAtom.setValues({ selectedColor: "Aluminum" });
+      expect(aluminumAtom.selectedColorIndex).toBe(25); // Aluminum position
+      expect(Object.values(aluminumAtom.colorOptions)[25]).toBe("#A8A9AD"); // Aluminum color
     });
 
     it("should handle unknown color names gracefully", () => {
