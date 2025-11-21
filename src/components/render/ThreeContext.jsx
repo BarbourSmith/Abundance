@@ -64,7 +64,8 @@ export default function ext({ children, cameraZoom, ...otherProps }) {
         frameloop="always"
         shadows={true}
         onCreated={({ scene, camera, gl }) => {
-          // Canvas initialization complete
+          // Enable physically correct lighting for realistic materials
+          gl.physicallyCorrectLights = true;
         }}
       >
         <OrthographicCamera
@@ -95,10 +96,11 @@ export default function ext({ children, cameraZoom, ...otherProps }) {
 
         {!outdatedMesh ? (
           <>
-            <ambientLight intensity={0.5} />
-            <directionalLight position={[5, 5, 5]} intensity={0.8} castShadow />
-            <directionalLight position={[-5, -5, 5]} intensity={0.3} />
-            <directionalLight position={[5, -5, -5]} intensity={0.2} />
+            <ambientLight intensity={0.6} />
+            <directionalLight position={[10, 10, 10]} intensity={2.0} />
+            <directionalLight position={[-10, -10, 10]} intensity={1.0} />
+            <directionalLight position={[10, -10, -10]} intensity={0.8} />
+            <hemisphereLight args={["#ffffff", "#444444", 0.5]} />
           </>
         ) : (
           <ambientLight intensity={0.4} />
