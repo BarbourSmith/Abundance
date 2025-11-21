@@ -96,11 +96,11 @@ export default function ext({ children, cameraZoom, ...otherProps }) {
 
         {!outdatedMesh ? (
           <>
-            <ambientLight intensity={0.6} />
-            <directionalLight position={[10, 10, 10]} intensity={2.0} />
-            <directionalLight position={[-10, -10, 10]} intensity={1.0} />
-            <directionalLight position={[10, -10, -10]} intensity={0.8} />
-            <hemisphereLight args={["#ffffff", "#444444", 0.5]} />
+            <ambientLight intensity={1.2} />
+            <directionalLight position={[10, 10, 10]} intensity={0.8} />
+            <directionalLight position={[-10, -10, 10]} intensity={0.4} />
+            <directionalLight position={[10, -10, -10]} intensity={0.3} />
+            <hemisphereLight args={["#ffffff", "#888888", 0.6]} />
           </>
         ) : (
           <ambientLight intensity={0.4} />
