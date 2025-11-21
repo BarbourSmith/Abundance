@@ -94,7 +94,12 @@ export default function ext({ children, cameraZoom, ...otherProps }) {
         <Controls axesParam={axesParam} enableDamping={false}></Controls>
 
         {!outdatedMesh ? (
-          <ambientLight intensity={0.9} />
+          <>
+            <ambientLight intensity={0.5} />
+            <directionalLight position={[5, 5, 5]} intensity={0.8} castShadow />
+            <directionalLight position={[-5, -5, 5]} intensity={0.3} />
+            <directionalLight position={[5, -5, -5]} intensity={0.2} />
+          </>
         ) : (
           <ambientLight intensity={0.4} />
         )}
