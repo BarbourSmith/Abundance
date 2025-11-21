@@ -368,10 +368,9 @@ export default React.memo(
                       ior={1.5}
                     />
                   ) : isMetalMaterial(m.color) ? (
-                    <meshStandardMaterial
+                    <meshMatcapMaterial
                       color={m.color}
-                      metalness={0.8}
-                      roughness={0.2}
+                      key={"material" + m.color}
                       polygonOffset
                       polygonOffsetFactor={2.0}
                       polygonOffsetUnits={1.0}
