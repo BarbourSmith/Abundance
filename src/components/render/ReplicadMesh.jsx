@@ -372,7 +372,7 @@ export default React.memo(
                       color={m.color}
                       key={"material" + m.color}
                       metalness={0.9}
-                      roughness={0.15}
+                      roughness={0.4}
                       polygonOffset
                       polygonOffsetFactor={2.0}
                       polygonOffsetUnits={1.0}
