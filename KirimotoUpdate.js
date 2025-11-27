@@ -186,7 +186,7 @@ const generateGcode = (
             ov_botz: 0,
             ov_conv: false,
           },
-          /*{
+          {
             type: "outline",
             tool: 1000,
             spindle: 1000,
@@ -205,7 +205,7 @@ const generateGcode = (
             ov_topz: 0,
             ov_botz: 0,
             ov_conv: true,
-          },*/
+          },
           {
             type: "outline",
             tool: 1000,
