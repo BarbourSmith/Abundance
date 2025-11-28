@@ -146,7 +146,7 @@ const generateGcode = (
         camRoughDown: 2,
         camRoughFlat: true,
         camRoughIn: true,
-        camRoughOmitThru: false,
+        camRoughOmitThru: true,
         camRoughOmitVoid: false,
         camRoughOn: true,
         camRoughTop: false,
