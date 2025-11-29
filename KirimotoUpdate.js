@@ -144,11 +144,11 @@ const generateGcode = (
         camZOffset: 0,
         camZTop: -1, //top of stock
         camRoughDown: 2,
-        camRoughFlat: false,
-        camRoughIn: false,
-        camRoughOmitThru: false,
+        camRoughFlat: true,
+        camRoughIn: true,
+        camRoughOmitThru: true,
         camRoughOmitVoid: false,
-        camRoughOn: false,
+        camRoughOn: true,
         camRoughTop: false,
         camRoughVoid: false,
         camStockZ: 0,
@@ -167,15 +167,36 @@ const generateGcode = (
         camFastFeed: 6000,
         camFastFeedZ: speed, // Match Z feed to speed to maintain feedrate during ramp down
         ops: [
+          // Rough operation for blind pockets (omitthru: true skips through holes)
+          {
+            type: "rough",
+            tool: 1000,
+            spindle: 1000,
+            down: down,
+            step: roughingStepOver,
+            rate: speed,
+            plunge: speed,
+            leave: 0,
+            leavez: 0,
+            all: false,
+            voids: true,
+            flats: true,
+            inside: true,
+            omitthru: true,
+            ov_topz: 0,
+            ov_botz: 0,
+            ov_conv: false,
+          },
+          // Outline operation for interior through holes (profile only, no pocketing)
           {
             type: "outline",
             tool: 1000,
             spindle: 1000,
             step: 0.4,
             steps: 1,
-            down: down, // https://forum.grid.space/t/cam-kirimoto-api-help/2511/22
+            down: down,
             rate: speed,
-            plunge: speed, // Match plunge rate to XY feedrate for consistent speed during ramp down
+            plunge: speed,
             dogbones: false,
             omitvoid: false,
             omitthru: false,
@@ -187,15 +208,16 @@ const generateGcode = (
             ov_botz: 0,
             ov_conv: true,
           },
+          // Outline operation for exterior edges
           {
             type: "outline",
             tool: 1000,
             spindle: 1000,
             step: 0.4,
             steps: 1,
-            down: down, // https://forum.grid.space/t/cam-kirimoto-api-help/2511/22
+            down: down,
             rate: speed,
-            plunge: speed, // Match plunge rate to XY feedrate for consistent speed during ramp down
+            plunge: speed,
             dogbones: false,
             omitvoid: false,
             omitthru: true,
