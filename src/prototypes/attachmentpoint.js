@@ -772,11 +772,10 @@ export default class AttachmentPoint extends ObservableEntity {
       if (placeholderMap.has(v)) {
         return placeholderMap.get(v);
       }
-      // Also check for partial placeholder matches in case mathjs parsing modified it
-      for (const [placeholder, original] of placeholderMap) {
-        if (v.includes('__HYPHEN__')) {
-          return v.replace(/__HYPHEN__/g, '-');
-        }
+      // Also check for placeholder pattern in case mathjs parsing created a variable
+      // containing the placeholder (e.g., if the equation structure was modified)
+      if (v.includes('__HYPHEN__')) {
+        return v.replace(/__HYPHEN__/g, '-');
       }
       return v;
     });
