@@ -10,7 +10,6 @@ import { useLocation } from "react-router-dom";
 import { useAuth, useAppState } from "../../contexts/index.js";
 import { useTutorial } from "../../tutorial/TutorialManager";
 import { useProject } from "../../contexts/index.js";
-import { licenses } from "../../js/licenseOptions.js";
 import RenderProgressBar from "../secondary/RenderProgressBar.jsx";
 import RenameProjectDialog from "../secondary/RenameProjectDialog.jsx";
 import { convertToDisplayName } from "../../js/projectNameUtils.js";
@@ -862,7 +861,6 @@ const ShowProjects = ({
 
   const navigate = useNavigate();
   const { start, isActive } = useTutorial();
-  const { createProject } = useProject();
 
   const [loadingTutorialBar, setLoadingTutorialBar] = useState(0);
   const [loadingTutorial, setLoadingTutorial] = useState(false);
@@ -870,34 +868,30 @@ const ShowProjects = ({
   async function fetchFirstOrCreateAndStartTutorial(tutorial) {
     setLoadingTutorial(true);
     setLoadingTutorialBar(5);
-    // Try to fetch the user's tutorial-default project
-    let project = await fetchProject(
-      GlobalVariables.currentUser,
-      "tutorial-default"
-    );
+    // Try to fetch the user's first project
+    let project = null;
+    
+    // Check if user has any projects by looking at the myRepos data
+    if (myRepos && myRepos.repos && myRepos.repos.length > 0) {
+      // Use the first project the user owns
+      const firstProject = myRepos.repos[0];
+      project = await fetchProject(firstProject.owner, firstProject.repoName);
+    }
+    
     if (!project) {
-      // If not found, create it
-      project = await createProject(
-        authorizedUserOcto,
-        [
-          "tutorial-default",
-          ["Tutorial"],
-          "A project to get you started with Abundance",
-          licenses[0],
-          "MM",
-        ],
-        null, // No loaded molecule
-        false, // not exporting
-        setLoadingTutorialBar
-      );
-    }
-    if (project) {
-      navigate(`${GlobalVariables.currentUser}/tutorial-default`);
-      // Start the tutorial (pass project if needed)
-      start(tutorial.value);
-      setLoadingTutorialBar(100);
+      // If no project exists, prompt user to create one first
       setLoadingTutorial(false);
+      setLoadingTutorialBar(0);
+      window.alert("Please create a new project first, then start the tutorial from within your project.");
+      setExportPopUp(true);
+      return;
     }
+    
+    navigate(`/${project.owner}/${project.repoName}`);
+    // Start the tutorial (pass project if needed)
+    start(tutorial.value);
+    setLoadingTutorialBar(100);
+    setLoadingTutorial(false);
   }
 
   const fetchProject = async (owner, repoName) => {
