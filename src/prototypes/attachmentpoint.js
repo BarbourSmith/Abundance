@@ -692,23 +692,94 @@ export default class AttachmentPoint extends ObservableEntity {
   }
 
   /**
+   * Gets all available Input atom names from the current molecule hierarchy.
+   * @returns {string[]} Array of Input atom names
+   */
+  getAvailableInputNames() {
+    const names = [];
+    let currentMolecule = this.parentMolecule?.parent || this.parentMolecule;
+    
+    while (currentMolecule) {
+      if (currentMolecule.nodesOnTheScreen) {
+        for (const atom of currentMolecule.nodesOnTheScreen) {
+          if (atom.atomType === "Input" && atom.name) {
+            names.push(atom.name);
+          }
+        }
+      }
+      currentMolecule = currentMolecule.parent;
+    }
+    
+    return names;
+  }
+
+  /**
    * Extracts variable names from an equation string.
+   * Supports hyphenated variable names (like "wood-thick") by first checking
+   * if any known Input atoms with hyphenated names appear in the equation.
    * Uses mathjs parsing if available on parentMolecule, otherwise falls back to regex.
    * @param {string} equation - The equation string
    * @returns {string[]} Array of variable names found in the equation
    */
   extractVariablesFromEquation(equation) {
-    // Try to use parent molecule's extractVariablesFromEquation if available
-    if (this.parentMolecule && typeof this.parentMolecule.extractVariablesFromEquation === 'function') {
-      return this.parentMolecule.extractVariablesFromEquation(equation);
+    // Get all available Input atom names, including those with hyphens
+    const availableInputNames = this.getAvailableInputNames();
+    
+    // Find hyphenated Input names that appear in the equation
+    // Sort by length (longest first) to handle overlapping names correctly
+    const hyphenatedNames = availableInputNames
+      .filter(name => name.includes('-'))
+      .sort((a, b) => b.length - a.length);
+    
+    // Create a mapping from placeholder to original hyphenated name
+    const placeholderMap = new Map();
+    let processedEquation = equation;
+    
+    // Replace hyphenated names with safe placeholders before parsing
+    for (const name of hyphenatedNames) {
+      // Create a safe placeholder by replacing hyphens with a unique pattern
+      // Use double underscore to minimize collision with real variable names
+      const placeholder = name.replace(/-/g, '__HYPHEN__');
+      
+      // Only replace if the hyphenated name actually appears in the equation
+      // Use word boundary matching to avoid partial replacements
+      const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const pattern = new RegExp(`\\b${escapedName}\\b`, 'g');
+      
+      if (pattern.test(processedEquation)) {
+        placeholderMap.set(placeholder, name);
+        processedEquation = processedEquation.replace(pattern, placeholder);
+      }
     }
     
-    // Fallback: simple regex to find identifiers
-    const identifierPattern = /[A-Za-z_][A-Za-z0-9_]*/g;
-    const matches = equation.match(identifierPattern) || [];
-    // Filter out common math functions and constants
-    const mathFunctions = new Set(['sin', 'cos', 'tan', 'sqrt', 'abs', 'min', 'max', 'pow', 'log', 'exp', 'floor', 'ceil', 'round', 'pi', 'e', 'tau', 'Infinity', 'NaN']);
-    return [...new Set(matches.filter(m => !mathFunctions.has(m)))];
+    // Now extract variables from the processed equation
+    let variables = [];
+    
+    // Try to use parent molecule's extractVariablesFromEquation if available
+    if (this.parentMolecule && typeof this.parentMolecule.extractVariablesFromEquation === 'function') {
+      variables = this.parentMolecule.extractVariablesFromEquation(processedEquation);
+    } else {
+      // Fallback: simple regex to find identifiers
+      const identifierPattern = /[A-Za-z_][A-Za-z0-9_]*/g;
+      const matches = processedEquation.match(identifierPattern) || [];
+      // Filter out common math functions and constants
+      const mathFunctions = new Set(['sin', 'cos', 'tan', 'sqrt', 'abs', 'min', 'max', 'pow', 'log', 'exp', 'floor', 'ceil', 'round', 'pi', 'e', 'tau', 'Infinity', 'NaN']);
+      variables = [...new Set(matches.filter(m => !mathFunctions.has(m)))];
+    }
+    
+    // Map placeholders back to original hyphenated names
+    return variables.map(v => {
+      if (placeholderMap.has(v)) {
+        return placeholderMap.get(v);
+      }
+      // Also check for partial placeholder matches in case mathjs parsing modified it
+      for (const [placeholder, original] of placeholderMap) {
+        if (v.includes('__HYPHEN__')) {
+          return v.replace(/__HYPHEN__/g, '-');
+        }
+      }
+      return v;
+    });
   }
 
   /**
