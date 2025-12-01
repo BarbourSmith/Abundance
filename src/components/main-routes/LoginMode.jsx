@@ -864,10 +864,12 @@ const ShowProjects = ({
 
   const [loadingTutorialBar, setLoadingTutorialBar] = useState(0);
   const [loadingTutorial, setLoadingTutorial] = useState(false);
+  const [noProjectsMessage, setNoProjectsMessage] = useState(false);
 
   async function fetchFirstOrCreateAndStartTutorial(tutorial) {
     setLoadingTutorial(true);
     setLoadingTutorialBar(5);
+    setNoProjectsMessage(false);
     // Try to fetch the user's first project
     let project = null;
     
@@ -879,10 +881,10 @@ const ShowProjects = ({
     }
     
     if (!project) {
-      // If no project exists, prompt user to create one first
+      // If no project exists, show message and open new project popup
       setLoadingTutorial(false);
       setLoadingTutorialBar(0);
-      window.alert("Please create a new project first, then start the tutorial from within your project.");
+      setNoProjectsMessage(true);
       setExportPopUp(true);
       return;
     }
@@ -1144,6 +1146,9 @@ const ShowProjects = ({
           ) : null}
           {showDict[projectToShow]["tutorials"] ? (
             <div className="tutorials-list">
+              {noProjectsMessage ? (
+                <p>No projects found</p>
+              ) : null}
               {showDict[projectToShow]["tutorials"].map((tutorial, index) => (
                 <div
                   key={index}
