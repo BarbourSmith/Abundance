@@ -6,9 +6,22 @@ import GlobalVariables from "./globalvariables.js";
  */
 var ele = null; //document.querySelector('#circle-menu1')
 var cmenu;
+var shortcutsMap = {}; // Store reverse mapping of atomType to shortcut key
 
-const createCMenu = (targetElement, setExpandedMenu) => {
+const createCMenu = (targetElement, setExpandedMenu, shortCuts) => {
   ele = targetElement;
+  
+  // Create reverse mapping from atomType to shortcut key
+  if (shortCuts) {
+    shortcutsMap = {};
+    for (const [key, atomType] of Object.entries(shortCuts)) {
+      // Only store single character shortcuts (not special cases like "(ALT)")
+      if (key.length === 1) {
+        shortcutsMap[atomType] = key;
+      }
+    }
+  }
+  
   // /**
   //      * Runs to create submenus from Global Variables atomCategories. Populates menu objects
   //      * @param {object} group - Name of the category to find appropriate atoms
@@ -56,6 +69,7 @@ const createCMenu = (targetElement, setExpandedMenu) => {
   cmenu = CMenu(ele.current).config({
     hideAfterClick: GlobalVariables.isMobile() ? false : true,
     percent: 0.15,
+    shortcutsMap: shortcutsMap,
     menus: [
       {
         title: "Actions",
@@ -132,4 +146,4 @@ const createCMenu = (targetElement, setExpandedMenu) => {
   }
 };
 
-export { createCMenu, cmenu };
+export { createCMenu, cmenu, shortcutsMap };

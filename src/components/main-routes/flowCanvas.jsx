@@ -600,7 +600,7 @@ export default memo(function FlowCanvas({
   }, [draw]);
 
   useEffect(() => {
-    createCMenu(circleMenu, setExpandedMenu);
+    createCMenu(circleMenu, setExpandedMenu, shortCuts);
   }, []);
 
   let parentLinkPath = [];
