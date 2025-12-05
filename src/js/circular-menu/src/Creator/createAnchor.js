@@ -3,6 +3,15 @@ import classed from "./../classed";
 import on from "./../on";
 import styleSheet from "./styleSheet";
 
+// Helper function to format tooltip text with keyboard shortcut
+function formatTooltipText(atomType, shortcutsMap) {
+  var shortcutKey = shortcutsMap && shortcutsMap[atomType];
+  if (shortcutKey) {
+    return atomType + " (Ctrl+" + shortcutKey + ")";
+  }
+  return atomType;
+}
+
 function hasSubMenus(menus) {
   return menus instanceof Array && menus.length !== 0;
 }
@@ -92,17 +101,7 @@ export default function (parent, data, index) {
   // this is where the tooltip div is created to show names of elements in circular menu
   on(a, "mouseenter", function () {
     var div = document.createElement("div");
-    
-    // Get the shortcut key for this atom type if available
-    var shortcutKey = self._config.shortcutsMap && self._config.shortcutsMap[data.icon];
-    
-    // Format the tooltip text with shortcut if available
-    if (shortcutKey) {
-      div.textContent = data.icon + " (Ctrl+" + shortcutKey + ")";
-    } else {
-      div.textContent = data.icon;
-    }
-    
+    div.textContent = formatTooltipText(data.icon, self._config.shortcutsMap);
     div.classList.add("tooltip");
     div.id = data.icon + "text";
     const length = div.textContent.length * 3; //Correct for text length centering
@@ -172,17 +171,7 @@ export default function (parent, data, index) {
       clearTimeout(delayShow);
       clearTimeout(delayHide);
       var div = document.createElement("div");
-      
-      // Get the shortcut key for this atom type if available
-      var shortcutKey = self._config.shortcutsMap && self._config.shortcutsMap[data.icon];
-      
-      // Format the tooltip text with shortcut if available
-      if (shortcutKey) {
-        div.textContent = data.icon + " (Ctrl+" + shortcutKey + ")";
-      } else {
-        div.textContent = data.icon;
-      }
-      
+      div.textContent = formatTooltipText(data.icon, self._config.shortcutsMap);
       div.classList.add("tooltip");
       div.id = data.icon + "text2";
       const length = div.textContent.length * 3; //Correct for text length centering

@@ -146,4 +146,4 @@ const createCMenu = (targetElement, setExpandedMenu, shortCuts) => {
   }
 };
 
-export { createCMenu, cmenu, shortcutsMap };
+export { createCMenu, cmenu };
