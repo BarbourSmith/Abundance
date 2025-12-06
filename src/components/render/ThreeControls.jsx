@@ -66,9 +66,6 @@ const Controls = React.memo(
           ref={controlsRef}
           panSpeed={1.5}
           zoomSpeed={0.5}
-          noPan={false}
-          noRotate={false}
-          noZoom={false}
           dynamicDampingFactor={enableDamping ? 0.2 : 1.0}
         />
 
