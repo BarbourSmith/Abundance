@@ -26,6 +26,21 @@ type RequestContext = {
   [key: string]: any; // Allows for additional props
 };
 
+type Move = {
+  type: "move";
+  offset: [number, number, number];
+};
+type Rotate = {
+  type: "rotate";
+  angles: [number, number, number];
+};
+type Transform = Move | Rotate;
+
+type IdStruct = {
+  target: string;
+  transforms: Transform[];
+};
+
 /**
  * Manages a cache of geometries. This class provides a list of basic operations
  * that produce new geometries. Calling for a geometry which has already been
@@ -174,8 +189,18 @@ class GeometryProvider {
       return Promise.resolve(warmCached);
     }
 
-    // else use disk cache.
+    // Special case for lazily computed shapes, this will call back into get with
+    // the target shape.
+    if (this._isLazyId(id)) {
+      const result = await this._realizeLazyId(id, context);
+      if (context.operationId) {
+        // TODO: this is a bug, need to check first I think?
+        this.putInWarmCache(id, context.operationId, result);
+      }
+      return result;
+    }
 
+    // else use disk cache.
     const shape = await getShape(context.project, id);
     if (shape == undefined) {
       console.trace("Cache miss for id:", id);
@@ -376,12 +401,17 @@ class GeometryProvider {
     dz: number,
     context: RequestContext
   ): Promise<string> {
-    const movedId = this._makeId("move", id, dx, dy, dz);
-    await this.createIfAbsent(movedId, context, async () => {
-      const geometry = await this.get(id, context);
-      return geometry.translate(dx, dy, dz);
-    });
-    return movedId;
+    const resultId = this._makeLazyId(id, [
+      {
+        type: "move",
+        offset: [dx, dy, dz],
+      },
+    ]);
+    if (context.operationId) {
+      const result = await this._realizeLazyId(resultId, context);
+      this.putInWarmCache(resultId, context.operationId, result);
+    }
+    return resultId;
   }
 
   async rotate(
@@ -663,6 +693,10 @@ class GeometryProvider {
       // For all intermediate shapes which are part of the result assembly,
       // promote them to the serialized cache.
       for (const leaf of flattenAssembly(result)) {
+        if (this._isLazyId(leaf.geometry)) {
+          // lazy IDs don't need to be promoted since they can be re-realized
+          continue;
+        }
         const geom = this.getFromWarmCache(leaf.geometry, context);
         if (geom) {
           putShape(
@@ -794,6 +828,56 @@ class GeometryProvider {
     });
     const key = [type, ...args].flat(Infinity).join("-");
     return key;
+  }
+
+  _makeLazyId(target: string, transforms: Transform[]): string {
+    const id: IdStruct = {
+      target: target,
+      transforms: transforms,
+    };
+    return JSON.stringify(id);
+  }
+
+  _isLazyId(id: string): boolean {
+    try {
+      const parsed: IdStruct = JSON.parse(id);
+      return (
+        typeof parsed === "object" &&
+        parsed !== null &&
+        "target" in parsed &&
+        "transforms" in parsed
+      );
+    } catch (e) {
+      return false;
+    }
+  }
+
+  _realizeLazyId(id: string, context: RequestContext): Promise<ReplicadObject> {
+    const parsed: IdStruct = JSON.parse(id);
+    console.trace("Realizing lazy ID", parsed.transforms);
+    return this.get(parsed.target, context).then((initialGeom) => {
+      let baseGeom = initialGeom.clone();
+      for (const transform of parsed.transforms) {
+        if (transform.type === "move") {
+          baseGeom = baseGeom.translate(
+            transform.offset[0],
+            transform.offset[1],
+            transform.offset[2]
+          );
+        } else if (transform.type === "rotate") {
+          if (baseGeom instanceof replicad.Drawing) {
+            // TODO(tristan): should this rotate around center of bounding box?
+            baseGeom = baseGeom.rotate(transform.angles[2], [0, 0]);
+          } else {
+            baseGeom = baseGeom
+              .rotate(transform.angles[0], [0, 0, 0], [1, 0, 0])
+              .rotate(transform.angles[1], [0, 0, 0], [0, 1, 0])
+              .rotate(transform.angles[2], [0, 0, 0], [0, 0, 1]);
+          }
+        }
+      }
+      return baseGeom;
+    });
   }
 }
 
