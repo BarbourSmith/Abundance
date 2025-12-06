@@ -64,7 +64,7 @@ const Controls = React.memo(
       <>
         <ArcballControls
           ref={controlsRef}
-          dampingFactor={enableDamping ? 0.05 : 0}
+          enableAnimations={false}
         />
 
         {/* Mark the origin with a small sphere */}
