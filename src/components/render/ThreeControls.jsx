@@ -1,5 +1,5 @@
 import React from "react";
-import { TrackballControls, GizmoHelper, GizmoViewport } from "@react-three/drei";
+import { ArcballControls, GizmoHelper, GizmoViewport } from "@react-three/drei";
 import * as THREE from "three";
 import { useRendering } from "../../contexts";
 import { useRef, useEffect, useState } from "react";
@@ -62,11 +62,9 @@ const Controls = React.memo(
 
     return (
       <>
-        <TrackballControls
+        <ArcballControls
           ref={controlsRef}
-          panSpeed={1.5}
-          zoomSpeed={0.5}
-          dynamicDampingFactor={enableDamping ? 0.2 : 1.0}
+          dampingFactor={enableDamping ? 0.05 : 0}
         />
 
         {/* Mark the origin with a small sphere */}
