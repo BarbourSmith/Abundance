@@ -1,5 +1,6 @@
 import Atom from "../prototypes/atom.js";
 import GlobalVariables from "../js/globalvariables.js";
+import MaslowUploader from "../js/MaslowUploader.js";
 
 import { saveAs } from "file-saver";
 
@@ -124,6 +125,18 @@ export default class Gcode extends Atom {
      * @type {string}
      */
     this.sortDirection = "Left";
+
+    /**
+     * Upload progress tracking (0-100)
+     * @type {number}
+     */
+    this.uploadProgress = 0;
+
+    /**
+     * Flag to track if upload is in progress
+     * @type {boolean}
+     */
+    this.isUploading = false;
 
     this.setValues(values);
   }
@@ -711,7 +724,107 @@ export default class Gcode extends Atom {
       },
     };
 
+    // Add upload buttons if Maslow IP is configured
+    const maslowIP = localStorage.getItem("maslowIP");
+    if (maslowIP) {
+      inputParams[`Upload to Maslow SD - ${partName}`] = {
+        type: "button",
+        label: `Upload to Maslow SD`,
+        onClick: () => {
+          if (this.gcodeGenerated && this.gcodeString) {
+            const currentPartName =
+              this.findIOValue("Part Name") || this.partName || "output";
+            const fileName = `${currentPartName}.gcode`;
+            this.uploadToMaslow("SD", fileName);
+          } else {
+            alert("No G-code available. Please generate G-code first.");
+          }
+        },
+      };
+
+      inputParams[`Upload to Maslow Local - ${partName}`] = {
+        type: "button",
+        label: `Upload to Maslow Local`,
+        onClick: () => {
+          if (this.gcodeGenerated && this.gcodeString) {
+            const currentPartName =
+              this.findIOValue("Part Name") || this.partName || "output";
+            const fileName = `${currentPartName}.gcode`;
+            this.uploadToMaslow("LocalFS", fileName);
+          } else {
+            alert("No G-code available. Please generate G-code first.");
+          }
+        },
+      };
+    } else {
+      // Show a hint button if IP is not configured
+      inputParams["Configure Maslow Upload"] = {
+        type: "button",
+        label: "Configure Maslow Upload",
+        onClick: () => {
+          alert("To upload G-code directly to your Maslow:\n\n1. Open Settings (gear icon)\n2. Go to User Settings tab\n3. Enter your Maslow's IP address\n\nYou can find the IP on your Maslow's display or in your router's connected devices.");
+        },
+      };
+    }
+
     return inputParams;
+  }
+
+  /**
+   * Upload G-code to Maslow machine
+   * @param {string} uploadType - Either "SD" or "LocalFS"
+   * @param {string} filename - The filename for the uploaded file
+   */
+  async uploadToMaslow(uploadType, filename = "output.gcode") {
+    if (!this.gcodeGenerated || !this.gcodeString) {
+      alert("No G-code available. Please generate G-code first.");
+      return;
+    }
+
+    // Get Maslow IP from localStorage
+    const maslowIP = localStorage.getItem("maslowIP");
+    if (!maslowIP) {
+      alert("Please configure your Maslow IP address in Settings > User Settings first.");
+      return;
+    }
+
+    this.isUploading = true;
+    this.uploadProgress = 0;
+
+    try {
+      const uploader = new MaslowUploader(maslowIP);
+      
+      // First check if Maslow is reachable
+      const isReachable = await uploader.isReachable();
+      if (!isReachable) {
+        alert(`Cannot connect to Maslow at ${maslowIP}. Please check:\n- The IP address is correct\n- The Maslow is powered on\n- The Maslow is on the same network`);
+        this.isUploading = false;
+        return;
+      }
+
+      // Create blob from gcode string
+      const gcodeBlob = new Blob([this.gcodeString], { type: "text/plain" });
+
+      // Upload with progress tracking
+      const result = uploadType === "SD" 
+        ? await uploader.uploadToSD(gcodeBlob, filename, (percent) => {
+            this.uploadProgress = percent;
+            console.log(`Upload progress: ${percent.toFixed(1)}%`);
+          })
+        : await uploader.uploadToLocalFS(gcodeBlob, filename, (percent) => {
+            this.uploadProgress = percent;
+            console.log(`Upload progress: ${percent.toFixed(1)}%`);
+          });
+
+      console.log("Upload successful:", result);
+      alert(`Successfully uploaded ${filename} to Maslow ${uploadType === "SD" ? "SD card" : "local storage"}!`);
+    } catch (error) {
+      console.error("Upload failed:", error);
+      alert(`Upload failed: ${error.message}`);
+    } finally {
+      this.isUploading = false;
+      this.uploadProgress = 0;
+    }
   }
 
   //Function to download G-code from a G-code string
