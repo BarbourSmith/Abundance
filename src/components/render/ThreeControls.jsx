@@ -12,6 +12,16 @@ const Controls = React.memo(
     const { plane, geometryType } = useRendering();
     const [extraPlane, setExtraPlane] = useState(false);
 
+    // Ensure camera uses Z-up coordinate system
+    useEffect(() => {
+      if (controlsRef?.current) {
+        const camera = controlsRef.current.object;
+        if (camera && camera.up) {
+          camera.up.set(0, 0, 1);
+        }
+      }
+    }, [controlsRef]);
+
     // Example plane definition (replace with your actual plane)
     const examplePlane = {
       origin: [0, 0, 0],
