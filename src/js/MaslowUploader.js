@@ -74,7 +74,7 @@ class MaslowUploader {
             
             // Handle errors
             xhr.addEventListener('error', () => {
-                reject(new Error('Network error. Check that the Maslow is powered on and connected.'));
+                reject(new Error('Network error. Please check:\n- The Maslow is powered on and connected\n- The IP address is correct\n- Your firewall allows connections\n- You are on the same network'));
             });
             
             xhr.addEventListener('abort', () => {
@@ -94,13 +94,23 @@ class MaslowUploader {
      */
     async isReachable() {
         try {
+            // Try HEAD request first (lightweight check)
             const response = await fetch(`${this.baseURL}/`, {
                 method: 'HEAD',
                 credentials: 'include',
             });
             return response.ok;
         } catch (e) {
-            return false;
+            // Fallback: Try GET request if HEAD is not supported
+            try {
+                const response = await fetch(`${this.baseURL}/`, {
+                    method: 'GET',
+                    credentials: 'include',
+                });
+                return response.ok;
+            } catch (fallbackError) {
+                return false;
+            }
         }
     }
 }

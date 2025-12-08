@@ -4,6 +4,13 @@ import MaslowUploader from "../js/MaslowUploader.js";
 
 import { saveAs } from "file-saver";
 
+// Error messages for G-code generation and upload
+const ERROR_MESSAGES = {
+  NO_GCODE: "No G-code available. Please generate G-code first.",
+  NO_MASLOW_IP: "Please configure your Maslow IP address in Settings > User Settings first.",
+  CONFIGURE_INSTRUCTIONS: "To upload G-code directly to your Maslow:\n\n1. Open Settings (gear icon)\n2. Go to User Settings tab\n3. Enter your Maslow's IP address\n\nYou can find the IP on your Maslow's display or in your router's connected devices.",
+};
+
 /**
  * This class creates the circle atom.
  */
@@ -717,9 +724,8 @@ export default class Gcode extends Atom {
           const fileName = `${currentPartName}.gcode`;
           this.downloadGcode(this.gcodeString, fileName);
         } else {
-          console.warn("No G-code available. Please generate G-code first.");
-          // You could also show an alert or notification to the user here
-          alert("No G-code available. Please generate G-code first.");
+          console.warn(ERROR_MESSAGES.NO_GCODE);
+          alert(ERROR_MESSAGES.NO_GCODE);
         }
       },
     };
@@ -737,7 +743,7 @@ export default class Gcode extends Atom {
             const fileName = `${currentPartName}.gcode`;
             this.uploadToMaslow("SD", fileName);
           } else {
-            alert("No G-code available. Please generate G-code first.");
+            alert(ERROR_MESSAGES.NO_GCODE);
           }
         },
       };
@@ -752,7 +758,7 @@ export default class Gcode extends Atom {
             const fileName = `${currentPartName}.gcode`;
             this.uploadToMaslow("LocalFS", fileName);
           } else {
-            alert("No G-code available. Please generate G-code first.");
+            alert(ERROR_MESSAGES.NO_GCODE);
           }
         },
       };
@@ -762,7 +768,7 @@ export default class Gcode extends Atom {
         type: "button",
         label: "Configure Maslow Upload",
         onClick: () => {
-          alert("To upload G-code directly to your Maslow:\n\n1. Open Settings (gear icon)\n2. Go to User Settings tab\n3. Enter your Maslow's IP address\n\nYou can find the IP on your Maslow's display or in your router's connected devices.");
+          alert(ERROR_MESSAGES.CONFIGURE_INSTRUCTIONS);
         },
       };
     }
@@ -777,14 +783,14 @@ export default class Gcode extends Atom {
    */
   async uploadToMaslow(uploadType, filename = "output.gcode") {
     if (!this.gcodeGenerated || !this.gcodeString) {
-      alert("No G-code available. Please generate G-code first.");
+      alert(ERROR_MESSAGES.NO_GCODE);
       return;
     }
 
     // Get Maslow IP from localStorage
     const maslowIP = localStorage.getItem("maslowIP");
     if (!maslowIP) {
-      alert("Please configure your Maslow IP address in Settings > User Settings first.");
+      alert(ERROR_MESSAGES.NO_MASLOW_IP);
       return;
     }
 
