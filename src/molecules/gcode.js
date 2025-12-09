@@ -730,7 +730,7 @@ export default class Gcode extends Atom {
       },
     };
 
-    // Add upload buttons if Maslow IP is configured
+    // Add upload button if Maslow IP is configured
     const maslowIP = localStorage.getItem("maslowIP");
     if (maslowIP) {
       inputParams[`Upload to Maslow SD - ${partName}`] = {
@@ -742,21 +742,6 @@ export default class Gcode extends Atom {
               this.findIOValue("Part Name") || this.partName || "output";
             const fileName = `${currentPartName}.gcode`;
             this.uploadToMaslow("SD", fileName);
-          } else {
-            alert(ERROR_MESSAGES.NO_GCODE);
-          }
-        },
-      };
-
-      inputParams[`Upload to Maslow Local - ${partName}`] = {
-        type: "button",
-        label: `Upload to Maslow Local`,
-        onClick: () => {
-          if (this.gcodeGenerated && this.gcodeString) {
-            const currentPartName =
-              this.findIOValue("Part Name") || this.partName || "output";
-            const fileName = `${currentPartName}.gcode`;
-            this.uploadToMaslow("LocalFS", fileName);
           } else {
             alert(ERROR_MESSAGES.NO_GCODE);
           }
@@ -811,19 +796,14 @@ export default class Gcode extends Atom {
       // Create blob from gcode string
       const gcodeBlob = new Blob([this.gcodeString], { type: "text/plain" });
 
-      // Upload with progress tracking
-      const result = uploadType === "SD" 
-        ? await uploader.uploadToSD(gcodeBlob, filename, (percent) => {
-            this.uploadProgress = percent;
-            console.log(`Upload progress: ${percent.toFixed(1)}%`);
-          })
-        : await uploader.uploadToLocalFS(gcodeBlob, filename, (percent) => {
-            this.uploadProgress = percent;
-            console.log(`Upload progress: ${percent.toFixed(1)}%`);
-          });
+      // Upload to SD card with progress tracking
+      const result = await uploader.uploadToSD(gcodeBlob, filename, (percent) => {
+        this.uploadProgress = percent;
+        console.log(`Upload progress: ${percent.toFixed(1)}%`);
+      });
 
       console.log("Upload successful:", result);
-      alert(`Successfully uploaded ${filename} to Maslow ${uploadType === "SD" ? "SD card" : "local storage"}!`);
+      alert(`Successfully uploaded ${filename} to Maslow SD card!`);
     } catch (error) {
       console.error("Upload failed:", error);
       alert(`Upload failed: ${error.message}`);

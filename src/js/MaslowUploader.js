@@ -83,7 +83,7 @@ class MaslowUploader {
             
             // Send the request
             xhr.open('POST', `${this.baseURL}${endpoint}`);
-            xhr.withCredentials = true; // Important for authentication
+            // Note: withCredentials removed to avoid CORS preflight issues with multiple headers
             xhr.send(formData);
         });
     }
@@ -95,9 +95,10 @@ class MaslowUploader {
     async isReachable() {
         try {
             // Try HEAD request first (lightweight check)
+            // Note: credentials removed to avoid CORS preflight issues
             const response = await fetch(`${this.baseURL}/`, {
                 method: 'HEAD',
-                credentials: 'include',
+                mode: 'cors',
             });
             return response.ok;
         } catch (e) {
@@ -105,7 +106,7 @@ class MaslowUploader {
             try {
                 const response = await fetch(`${this.baseURL}/`, {
                     method: 'GET',
-                    credentials: 'include',
+                    mode: 'cors',
                 });
                 return response.ok;
             } catch (fallbackError) {
