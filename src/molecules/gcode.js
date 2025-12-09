@@ -9,6 +9,7 @@ const ERROR_MESSAGES = {
   NO_GCODE: "No G-code available. Please generate G-code first.",
   NO_MASLOW_IP: "Please configure your Maslow IP address in Settings > User Settings first.",
   CONFIGURE_INSTRUCTIONS: "To upload G-code directly to your Maslow:\n\n1. Open Settings (gear icon)\n2. Go to User Settings tab\n3. Enter your Maslow's IP address\n\nYou can find the IP on your Maslow's display or in your router's connected devices.",
+  CORS_BLOCKED: "Upload blocked by browser security.\n\nThis happens because:\n• Abundance uses HTTPS but Maslow uses HTTP\n• The browser blocks mixed HTTP/HTTPS requests\n\nTo fix this:\n1. Access Abundance via HTTP instead: http://abundance.maslowcnc.com\n2. Or enable insecure content in your browser for this site\n3. Or use localhost if running Abundance locally\n\nNote: This is a browser security feature to protect you.",
 };
 
 /**
@@ -799,7 +800,14 @@ export default class Gcode extends Atom {
       alert(`Successfully uploaded ${filename} to Maslow SD card!`);
     } catch (error) {
       console.error("Upload failed:", error);
-      alert(`Upload failed: ${error.message}`);
+      
+      // Check if error is due to CORS/mixed content blocking
+      const errorMsg = error.message.toLowerCase();
+      if (errorMsg.includes('network error') || errorMsg.includes('cors') || errorMsg.includes('cross-origin')) {
+        alert(ERROR_MESSAGES.CORS_BLOCKED);
+      } else {
+        alert(`Upload failed: ${error.message}`);
+      }
     } finally {
       this.isUploading = false;
       this.uploadProgress = 0;
