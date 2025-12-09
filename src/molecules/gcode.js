@@ -784,19 +784,12 @@ export default class Gcode extends Atom {
 
     try {
       const uploader = new MaslowUploader(maslowIP);
-      
-      // First check if Maslow is reachable
-      const isReachable = await uploader.isReachable();
-      if (!isReachable) {
-        alert(`Cannot connect to Maslow at ${maslowIP}. Please check:\n- The IP address is correct\n- The Maslow is powered on\n- The Maslow is on the same network`);
-        this.isUploading = false;
-        return;
-      }
 
       // Create blob from gcode string
       const gcodeBlob = new Blob([this.gcodeString], { type: "text/plain" });
 
       // Upload to SD card with progress tracking
+      // Note: Skipping reachability check to avoid CORS preflight issues
       const result = await uploader.uploadToSD(gcodeBlob, filename, (percent) => {
         this.uploadProgress = percent;
         console.log(`Upload progress: ${percent.toFixed(1)}%`);
