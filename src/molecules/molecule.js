@@ -122,10 +122,7 @@ export default class Molecule extends Atom {
         return;
       }
 
-      if (
-        atom.atomType === "Molecule" ||
-        atom.atomType === "GitHubMolecule"
-      ) {
+      if (atom.atomType === "Molecule" || atom.atomType === "GitHubMolecule") {
         // Recurse into nested molecules to get consistent totals
         const [ready, total] = atom.getCompletionTuple();
         totalCount += total;
@@ -1113,6 +1110,14 @@ export default class Molecule extends Atom {
           }
         });
       }
+
+      // Reset variable name subscriptions now that all atoms are placed.
+      this.nodesOnTheScreen.forEach((atom) => {
+        atom.inputs.forEach((ap) => {
+          ap.subscribeToVariablesInEquation(ap.currentEquation);
+        });
+      });
+
       const outputAtom = this.getOutputAtom();
       outputAtom.subscribe(
         () => {
