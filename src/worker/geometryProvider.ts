@@ -15,6 +15,7 @@ import {
   getAllProjectIds,
   StoredGeometryRecord,
   filter,
+  getAllShapesForProject,
 } from "./indexeddbUtils";
 
 type ReplicadObject = replicad.Shape3D | replicad.Drawing | replicad.Wire;
@@ -144,6 +145,25 @@ class GeometryProvider {
     return id;
   }
 
+  private async lazyCreateIfAbsent(
+    id: IdStruct,
+    context: RequestContext,
+    builder: () => Promise<ReplicadObject>
+  ): Promise<string> {
+    this.updateLRU(context.project);
+    const idString = JSON.stringify(id);
+    if (context.operationId) {
+      const warmCached = this.getFromWarmCache(idString, context);
+      if (!warmCached) {
+        const geometry = await builder();
+        this.putInWarmCache(idString, context.operationId, geometry);
+      }
+    }
+
+    // This is a lazy object, so we never store it in the persistent cache.
+    return idString;
+  }
+
   private getFromWarmCache(
     id: string,
     context: RequestContext
@@ -192,10 +212,16 @@ class GeometryProvider {
     // Special case for lazily computed shapes, this will call back into get with
     // the target shape.
     if (this._isLazyId(id)) {
-      const result = await this._realizeLazyId(id, context);
+      let result = undefined;
       if (context.operationId) {
-        // TODO: this is a bug, need to check first I think?
-        this.putInWarmCache(id, context.operationId, result);
+        result = await this.getFromWarmCache(id, context);
+      }
+      if (result === undefined) {
+        result = await this._realizeLazyId(JSON.parse(id), context);
+        if (context.operationId) {
+          // promote into warm cache so it's a hit next time.
+          this.putInWarmCache(id, context.operationId, result);
+        }
       }
       return result;
     }
@@ -253,6 +279,8 @@ class GeometryProvider {
     // Step 1: filter geometries based on key since that's a much faster approach
     // and we don't need access to the geom values.
     const s = performance.now();
+    const allShapes = await getAllShapesForProject(context.project);
+    console.log(allShapes);
     const deletedGeoms = await filter(
       context.project,
       "ReplicadObject",
@@ -295,6 +323,11 @@ class GeometryProvider {
     console.log(
       `swept cache. removed ${deletedGeoms} geoms in ${geomTime}ms and ${deletedAssemblies} assemblies in ${assemblyTime}ms`
     );
+
+    const remainingShapes = await getAllShapesForProject(context.project);
+    console.log("after sweeping the cache, remaining shapes are:");
+    console.log(remainingShapes);
+
     return deletedGeoms + deletedAssemblies;
   }
 
@@ -407,11 +440,17 @@ class GeometryProvider {
         offset: [dx, dy, dz],
       },
     ]);
-    if (context.operationId) {
-      const result = await this._realizeLazyId(resultId, context);
-      this.putInWarmCache(resultId, context.operationId, result);
-    }
-    return resultId;
+    /*    const movedId = this._makeId("move", id, dx, dy, dz);
+    await this.createIfAbsent(movedId, context, async () => {
+      const geometry = await this.get(id, context);
+      return geometry.translate(dx, dy, dz);
+    });
+    return movedId;
+*/
+    // TODO I think this should also be checking the warm cache?
+    return this.lazyCreateIfAbsent(resultId, context, async () => {
+      return this._realizeLazyId(resultId, context);
+    });
   }
 
   async rotate(
@@ -830,12 +869,12 @@ class GeometryProvider {
     return key;
   }
 
-  _makeLazyId(target: string, transforms: Transform[]): string {
+  _makeLazyId(target: string, transforms: Transform[]): IdStruct {
     const id: IdStruct = {
       target: target,
       transforms: transforms,
     };
-    return JSON.stringify(id);
+    return id;
   }
 
   _isLazyId(id: string): boolean {
@@ -852,12 +891,14 @@ class GeometryProvider {
     }
   }
 
-  _realizeLazyId(id: string, context: RequestContext): Promise<ReplicadObject> {
-    const parsed: IdStruct = JSON.parse(id);
-    console.trace("Realizing lazy ID", parsed.transforms);
-    return this.get(parsed.target, context).then((initialGeom) => {
+  _realizeLazyId(
+    id: IdStruct,
+    context: RequestContext
+  ): Promise<ReplicadObject> {
+    console.trace("Realizing lazy ID", id.transforms);
+    return this.get(id.target, context).then((initialGeom) => {
       let baseGeom = initialGeom.clone();
-      for (const transform of parsed.transforms) {
+      for (const transform of id.transforms) {
         if (transform.type === "move") {
           baseGeom = baseGeom.translate(
             transform.offset[0],
