@@ -544,7 +544,7 @@ class GlobalVariables {
   incrementVariableName(varName, molecule) {
     if (molecule.nodesOnTheScreen.find((o) => o.name === varName)) {
       // Look for the pattern " (number)" at the end of the variable name
-      let suffixMatch = varName.match(/^(.+) \((\d+)\)$/);
+      let suffixMatch = varName.match(/^(.+)_(\d+)$/);
 
       if (suffixMatch) {
         // Extract base name and current number
@@ -552,11 +552,11 @@ class GlobalVariables {
         const currentNumber = parseInt(suffixMatch[2]);
 
         // Increment the number and try again
-        const incrementedVarName = `${baseName} (${currentNumber + 1})`;
+        const incrementedVarName = `${baseName}_${currentNumber + 1}`;
         return this.incrementVariableName(incrementedVarName, molecule);
       } else {
-        // No " (number)" suffix found, add " (1)"
-        return this.incrementVariableName(varName + " (1)", molecule);
+        // No " (number)" suffix found, add "_1"
+        return this.incrementVariableName(varName + "_1", molecule);
       }
     } else {
       return varName;
