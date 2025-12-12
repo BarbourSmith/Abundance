@@ -541,8 +541,12 @@ class GlobalVariables {
   /**
    * A function to avoid repeating input names in a molecule
    */
-  incrementVariableName(varName, molecule) {
-    if (molecule.nodesOnTheScreen.find((o) => o.name === varName)) {
+  incrementVariableName(varName, molecule, excludeAtoms = []) {
+    if (
+      molecule.nodesOnTheScreen.find(
+        (o) => this.isReferencableByName(o) && o.name === varName && !excludeAtoms.includes(o)
+      )
+    ) {
       // Look for the pattern " (number)" at the end of the variable name
       let suffixMatch = varName.match(/^(.+)_(\d+)$/);
 

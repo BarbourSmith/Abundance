@@ -90,7 +90,7 @@ export default class Constant extends Atom {
     GlobalVariables.c.closePath();
   }
 
-  createInputParams() {
+  createInputParams(setInputChangedCallback) {
     let inputParams = {};
     inputParams[this.uniqueID + "name"] = {
       type: "string",
@@ -98,7 +98,17 @@ export default class Constant extends Atom {
       label: "Constant Name",
       disabled: false,
       onChange: (value) => {
-        this.name = value;
+        const sanitizedName = GlobalVariables.incrementVariableName(
+          value,
+          this.parent,
+          [this]
+        );
+        if (this.name !== sanitizedName) {
+          this.name = sanitizedName;
+          setInputChangedCallback();
+        } else {
+          this.name = sanitizedName;
+        }
       },
     };
     inputParams[this.uniqueID + "val"] = {
@@ -169,7 +179,12 @@ export default class Constant extends Atom {
     //Save the readme text to the serial stream
     var valuesObj = super.serialize(values);
     // Use safe serialization to prevent large values from bloating the save file
-    Atom.safeSerializeValue(valuesObj, 'value', this.value, this.name || 'Constant');
+    Atom.safeSerializeValue(
+      valuesObj,
+      "value",
+      this.value,
+      this.name || "Constant"
+    );
 
     return valuesObj;
   }
