@@ -60,6 +60,26 @@ export async function getAllProjectIds(): Promise<Set<string>> {
   });
 }
 
+export async function getAllShapesForProject(
+  projectId: string
+): Promise<StoredGeometryRecord[]> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readonly");
+    const store = tx.objectStore(STORE_NAME);
+    const index = store.index("projectId");
+    const req = index.getAll(IDBKeyRange.only(projectId));
+    req.onsuccess = () => {
+      db.close();
+      resolve(req.result);
+    };
+    req.onerror = () => {
+      db.close();
+      reject(req.error);
+    };
+  });
+}
+
 export async function putShape(
   projectId: string,
   shapeKey: string,
