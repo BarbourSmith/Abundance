@@ -532,10 +532,17 @@ class GlobalVariables {
   }
 
   /**
+   * Return true iff this atom is of a type which can be referenced by name in equations.
+   */
+  isReferencableByName(atom) {
+    return atom && (atom.atomType === "Input" || atom.atomType === "Constant");
+  }
+
+  /**
    * A function to avoid repeating input names in a molecule
    */
   incrementVariableName(varName, molecule) {
-    if (molecule.inputs.find((o) => o.name === varName)) {
+    if (molecule.nodesOnTheScreen.find((o) => o.name === varName)) {
       // Look for the pattern " (number)" at the end of the variable name
       let suffixMatch = varName.match(/^(.+) \((\d+)\)$/);
 

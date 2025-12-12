@@ -1451,11 +1451,14 @@ export default class Molecule extends Atom {
     try {
       //If the input has a name and is a copy, we need to make sure it is unique so that the constructors adds IO
       if (
-        newAtomObj.atomType == "Input" &&
+        GlobalVariables.isReferencableByName(newAtomObj) &&
         newAtomObj.name !== undefined &&
         unlock
       ) {
-        newAtomObj.name = GlobalVariables.incrementVariableName("Input", this);
+        newAtomObj.name = GlobalVariables.incrementVariableName(
+          newAtomObj.atomType,
+          this
+        );
       }
       // Save undo state for user-initiated atom additions (unlock=true means user action)
       if (unlock && this === GlobalVariables.currentMolecule) {
@@ -1490,7 +1493,7 @@ export default class Molecule extends Atom {
 
           //reassign the name of the Inputs to preserve linking
           if (
-            atom.atomType == "Input" &&
+            GlobalVariables.isReferencableByName(atom) &&
             typeof newAtomObj.name !== "undefined"
           ) {
             // For copied inputs (when unlock=true), apply name deduplication
@@ -1505,7 +1508,7 @@ export default class Molecule extends Atom {
             atom.type = newAtomObj.type;
 
             atom.draw(); //The poling happens in draw :roll_eyes:
-          } else if (atom.atomType == "Input") {
+          } else if (GlobalVariables.isReferencableByName(atom)) {
             atom.name = GlobalVariables.incrementVariableName(atom.name, this);
           }
           //If this is an output, check to make sure there are no existing outputs, and if there are delete the existing one because there can only be one

@@ -166,7 +166,7 @@ export default class AttachmentPoint extends ObservableEntity {
    */
   set currentEquation(value) {
     this._currentEquation = value;
-    
+
     // Skip subscription logic for geometry types
     if (this.valueType === "geometry") {
       return;
@@ -541,7 +541,7 @@ export default class AttachmentPoint extends ObservableEntity {
   deleteSelf(silent = false) {
     // Clean up any name-based subscriptions
     this.unsubscribeNameSubscription();
-    
+
     for (const connector of [...this.connectors]) {
       this.deleteConnector(connector, silent);
     }
@@ -568,7 +568,10 @@ export default class AttachmentPoint extends ObservableEntity {
           if (typeof currentValue === "string" && currentValue.trim()) {
             // Re-subscribe to variables in the equation
             this.subscribeToVariablesInEquation(currentValue);
-            if (this._nameSubscribedAtoms && this._nameSubscribedAtoms.size > 0) {
+            if (
+              this._nameSubscribedAtoms &&
+              this._nameSubscribedAtoms.size > 0
+            ) {
               // Successfully re-established name subscriptions, no need to call setDefault
               return;
             }
@@ -652,23 +655,24 @@ export default class AttachmentPoint extends ObservableEntity {
     }
 
     let currentMolecule = this.parentMolecule?.parent || this.parentMolecule;
-    
+
     // Walk up the parent chain to find the Input atom
     while (currentMolecule) {
       // Check if this molecule has the Input atom
       if (currentMolecule.nodesOnTheScreen) {
         const inputAtom = currentMolecule.nodesOnTheScreen.find(
-          (atom) => atom.atomType === "Input" && atom.name === name
+          (atom) =>
+            GlobalVariables.isReferencableByName(atom) && atom.name === name
         );
         if (inputAtom) {
           return inputAtom;
         }
       }
-      
+
       // Move to parent molecule
       currentMolecule = currentMolecule.parent;
     }
-    
+
     return null;
   }
 
@@ -678,7 +682,9 @@ export default class AttachmentPoint extends ObservableEntity {
   unsubscribeAllNameSubscriptions() {
     if (this._nameSubscribedAtoms && this._nameSubscribedAtoms.size > 0) {
       for (const [varName, inputAtom] of this._nameSubscribedAtoms) {
-        console.log(`[Name Subscription] AP "${this.name}" (${this.uniqueID}) unsubscribing from Input atom "${inputAtom.name}"`);
+        console.log(
+          `[Name Subscription] AP "${this.name}" (${this.uniqueID}) unsubscribing from Input atom "${inputAtom.name}"`
+        );
         inputAtom.unsubscribe(this.uniqueID);
       }
       this._nameSubscribedAtoms.clear();
@@ -699,16 +705,38 @@ export default class AttachmentPoint extends ObservableEntity {
    */
   extractVariablesFromEquation(equation) {
     // Try to use parent molecule's extractVariablesFromEquation if available
-    if (this.parentMolecule && typeof this.parentMolecule.extractVariablesFromEquation === 'function') {
+    if (
+      this.parentMolecule &&
+      typeof this.parentMolecule.extractVariablesFromEquation === "function"
+    ) {
       return this.parentMolecule.extractVariablesFromEquation(equation);
     }
-    
+
     // Fallback: simple regex to find identifiers
     const identifierPattern = /[A-Za-z_][A-Za-z0-9_]*/g;
     const matches = equation.match(identifierPattern) || [];
     // Filter out common math functions and constants
-    const mathFunctions = new Set(['sin', 'cos', 'tan', 'sqrt', 'abs', 'min', 'max', 'pow', 'log', 'exp', 'floor', 'ceil', 'round', 'pi', 'e', 'tau', 'Infinity', 'NaN']);
-    return [...new Set(matches.filter(m => !mathFunctions.has(m)))];
+    const mathFunctions = new Set([
+      "sin",
+      "cos",
+      "tan",
+      "sqrt",
+      "abs",
+      "min",
+      "max",
+      "pow",
+      "log",
+      "exp",
+      "floor",
+      "ceil",
+      "round",
+      "pi",
+      "e",
+      "tau",
+      "Infinity",
+      "NaN",
+    ]);
+    return [...new Set(matches.filter((m) => !mathFunctions.has(m)))];
   }
 
   /**
@@ -719,35 +747,47 @@ export default class AttachmentPoint extends ObservableEntity {
   subscribeToVariablesInEquation(equation) {
     // First, unsubscribe from any existing subscriptions
     this.unsubscribeAllNameSubscriptions();
-    
+
     // Extract variables from the equation
     const variables = this.extractVariablesFromEquation(equation);
-    console.log(`[Name Subscription] AP "${this.name}" (${this.uniqueID}) found variables in equation "${equation}": [${variables.join(', ')}]`);
-    
+    console.log(
+      `[Name Subscription] AP "${this.name}" (${
+        this.uniqueID
+      }) found variables in equation "${equation}": [${variables.join(", ")}]`
+    );
+
     if (variables.length === 0) {
       return;
     }
-    
+
     // Subscribe to each variable that matches an Input atom
     let subscribedCount = 0;
     for (const varName of variables) {
       const inputAtom = this.findInputAtomByName(varName);
       if (inputAtom) {
-        console.log(`[Name Subscription] AP "${this.name}" (${this.uniqueID}) subscribing to Input atom "${inputAtom.name}" (${inputAtom.uniqueID}) for variable "${varName}"`);
-        
+        console.log(
+          `[Name Subscription] AP "${this.name}" (${this.uniqueID}) subscribing to Input atom "${inputAtom.name}" (${inputAtom.uniqueID}) for variable "${varName}"`
+        );
+
         this._nameSubscribedAtoms.set(varName, inputAtom);
-        
+
         // Subscribe with a callback that re-evaluates the equation
-        inputAtom.subscribe(() => {
-          this.onSubscribedInputChanged(inputAtom);
-        }, this.uniqueID, false); // Don't use immediateCallback - we'll trigger evaluation once after all subscriptions
-        
+        inputAtom.subscribe(
+          () => {
+            this.onSubscribedInputChanged(inputAtom);
+          },
+          this.uniqueID,
+          false
+        ); // Don't use immediateCallback - we'll trigger evaluation once after all subscriptions
+
         subscribedCount++;
       } else {
-        console.log(`[Name Subscription] AP "${this.name}" (${this.uniqueID}) could not find Input atom for variable "${varName}"`);
+        console.log(
+          `[Name Subscription] AP "${this.name}" (${this.uniqueID}) could not find Input atom for variable "${varName}"`
+        );
       }
     }
-    
+
     if (subscribedCount > 0) {
       this._nameSubscriptionActive = true;
       // Trigger initial evaluation
@@ -761,8 +801,10 @@ export default class AttachmentPoint extends ObservableEntity {
    */
   onSubscribedInputChanged(inputAtom) {
     const state = inputAtom.getState();
-    console.log(`[Name Subscription] AP "${this.name}" (${this.uniqueID}) received update from Input atom "${inputAtom.name}": status=${state.status}, value=${state.value}`);
-    
+    console.log(
+      `[Name Subscription] AP "${this.name}" (${this.uniqueID}) received update from Input atom "${inputAtom.name}": status=${state.status}, value=${state.value}`
+    );
+
     // Re-evaluate the equation
     this.reevaluateEquation();
   }
@@ -776,16 +818,24 @@ export default class AttachmentPoint extends ObservableEntity {
     if (!this._currentEquation || !this.parentMolecule) {
       return;
     }
-    
+
     try {
       // For simple single-variable equations, use the Input atom's value directly
       // This ensures we get the most up-to-date value even if the molecule's inputs haven't been updated
       if (this._nameSubscribedAtoms && this._nameSubscribedAtoms.size === 1) {
-        const [varName, inputAtom] = [...this._nameSubscribedAtoms.entries()][0];
+        const [varName, inputAtom] = [
+          ...this._nameSubscribedAtoms.entries(),
+        ][0];
         if (this._currentEquation === varName) {
           const state = inputAtom.getState();
-          console.log(`[Name Subscription] AP "${this.name}" (${this.uniqueID}) using Input atom "${inputAtom.name}" value directly: ${state.value}`);
-          if (state.status === Status.READY && state.value !== null && state.value !== undefined) {
+          console.log(
+            `[Name Subscription] AP "${this.name}" (${this.uniqueID}) using Input atom "${inputAtom.name}" value directly: ${state.value}`
+          );
+          if (
+            state.status === Status.READY &&
+            state.value !== null &&
+            state.value !== undefined
+          ) {
             this.setStatus(Status.READY, state.value);
           } else {
             this.setStatus(state.status);
@@ -793,40 +843,51 @@ export default class AttachmentPoint extends ObservableEntity {
           return;
         }
       }
-      
+
       // For complex expressions with multiple variables or operators,
       // substitute the variable values directly and evaluate
       let substitutedEquation = this._currentEquation;
       let allReady = true;
-      
+
       for (const [varName, inputAtom] of this._nameSubscribedAtoms) {
         const state = inputAtom.getState();
-        if (state.status === Status.READY && state.value !== null && state.value !== undefined) {
+        if (
+          state.status === Status.READY &&
+          state.value !== null &&
+          state.value !== undefined
+        ) {
           const safeVar = varName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-          substitutedEquation = substitutedEquation.replace(new RegExp(`\\b${safeVar}\\b`, 'g'), String(state.value));
+          substitutedEquation = substitutedEquation.replace(
+            new RegExp(`\\b${safeVar}\\b`, "g"),
+            String(state.value)
+          );
         } else {
           allReady = false;
         }
       }
-      
+
       if (!allReady) {
         // Some variables are not ready yet
         this.setStatus(Status.WAITING);
         return;
       }
-      
+
       // Use the parent molecule's evaluateEquation on the substituted equation
       // (which now has numeric literals instead of variable names)
       let result;
-      if (typeof this.parentMolecule.evaluateEquation === 'function') {
+      if (typeof this.parentMolecule.evaluateEquation === "function") {
         result = this.parentMolecule.evaluateEquation(substitutedEquation);
       } else {
         // Fallback: try to evaluate as a simple JavaScript expression
-        result = Function('"use strict"; return (' + substitutedEquation + ')')();
+        result = Function(
+          '"use strict"; return (' + substitutedEquation + ")"
+        )();
       }
-      
-      console.log(`[Name Subscription] AP "${this.name}" (${this.uniqueID}) re-evaluated equation "${this._currentEquation}" (substituted: "${substitutedEquation}") = ${result}`);
-      
+
+      console.log(
+        `[Name Subscription] AP "${this.name}" (${this.uniqueID}) re-evaluated equation "${this._currentEquation}" (substituted: "${substitutedEquation}") = ${result}`
+      );
+
       if (Number.isFinite(result)) {
         this.setStatus(Status.READY, result);
       } else {
@@ -834,7 +895,9 @@ export default class AttachmentPoint extends ObservableEntity {
         this.setStatus(Status.WAITING);
       }
     } catch (err) {
-      console.log(`[Name Subscription] AP "${this.name}" (${this.uniqueID}) equation evaluation failed: ${err.message}`);
+      console.log(
+        `[Name Subscription] AP "${this.name}" (${this.uniqueID}) equation evaluation failed: ${err.message}`
+      );
       this.setStatus(Status.WAITING);
     }
   }
@@ -849,7 +912,9 @@ export default class AttachmentPoint extends ObservableEntity {
   subscribeToInputByName(name) {
     const inputAtom = this.findInputAtomByName(name);
     if (!inputAtom) {
-      console.log(`[Name Subscription] AP "${this.name}" (${this.uniqueID}) could not find Input atom named "${name}"`);
+      console.log(
+        `[Name Subscription] AP "${this.name}" (${this.uniqueID}) could not find Input atom named "${name}"`
+      );
       return false;
     }
 
@@ -939,7 +1004,7 @@ export default class AttachmentPoint extends ObservableEntity {
         if (typeof newValue === "string") {
           // Store as current equation and let the setter handle subscriptions
           this.currentEquation = newValue;
-          
+
           // If we successfully subscribed to variables, the reevaluateEquation will set the value
           if (this._nameSubscribedAtoms && this._nameSubscribedAtoms.size > 0) {
             // Subscriptions are active, value will be set by reevaluateEquation
@@ -951,7 +1016,7 @@ export default class AttachmentPoint extends ObservableEntity {
           this.unsubscribeAllNameSubscriptions();
           this._currentEquation = undefined; // Clear stored equation
         }
-        
+
         // This is a number or a string with no matching variables. Set the value directly.
         this.setStatus(
           newValue === undefined || newValue === null
