@@ -58,8 +58,6 @@ describe('Import atom context fix', () => {
     // Should return the top-level molecule's ID, not the nested molecule's ID
     expect(context.project).toBe('top-level-123');
     expect(context.project).not.toBe('nested-456');
-    
-    console.log('✅ Import atom correctly uses top-level molecule context');
   });
   
   it('should handle Import atom at top level', () => {
@@ -94,8 +92,6 @@ describe('Import atom context fix', () => {
     
     // Should return the top-level molecule's ID
     expect(context.project).toBe('top-level-999');
-    
-    console.log('✅ Import atom at top level works correctly');
   });
   
   it('should handle deeply nested molecules', () => {
@@ -157,8 +153,6 @@ describe('Import atom context fix', () => {
     expect(context.project).not.toBe('nested-1');
     expect(context.project).not.toBe('nested-2');
     expect(context.project).not.toBe('nested-3');
-    
-    console.log('✅ Deeply nested Import atom uses correct context');
   });
   
   it('should cache context after first call', () => {
@@ -213,8 +207,6 @@ describe('Import atom context fix', () => {
     const context2 = importAtom.getContext();
     expect(context2.project).toBe('top-level-555'); // Still cached
     expect(context1).toBe(context2); // Same object reference
-    
-    console.log('✅ Context is properly cached');
   });
   
   it('should handle old buggy behavior for comparison', () => {
@@ -278,8 +270,6 @@ describe('Import atom context fix', () => {
     // (In this case they're the same because topLevelMolecule has no parent)
     expect(buggyContext.project).toBe('top-level-abc');
     expect(fixedContext.project).toBe('top-level-abc');
-    
-    console.log('✅ Both old and new behavior work when at root level');
   });
   
   it('should work with any atom type, not just Import', () => {
@@ -322,7 +312,5 @@ describe('Import atom context fix', () => {
       const context = atom.getContext();
       expect(context.project).toBe('top-level-321');
     });
-    
-    console.log('✅ All atom types use correct context');
   });
 });
