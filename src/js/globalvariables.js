@@ -240,6 +240,16 @@ class GlobalVariables {
      */
     this.atomsSelected = [];
     /**
+     * A variable to save connectors between copied atoms
+     * @type {array}
+     */
+    this.connectorsSelected = [];
+    /**
+     * The last known mouse position in canvas coordinates (0-1 range)
+     * @type {object}
+     */
+    this.lastMousePosition = { x: 0.5, y: 0.5 };
+    /**
      * The size (in mm) of segments to use for circles.
      * @type {number}
      */

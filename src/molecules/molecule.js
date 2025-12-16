@@ -401,16 +401,32 @@ export default class Molecule extends Atom {
   }
 
   /**
-   * Pushes serialized atoms into array if selected
+   * Pushes serialized atoms into array if selected (legacy method, prefer copyWithConnectors)
    */
   copy() {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    
     this.nodesOnTheScreen.forEach((atom) => {
       if (atom.selected) {
+        // Serialize without offset - positioning will be handled during paste
         GlobalVariables.atomsSelected.push(
-          atom.serialize({ x: 0.05, y: 0.05 })
+          atom.serialize({ x: 0, y: 0 })
         );
+        
+        // Track bounds for center calculation
+        minX = Math.min(minX, atom.x);
+        minY = Math.min(minY, atom.y);
+        maxX = Math.max(maxX, atom.x);
+        maxY = Math.max(maxY, atom.y);
       }
     });
+    
+    // Calculate and store center point of selection
+    if (GlobalVariables.atomsSelected.length > 0) {
+      const centerX = (minX + maxX) / 2;
+      const centerY = (minY + maxY) / 2;
+      GlobalVariables.copiedSelectionCenter = { x: centerX, y: centerY };
+    }
   }
 
   /**
@@ -420,12 +436,20 @@ export default class Molecule extends Atom {
     const selectedAtoms = [];
     const selectedAtomIDs = new Set();
     const internalConnectors = [];
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
 
-    // First pass: collect selected atoms and their IDs
+    // First pass: collect selected atoms and their IDs, and calculate bounds
     this.nodesOnTheScreen.forEach((atom) => {
       if (atom.selected) {
-        selectedAtoms.push(atom.serialize({ x: 0.05, y: 0.05 }));
+        // Serialize without offset - we'll position based on mouse cursor during paste
+        selectedAtoms.push(atom.serialize({ x: 0, y: 0 }));
         selectedAtomIDs.add(atom.uniqueID);
+        
+        // Track bounds for center calculation
+        minX = Math.min(minX, atom.x);
+        minY = Math.min(minY, atom.y);
+        maxX = Math.max(maxX, atom.x);
+        maxY = Math.max(maxY, atom.y);
       }
     });
 
@@ -434,6 +458,10 @@ export default class Molecule extends Atom {
       console.log("No atoms selected for copy with connectors");
       return;
     }
+
+    // Calculate center point of selection
+    const centerX = (minX + maxX) / 2;
+    const centerY = (minY + maxY) / 2;
 
     // Second pass: collect connectors that connect only selected atoms
     this.nodesOnTheScreen.forEach((atom) => {
@@ -458,9 +486,10 @@ export default class Molecule extends Atom {
     // Store in a structured format that includes both atoms and connectors
     GlobalVariables.atomsSelected = selectedAtoms;
     GlobalVariables.connectorsSelected = internalConnectors;
+    GlobalVariables.copiedSelectionCenter = { x: centerX, y: centerY };
 
     console.log(
-      `Copied ${selectedAtoms.length} atoms with ${internalConnectors.length} internal connectors`
+      `Copied ${selectedAtoms.length} atoms with ${internalConnectors.length} internal connectors, center at (${centerX.toFixed(2)}, ${centerY.toFixed(2)})`
     );
   }
 

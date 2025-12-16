@@ -210,6 +210,12 @@ export default memo(function FlowCanvas({
       return;
     }
 
+    // Track the mouse position in canvas coordinates for paste operations
+    GlobalVariables.lastMousePosition = {
+      x: GlobalVariables.pixelsToWidth(e.clientX),
+      y: GlobalVariables.pixelsToHeight(e.clientY),
+    };
+
     GlobalVariables.currentMolecule.nodesOnTheScreen.forEach((molecule) => {
       molecule.mouseMove(e.clientX, e.clientY);
     });
@@ -281,6 +287,14 @@ export default memo(function FlowCanvas({
           atom.selected = false;
         });
 
+        // Calculate offset to position pasted atoms at mouse cursor
+        const mouseX = GlobalVariables.lastMousePosition.x;
+        const mouseY = GlobalVariables.lastMousePosition.y;
+        const centerX = GlobalVariables.copiedSelectionCenter?.x || 0.5;
+        const centerY = GlobalVariables.copiedSelectionCenter?.y || 0.5;
+        const offsetX = mouseX - centerX;
+        const offsetY = mouseY - centerY;
+
         // If we have connectors to paste, handle the full molecule structure
         if (
           GlobalVariables.connectorsSelected &&
@@ -296,6 +310,14 @@ export default memo(function FlowCanvas({
           // Remap IDs to avoid conflicts
           const remappedData =
             GlobalVariables.currentMolecule.remapIDs(moleculeData);
+
+          // Apply mouse-based offset to all atoms
+          if (remappedData?.allAtoms) {
+            remappedData.allAtoms.forEach((atomData) => {
+              atomData.x = (atomData.x || 0) + offsetX;
+              atomData.y = (atomData.y || 0) + offsetY;
+            });
+          }
 
           // Place atoms first
           const atomPromises = [];
@@ -317,9 +339,13 @@ export default memo(function FlowCanvas({
               });
             }
           });
-        } else {
-          // Regular paste without connectors
+        } else if (GlobalVariables.atomsSelected.length > 0) {
+          // Regular paste without connectors (legacy behavior)
           GlobalVariables.atomsSelected.forEach((item) => {
+            // Apply mouse-based offset
+            item.x = (item.x || 0) + offsetX;
+            item.y = (item.y || 0) + offsetY;
+
             if (
               item.atomType == "Molecule" ||
               item.atomType == "GitHubMolecule"
