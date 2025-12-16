@@ -119,8 +119,6 @@ export default class Atom extends ObservableEntity {
       message: "",
     };
 
-    this.context = undefined;
-
     this.subscribe(this.selfSubscriber.bind(this), "self-clear-alert");
   }
 
@@ -143,15 +141,14 @@ export default class Atom extends ObservableEntity {
    * See RequestContext type defined in geometryProvider.ts
    */
   getContext() {
-    if (!this.context) {
-      let curr = this;
-      // Traverse up to find the top-level molecule
-      while (curr.parent && !curr.topLevel) {
-        curr = curr.parent;
-      }
-      this.context = { project: curr.uniqueID };
+    // Don't cache the context - always traverse to find the current top-level molecule
+    // This ensures we get the correct context even if the parent chain changes
+    let curr = this;
+    // Traverse up to find the top-level molecule
+    while (curr.parent && !curr.topLevel) {
+      curr = curr.parent;
     }
-    return this.context;
+    return { project: curr.uniqueID };
   }
 
   /**

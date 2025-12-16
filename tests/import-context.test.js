@@ -38,17 +38,13 @@ describe('Import atom context fix', () => {
       uniqueID: 'import-789',
       parent: nestedMolecule,
       atomType: 'Import',
-      context: null,
       getContext: function() {
-        if (!this.context) {
-          let curr = this;
-          // Fixed version: traverse until we find topLevel molecule
-          while (curr.parent && !curr.topLevel) {
-            curr = curr.parent;
-          }
-          this.context = { project: curr.uniqueID };
+        // Don't cache - always traverse to find current top-level
+        let curr = this;
+        while (curr.parent && !curr.topLevel) {
+          curr = curr.parent;
         }
-        return this.context;
+        return { project: curr.uniqueID };
       }
     };
     
@@ -74,16 +70,12 @@ describe('Import atom context fix', () => {
       uniqueID: 'import-111',
       parent: topLevelMolecule,
       atomType: 'Import',
-      context: null,
       getContext: function() {
-        if (!this.context) {
-          let curr = this;
-          while (curr.parent && !curr.topLevel) {
-            curr = curr.parent;
-          }
-          this.context = { project: curr.uniqueID };
+        let curr = this;
+        while (curr.parent && !curr.topLevel) {
+          curr = curr.parent;
         }
-        return this.context;
+        return { project: curr.uniqueID };
       }
     };
     
@@ -132,16 +124,12 @@ describe('Import atom context fix', () => {
       uniqueID: 'import-deep',
       parent: nestedMolecule3,
       atomType: 'Import',
-      context: null,
       getContext: function() {
-        if (!this.context) {
-          let curr = this;
-          while (curr.parent && !curr.topLevel) {
-            curr = curr.parent;
-          }
-          this.context = { project: curr.uniqueID };
+        let curr = this;
+        while (curr.parent && !curr.topLevel) {
+          curr = curr.parent;
         }
-        return this.context;
+        return { project: curr.uniqueID };
       }
     };
     
@@ -155,7 +143,7 @@ describe('Import atom context fix', () => {
     expect(context.project).not.toBe('nested-3');
   });
   
-  it('should cache context after first call', () => {
+  it('should always return current context without caching', () => {
     // Create a top-level molecule
     const topLevelMolecule = {
       uniqueID: 'top-level-555',
@@ -177,16 +165,13 @@ describe('Import atom context fix', () => {
       uniqueID: 'import-888',
       parent: nestedMolecule,
       atomType: 'Import',
-      context: null,
       getContext: function() {
-        if (!this.context) {
-          let curr = this;
-          while (curr.parent && !curr.topLevel) {
-            curr = curr.parent;
-          }
-          this.context = { project: curr.uniqueID };
+        // Don't cache - always traverse
+        let curr = this;
+        while (curr.parent && !curr.topLevel) {
+          curr = curr.parent;
         }
-        return this.context;
+        return { project: curr.uniqueID };
       }
     };
     
@@ -203,14 +188,14 @@ describe('Import atom context fix', () => {
     };
     nestedMolecule.parent = differentTopLevel;
     
-    // Get context second time - should be cached
+    // Get context second time - should reflect the new parent chain
     const context2 = importAtom.getContext();
-    expect(context2.project).toBe('top-level-555'); // Still cached
-    expect(context1).toBe(context2); // Same object reference
+    expect(context2.project).toBe('different-top-level'); // Updated!
+    expect(context1).not.toBe(context2); // Different object references
   });
   
   it('should handle old buggy behavior for comparison', () => {
-    // This demonstrates the OLD buggy behavior
+    // This demonstrates the OLD buggy behavior vs the new fixed behavior
     const topLevelMolecule = {
       uniqueID: 'top-level-abc',
       topLevel: true,
@@ -225,7 +210,7 @@ describe('Import atom context fix', () => {
       atomType: 'Molecule'
     };
     
-    // Old buggy version
+    // Old buggy version (with caching)
     const buggyImportAtom = {
       uniqueID: 'import-buggy',
       parent: nestedMolecule,
@@ -244,30 +229,25 @@ describe('Import atom context fix', () => {
       }
     };
     
-    // Fixed version
+    // Fixed version (no caching)
     const fixedImportAtom = {
       uniqueID: 'import-fixed',
       parent: nestedMolecule,
       atomType: 'Import',
-      context: null,
       getContext: function() {
-        if (!this.context) {
-          let curr = this;
-          // FIXED: traverse until topLevel is true
-          while (curr.parent && !curr.topLevel) {
-            curr = curr.parent;
-          }
-          this.context = { project: curr.uniqueID };
+        // FIXED: no caching, traverse until topLevel is true
+        let curr = this;
+        while (curr.parent && !curr.topLevel) {
+          curr = curr.parent;
         }
-        return this.context;
+        return { project: curr.uniqueID };
       }
     };
     
     const buggyContext = buggyImportAtom.getContext();
     const fixedContext = fixedImportAtom.getContext();
     
-    // Both should get the correct top-level ID now
-    // (In this case they're the same because topLevelMolecule has no parent)
+    // Both should get the correct top-level ID
     expect(buggyContext.project).toBe('top-level-abc');
     expect(fixedContext.project).toBe('top-level-abc');
   });
@@ -296,16 +276,12 @@ describe('Import atom context fix', () => {
         uniqueID: `${atomType.toLowerCase()}-test`,
         parent: nestedMolecule,
         atomType: atomType,
-        context: null,
         getContext: function() {
-          if (!this.context) {
-            let curr = this;
-            while (curr.parent && !curr.topLevel) {
-              curr = curr.parent;
-            }
-            this.context = { project: curr.uniqueID };
+          let curr = this;
+          while (curr.parent && !curr.topLevel) {
+            curr = curr.parent;
           }
-          return this.context;
+          return { project: curr.uniqueID };
         }
       };
       
