@@ -169,7 +169,7 @@ export default React.memo(
 
       // 2. Setup camera with dynamic positioning
       const camera = new PerspectiveCamera(25, width / height, 0.1, 10000);
-      camera.position.set(3000, 3000, 3000);
+      camera.position.set(-3000, -3000, 3000);
 
       // Apply calculated zoom
       camera.zoom = zoomFromBounds;

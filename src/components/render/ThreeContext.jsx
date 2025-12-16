@@ -74,7 +74,7 @@ export default function ext({ children, cameraZoom, ...otherProps }) {
           pov={1000}
           far={90000}
           zoom={cameraZoom}
-          position={[3000, 3000, 5000]}
+          position={[-3000, -3000, 5000]}
         />
         {gridParam ? (
           <Grid
