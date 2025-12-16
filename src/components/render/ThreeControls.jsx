@@ -1,9 +1,9 @@
 import React from "react";
-import { OrbitControls, GizmoViewport } from "@react-three/drei";
+import { OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
 import { useRendering } from "../../contexts";
 import { useRef, useEffect, useState } from "react";
-import { CustomGizmoHelper } from "./CustomGizmoHelper.jsx";
+import { CustomGizmoHelper, CustomGizmoViewport } from "./CustomGizmoHelper.jsx";
 
 const Controls = React.memo(
   React.forwardRef(function Controls(
@@ -92,7 +92,7 @@ const Controls = React.memo(
         {axesParam && (
           <>
             <CustomGizmoHelper alignment="bottom-right" margin={[80, 100]}>
-              <GizmoViewport
+              <CustomGizmoViewport
                 axisColors={["#9d4b4b", "#2f7f4f", "#3b5b9d"]}
                 labelColor="white"
               />
