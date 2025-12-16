@@ -96,20 +96,19 @@ export const CustomGizmoHelper = ({
           const lookingDownZ = Math.abs(cameraDir.z) > 0.9;
           
           if (lookingDownZ) {
-            // When looking down/up the Z-axis, set UP to make X point right and Y point up
-            // Current behavior: UP = [0, 1, 0] gives screen right = +Y, screen up = -X
-            // Desired behavior: screen right = +X, screen up = +Y
-            // Solution: UP = [0, -1, 0] gives screen right = +X, screen up = -Y (close but inverted)
-            // Actually: UP = [-1, 0, 0] might work better
-            // Let's try: For camera looking in -Z direction with Z-up system:
-            // UP = [0, -1, 0] should give us the correct orientation
+            // When looking along the Z-axis, set UP perpendicular to Z to get correct orientation
+            // For camera at [0, 0, +R] looking down at [0, 0, 0]:
+            // - View direction (forward) is [0, 0, -1]
+            // - We want screen right = +X, screen up = +Y
+            // - In Three.js, right = UP × forward
+            // - To get right = [1, 0, 0], we solve: [1, 0, 0] = UP × [0, 0, -1]
+            // - Using cross product: UP = [0, -1, 0]
+            // - Verification: [0, -1, 0] × [0, 0, -1] = [1, 0, 0] ✓
             if (cameraDir.z > 0) {
-              // Looking down from above (camera at +Z looking at origin)
-              // Camera -Z points toward origin (down)
-              // We want screen right = +X, screen up = +Y
+              // Looking down from above
               mainCamera.up.set(0, -1, 0);
             } else {
-              // Looking up from below
+              // Looking up from below (invert the up direction)
               mainCamera.up.set(0, 1, 0);
             }
           } else {
