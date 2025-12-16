@@ -145,7 +145,8 @@ export default class Atom extends ObservableEntity {
   getContext() {
     if (!this.context) {
       let curr = this;
-      while (curr.parent) {
+      // Traverse up to find the top-level molecule
+      while (curr.parent && !curr.topLevel) {
         curr = curr.parent;
       }
       this.context = { project: curr.uniqueID };
