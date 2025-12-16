@@ -246,7 +246,7 @@ class GlobalVariables {
     this.connectorsSelected = [];
     /**
      * The last known mouse position in canvas coordinates (0-1 range)
-     * @type {object}
+     * @type {{x: number, y: number}}
      */
     this.lastMousePosition = { x: 0.5, y: 0.5 };
     /**
