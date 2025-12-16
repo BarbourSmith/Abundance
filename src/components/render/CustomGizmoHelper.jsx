@@ -230,16 +230,14 @@ export const CustomGizmoHelper = ({
             // For camera at [0, 0, +R] looking down at [0, 0, 0]:
             // - View direction (forward) is [0, 0, -1]
             // - We want screen right = +X, screen up = +Y
-            // - In Three.js, right = UP × forward
-            // - To get right = [1, 0, 0], we solve: [1, 0, 0] = UP × [0, 0, -1]
-            // - Using cross product: UP = [0, -1, 0]
-            // - Verification: [0, -1, 0] × [0, 0, -1] = [1, 0, 0] ✓
+            // - Setting UP = [0, 1, 0] makes world +Y appear as "up" on screen
+            // - Verification: This gives screen right = +X, screen up = +Y ✓
             if (cameraDir.z > 0) {
               // Looking down from above
-              mainCamera.up.set(0, -1, 0);
+              mainCamera.up.set(0, 1, 0);
             } else {
               // Looking up from below (invert the up direction)
-              mainCamera.up.set(0, 1, 0);
+              mainCamera.up.set(0, -1, 0);
             }
           } else {
             // For other orientations, use the default Z-up
