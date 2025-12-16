@@ -282,6 +282,11 @@ export default memo(function FlowCanvas({
         // Ctrl+C: Enhanced copy with connectors
         GlobalVariables.currentMolecule.copyWithConnectors();
       } else if (e.key == "v") {
+        // Early return if nothing to paste
+        if (!GlobalVariables.atomsSelected || GlobalVariables.atomsSelected.length === 0) {
+          return;
+        }
+
         // Deselect all currently selected atoms before pasting
         GlobalVariables.currentMolecule.nodesOnTheScreen.forEach((atom) => {
           atom.selected = false;
@@ -339,7 +344,7 @@ export default memo(function FlowCanvas({
               });
             }
           });
-        } else if (GlobalVariables.atomsSelected.length > 0) {
+        } else {
           // Regular paste without connectors (legacy behavior)
           GlobalVariables.atomsSelected.forEach((item) => {
             // Apply mouse-based offset

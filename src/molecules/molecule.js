@@ -401,7 +401,8 @@ export default class Molecule extends Atom {
   }
 
   /**
-   * Pushes serialized atoms into array if selected (legacy method, prefer copyWithConnectors)
+   * Pushes serialized atoms into array if selected (legacy method)
+   * @deprecated Prefer copyWithConnectors() which preserves internal connections between copied atoms
    */
   copy() {
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
