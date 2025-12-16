@@ -175,6 +175,7 @@ export const CustomGizmoHelper = ({
   const radius = React.useRef(0);
   const focusPoint = React.useRef(new Vector3(0, 0, 0));
   const defaultUp = React.useRef(new Vector3(0, 0, 0));
+  const targetDirection = React.useRef(new Vector3(0, 0, 0));
 
   React.useEffect(() => {
     defaultUp.current.copy(mainCamera.up);
@@ -183,6 +184,8 @@ export const CustomGizmoHelper = ({
 
   const tweenCamera = React.useCallback(direction => {
     animating.current = true;
+    // Store the target direction for use during animation
+    targetDirection.current.copy(direction).normalize();
     if (defaultControls || onTarget) {
       focusPoint.current = (onTarget == null ? void 0 : onTarget()) || 
         (isCameraControls(defaultControls) ? defaultControls.getTarget(focusPoint.current) : 
@@ -220,23 +223,25 @@ export const CustomGizmoHelper = ({
           
           // Custom UP vector logic for Z-up coordinate system
           // When looking down the Z-axis, we want X to point right and Y to point up on screen
-          const cameraDir = new Vector3().copy(mainCamera.position).sub(focusPoint.current).normalize();
+          // Use the TARGET direction (where we're going) not the current direction
+          // to ensure consistent orientation throughout the animation
+          const targetDir = targetDirection.current;
           
-          // Check if we're looking down or up the Z-axis
-          const lookingDownZ = Math.abs(cameraDir.z) > 0.9;
+          // Check if we're animating to look down or up the Z-axis
+          const lookingDownZ = Math.abs(targetDir.z) > 0.9;
           
           if (lookingDownZ) {
-            // When looking along the Z-axis, set UP perpendicular to Z to get correct orientation
-            // For camera at [0, 0, +R] looking down at [0, 0, 0]:
+            // When animating to look along the Z-axis, set UP perpendicular to Z to get correct orientation
+            // For camera animating to [0, 0, +R] looking down at [0, 0, 0]:
             // - View direction (forward) is [0, 0, -1]
             // - We want screen right = +X, screen up = +Y
             // - Setting UP = [0, 1, 0] makes world +Y appear as "up" on screen
             // - Verification: This gives screen right = +X, screen up = +Y ✓
-            if (cameraDir.z > 0) {
-              // Looking down from above
+            if (targetDir.z > 0) {
+              // Animating to look down from above
               mainCamera.up.set(0, 1, 0);
             } else {
-              // Looking up from below (invert the up direction)
+              // Animating to look up from below (invert the up direction)
               mainCamera.up.set(0, -1, 0);
             }
           } else {
