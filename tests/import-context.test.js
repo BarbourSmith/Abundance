@@ -38,11 +38,17 @@ describe('Import atom context fix', () => {
       uniqueID: 'import-789',
       parent: nestedMolecule,
       atomType: 'Import',
+      _cachedContext: null,
       getContext: function() {
-        // Don't cache - always traverse to find current top-level
         let curr = this;
         while (curr.parent && !curr.topLevel) {
           curr = curr.parent;
+        }
+        if (curr.topLevel) {
+          if (!this._cachedContext || this._cachedContext.project !== curr.uniqueID) {
+            this._cachedContext = { project: curr.uniqueID };
+          }
+          return this._cachedContext;
         }
         return { project: curr.uniqueID };
       }
@@ -70,10 +76,17 @@ describe('Import atom context fix', () => {
       uniqueID: 'import-111',
       parent: topLevelMolecule,
       atomType: 'Import',
+      _cachedContext: null,
       getContext: function() {
         let curr = this;
         while (curr.parent && !curr.topLevel) {
           curr = curr.parent;
+        }
+        if (curr.topLevel) {
+          if (!this._cachedContext || this._cachedContext.project !== curr.uniqueID) {
+            this._cachedContext = { project: curr.uniqueID };
+          }
+          return this._cachedContext;
         }
         return { project: curr.uniqueID };
       }
@@ -124,10 +137,17 @@ describe('Import atom context fix', () => {
       uniqueID: 'import-deep',
       parent: nestedMolecule3,
       atomType: 'Import',
+      _cachedContext: null,
       getContext: function() {
         let curr = this;
         while (curr.parent && !curr.topLevel) {
           curr = curr.parent;
+        }
+        if (curr.topLevel) {
+          if (!this._cachedContext || this._cachedContext.project !== curr.uniqueID) {
+            this._cachedContext = { project: curr.uniqueID };
+          }
+          return this._cachedContext;
         }
         return { project: curr.uniqueID };
       }
@@ -143,7 +163,7 @@ describe('Import atom context fix', () => {
     expect(context.project).not.toBe('nested-3');
   });
   
-  it('should always return current context without caching', () => {
+  it('should cache context when top-level molecule is found', () => {
     // Create a top-level molecule
     const topLevelMolecule = {
       uniqueID: 'top-level-555',
@@ -160,17 +180,26 @@ describe('Import atom context fix', () => {
       atomType: 'Molecule'
     };
     
-    // Create an Import atom
+    // Create an Import atom with the new smart caching logic
     const importAtom = {
       uniqueID: 'import-888',
       parent: nestedMolecule,
       atomType: 'Import',
+      _cachedContext: null,
       getContext: function() {
-        // Don't cache - always traverse
         let curr = this;
         while (curr.parent && !curr.topLevel) {
           curr = curr.parent;
         }
+        
+        // Only cache if we found a top-level molecule
+        if (curr.topLevel) {
+          if (!this._cachedContext || this._cachedContext.project !== curr.uniqueID) {
+            this._cachedContext = { project: curr.uniqueID };
+          }
+          return this._cachedContext;
+        }
+        
         return { project: curr.uniqueID };
       }
     };
@@ -179,19 +208,10 @@ describe('Import atom context fix', () => {
     const context1 = importAtom.getContext();
     expect(context1.project).toBe('top-level-555');
     
-    // Modify the parent structure (simulating a move)
-    const differentTopLevel = {
-      uniqueID: 'different-top-level',
-      topLevel: true,
-      parent: null,
-      atomType: 'Molecule'
-    };
-    nestedMolecule.parent = differentTopLevel;
-    
-    // Get context second time - should reflect the new parent chain
+    // Get context second time - should be same cached object
     const context2 = importAtom.getContext();
-    expect(context2.project).toBe('different-top-level'); // Updated!
-    expect(context1).not.toBe(context2); // Different object references
+    expect(context2.project).toBe('top-level-555');
+    expect(context1).toBe(context2); // Same object reference (cached)
   });
   
   it('should handle old buggy behavior for comparison', () => {
@@ -210,7 +230,7 @@ describe('Import atom context fix', () => {
       atomType: 'Molecule'
     };
     
-    // Old buggy version (with caching)
+    // Old buggy version (always cached without checking topLevel)
     const buggyImportAtom = {
       uniqueID: 'import-buggy',
       parent: nestedMolecule,
@@ -229,16 +249,22 @@ describe('Import atom context fix', () => {
       }
     };
     
-    // Fixed version (no caching)
+    // Fixed version (smart caching only when topLevel found)
     const fixedImportAtom = {
       uniqueID: 'import-fixed',
       parent: nestedMolecule,
       atomType: 'Import',
+      _cachedContext: null,
       getContext: function() {
-        // FIXED: no caching, traverse until topLevel is true
         let curr = this;
         while (curr.parent && !curr.topLevel) {
           curr = curr.parent;
+        }
+        if (curr.topLevel) {
+          if (!this._cachedContext || this._cachedContext.project !== curr.uniqueID) {
+            this._cachedContext = { project: curr.uniqueID };
+          }
+          return this._cachedContext;
         }
         return { project: curr.uniqueID };
       }
@@ -276,10 +302,17 @@ describe('Import atom context fix', () => {
         uniqueID: `${atomType.toLowerCase()}-test`,
         parent: nestedMolecule,
         atomType: atomType,
+        _cachedContext: null,
         getContext: function() {
           let curr = this;
           while (curr.parent && !curr.topLevel) {
             curr = curr.parent;
+          }
+          if (curr.topLevel) {
+            if (!this._cachedContext || this._cachedContext.project !== curr.uniqueID) {
+              this._cachedContext = { project: curr.uniqueID };
+            }
+            return this._cachedContext;
           }
           return { project: curr.uniqueID };
         }

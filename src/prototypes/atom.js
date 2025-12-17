@@ -141,13 +141,25 @@ export default class Atom extends ObservableEntity {
    * See RequestContext type defined in geometryProvider.ts
    */
   getContext() {
-    // Don't cache the context - always traverse to find the current top-level molecule
-    // This ensures we get the correct context even if the parent chain changes
+    // Always traverse to find the current top-level molecule
+    // We cache the result only if we successfully find a top-level molecule
     let curr = this;
     // Traverse up to find the top-level molecule
     while (curr.parent && !curr.topLevel) {
       curr = curr.parent;
     }
+    
+    // Only cache if we actually found a top-level molecule
+    // This prevents caching when parent chain isn't fully set up yet
+    if (curr.topLevel) {
+      if (!this._cachedContext || this._cachedContext.project !== curr.uniqueID) {
+        this._cachedContext = { project: curr.uniqueID };
+      }
+      return this._cachedContext;
+    }
+    
+    // If no top-level found, return current without caching
+    // This can happen during deserialization before parent chain is set up
     return { project: curr.uniqueID };
   }
 
