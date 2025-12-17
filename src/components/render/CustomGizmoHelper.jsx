@@ -196,6 +196,22 @@ export const CustomGizmoHelper = ({
     // Rotate from current camera orientation
     q1.copy(mainCamera.quaternion);
 
+    // Set dummy's UP vector based on target direction for correct orientation
+    const targetDir = targetDirection.current;
+    const lookingDownZ = Math.abs(targetDir.z) > 0.9;
+    if (lookingDownZ) {
+      if (targetDir.z > 0) {
+        // Looking down from above
+        dummy.up.set(0, 1, 0);
+      } else {
+        // Looking up from below
+        dummy.up.set(0, -1, 0);
+      }
+    } else {
+      // For other orientations, use default Z-up
+      dummy.up.set(0, 0, 1);
+    }
+
     // To new current camera orientation
     targetPosition.copy(direction).multiplyScalar(radius.current).add(target);
     dummy.lookAt(targetPosition);
@@ -211,8 +227,13 @@ export const CustomGizmoHelper = ({
           animating.current = false;
           // Orbit controls uses UP vector as the orbit axes,
           // so we need to reset it after the animation is done
+          // However, don't reset if we're looking along Z-axis as we want to maintain the custom UP
           if (isOrbitControls(defaultControls)) {
-            mainCamera.up.copy(defaultUp.current);
+            const finalDir = targetDirection.current;
+            const lookingDownZ = Math.abs(finalDir.z) > 0.9;
+            if (!lookingDownZ) {
+              mainCamera.up.copy(defaultUp.current);
+            }
           }
         } else {
           const step = delta * turnRate;
