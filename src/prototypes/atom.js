@@ -144,19 +144,23 @@ export default class Atom extends ObservableEntity {
    */
   getContext() {
     // Always traverse to find the current top-level molecule
-    // We cache the result only if we successfully find a top-level molecule
     let curr = this;
     // Traverse up to find the top-level molecule
     while (curr.parent && !curr.topLevel) {
       curr = curr.parent;
     }
     
-    // Only cache if we actually found a top-level molecule
-    // This prevents caching when parent chain isn't fully set up yet
+    // Only cache and return cached value if:
+    // 1. We found a top-level molecule
+    // 2. The cached project ID matches the current top-level ID
     if (curr.topLevel) {
-      if (!this._cachedContext || this._cachedContext.project !== curr.uniqueID) {
-        this._cachedContext = { project: curr.uniqueID };
+      const currentProjectId = curr.uniqueID;
+      if (this._cachedContext && this._cachedContext.project === currentProjectId) {
+        // Cache is valid, return it
+        return this._cachedContext;
       }
+      // Update cache with current project ID
+      this._cachedContext = { project: currentProjectId };
       return this._cachedContext;
     }
     
