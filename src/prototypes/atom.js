@@ -119,6 +119,8 @@ export default class Atom extends ObservableEntity {
       message: "",
     };
 
+    this._cachedContext = null;
+
     this.subscribe(this.selfSubscriber.bind(this), "self-clear-alert");
   }
 
