@@ -497,7 +497,7 @@ export default class Input extends Atom {
     }
   }
 
-  createInputParams() {
+  createInputParams(setInputChanged) {
     let inputParams = {};
     inputParams[this.uniqueID] = {
       type: "string",
@@ -516,6 +516,9 @@ export default class Input extends Atom {
         if (this.name !== sanitizedName) {
           this.name = sanitizedName;
           this.parentAP.name = sanitizedName; // Update the attachment point name
+        }
+        if (this.name !== sanitizedName || newName !== sanitizedName) {
+          setInputChanged(sanitizedName);
         }
       },
     };
