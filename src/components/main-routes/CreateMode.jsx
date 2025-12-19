@@ -150,6 +150,7 @@ function CreateMode() {
     b: "Molecule",
     c: "Copy",
     e: "Extrude",
+    g: "GitHubMolecule",
     i: "Input",
     j: "Move",
     r: "Rotate",
