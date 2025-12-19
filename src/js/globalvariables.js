@@ -544,7 +544,10 @@ class GlobalVariables {
   incrementVariableName(varName, molecule, excludeAtoms = []) {
     if (
       molecule.nodesOnTheScreen.find(
-        (o) => this.isReferencableByName(o) && o.name === varName && !excludeAtoms.includes(o)
+        (o) =>
+          this.isReferencableByName(o) &&
+          o.name === varName &&
+          !excludeAtoms.includes(o)
       )
     ) {
       // Look for the pattern " (number)" at the end of the variable name
@@ -557,10 +560,18 @@ class GlobalVariables {
 
         // Increment the number and try again
         const incrementedVarName = `${baseName}_${currentNumber + 1}`;
-        return this.incrementVariableName(incrementedVarName, molecule);
+        return this.incrementVariableName(
+          incrementedVarName,
+          molecule,
+          excludeAtoms
+        );
       } else {
         // No " (number)" suffix found, add "_1"
-        return this.incrementVariableName(varName + "_1", molecule);
+        return this.incrementVariableName(
+          varName + "_1",
+          molecule,
+          excludeAtoms
+        );
       }
     } else {
       return varName;

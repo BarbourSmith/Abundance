@@ -43,11 +43,6 @@ export default class Input extends Atom {
     this.width;
 
     this.type = "number";
-    /**
-     * This atom's old name, used during name changes
-     * @type {string}
-     */
-    this.oldName = this.name;
 
     this.radius = 1 / 75;
 
@@ -73,6 +68,12 @@ export default class Input extends Atom {
 
     // Set values first to ensure this.name is correct before creating the parent input
     this.setValues(values);
+
+    /**
+     * This atom's old name, used during name changes. Set after values are applied.
+     * @type {string}
+     */
+    this.oldName = this.name;
 
     // Apply Y-offset to prevent overlapping with existing Input atoms
     this.adjustYForCollision();

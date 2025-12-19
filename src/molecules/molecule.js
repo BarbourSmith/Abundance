@@ -1455,13 +1455,9 @@ export default class Molecule extends Atom {
   async placeAtom(newAtomObj, unlock, values, skipAutoConnect = false) {
     try {
       //If the input has a name and is a copy, we need to make sure it is unique so that the constructors adds IO
-      if (
-        GlobalVariables.isReferencableByName(newAtomObj) &&
-        newAtomObj.name !== undefined &&
-        unlock
-      ) {
+      if (GlobalVariables.isReferencableByName(newAtomObj) && unlock) {
         newAtomObj.name = GlobalVariables.incrementVariableName(
-          newAtomObj.atomType,
+          newAtomObj.name ? newAtomObj.name : newAtomObj.atomType,
           this
         );
       }
