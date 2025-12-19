@@ -516,8 +516,8 @@ export default class Input extends Atom {
         if (this.name !== sanitizedName) {
           this.name = sanitizedName;
           this.parentAP.name = sanitizedName; // Update the attachment point name
-        }
-        if (this.name !== sanitizedName || newName !== sanitizedName) {
+          setInputChanged(sanitizedName);
+        } else if (newName !== sanitizedName) {
           setInputChanged(sanitizedName);
         }
       },
