@@ -7,7 +7,7 @@ import styleSheet from "./styleSheet";
 function formatTooltipText(atomType, shortcutsMap) {
   var shortcutKey = shortcutsMap && shortcutsMap[atomType];
   if (shortcutKey) {
-    return atomType + " (Ctrl+" + shortcutKey + ")";
+    return atomType + "<br>(Ctrl+" + shortcutKey + ")";
   }
   return atomType;
 }
@@ -15,6 +15,7 @@ function formatTooltipText(atomType, shortcutsMap) {
 function hasSubMenus(menus) {
   return menus instanceof Array && menus.length !== 0;
 }
+
 function ifDisabled(disabled) {
   if (disabled instanceof Function) return disabled();
   else return Boolean(disabled);
@@ -101,10 +102,10 @@ export default function (parent, data, index) {
   // this is where the tooltip div is created to show names of elements in circular menu
   on(a, "mouseenter", function () {
     var div = document.createElement("div");
-    div.textContent = formatTooltipText(data.icon, self._config.shortcutsMap);
+    div.innerHTML = formatTooltipText(data.icon, self._config.shortcutsMap);
     div.classList.add("tooltip");
     div.id = data.icon + "text";
-    const length = div.textContent.length * 3; //Correct for text length centering
+    const length = data.icon.length * 3; //Correct for text length centering
     document.querySelector("body").appendChild(div);
 
     style(
@@ -171,7 +172,7 @@ export default function (parent, data, index) {
       clearTimeout(delayShow);
       clearTimeout(delayHide);
       var div = document.createElement("div");
-      div.textContent = formatTooltipText(data.icon, self._config.shortcutsMap);
+      div.textContent = data.icon;
       div.classList.add("tooltip");
       div.id = data.icon + "text2";
       const length = div.textContent.length * 3; //Correct for text length centering
@@ -182,6 +183,7 @@ export default function (parent, data, index) {
         "left",
         self._container.offsetLeft + self._calc.radius - length + 100 + "px"
       );
+      // style(div, "width", data.icon.length + "ch");
     };
 
     on(subMenu._container, "mouseenter", subMenuMouseEnter);
