@@ -62,6 +62,7 @@ const SettingsPopUp = ({
     "CANVAS SETTINGS",
     "PROJECT SETTINGS",
     "RENDER PREFERENCES",
+    "USER SETTINGS",
   ];
   function CustomTabPanel({ children, value, index }) {
     return value === index ? (
@@ -81,6 +82,7 @@ const SettingsPopUp = ({
     ),
     atomSize: Globalvariables.atomSize * 1000,
     projectDescription: Globalvariables.currentAWSnode.description,
+    maslowIP: localStorage.getItem("maslowIP") || "",
   });
 
   const handleValueChange = (event) => {
@@ -101,6 +103,9 @@ const SettingsPopUp = ({
         "canvasFont",
         `${event.target.value}px Work Sans Bold`
       );
+    }
+    if (event.target.name === "maslowIP") {
+      localStorage.setItem("maslowIP", event.target.value);
     }
   };
 
@@ -438,6 +443,72 @@ const SettingsPopUp = ({
               >
                 Supported formats: GLB, GLTF. Max file size: 25MB
               </span>
+            </div>
+          </CustomTabPanel>
+          <CustomTabPanel value={value} index={4}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <label
+                  style={{ fontWeight: 500, marginBottom: 2 }}
+                  htmlFor="maslow-ip"
+                >
+                  Maslow Machine IP Address
+                </label>
+                <input
+                  id="maslow-ip"
+                  type="text"
+                  value={state.maslowIP}
+                  onChange={handleValueChange}
+                  name="maslowIP"
+                  placeholder="e.g., 192.168.1.100"
+                  style={{
+                    width: "100%",
+                    padding: "8px",
+                    borderRadius: 4,
+                    border: "1px solid #ccc",
+                    fontFamily: "inherit",
+                    fontSize: 15,
+                  }}
+                />
+                <span
+                  style={{
+                    color: "#666",
+                    fontSize: "12px",
+                    display: "block",
+                    marginTop: "4px",
+                  }}
+                >
+                  Enter your Maslow CNC machine's IP address to enable direct G-code uploads.
+                  You can find this on the Maslow's display or in your router's connected devices list.
+                </span>
+              </div>
+              <div style={{ borderTop: "1px solid #eee", margin: "10px 0" }} />
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <label style={{ fontWeight: 500, marginBottom: 2 }}>
+                  Upload Information
+                </label>
+                <span
+                  style={{
+                    color: "#666",
+                    fontSize: "13px",
+                    lineHeight: "1.5",
+                  }}
+                >
+                  Once configured, you'll be able to upload G-code directly to your Maslow machine from the G-code atom.
+                  The machine must be on the same network and powered on.
+                </span>
+                <span
+                  style={{
+                    color: "#f57c00",
+                    fontSize: "12px",
+                    marginTop: "8px",
+                    display: "block",
+                  }}
+                >
+                  ⚠️ Note: Your browser may show a mixed content warning (HTTPS to HTTP). 
+                  You may need to allow insecure content for this feature to work.
+                </span>
+              </div>
             </div>
           </CustomTabPanel>
           <div className="settings-panel-button-row">

@@ -1,7 +1,16 @@
 import Atom from "../prototypes/atom.js";
 import GlobalVariables from "../js/globalvariables.js";
+import MaslowUploader from "../js/MaslowUploader.js";
 
 import { saveAs } from "file-saver";
+
+// Error messages for G-code generation and upload
+const ERROR_MESSAGES = {
+  NO_GCODE: "No G-code available. Please generate G-code first.",
+  NO_MASLOW_IP: "Please configure your Maslow IP address in Settings > User Settings first.",
+  CONFIGURE_INSTRUCTIONS: "To upload G-code directly to your Maslow:\n\n1. Open Settings (gear icon)\n2. Go to User Settings tab\n3. Enter your Maslow's IP address\n\nYou can find the IP on your Maslow's display or in your router's connected devices.",
+  CORS_BLOCKED: "Upload blocked by browser security.\n\nThis happens because:\n• Abundance uses HTTPS but Maslow uses HTTP\n• The browser blocks mixed HTTP/HTTPS requests\n\nTo fix this:\n1. Access Abundance via HTTP instead: http://abundance.maslowcnc.com\n2. Or enable insecure content in your browser for this site\n3. Or use localhost if running Abundance locally\n\nNote: This is a browser security feature to protect you.",
+};
 
 /**
  * This class creates the circle atom.
@@ -124,6 +133,18 @@ export default class Gcode extends Atom {
      * @type {string}
      */
     this.sortDirection = "Left";
+
+    /**
+     * Upload progress tracking (0-100)
+     * @type {number}
+     */
+    this.uploadProgress = 0;
+
+    /**
+     * Flag to track if upload is in progress
+     * @type {boolean}
+     */
+    this.isUploading = false;
 
     this.setValues(values);
   }
@@ -704,14 +725,93 @@ export default class Gcode extends Atom {
           const fileName = `${currentPartName}.gcode`;
           this.downloadGcode(this.gcodeString, fileName);
         } else {
-          console.warn("No G-code available. Please generate G-code first.");
-          // You could also show an alert or notification to the user here
-          alert("No G-code available. Please generate G-code first.");
+          console.warn(ERROR_MESSAGES.NO_GCODE);
+          alert(ERROR_MESSAGES.NO_GCODE);
         }
       },
     };
 
+    // Add upload button if Maslow IP is configured
+    const maslowIP = localStorage.getItem("maslowIP");
+    if (maslowIP) {
+      inputParams[`Upload to Maslow SD - ${partName}`] = {
+        type: "button",
+        label: `Upload to Maslow SD`,
+        onClick: () => {
+          if (this.gcodeGenerated && this.gcodeString) {
+            const currentPartName =
+              this.findIOValue("Part Name") || this.partName || "output";
+            const fileName = `${currentPartName}.gcode`;
+            this.uploadToMaslow("SD", fileName);
+          } else {
+            alert(ERROR_MESSAGES.NO_GCODE);
+          }
+        },
+      };
+    } else {
+      // Show a hint button if IP is not configured
+      inputParams["Configure Maslow Upload"] = {
+        type: "button",
+        label: "Configure Maslow Upload",
+        onClick: () => {
+          alert(ERROR_MESSAGES.CONFIGURE_INSTRUCTIONS);
+        },
+      };
+    }
+
     return inputParams;
+  }
+
+  /**
+   * Upload G-code to Maslow machine
+   * @param {string} uploadType - Either "SD" or "LocalFS"
+   * @param {string} filename - The filename for the uploaded file
+   */
+  async uploadToMaslow(uploadType, filename = "output.gcode") {
+    if (!this.gcodeGenerated || !this.gcodeString) {
+      alert(ERROR_MESSAGES.NO_GCODE);
+      return;
+    }
+
+    // Get Maslow IP from localStorage
+    const maslowIP = localStorage.getItem("maslowIP");
+    if (!maslowIP) {
+      alert(ERROR_MESSAGES.NO_MASLOW_IP);
+      return;
+    }
+
+    this.isUploading = true;
+    this.uploadProgress = 0;
+
+    try {
+      const uploader = new MaslowUploader(maslowIP);
+
+      // Create blob from gcode string
+      const gcodeBlob = new Blob([this.gcodeString], { type: "text/plain" });
+
+      // Upload to SD card with progress tracking
+      // Note: Skipping reachability check to avoid CORS preflight issues
+      const result = await uploader.uploadToSD(gcodeBlob, filename, (percent) => {
+        this.uploadProgress = percent;
+        console.log(`Upload progress: ${percent.toFixed(1)}%`);
+      });
+
+      console.log("Upload successful:", result);
+      alert(`Successfully uploaded ${filename} to Maslow SD card!`);
+    } catch (error) {
+      console.error("Upload failed:", error);
+      
+      // Check if error is due to CORS/mixed content blocking
+      const errorMsg = error.message.toLowerCase();
+      if (errorMsg.includes('network error') || errorMsg.includes('cors') || errorMsg.includes('cross-origin')) {
+        alert(ERROR_MESSAGES.CORS_BLOCKED);
+      } else {
+        alert(`Upload failed: ${error.message}`);
+      }
+    } finally {
+      this.isUploading = false;
+      this.uploadProgress = 0;
+    }
   }
 
   //Function to download G-code from a G-code string
