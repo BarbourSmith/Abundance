@@ -300,7 +300,7 @@ class GlobalVariables {
      * @type {string}
      */
     this.canvasFont = (() => {
-      const storedFont = localStorage.getItem("canvasFont");
+      const storedFont = typeof localStorage !== 'undefined' ? localStorage.getItem("canvasFont") : null;
       return storedFont ? storedFont : `12px Work Sans Bold`;
     })();
 
@@ -309,7 +309,7 @@ class GlobalVariables {
      * @type {number}
      */
     this.atomSize = (() => {
-      const storedSize = localStorage.getItem("atomSize");
+      const storedSize = typeof localStorage !== 'undefined' ? localStorage.getItem("atomSize") : null;
       return storedSize
         ? parseFloat(storedSize)
         : this.isMobile()
@@ -393,6 +393,7 @@ class GlobalVariables {
   isMobile() {
     // Check for common mobile device indicators in the user agent string
     if (
+      typeof navigator !== 'undefined' &&
       /Mobi|Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
         navigator.userAgent
       )
@@ -401,7 +402,7 @@ class GlobalVariables {
     }
 
     // Check screen size (not entirely reliable)
-    if (window.innerWidth <= 768) {
+    if (typeof window !== 'undefined' && window.innerWidth <= 768) {
       return true;
     }
 
