@@ -120,7 +120,20 @@ const generateGcode = (
       const zBottom = z; // ensure cut through stock bottom
 
       // camCutthrough by pass for 1 pass, sets down to large value to avoid cutthrough extra pass/ extra pass is added for multi pass
-      const down = passes > 1 ? (zBottom + CUT_THROUGH) / passes : 10000;
+      let down = passes > 1 ? (zBottom + CUT_THROUGH) / passes : 10000;
+      
+      // For thin parts (< 1mm), ensure minimum down per pass to prevent CAM engine issues
+      // Minimum of 0.5mm per pass ensures proper toolpath generation
+      const MIN_DOWN_PER_PASS = 0.5;
+      let effectivePasses = passes;
+      
+      if (passes > 1 && down < MIN_DOWN_PER_PASS) {
+        // Recalculate passes to meet minimum down requirement
+        effectivePasses = Math.max(1, Math.floor((zBottom + CUT_THROUGH) / MIN_DOWN_PER_PASS));
+        down = effectivePasses > 0 ? (zBottom + CUT_THROUGH) / effectivePasses : (zBottom + CUT_THROUGH);
+        console.log(`Thin part detected (${zBottom.toFixed(2)}mm). Adjusted passes from ${passes} to ${effectivePasses} to ensure minimum down per pass of ${MIN_DOWN_PER_PASS}mm`);
+      }
+      
       // -1 to account for topZ -1 hack
       const camZBottom = -zBottom - CUT_THROUGH - 1;
       // single pass needs a cutthrough to generate correctly
@@ -128,6 +141,7 @@ const generateGcode = (
       const roughingStepOver = 0.6;
 
       console.log("Down per pass:", down);
+      console.log("Effective passes:", effectivePasses);
       console.log("CAM Z Bottom:", camZBottom);
       console.log("CAM Z Thru:", camZThru);
       console.log("Tool Size:", toolSize);
