@@ -125,10 +125,14 @@ const generateGcode = (
       const camZBottom = -zBottom - CUT_THROUGH - 1;
       // single pass needs a cutthrough to generate correctly
       // For thin parts with no cutthrough, ensure minimum camZThru to generate valid toolpaths
-      let camZThru = passes <= 1 && !cutThrough ? 0.01 : CUT_THROUGH;
-      if (camZThru === 0) {
+      let camZThru;
+      if ((passes <= 1 && !cutThrough) || CUT_THROUGH === 0) {
         camZThru = 0.01; // Minimum cutthrough to ensure CAM engine generates valid toolpaths
-        console.log("Thin part with no cutthrough detected. Setting minimum camZThru:", camZThru);
+        if (CUT_THROUGH === 0 && passes > 1) {
+          console.log("Thin part with no cutthrough detected. Setting minimum camZThru:", camZThru);
+        }
+      } else {
+        camZThru = CUT_THROUGH;
       }
       const roughingStepOver = 0.6;
 
