@@ -130,7 +130,7 @@ const generateGcode = (
       if (passes > 1 && down < MIN_DOWN_PER_PASS) {
         // Recalculate passes to meet minimum down requirement
         effectivePasses = Math.max(1, Math.floor((zBottom + CUT_THROUGH) / MIN_DOWN_PER_PASS));
-        down = effectivePasses > 0 ? (zBottom + CUT_THROUGH) / effectivePasses : (zBottom + CUT_THROUGH);
+        down = (zBottom + CUT_THROUGH) / effectivePasses;
         console.log(`Thin part detected (${zBottom.toFixed(2)}mm). Adjusted passes from ${passes} to ${effectivePasses} to ensure minimum down per pass of ${MIN_DOWN_PER_PASS}mm`);
       }
       
