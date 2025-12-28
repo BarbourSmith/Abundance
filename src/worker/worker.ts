@@ -62,48 +62,52 @@ function visExport(
   context: RequestContext
 ): Promise<AbundanceObject> {
   return started.then(async () => {
-    let geometryToExport = extractKeepOut(input);
-    if (!geometryToExport) {
-      throw new Error(
-        "Geometry To Export has no geometry after keepout is applied"
-      );
-    }
-    let fusedGeometry = await fuseAssembly(geometryToExport, context);
-    let displayColor =
-      fileType == "STL"
-        ? "#91C8D5"
-        : fileType == "STEP"
-        ? "#ACAFDD"
-        : "#5A5A5A";
-    let finalGeometry = fusedGeometry;
-    if (fileType == "SVG") {
-      /** Fuses input geometry, draws a top view projection*/
-      if (util.is3D(input)) {
-        const shape3d = (await util.geometryProvider!.get(
-          fusedGeometry.geometry,
-          context
-        )) as AnyShape;
-        const drawingResult = util.replicad.drawProjection(
-          shape3d,
-          "top"
-        ).visible;
-        const cachedGeom = await util.geometryProvider!.addSingularToCache(
-          drawingResult,
-          context,
-          "export",
-          [fileType, input]
+    try {
+      let geometryToExport = extractKeepOut(input);
+      if (!geometryToExport) {
+        throw new Error(
+          "Geometry To Export has no geometry after keepout is applied"
         );
-        finalGeometry = {
-          ...fusedGeometry,
-          geometry: cachedGeom,
-          dimension: "2D",
-        };
       }
+      let fusedGeometry = await fuseAssembly(geometryToExport, context);
+      let displayColor =
+        fileType == "STL"
+          ? "#91C8D5"
+          : fileType == "STEP"
+          ? "#ACAFDD"
+          : "#5A5A5A";
+      let finalGeometry = fusedGeometry;
+      if (fileType == "SVG") {
+        /** Fuses input geometry, draws a top view projection*/
+        if (util.is3D(input)) {
+          const shape3d = (await util.geometryProvider!.get(
+            fusedGeometry.geometry,
+            context
+          )) as AnyShape;
+          const drawingResult = util.replicad.drawProjection(
+            shape3d,
+            "top"
+          ).visible;
+          const cachedGeom = await util.geometryProvider!.addSingularToCache(
+            drawingResult,
+            context,
+            "export",
+            [fileType, input]
+          );
+          finalGeometry = {
+            ...fusedGeometry,
+            geometry: cachedGeom,
+            dimension: "2D",
+          };
+        }
+      }
+      return {
+        ...finalGeometry,
+        color: displayColor,
+      };
+    } catch (error) {
+      throw util.wrapMemoryError(error, `preparing ${fileType} export`);
     }
-    return {
-      ...finalGeometry,
-      color: displayColor,
-    };
   });
 }
 
@@ -122,39 +126,43 @@ async function downExport(
   units: string,
   context: RequestContext
 ): Promise<Blob> {
-  await started;
-  // as with visexport, fuse the result before exporting.
-  let geometryToExport = extractKeepOut(input);
-  if (!geometryToExport) {
-    throw new Error(
-      "Geometry To Export has no geometry after keepout is applied"
+  try {
+    await started;
+    // as with visexport, fuse the result before exporting.
+    let geometryToExport = extractKeepOut(input);
+    if (!geometryToExport) {
+      throw new Error(
+        "Geometry To Export has no geometry after keepout is applied"
+      );
+    }
+    let fusedGeometry = await fuseAssembly(geometryToExport, context);
+    const geom = await util.geometryProvider!.get(
+      fusedGeometry.geometry,
+      context
     );
-  }
-  let fusedGeometry = await fuseAssembly(geometryToExport, context);
-  const geom = await util.geometryProvider!.get(
-    fusedGeometry.geometry,
-    context
-  );
-  let scaleUnit = units == "Inches" ? 1 : units == "MM" ? 25.4 : 1;
-  let scaling = svgResolution / scaleUnit;
-  if (fileType == "SVG") {
-    if ("toSVG" in geom == false) {
-      throw new Error("SVG export requires 2D geometry");
-    }
-    let svg = geom.clone().scale(scaling).toSVG(scaling);
-    var blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
+    let scaleUnit = units == "Inches" ? 1 : units == "MM" ? 25.4 : 1;
+    let scaling = svgResolution / scaleUnit;
+    if (fileType == "SVG") {
+      if ("toSVG" in geom == false) {
+        throw new Error("SVG export requires 2D geometry");
+      }
+      let svg = geom.clone().scale(scaling).toSVG(scaling);
+      var blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
 
-    return blob;
-  } else if (fileType == "STL") {
-    if ("blobSTL" in geom == false) {
-      throw new Error("STL export requires 3D geometry");
+      return blob;
+    } else if (fileType == "STL") {
+      if ("blobSTL" in geom == false) {
+        throw new Error("STL export requires 3D geometry");
+      }
+      return geom.clone().blobSTL();
+    } else {
+      if ("blobSTEP" in geom == false) {
+        throw new Error("STEP export requires 3D geometry");
+      }
+      return geom.clone().blobSTEP();
     }
-    return geom.clone().blobSTL();
-  } else {
-    if ("blobSTEP" in geom == false) {
-      throw new Error("STEP export requires 3D geometry");
-    }
-    return geom.clone().blobSTEP();
+  } catch (error) {
+    throw util.wrapMemoryError(error, `exporting to ${fileType}`);
   }
 }
 

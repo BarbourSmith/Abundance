@@ -63,6 +63,42 @@ function is3D(part: AbundanceObject): boolean {
   }
 }
 
+/**
+ * Wraps errors with user-friendly messages for common allocation and memory issues.
+ * Specifically handles InternalError: allocation size overflow errors that occur
+ * when processing very large or complex geometries.
+ * 
+ * @param error - The error to wrap
+ * @param operation - Description of the operation being performed (e.g., "exporting", "generating mesh")
+ * @returns A user-friendly error with suggestions
+ */
+function wrapMemoryError(error: any, operation: string): Error {
+  const errorStr = String(error);
+  const errorMessage = error?.message || errorStr;
+  
+  // Check for allocation size overflow or memory-related errors
+  if (
+    errorStr.includes("allocation size overflow") ||
+    errorStr.includes("InternalError") ||
+    errorMessage.includes("out of memory") ||
+    errorMessage.includes("Maximum call stack")
+  ) {
+    return new Error(
+      `Memory error while ${operation}: The geometry is too large or complex to process.\n\n` +
+      `Suggestions:\n` +
+      `• Simplify your geometry by reducing the number of operations\n` +
+      `• Break your model into smaller parts and export them separately\n` +
+      `• Reduce the complexity of boolean operations (unions, differences)\n` +
+      `• For STL export: Consider using STEP format instead (more efficient)\n` +
+      `• For very detailed models: Try increasing mesh tolerance values\n\n` +
+      `Original error: ${errorMessage}`
+    );
+  }
+  
+  // Return original error if not memory-related
+  return error instanceof Error ? error : new Error(String(error));
+}
+
 async function getBounds(
   geometry: AbundanceObject,
   context: RequestContext
@@ -318,6 +354,7 @@ export {
   hashFileContents,
   hashString,
   init,
+  wrapMemoryError,
   is3D,
   isAbundanceObject,
   isAssembly,

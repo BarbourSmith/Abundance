@@ -539,6 +539,68 @@ rm -rf node_modules package-lock.json
 npm install --legacy-peer-deps
 ```
 
+### Memory and Performance Issues
+
+#### InternalError: allocation size overflow
+
+**Symptoms:**
+- Console error: `InternalError: allocation size overflow`
+- Application freezes when exporting or rendering complex geometries
+- Browser becomes unresponsive during operations
+
+**Cause:**
+This error occurs when JavaScript attempts to allocate more memory than the browser allows, typically when:
+- Exporting very large or complex 3D models to STL/STEP format
+- Generating meshes for highly detailed geometries
+- Processing assemblies with many boolean operations (unions, differences, intersections)
+- Using very fine tolerance settings that create extremely detailed meshes
+
+**Solutions:**
+
+1. **Simplify Your Geometry:**
+   - Reduce the number of boolean operations in your design
+   - Break complex assemblies into smaller, simpler parts
+   - Export individual components separately rather than the entire assembly
+
+2. **Adjust Mesh Settings:**
+   - Increase tolerance values (0.1 is default, try 0.2 or higher for complex models)
+   - For exports: Use STEP format instead of STL when possible (STEP is more efficient)
+   - Reduce angular tolerance if your model has many curved surfaces
+
+3. **Work in Smaller Sections:**
+   - Tag individual parts of your model
+   - Use Extract Tag to export specific tagged sections
+   - Combine exported files in external CAD software if needed
+
+4. **Alternative Export Strategies:**
+   - For 2D projections: Export as SVG instead of 3D formats
+   - For manufacturing: Consider using CutLayout for 2D parts instead of 3D exports
+   - For viewing: Take screenshots or use the built-in 3D viewer instead of exporting
+
+5. **Browser Memory Settings:**
+   - Close other browser tabs to free up memory
+   - Restart your browser to clear memory leaks
+   - Use Chrome or Edge (V8 engine handles memory better than some alternatives)
+
+**Example Workflow for Large Models:**
+```javascript
+// Instead of exporting entire assembly:
+// 1. Tag individual parts
+Tag(largeComponent1, "part1")
+Tag(largeComponent2, "part2")
+
+// 2. Extract and export separately  
+ExtractTag(assembly, "part1") → Export as STL
+ExtractTag(assembly, "part2") → Export as STL
+
+// 3. Combine in external software
+```
+
+**Prevention:**
+- Test exports on simplified versions before working with full complexity
+- Monitor browser console for performance warnings
+- Save your work frequently before attempting large exports
+
 ### Testing Issues
 
 **Problem:** Puppeteer/Playwright browser not found
@@ -568,6 +630,7 @@ These warnings are expected and do not affect functionality:
 - `rimraf` deprecation warnings
 - `react-three-fiber` deprecation (replaced by `@react-three/fiber`)
 - 4 npm audit vulnerabilities (peer dependency related)
+
 
 ## Contributing
 

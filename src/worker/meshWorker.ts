@@ -257,13 +257,19 @@ async function generateDisplayMesh(
           });
         }
       } catch (e) {
-        throw new Error("Error generating display mesh" + e);
+        // Wrap mesh generation errors with user-friendly messages
+        const wrappedError = util.wrapMemoryError(e, "generating display mesh");
+        throw wrappedError;
       }
     }
     return { id: geom, mesh: finalMeshes };
   } catch (e) {
     console.error("Error in generateDisplayMesh:", e);
-    return { id: undefined, mesh: [] };
+    // Re-throw if it's already a wrapped memory error, otherwise wrap it
+    if (e instanceof Error && e.message.includes("Memory error")) {
+      throw e;
+    }
+    throw util.wrapMemoryError(e, "generating display mesh");
   }
 }
 
