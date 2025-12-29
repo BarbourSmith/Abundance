@@ -58,7 +58,7 @@ function useWindowSize() {
 
 function runMode() {
   // Get context values
-  const { isloggedIn, authorizedUserOcto, authRedirectHandler } = useAuth();
+  const { isloggedIn, authorizedUserOcto, authRedirectHandler, isRestoringSession } = useAuth();
   const {
     activeAtom,
     redirectType,
@@ -163,6 +163,11 @@ function runMode() {
   );
 
   useEffect(() => {
+    // Wait for session restoration to complete before loading project
+    if (isRestoringSession) {
+      return;
+    }
+    
     GlobalVariables.canvas = canvasRef;
     GlobalVariables.c = canvasRef.current.getContext("2d");
 
@@ -196,7 +201,8 @@ function runMode() {
             });
             GlobalVariables.currentMolecule = GlobalVariables.topLevelMolecule;
             GlobalVariables.currentMolecule.selected = true;
-            loadProject(GlobalVariables.currentAWSnode);
+            // Pass authorizedUserOcto if available to use authenticated API calls
+            loadProject(GlobalVariables.currentAWSnode, authorizedUserOcto);
           }
         })
         .catch((e) => {
@@ -214,9 +220,42 @@ function runMode() {
       console.log("You own this project");
       setOwned(true);
     }
-  }, []);
+  }, [isRestoringSession, authorizedUserOcto]);
   const screenHeight = window.innerHeight;
   const screenWidth = window.innerWidth;
+
+  // Show loading state while restoring session
+  if (isRestoringSession) {
+    return (
+      <div className="login-page">
+        <div className="form animate fadeInUp one">
+          <div id="gitSide" className="logindiv">
+            <img
+              className="logo"
+              src={
+                import.meta.env.VITE_APP_PATH_FOR_PICS +
+                "/imgs/abundance_logo.png"
+              }
+              alt="logo"
+            />
+            <div id="welcome">
+              <img
+                src={
+                  import.meta.env.VITE_APP_PATH_FOR_PICS +
+                  "/imgs/abundance_lettering.png"
+                }
+                alt="logo"
+                className="login-logo"
+              />
+            </div>
+            <p style={{ padding: "0 20px" }}>
+              Restoring your session...
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
