@@ -21,7 +21,6 @@ import RenderProgressBar from "../secondary/RenderProgressBar.jsx";
 import { useTutorial } from "../../tutorial/TutorialManager";
 import { TutorialOverlay } from "../../tutorial/TutorialOverlay";
 import { useProgressBar } from "../secondary/ProgressBarManager.jsx";
-import SessionRestoringLoader from "../secondary/SessionRestoringLoader.jsx";
 
 // Import contexts
 import {
@@ -455,28 +454,29 @@ function CreateMode() {
     setUserUploadedFile(false);
   }, [GlobalVariables.currentAWSnode]);
 
-  // Handle navigation/auth redirects when not authorized
-  // This must be in useEffect to avoid "setState during render" errors
+  // Handle auth redirect when session restoration completes
   useEffect(() => {
     // Wait for session restoration to complete
     if (isRestoringSession) {
       return;
     }
 
-    // If user is authorized but repo is missing, redirect to run mode
+    // If authorized but not owner, redirect to run mode
     if (
       authorizedUserOcto &&
       GlobalVariables.currentAWSnode &&
-      GlobalVariables.currentAWSnode.owner !== GlobalVariables.currentUser
+      GlobalVariables.currentAWSnode.owner !== GlobalVariables.currentUser &&
+      owner &&
+      repoName
     ) {
       console.log("No repository found, redirecting to run mode");
       navigate(`/run/${owner}/${repoName}`);
       return;
     }
 
-    // If not authorized, trigger authentication
+    // If not authorized and we have owner/repoName, trigger auth redirect
     if (!authorizedUserOcto && owner && repoName) {
-      console.warn("You are not logged in");
+      console.warn("You are not logged in, redirecting to auth");
       authRedirectHandler({
         redirectType: "reauth",
         returnTo: `/${owner}/${repoName}`,
@@ -1053,7 +1053,35 @@ function CreateMode() {
   
   // Show loading state while restoring session
   if (isRestoringSession) {
-    return <SessionRestoringLoader />;
+    return (
+      <div className="login-page">
+        <div className="form animate fadeInUp one">
+          <div id="gitSide" className="logindiv">
+            <img
+              className="logo"
+              src={
+                import.meta.env.VITE_APP_PATH_FOR_PICS +
+                "/imgs/abundance_logo.png"
+              }
+              alt="logo"
+            />
+            <div id="welcome">
+              <img
+                src={
+                  import.meta.env.VITE_APP_PATH_FOR_PICS +
+                  "/imgs/abundance_lettering.png"
+                }
+                alt="logo"
+                className="login-logo"
+              />
+            </div>
+            <p style={{ padding: "0 20px" }}>
+              Restoring your session...
+            </p>
+          </div>
+        </div>
+      </div>
+    );
   }
   
   if (authorizedUserOcto) {
@@ -1242,12 +1270,69 @@ function CreateMode() {
         </>
       );
     }
-    // If authorized but wrong owner, return null - useEffect will handle redirect
-    return null;
+    
+    // Authorized but not owner - useEffect will handle redirect
+    return (
+      <div className="login-page">
+        <div className="form animate fadeInUp one">
+          <div id="gitSide" className="logindiv">
+            <img
+              className="logo"
+              src={
+                import.meta.env.VITE_APP_PATH_FOR_PICS +
+                "/imgs/abundance_logo.png"
+              }
+              alt="logo"
+            />
+            <div id="welcome">
+              <img
+                src={
+                  import.meta.env.VITE_APP_PATH_FOR_PICS +
+                  "/imgs/abundance_lettering.png"
+                }
+                alt="logo"
+                className="login-logo"
+              />
+            </div>
+            <p style={{ padding: "0 20px" }}>
+              Redirecting to run mode...
+            </p>
+          </div>
+        </div>
+      </div>
+    );
   }
   
-  // If not authorized, return null - useEffect will handle auth redirect
-  return null;
+  // Not authorized - useEffect will handle redirect, show loading
+  return (
+    <div className="login-page">
+      <div className="form animate fadeInUp one">
+        <div id="gitSide" className="logindiv">
+          <img
+            className="logo"
+            src={
+              import.meta.env.VITE_APP_PATH_FOR_PICS +
+              "/imgs/abundance_logo.png"
+            }
+            alt="logo"
+          />
+          <div id="welcome">
+            <img
+              src={
+                import.meta.env.VITE_APP_PATH_FOR_PICS +
+                "/imgs/abundance_lettering.png"
+              }
+              alt="logo"
+              className="login-logo"
+            />
+          </div>
+          <p style={{ padding: "0 20px" }}>
+            Redirecting to login...
+          </p>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default CreateMode;
