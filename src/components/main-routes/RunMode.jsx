@@ -29,7 +29,6 @@ import {
 import { useTutorial } from "../../tutorial/TutorialManager";
 import { TutorialOverlay } from "../../tutorial/TutorialOverlay";
 import { useProgressBar } from "../secondary/ProgressBarManager.jsx";
-import SessionRestoringLoader from "../secondary/SessionRestoringLoader.jsx";
 
 function useWindowSize() {
   // Initialize state with undefined width/height so server and client renders match
@@ -164,9 +163,7 @@ function runMode() {
   );
 
   useEffect(() => {
-    // Wait for session restoration to complete before loading project
-    // Once isRestoringSession becomes false, authorizedUserOcto will be either
-    // an authenticated Octokit instance (if token restored) or null (if no token)
+    // Wait for session restoration to complete
     if (isRestoringSession) {
       return;
     }
@@ -204,8 +201,7 @@ function runMode() {
             });
             GlobalVariables.currentMolecule = GlobalVariables.topLevelMolecule;
             GlobalVariables.currentMolecule.selected = true;
-            // Pass authorizedUserOcto to use authenticated API calls when available,
-            // which helps avoid GitHub API rate limits for anonymous requests
+            // Pass authorizedUserOcto to use authenticated API calls when available
             loadProject(GlobalVariables.currentAWSnode, authorizedUserOcto);
           }
         })
@@ -230,7 +226,35 @@ function runMode() {
 
   // Show loading state while restoring session
   if (isRestoringSession) {
-    return <SessionRestoringLoader />;
+    return (
+      <div className="login-page">
+        <div className="form animate fadeInUp one">
+          <div id="gitSide" className="logindiv">
+            <img
+              className="logo"
+              src={
+                import.meta.env.VITE_APP_PATH_FOR_PICS +
+                "/imgs/abundance_logo.png"
+              }
+              alt="logo"
+            />
+            <div id="welcome">
+              <img
+                src={
+                  import.meta.env.VITE_APP_PATH_FOR_PICS +
+                  "/imgs/abundance_lettering.png"
+                }
+                alt="logo"
+                className="login-logo"
+              />
+            </div>
+            <p style={{ padding: "0 20px" }}>
+              Restoring your session...
+            </p>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
