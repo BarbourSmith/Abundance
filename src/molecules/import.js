@@ -183,6 +183,10 @@ export default class Import extends Atom {
         options: this.importOptions,
         label: "File Type",
         onChange: (value) => {
+          if (!value) {
+            /*default to first option if no value is selected*/
+            value = this.importOptions[0];
+          }
           this.importIndex = this.importOptions.indexOf(value);
         },
       };

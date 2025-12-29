@@ -557,7 +557,9 @@ export const SimpleControlPanel = forwardRef(function SimpleControlPanel(
                     ? undefined
                     : (e) => {
                         setFocusedIndex(idx);
-                        e.target.select(); // Select all text when focused
+                        if (typeof e.target.select === "function") {
+                          e.target.select(); // Only call for inputs/textareas
+                        }
                       },
                   onBlur: () => {
                     commitChange(key, currentValue, config);
@@ -1361,7 +1363,19 @@ export const SimpleControlPanel = forwardRef(function SimpleControlPanel(
                               ? config.options[0]
                               : Object.keys(config.options)[0])
                           }
-                          onChange={(e) => handleChange(e.target.value)}
+                          onChange={(e) => {
+                            // Fallback to previous value if value is empty/null/undefined
+                            let value = e.target.value;
+                            if (!value) {
+                              value =
+                                controlValues[key] ??
+                                (Array.isArray(config.options)
+                                  ? config.options[0]
+                                  : Object.keys(config.options)[0]) ??
+                                "";
+                            }
+                            handleChange(value);
+                          }}
                           {...commonProps}
                         >
                           {Array.isArray(config.options)
