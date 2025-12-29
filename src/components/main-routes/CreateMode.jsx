@@ -21,6 +21,7 @@ import RenderProgressBar from "../secondary/RenderProgressBar.jsx";
 import { useTutorial } from "../../tutorial/TutorialManager";
 import { TutorialOverlay } from "../../tutorial/TutorialOverlay";
 import { useProgressBar } from "../secondary/ProgressBarManager.jsx";
+import SessionRestoringLoader from "../secondary/SessionRestoringLoader.jsx";
 
 // Import contexts
 import {
@@ -1015,35 +1016,7 @@ function CreateMode() {
   
   // Show loading state while restoring session
   if (isRestoringSession) {
-    return (
-      <div className="login-page">
-        <div className="form animate fadeInUp one">
-          <div id="gitSide" className="logindiv">
-            <img
-              className="logo"
-              src={
-                import.meta.env.VITE_APP_PATH_FOR_PICS +
-                "/imgs/abundance_logo.png"
-              }
-              alt="logo"
-            />
-            <div id="welcome">
-              <img
-                src={
-                  import.meta.env.VITE_APP_PATH_FOR_PICS +
-                  "/imgs/abundance_lettering.png"
-                }
-                alt="logo"
-                className="login-logo"
-              />
-            </div>
-            <p style={{ padding: "0 20px" }}>
-              Restoring your session...
-            </p>
-          </div>
-        </div>
-      </div>
-    );
+    return <SessionRestoringLoader />;
   }
   
   if (authorizedUserOcto) {
