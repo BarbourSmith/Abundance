@@ -165,6 +165,8 @@ function runMode() {
 
   useEffect(() => {
     // Wait for session restoration to complete before loading project
+    // Once isRestoringSession becomes false, authorizedUserOcto will be either
+    // an authenticated Octokit instance (if token restored) or null (if no token)
     if (isRestoringSession) {
       return;
     }
@@ -202,7 +204,8 @@ function runMode() {
             });
             GlobalVariables.currentMolecule = GlobalVariables.topLevelMolecule;
             GlobalVariables.currentMolecule.selected = true;
-            // Pass authorizedUserOcto if available to use authenticated API calls
+            // Pass authorizedUserOcto to use authenticated API calls when available,
+            // which helps avoid GitHub API rate limits for anonymous requests
             loadProject(GlobalVariables.currentAWSnode, authorizedUserOcto);
           }
         })
