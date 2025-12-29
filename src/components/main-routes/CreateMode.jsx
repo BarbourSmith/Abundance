@@ -79,6 +79,7 @@ function CreateMode() {
   }, []);
 
   const navigate = useNavigate();
+  const { owner, repoName } = useParams();
 
   // Register render progress bar
   useProgressBar(
@@ -453,6 +454,42 @@ function CreateMode() {
     setShowBackgroundModel(false);
     setUserUploadedFile(false);
   }, [GlobalVariables.currentAWSnode]);
+
+  // Handle navigation/auth redirects when not authorized
+  // This must be in useEffect to avoid "setState during render" errors
+  useEffect(() => {
+    // Wait for session restoration to complete
+    if (isRestoringSession) {
+      return;
+    }
+
+    // If user is authorized but repo is missing, redirect to run mode
+    if (
+      authorizedUserOcto &&
+      GlobalVariables.currentAWSnode &&
+      GlobalVariables.currentAWSnode.owner !== GlobalVariables.currentUser
+    ) {
+      console.log("No repository found, redirecting to run mode");
+      navigate(`/run/${owner}/${repoName}`);
+      return;
+    }
+
+    // If not authorized, trigger authentication
+    if (!authorizedUserOcto && owner && repoName) {
+      console.warn("You are not logged in");
+      authRedirectHandler({
+        redirectType: "reauth",
+        returnTo: `/${owner}/${repoName}`,
+      });
+    }
+  }, [
+    isRestoringSession,
+    authorizedUserOcto,
+    owner,
+    repoName,
+    navigate,
+    authRedirectHandler,
+  ]);
 
   function searchGithubMolecules(molecule) {
     return new Promise((resolve, reject) => {
@@ -1204,22 +1241,13 @@ function CreateMode() {
           </div>
         </>
       );
-    } else {
-      // Fallback: navigate to run mode if repo is still missing
-      const { owner, repoName } = useParams();
-      console.log("No repository found, redirecting to run mode");
-      navigate(`/run/${owner}/${repoName}`);
     }
-  } else {
-    /** get repository from github by the id in the url */
-    console.warn("You are not logged in");
-    const { owner, repoName } = useParams();
-    //try reauthenticating
-    authRedirectHandler({
-      redirectType: "reauth",
-      returnTo: `/${owner && repoName ? `${owner}/${repoName}` : ""}`,
-    });
+    // If authorized but wrong owner, return null - useEffect will handle redirect
+    return null;
   }
+  
+  // If not authorized, return null - useEffect will handle auth redirect
+  return null;
 }
 
 export default CreateMode;
