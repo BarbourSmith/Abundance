@@ -1103,6 +1103,31 @@ export default class Molecule extends Atom {
       //Once all the atoms are placed we can finish
       this.setValues([]); //Call set values again with an empty list to trigger loading of IO values from memory
 
+      // Apply ioValues to Input atoms inside this molecule
+      // This is needed for GitHub molecules where ioValues are passed from the parent project
+      // but the Input atoms haven't been created yet when setValues is first called
+      if (this.ioValues && this.ioValues.length > 0) {
+        this.nodesOnTheScreen.forEach((atom) => {
+          if (atom.atomType === "Input" && atom.parentAP) {
+            // Find matching ioValue for this Input atom
+            const matchingIoValue = this.ioValues.find(
+              (ioValue) => ioValue.name === atom.name
+            );
+            if (matchingIoValue) {
+              // Apply the value to the Input's parent attachment point
+              atom.parentAP.value = matchingIoValue.ioValue;
+              // Also apply currentEquation if it exists and is not a numeric literal
+              if (
+                "currentEquation" in matchingIoValue &&
+                !Number.isFinite(Number(matchingIoValue.currentEquation))
+              ) {
+                atom.parentAP.currentEquation = matchingIoValue.currentEquation;
+              }
+            }
+          }
+        });
+      }
+
       if (this.topLevel) {
         GlobalVariables.totalAtomCount = GlobalVariables.numberOfAtomsToLoad;
       }
