@@ -117,7 +117,7 @@ export default class GitHubMolecule extends Molecule {
   /**
    * Override deserialize to ensure parentRepo is preserved when loading from serialized data
    * @param {object} json - A json representation of the molecule
-   * @param {object} values - An array of values to apply to this molecule before de-serializing it's contents
+   * @param {object} values - An object of values to apply to this molecule before de-serializing its contents
    * @param {boolean} forceEnable - If true, enable this molecule after deserialization
    */
   deserialize(json, values = {}, forceEnable = false) {

@@ -158,11 +158,8 @@ describe('GitHub Molecule Copy/Paste', () => {
       ]
     };
 
-    console.log('Original GitHub Molecule:', JSON.stringify(originalGitHubMolecule, null, 2));
-
     // Step 1: Simulate copy (serialize)
     const copiedData = serialize(originalGitHubMolecule);
-    console.log('\nAfter serialize (copy):', JSON.stringify(copiedData, null, 2));
 
     // Verify serialization preserves critical data
     expect(copiedData.atomType).toBe('GitHubMolecule');
@@ -176,7 +173,6 @@ describe('GitHub Molecule Copy/Paste', () => {
 
     // Step 2: Simulate paste (remapIDs)
     const pastedData = remapIDs(copiedData);
-    console.log('\nAfter remapIDs (paste):', JSON.stringify(pastedData, null, 2));
 
     // Verify remapping created new IDs
     expect(pastedData.uniqueID).not.toBe(originalGitHubMolecule.uniqueID);
@@ -209,8 +205,6 @@ describe('GitHub Molecule Copy/Paste', () => {
       { name: 'Length', ioValue: 100 },
       { name: 'Width', ioValue: 50 }
     ]);
-
-    console.log('\n✅ SUCCESS: GitHub molecule copy/paste preserves all data correctly!');
   });
 
   it('should handle GitHub molecule without ioValues', () => {
@@ -257,8 +251,6 @@ describe('GitHub Molecule Copy/Paste', () => {
     });
     expect(pasted.allAtoms).toHaveLength(2);
     expect(pasted.allConnectors).toHaveLength(1);
-
-    console.log('✅ SUCCESS: GitHub molecule without ioValues works correctly!');
   });
 
   it('should handle nested GitHub molecules', () => {
@@ -324,7 +316,5 @@ describe('GitHub Molecule Copy/Paste', () => {
       owner: 'testUser',
       repoName: 'nested-project'
     });
-
-    console.log('✅ SUCCESS: Nested GitHub molecules are handled correctly!');
   });
 });
