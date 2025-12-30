@@ -161,7 +161,7 @@ export default class Atom extends ObservableEntity {
   setValues(values, applyIOValues = false) {
     //Assign the object to have the passed in values
 
-    for (var key in values) {
+    for (const key in values) {
       this[key] = values[key];
     }
 

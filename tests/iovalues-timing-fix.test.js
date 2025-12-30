@@ -23,7 +23,7 @@ describe('IOValues Timing Fix', () => {
       
       // New setValues with applyIOValues parameter (default false)
       setValues(values, applyIOValues = false) {
-        for (var key in values) {
+        for (const key in values) {
           this[key] = values[key];
         }
         
@@ -69,7 +69,7 @@ describe('IOValues Timing Fix', () => {
       }
       
       setValues(values, applyIOValues = false) {
-        for (var key in values) {
+        for (const key in values) {
           this[key] = values[key];
         }
         
@@ -116,7 +116,7 @@ describe('IOValues Timing Fix', () => {
       }
       
       setValues(values, applyIOValues = false) {
-        for (var key in values) {
+        for (const key in values) {
           this[key] = values[key];
         }
         
@@ -184,7 +184,7 @@ describe('IOValues Timing Fix', () => {
       }
       
       setValues(values, applyIOValues = false) {
-        for (var key in values) {
+        for (const key in values) {
           this[key] = values[key];
         }
         
@@ -256,7 +256,7 @@ describe('IOValues Timing Fix', () => {
       }
       
       oldSetValues(values) {
-        for (var key in values) {
+        for (const key in values) {
           this[key] = values[key];
         }
         
@@ -302,7 +302,7 @@ describe('IOValues Timing Fix', () => {
       }
       
       setValues(values, applyIOValues = false) {
-        for (var key in values) {
+        for (const key in values) {
           this[key] = values[key];
         }
         
