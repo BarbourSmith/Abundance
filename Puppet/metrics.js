@@ -2,6 +2,7 @@ import puppeteer from "puppeteer";
 import projects_to_test from "./projects_to_test.js";
 
 const projectUser = "moatmaslow";
+const CACHE_WAIT_TIME_MS = 3000; // Wait time for cache operations to complete
 
 /**
  * Get the size of IndexedDB database storage
@@ -27,41 +28,51 @@ async function getIndexedDBSize(page, dbName) {
           return;
         }
         
-        const transaction = db.transaction(storeNames, 'readonly');
-        let processedStores = 0;
-        
-        storeNames.forEach(storeName => {
-          const objectStore = transaction.objectStore(storeName);
-          const getAllRequest = objectStore.getAll();
+        try {
+          const transaction = db.transaction(storeNames, 'readonly');
+          let processedStores = 0;
           
-          getAllRequest.onsuccess = function() {
-            const records = getAllRequest.result;
-            
-            // Calculate size of all records in this store
-            records.forEach(record => {
-              const recordString = JSON.stringify(record);
-              // Use Blob size for more accurate byte count
-              const blob = new Blob([recordString]);
-              totalSize += blob.size;
-            });
-            
-            processedStores++;
-            
-            if (processedStores === storeNames.length) {
-              db.close();
-              resolve(totalSize);
-            }
-          };
-          
-          getAllRequest.onerror = function() {
+          transaction.onerror = function() {
             db.close();
-            reject(getAllRequest.error);
+            reject(new Error('Transaction error: ' + transaction.error));
           };
-        });
+          
+          storeNames.forEach(storeName => {
+            const objectStore = transaction.objectStore(storeName);
+            const getAllRequest = objectStore.getAll();
+            
+            getAllRequest.onsuccess = function() {
+              const records = getAllRequest.result;
+              
+              // Calculate size of all records in this store
+              records.forEach(record => {
+                const recordString = JSON.stringify(record);
+                // Use Blob size for more accurate byte count
+                const blob = new Blob([recordString]);
+                totalSize += blob.size;
+              });
+              
+              processedStores++;
+              
+              if (processedStores === storeNames.length) {
+                db.close();
+                resolve(totalSize);
+              }
+            };
+            
+            getAllRequest.onerror = function() {
+              db.close();
+              reject(new Error('ObjectStore error: ' + getAllRequest.error));
+            };
+          });
+        } catch (err) {
+          db.close();
+          reject(err);
+        }
       };
       
       request.onerror = function() {
-        reject(request.error);
+        reject(new Error('Database open error: ' + request.error));
       };
     });
   }, dbName);
@@ -137,7 +148,7 @@ async function runMetricsTest(browser, projectName) {
     );
 
     // Wait a bit more to ensure all caching is complete
-    await new Promise((resolve) => setTimeout(resolve, 3000));
+    await new Promise((resolve) => setTimeout(resolve, CACHE_WAIT_TIME_MS));
 
     // Calculate cold load time
     const endTime = Date.now();
@@ -169,8 +180,8 @@ async function runMetricsTest(browser, projectName) {
 function formatBytes(bytes) {
   if (bytes === 0) return '0 Bytes';
   const k = 1024;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(k)), sizes.length - 1);
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
