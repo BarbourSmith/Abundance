@@ -36,7 +36,7 @@ describe('GitHub Molecule Input Variable Loading', () => {
       
       // Simulate setValues from atom.js
       setValues(values) {
-        for (var key in values) {
+        for (const key in values) {
           this[key] = values[key];
         }
         
@@ -210,7 +210,7 @@ describe('GitHub Molecule Input Variable Loading', () => {
       }
       
       setValues(values) {
-        for (var key in values) {
+        for (const key in values) {
           this[key] = values[key];
         }
         
