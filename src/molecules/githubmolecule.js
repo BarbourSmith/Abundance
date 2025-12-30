@@ -114,6 +114,23 @@ export default class GitHubMolecule extends Molecule {
     this.setError("An unknown error occurred in a child atom.");
   }
 
+  /**
+   * Override deserialize to ensure parentRepo is preserved when loading from serialized data
+   * @param {object} json - A json representation of the molecule
+   * @param {object} values - An array of values to apply to this molecule before de-serializing it's contents
+   * @param {boolean} forceEnable - If true, enable this molecule after deserialization
+   */
+  deserialize(json, values = {}, forceEnable = false) {
+    // Explicitly preserve parentRepo from json if it exists and values doesn't override it
+    // This ensures that copied GitHub molecules retain their repository information
+    if (json.parentRepo && !values.parentRepo) {
+      this.parentRepo = json.parentRepo;
+    }
+    
+    // Call parent deserialize to handle the rest
+    return super.deserialize(json, values, forceEnable);
+  }
+
   createInputParams() {
     let inputParams = {};
     inputParams = super.createInputParams();
