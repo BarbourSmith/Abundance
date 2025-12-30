@@ -945,13 +945,6 @@ export default class AttachmentPoint extends ObservableEntity {
       upstream.subscribe(() => {
         this.onUpstreamChange();
       }, this.uniqueID);
-      
-      // Enable the parent molecule if it's disabled
-      // This ensures that molecules (especially GitHub molecules that were pasted)
-      // can receive and process upstream changes after connection
-      if (this.parentMolecule && this.parentMolecule.status === Status.DISABLED) {
-        this.parentMolecule.enable();
-      }
     } else {
       this.connectors.push(connector);
     }
