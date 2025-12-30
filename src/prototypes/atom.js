@@ -156,14 +156,27 @@ export default class Atom extends ObservableEntity {
   /**
    * Applies each of the passed values to this as this.x
    * @param {object} values - A list of values to set
+   * @param {boolean} applyIOValues - If true, immediately apply ioValues to attachment points (default: false for safer initialization)
    */
-  setValues(values) {
+  setValues(values, applyIOValues = false) {
     //Assign the object to have the passed in values
 
     for (var key in values) {
       this[key] = values[key];
     }
 
+    // Only apply ioValues if explicitly requested to avoid timing issues during construction
+    if (applyIOValues && typeof this.ioValues !== "undefined") {
+      this.applyIOValues();
+    }
+  }
+
+  /**
+   * Applies ioValues to input attachment points.
+   * This method should be called AFTER all atoms are fully constructed and their parentAP connections are established.
+   * Separated from setValues() to avoid timing issues where ioValues are applied before Input atoms are ready.
+   */
+  applyIOValues() {
     if (typeof this.ioValues !== "undefined") {
       this.ioValues.forEach((ioValue) => {
         //for each saved value

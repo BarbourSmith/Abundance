@@ -1123,6 +1123,10 @@ export default class Molecule extends Atom {
         });
       });
 
+      // Apply ioValues to attachment points AFTER all atoms are fully constructed
+      // This ensures Input atoms have their parentAP connections established
+      this.applyIOValues();
+
       const outputAtom = this.getOutputAtom();
       outputAtom.subscribe(
         () => {
