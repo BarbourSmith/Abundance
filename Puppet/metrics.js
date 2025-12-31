@@ -14,55 +14,57 @@ async function getIndexedDBSize(page, dbName) {
   return await page.evaluate(async (dbName) => {
     return new Promise((resolve, reject) => {
       const request = indexedDB.open(dbName);
-      
-      request.onsuccess = function(event) {
+
+      request.onsuccess = function (event) {
         const db = event.target.result;
-        let totalSize = 0;
-        
+        const result = { cacheSize: 0, cacheCount: 0 };
+
         // Get all object stores
         const storeNames = Array.from(db.objectStoreNames);
-        
+
         if (storeNames.length === 0) {
           db.close();
           resolve(0);
           return;
         }
-        
+        console.log(`Found object stores: ${storeNames.join(", ")}`);
+
         try {
-          const transaction = db.transaction(storeNames, 'readonly');
+          const transaction = db.transaction(storeNames, "readonly");
           let processedStores = 0;
-          
-          transaction.onerror = function() {
+
+          transaction.onerror = function () {
             db.close();
-            reject(new Error('Transaction error: ' + transaction.error));
+            reject(new Error("Transaction error: " + transaction.error));
           };
-          
-          storeNames.forEach(storeName => {
+
+          storeNames.forEach((storeName) => {
             const objectStore = transaction.objectStore(storeName);
             const getAllRequest = objectStore.getAll();
-            
-            getAllRequest.onsuccess = function() {
+
+            getAllRequest.onsuccess = function () {
               const records = getAllRequest.result;
-              
+
               // Calculate size of all records in this store
-              records.forEach(record => {
+              records.forEach((record) => {
                 const recordString = JSON.stringify(record);
                 // Use Blob size for more accurate byte count
                 const blob = new Blob([recordString]);
-                totalSize += blob.size;
+                result.cacheSize += blob.size;
+                result.cacheCount += 1;
               });
-              
+
               processedStores++;
-              
+
               if (processedStores === storeNames.length) {
                 db.close();
-                resolve(totalSize);
+                resolve(result);
               }
             };
-            
-            getAllRequest.onerror = function() {
+
+            getAllRequest.onerror = function () {
               db.close();
-              reject(new Error('ObjectStore error: ' + getAllRequest.error));
+              reject(new Error("ObjectStore error: " + getAllRequest.error));
             };
           });
         } catch (err) {
@@ -70,9 +72,9 @@ async function getIndexedDBSize(page, dbName) {
           reject(err);
         }
       };
-      
-      request.onerror = function() {
-        reject(new Error('Database open error: ' + request.error));
+
+      request.onerror = function () {
+        reject(new Error("Database open error: " + request.error));
       };
     });
   }, dbName);
@@ -85,21 +87,24 @@ async function getIndexedDBSize(page, dbName) {
 async function clearIndexedDBCache(browser) {
   const page = await browser.newPage();
   try {
-    await page.goto('http://localhost:4444', { timeout: 30000, waitUntil: 'domcontentloaded' });
+    await page.goto("http://localhost:4444", {
+      timeout: 30000,
+      waitUntil: "domcontentloaded",
+    });
     await page.evaluate(() => {
       return new Promise((resolve, reject) => {
-        const request = indexedDB.deleteDatabase('AbundanceProjectCaches');
+        const request = indexedDB.deleteDatabase("AbundanceProjectCaches");
         request.onsuccess = () => resolve();
         request.onerror = () => reject(request.error);
         request.onblocked = () => {
-          console.log('IndexedDB deletion blocked');
+          console.log("IndexedDB deletion blocked");
           resolve(); // Continue anyway
         };
       });
     });
-    console.log('✓ IndexedDB cache cleared');
+    console.log("✓ IndexedDB cache cleared");
   } catch (error) {
-    console.log('⚠ Could not clear IndexedDB cache:', error.message);
+    console.log("⚠ Could not clear IndexedDB cache:", error.message);
   } finally {
     await page.close();
   }
@@ -119,7 +124,7 @@ async function runMetricsTest(browser, projectName) {
     coldLoadTimeMs: null,
     cacheSize: null,
     cacheSizeFormatted: null,
-    error: null
+    error: null,
   };
 
   try {
@@ -134,9 +139,9 @@ async function runMetricsTest(browser, projectName) {
     const startTime = Date.now();
 
     // Navigate to the project
-    await page.goto(navigationUrl, { 
+    await page.goto(navigationUrl, {
       timeout: 120000,
-      waitUntil: 'domcontentloaded' 
+      waitUntil: "domcontentloaded",
     });
 
     // Wait for the project to fully render
@@ -155,13 +160,16 @@ async function runMetricsTest(browser, projectName) {
     metrics.coldLoadTimeMs = endTime - startTime;
 
     // Measure IndexedDB cache size
-    const cacheSize = await getIndexedDBSize(page, 'AbundanceProjectCaches');
-    metrics.cacheSize = cacheSize;
-    metrics.cacheSizeFormatted = formatBytes(cacheSize);
+    const cacheStats = await getIndexedDBSize(page, "AbundanceProjectCaches");
+    metrics.cacheSize = cacheStats.cacheSize;
+    metrics.cacheSizeFormatted = formatBytes(cacheStats.cacheSize);
+    metrics.cacheCount = cacheStats.cacheCount;
 
     console.log(`✓ Cold load time: ${metrics.coldLoadTimeMs}ms`);
-    console.log(`✓ Cache size: ${metrics.cacheSizeFormatted} (${metrics.cacheSize} bytes)`);
-
+    console.log(
+      `✓ Cache size: ${metrics.cacheSizeFormatted} (${metrics.cacheSize} bytes)`
+    );
+    console.log(`✓ Cache entries: ${metrics.cacheCount}`);
   } catch (error) {
     metrics.error = error.message;
     console.error(`✗ Error testing ${projectName}: ${error.message}`);
@@ -178,11 +186,14 @@ async function runMetricsTest(browser, projectName) {
  * @returns {string} Formatted string
  */
 function formatBytes(bytes) {
-  if (bytes === 0) return '0 Bytes';
+  if (bytes === 0) return "0 Bytes";
   const k = 1024;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(k)), sizes.length - 1);
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
+  const i = Math.min(
+    Math.floor(Math.log(bytes) / Math.log(k)),
+    sizes.length - 1
+  );
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
 }
 
 /**
@@ -210,7 +221,7 @@ function formatBytes(bytes) {
     for (const projectName of projects_to_test) {
       const metrics = await runMetricsTest(browser, projectName);
       allMetrics.push(metrics);
-      
+
       if (metrics.error) {
         hasErrors = true;
       }
@@ -220,15 +231,17 @@ function formatBytes(bytes) {
     console.log("\n" + "=".repeat(60));
     console.log("METRICS SUMMARY");
     console.log("=".repeat(60));
-    
-    allMetrics.forEach(m => {
+
+    allMetrics.forEach((m) => {
       if (m.error) {
         console.log(`\n${m.projectName}: FAILED`);
         console.log(`  Error: ${m.error}`);
       } else {
         console.log(`\n${m.projectName}:`);
         console.log(`  Cold Load Time: ${m.coldLoadTimeMs}ms`);
-        console.log(`  Cache Size: ${m.cacheSizeFormatted} (${m.cacheSize} bytes)`);
+        console.log(
+          `  Cache Size: ${m.cacheSizeFormatted} (${m.cacheSize} bytes)`
+        );
       }
     });
 
@@ -237,7 +250,6 @@ function formatBytes(bytes) {
     console.log("JSON OUTPUT");
     console.log("=".repeat(60));
     console.log(JSON.stringify(allMetrics, null, 2));
-
   } catch (error) {
     console.error(`Fatal error: ${error.message}`);
     hasErrors = true;
@@ -248,7 +260,11 @@ function formatBytes(bytes) {
   }
 
   console.log("\n" + "=".repeat(60));
-  console.log(hasErrors ? "METRICS TEST COMPLETED WITH ERRORS" : "METRICS TEST COMPLETED SUCCESSFULLY");
+  console.log(
+    hasErrors
+      ? "METRICS TEST COMPLETED WITH ERRORS"
+      : "METRICS TEST COMPLETED SUCCESSFULLY"
+  );
   console.log("=".repeat(60));
 
   // Exit with error code if there were failures
