@@ -94,12 +94,14 @@ export default memo(function FlowCanvas({
 
           // For older file versions, try to deserialize directly for now
           async function loadAndDeserialize() {
+            // Set currentMolecule BEFORE deserialize so that enableAllChildren() is called
+            GlobalVariables.currentMolecule = GlobalVariables.topLevelMolecule;
+            
             deserializedMolecule =
               await GlobalVariables.topLevelMolecule.deserialize(rawFile);
 
             setActiveAtom(GlobalVariables.currentMolecule);
             GlobalVariables.currentMolecule.selected = true;
-            GlobalVariables.currentMolecule = GlobalVariables.topLevelMolecule;
             //trigger a save to clear the pending project
             //
             setSavePopUp(true);
@@ -129,11 +131,12 @@ export default memo(function FlowCanvas({
             let rawFile = JSON.parse(unsavedProject);
             // Reset ID counter to avoid collisions with existing IDs
             GlobalVariables.resetIdCounter(rawFile);
+            // Set currentMolecule BEFORE deserialize so that enableAllChildren() is called
+            GlobalVariables.currentMolecule = GlobalVariables.topLevelMolecule;
             // Deserialize the saved project state
             GlobalVariables.topLevelMolecule.deserialize(rawFile);
             setActiveAtom(GlobalVariables.currentMolecule);
             GlobalVariables.currentMolecule.selected = true;
-            GlobalVariables.currentMolecule = GlobalVariables.topLevelMolecule;
             // Clear the unsaved state from localStorage after restoring
             localStorage.removeItem(projectKey);
             // Also load the project metadata from GitHub (without overwriting the molecules)

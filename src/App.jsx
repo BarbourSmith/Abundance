@@ -385,13 +385,15 @@ function AppContent() {
         // Reset ID counter to avoid collisions with existing IDs
         GlobalVariables.resetIdCounter(rawFile);
 
+        // Set currentMolecule BEFORE deserialize so that enableAllChildren() is called
+        GlobalVariables.currentMolecule = GlobalVariables.topLevelMolecule;
+
         if (rawFile.filetypeVersion == 1) {
           GlobalVariables.topLevelMolecule.deserialize(rawFile);
         } else {
           // For older file versions, try to deserialize directly for now
           GlobalVariables.topLevelMolecule.deserialize(rawFile);
         }
-        GlobalVariables.currentMolecule = GlobalVariables.topLevelMolecule;
         GlobalVariables.currentMolecule.selected = true;
         setActiveAtom(GlobalVariables.currentMolecule);
       })

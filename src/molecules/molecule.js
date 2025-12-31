@@ -295,6 +295,8 @@ export default class Molecule extends Atom {
             }
             // Reset ID counter to avoid collisions with existing IDs
             GlobalVariables.resetIdCounter(rawFile);
+            // Set currentMolecule BEFORE deserialize so that enableAllChildren() is called
+            GlobalVariables.currentMolecule = GlobalVariables.topLevelMolecule;
             // Only call deserialize after rawFile is ready
             if (rawFile.filetypeVersion == 1) {
               await GlobalVariables.topLevelMolecule.deserialize(rawFile);
