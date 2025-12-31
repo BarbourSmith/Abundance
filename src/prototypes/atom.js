@@ -175,6 +175,7 @@ export default class Atom extends ObservableEntity {
    * Applies ioValues to input attachment points.
    * This method should be called AFTER all atoms are fully constructed and their parentAP connections are established.
    * Separated from setValues() to avoid timing issues where ioValues are applied before Input atoms are ready.
+   * Uses setValue() method instead of direct assignment to properly handle status transitions and propagation.
    */
   applyIOValues() {
     if (typeof this.ioValues !== "undefined") {
@@ -183,13 +184,18 @@ export default class Atom extends ObservableEntity {
         this.inputs.forEach((ap) => {
           //Find the matching IO and set it to be the saved value
           if (ioValue.name == ap.name && ap.type == "input") {
-            ap.value = ioValue.ioValue;
+            // Use setValue() method instead of direct assignment
+            // This properly handles status transitions and enable propagation
             if (
               "currentEquation" in ioValue &&
               !Number.isFinite(Number(ioValue.currentEquation))
             ) {
-              // only load currentEquation if it exists and isn't a numeric literal
-              ap.currentEquation = ioValue.currentEquation;
+              // If there's a currentEquation (non-numeric), use that
+              // setValue() will handle variable subscriptions
+              ap.setValue(ioValue.currentEquation);
+            } else {
+              // Otherwise use the ioValue directly
+              ap.setValue(ioValue.ioValue);
             }
           }
         });
