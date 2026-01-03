@@ -4,8 +4,8 @@ import {
   regularPolygon,
   text,
 } from "../src/worker/shapes.ts";
-import { init, is3D, defaultColor } from "../src/worker/util.ts";
 import { describe, it, expect, beforeAll } from "vitest";
+import { init, is3D, defaultColor } from "../src/worker/util.ts";
 
 function degreesToRadians(degrees) {
   return (degrees * Math.PI) / 180;

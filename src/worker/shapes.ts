@@ -3,6 +3,9 @@ import * as util from "./util";
 import { AbundanceLeaf, AbundanceObject } from "./util";
 import { RequestContext } from "./geometryProvider";
 
+// Average character width as a ratio of fontSize when bounding box is not available
+const AVERAGE_CHAR_WIDTH_RATIO = 0.6;
+
 /**
  * Methods in this file create a new geometry from non-geometric inputs. Eg:
  * create a circle from a diameter. Almost all projects will start with
@@ -104,7 +107,7 @@ async function textGeom(
   );
   
   // Handle empty string case
-  if (!text || text.length === 0) {
+  if (text.length === 0) {
     return {
       geometry: [],
       dimension: "2D",
@@ -150,8 +153,8 @@ async function textGeom(
     if (drawing && drawing.boundingBox) {
       currentX += drawing.boundingBox.width;
     } else {
-      // Fallback: estimate width as roughly fontSize * 0.6 for average character
-      currentX += fontSize * 0.6;
+      // Fallback: estimate width using average character width ratio
+      currentX += fontSize * AVERAGE_CHAR_WIDTH_RATIO;
     }
   }
   
