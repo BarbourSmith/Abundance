@@ -99,14 +99,19 @@ async function textGeom(
   fontFamily: string,
   context: RequestContext
 ): Promise<AbundanceObject> {
+  console.log("[textGeom] START - text:", text, "fontSize:", fontSize, "fontFamily:", fontFamily);
+  console.log("[textGeom] context:", JSON.stringify(context));
+  
   await util.init();
   await util.replicad.loadFont(
     Fonts[fontFamily as keyof typeof Fonts],
     fontFamily
   );
+  console.log("[textGeom] Font loaded successfully");
   
   // Handle empty string case
   if (!text || text.length === 0) {
+    console.log("[textGeom] Empty string - returning empty geometry array");
     return {
       geometry: [],
       dimension: "2D",
@@ -119,27 +124,35 @@ async function textGeom(
   
   // For single character, return as a leaf (no assembly needed)
   if (text.length === 1) {
-    return {
-      geometry: await util.geometryProvider!.drawText(
-        text,
-        {
-          startX: 0,
-          startY: 0,
-          fontSize: fontSize,
-          fontFamily: fontFamily,
-        },
-        context
-      ),
+    console.log("[textGeom] Single character - returning as leaf");
+    const singleCharGeometry = await util.geometryProvider!.drawText(
+      text,
+      {
+        startX: 0,
+        startY: 0,
+        fontSize: fontSize,
+        fontFamily: fontFamily,
+      },
+      context
+    );
+    console.log("[textGeom] Single char geometry:", singleCharGeometry);
+    const result = {
+      geometry: singleCharGeometry,
       dimension: "2D",
       tags: [],
       plane: util.XYPlane,
       color: util.defaultColor,
       bom: [],
     };
+    console.log("[textGeom] Single char result:", JSON.stringify(result));
+    return result;
   }
+  
+  console.log("[textGeom] Multiple characters - generating assembly");
   
   // For multiple characters, generate the full text first to get natural spacing,
   // then generate individual letters
+  console.log("[textGeom] Step 1: Drawing full text");
   const fullTextGeometry = await util.geometryProvider!.drawText(
     text,
     {
@@ -150,20 +163,27 @@ async function textGeom(
     },
     context
   );
+  console.log("[textGeom] Full text geometry ID:", fullTextGeometry);
   
   // Get the full text geometry to determine overall spacing
+  console.log("[textGeom] Step 2: Getting full text drawing to calculate spacing");
   const fullTextDrawing = await util.geometryProvider!.get(fullTextGeometry, context);
+  console.log("[textGeom] Full text drawing retrieved, boundingBox:", fullTextDrawing.boundingBox);
   const totalWidth = fullTextDrawing.boundingBox ? fullTextDrawing.boundingBox.width : text.length * fontSize * 0.6;
+  console.log("[textGeom] Total width:", totalWidth);
   
   // Estimate average character width
   const avgCharWidth = totalWidth / text.length;
+  console.log("[textGeom] Average character width:", avgCharWidth);
   
   // Create individual letter geometries
   const letterGeometries: AbundanceLeaf[] = [];
+  console.log("[textGeom] Step 3: Creating individual letter geometries");
   
   for (let i = 0; i < text.length; i++) {
     const char = text[i];
     const charX = i * avgCharWidth;
+    console.log(`[textGeom] Letter ${i}: '${char}' at X=${charX}`);
     
     // Draw each character at its estimated position
     const charGeometry = await util.geometryProvider!.drawText(
@@ -176,19 +196,34 @@ async function textGeom(
       },
       context
     );
+    console.log(`[textGeom] Letter ${i} geometry ID:`, charGeometry);
     
-    letterGeometries.push({
+    const letterLeaf = {
       geometry: charGeometry,
       dimension: "2D",
       tags: [],
       plane: util.XYPlane,
       color: util.defaultColor,
       bom: [],
-    });
+    };
+    console.log(`[textGeom] Letter ${i} leaf:`, JSON.stringify(letterLeaf));
+    letterGeometries.push(letterLeaf);
   }
   
+  console.log("[textGeom] Step 4: Calling assembly() with", letterGeometries.length, "letters");
+  console.log("[textGeom] Letter geometries array:", JSON.stringify(letterGeometries));
+  
   // Use the assembly function to create a proper assembly structure
-  return await assembly(letterGeometries, context);
+  try {
+    const result = await assembly(letterGeometries, context);
+    console.log("[textGeom] Assembly result:", JSON.stringify(result));
+    console.log("[textGeom] END - Success");
+    return result;
+  } catch (error) {
+    console.error("[textGeom] ERROR in assembly():", error);
+    console.error("[textGeom] Error stack:", error.stack);
+    throw error;
+  }
 }
 
 export { circle, rectangle, regularPolygon, textGeom as text };
