@@ -204,19 +204,24 @@ async function textGeom(
   const letterGeometries: AbundanceLeaf[] = [];
   console.log("[textGeom] Step 2: Creating individual letter geometries");
   
-  // Position letters from right to left to compensate for rendering order reversal
+  // Position letters - need to mirror X positions for correct rendering
+  // The rendering pipeline displays assemblies in a way that requires mirrored X coordinates
   for (let i = 0; i < text.length; i++) {
     const char = text[i];
     // The natural position of this letter (from left)
     const naturalX = letterPositions[i];
+    // The width of this letter
+    const letterWidth = letterPositions[i + 1] - letterPositions[i];
+    // Mirror the position: place letter at (totalWidth - naturalX - letterWidth)
+    const mirroredX = totalWidth - naturalX - letterWidth;
     
-    console.log(`[textGeom] Letter ${i}: '${char}' at X=${naturalX}`);
+    console.log(`[textGeom] Letter ${i}: '${char}' natural=${naturalX} mirrored=${mirroredX}`);
     
-    // Draw each character at its natural position
+    // Draw each character at its mirrored position
     const charGeometry = await util.geometryProvider!.drawText(
       char,
       {
-        startX: naturalX,
+        startX: mirroredX,
         startY: 0,
         fontSize: fontSize,
         fontFamily: fontFamily,
