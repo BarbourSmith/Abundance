@@ -118,35 +118,20 @@ async function textGeom(
     };
   }
   
-  // Start batch operation for assembly caching
-  let startedBatch = false;
-  if (!context.operationId) {
-    const batchId = "text-" + util.hashString(text + fontSize + fontFamily);
-    const batch: RequestContext | AbundanceObject =
-      await util.geometryProvider!.startBatchOperation(context, batchId);
-    
-    // Full assembly cache hit. No work to do.
-    if (util.isAbundanceObject(batch)) {
-      return batch;
-    }
-    
-    context = batch;
-    startedBatch = true;
-  }
-  
   // Create an array to hold each letter's geometry
   const letterGeometries: AbundanceLeaf[] = [];
   let currentX = 0;
   
   // Process each character individually
+  // Note: We draw each letter at origin and translate them to avoid issues with batch operations
   for (let i = 0; i < text.length; i++) {
     const char = text[i];
     
-    // Draw the individual character
+    // Draw the individual character at origin (0, 0)
     const charGeometry = await util.geometryProvider!.drawText(
       char,
       {
-        startX: currentX,
+        startX: 0,
         startY: 0,
         fontSize: fontSize,
         fontFamily: fontFamily,
@@ -154,9 +139,28 @@ async function textGeom(
       context
     );
     
+    // Get the bounding box to determine character width
+    const drawing = await util.geometryProvider!.get(charGeometry, context);
+    let charWidth = fontSize * AVERAGE_CHAR_WIDTH_RATIO; // fallback
+    if (drawing && drawing.boundingBox) {
+      charWidth = drawing.boundingBox.width;
+    }
+    
+    // Translate the character to its position if needed
+    let finalGeometry = charGeometry;
+    if (currentX !== 0) {
+      finalGeometry = await util.geometryProvider!.move(
+        charGeometry,
+        currentX,
+        0,
+        0,
+        context
+      );
+    }
+    
     // Create a leaf geometry for this character
     letterGeometries.push({
-      geometry: charGeometry,
+      geometry: finalGeometry,
       dimension: "2D",
       tags: [],
       plane: util.XYPlane,
@@ -164,18 +168,12 @@ async function textGeom(
       bom: [],
     });
     
-    // Get the bounding box to calculate the next character position
-    const drawing = await util.geometryProvider!.get(charGeometry, context);
-    if (drawing && drawing.boundingBox) {
-      currentX += drawing.boundingBox.width;
-    } else {
-      // Fallback: estimate width using average character width ratio
-      currentX += fontSize * AVERAGE_CHAR_WIDTH_RATIO;
-    }
+    // Update position for next character
+    currentX += charWidth;
   }
   
   // Return as an assembly (branch) with array of letter geometries
-  const result = {
+  return {
     geometry: letterGeometries,
     dimension: "2D",
     tags: [],
@@ -183,12 +181,6 @@ async function textGeom(
     color: util.defaultColor,
     bom: [],
   };
-  
-  if (startedBatch) {
-    await util.geometryProvider!.endBatchOperation(context, result);
-  }
-  
-  return result;
 }
 
 export { circle, rectangle, regularPolygon, textGeom as text };
