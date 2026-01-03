@@ -187,22 +187,46 @@ async function textGeom(
   const totalWidth = fullTextDrawing.boundingBox ? fullTextDrawing.boundingBox.width : text.length * fontSize * 0.6;
   console.log("[textGeom] Total width:", totalWidth);
   
-  // Estimate average character width
-  const avgCharWidth = totalWidth / text.length;
-  console.log("[textGeom] Average character width:", avgCharWidth);
+  // Calculate actual width for each character by measuring its bounding box
+  const letterWidths: number[] = [];
+  console.log("[textGeom] Step 2.5: Measuring individual letter widths");
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    const tempCharGeometry = await util.geometryProvider!.drawText(
+      char,
+      {
+        startX: 0,
+        startY: 0,
+        fontSize: fontSize,
+        fontFamily: fontFamily,
+      },
+      context
+    );
+    const charDrawing = await util.geometryProvider!.get(tempCharGeometry, context);
+    const charWidth = charDrawing.boundingBox ? charDrawing.boundingBox.width : fontSize * 0.6;
+    letterWidths.push(charWidth);
+    console.log(`[textGeom] Letter '${char}' width: ${charWidth}`);
+  }
+  
+  // Calculate cumulative positions (right to left for proper rendering)
+  const totalMeasuredWidth = letterWidths.reduce((sum, w) => sum + w, 0);
+  console.log("[textGeom] Total measured width:", totalMeasuredWidth);
   
   // Create individual letter geometries
   const letterGeometries: AbundanceLeaf[] = [];
   console.log("[textGeom] Step 3: Creating individual letter geometries");
   
   // Draw letters from right to left to compensate for rendering order reversal
+  // Position them using actual character widths for correct spacing
+  let cumulativeX = 0;
   for (let i = 0; i < text.length; i++) {
     const char = text[i];
-    // Position letters in reverse order: last letter at position 0, first at negative X
-    const charX = (text.length - 1 - i) * avgCharWidth;
-    console.log(`[textGeom] Letter ${i}: '${char}' at X=${charX}`);
+    // Calculate position from right to left using actual character widths
+    const charX = totalMeasuredWidth - cumulativeX - letterWidths[i];
+    cumulativeX += letterWidths[i];
+    console.log(`[textGeom] Letter ${i}: '${char}' at X=${charX} (width: ${letterWidths[i]})`);
     
-    // Draw each character at its estimated position
+    // Draw each character at its calculated position
     const charGeometry = await util.geometryProvider!.drawText(
       char,
       {
