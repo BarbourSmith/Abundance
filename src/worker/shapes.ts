@@ -209,16 +209,14 @@ async function textGeom(
     const char = text[i];
     // The natural position of this letter (from left)
     const naturalX = letterPositions[i];
-    // Convert to right-to-left positioning for rendering
-    const charX = totalWidth - naturalX - (letterPositions[i + 1] - letterPositions[i]);
     
-    console.log(`[textGeom] Letter ${i}: '${char}' at natural X=${naturalX}, render X=${charX}`);
+    console.log(`[textGeom] Letter ${i}: '${char}' at X=${naturalX}`);
     
-    // Draw each character at its calculated position
+    // Draw each character at its natural position
     const charGeometry = await util.geometryProvider!.drawText(
       char,
       {
-        startX: charX,
+        startX: naturalX,
         startY: 0,
         fontSize: fontSize,
         fontFamily: fontFamily,
