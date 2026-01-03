@@ -194,9 +194,13 @@ async function textGeom(
       context
     );
     const substringDrawing = await util.geometryProvider!.get(substringGeometry, context);
-    const substringWidth = substringDrawing.boundingBox ? substringDrawing.boundingBox.width : i * fontSize * 0.6;
-    letterPositions.push(substringWidth);
-    console.log(`[textGeom] Position[${i}] after '${substring}': ${substringWidth} (bbox: ${substringDrawing.boundingBox ? 'yes' : 'no'})`);
+    // Use xMax (rightmost extent) to know where the next letter should start
+    // This is center[0] + width/2
+    const substringEndX = substringDrawing.boundingBox 
+      ? substringDrawing.boundingBox.center[0] + substringDrawing.boundingBox.width / 2
+      : i * fontSize * 0.6;
+    letterPositions.push(substringEndX);
+    console.log(`[textGeom] Position[${i}] after '${substring}': ${substringEndX} (bbox: ${substringDrawing.boundingBox ? 'yes' : 'no'})`);
   }
   
   const totalWidth = letterPositions[text.length];
