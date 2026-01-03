@@ -195,9 +195,11 @@ async function textGeom(
   const letterGeometries: AbundanceLeaf[] = [];
   console.log("[textGeom] Step 3: Creating individual letter geometries");
   
+  // Draw letters from right to left to compensate for rendering order reversal
   for (let i = 0; i < text.length; i++) {
     const char = text[i];
-    const charX = i * avgCharWidth;
+    // Position letters in reverse order: last letter at position 0, first at negative X
+    const charX = (text.length - 1 - i) * avgCharWidth;
     console.log(`[textGeom] Letter ${i}: '${char}' at X=${charX}`);
     
     // Draw each character at its estimated position
@@ -230,9 +232,8 @@ async function textGeom(
   
   // Return as a simple assembly without cutting behavior
   // We don't want letters to cut into each other - they should overlap naturally
-  // NOTE: Reverse the array because the rendering pipeline reverses it
   const result = {
-    geometry: letterGeometries.reverse(),
+    geometry: letterGeometries,
     dimension: "2D",
     tags: [],
     plane: util.XYPlane,
