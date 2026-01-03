@@ -2,9 +2,7 @@ import Fonts from "../js/fonts.js";
 import * as util from "./util";
 import { AbundanceLeaf, AbundanceObject } from "./util";
 import { RequestContext } from "./geometryProvider";
-
-// Average character width as a ratio of fontSize when bounding box is not available
-const AVERAGE_CHAR_WIDTH_RATIO = 0.6;
+import { assembly } from "./interaction";
 
 /**
  * Methods in this file create a new geometry from non-geometric inputs. Eg:
@@ -88,6 +86,7 @@ async function regularPolygon(
 
 /**
  * Creates text geometry with the specified text, font size, and font family, and stores it in the library.
+ * Each character is treated as a separate element in an assembly to avoid issues with overlapping letters in cursive fonts.
  * @param {string} text - The text content to be rendered
  * @param {number} fontSize - The size of the font
  * @param {string} fontFamily - The font family to use for rendering the text
@@ -107,7 +106,7 @@ async function textGeom(
   );
   
   // Handle empty string case
-  if (text.length === 0) {
+  if (!text || text.length === 0) {
     return {
       geometry: [],
       dimension: "2D",
@@ -118,20 +117,59 @@ async function textGeom(
     };
   }
   
-  // Create an array to hold each letter's geometry
-  const letterGeometries: AbundanceLeaf[] = [];
-  let currentX = 0;
+  // For single character, return as a leaf (no assembly needed)
+  if (text.length === 1) {
+    return {
+      geometry: await util.geometryProvider!.drawText(
+        text,
+        {
+          startX: 0,
+          startY: 0,
+          fontSize: fontSize,
+          fontFamily: fontFamily,
+        },
+        context
+      ),
+      dimension: "2D",
+      tags: [],
+      plane: util.XYPlane,
+      color: util.defaultColor,
+      bom: [],
+    };
+  }
   
-  // Process each character individually
-  // Note: We draw each letter at origin and translate them to avoid issues with batch operations
+  // For multiple characters, generate the full text first to get natural spacing,
+  // then generate individual letters
+  const fullTextGeometry = await util.geometryProvider!.drawText(
+    text,
+    {
+      startX: 0,
+      startY: 0,
+      fontSize: fontSize,
+      fontFamily: fontFamily,
+    },
+    context
+  );
+  
+  // Get the full text geometry to determine overall spacing
+  const fullTextDrawing = await util.geometryProvider!.get(fullTextGeometry, context);
+  const totalWidth = fullTextDrawing.boundingBox ? fullTextDrawing.boundingBox.width : text.length * fontSize * 0.6;
+  
+  // Estimate average character width
+  const avgCharWidth = totalWidth / text.length;
+  
+  // Create individual letter geometries
+  const letterGeometries: AbundanceLeaf[] = [];
+  
   for (let i = 0; i < text.length; i++) {
     const char = text[i];
+    const charX = i * avgCharWidth;
     
-    // Draw the individual character at origin (0, 0)
+    // Draw each character at its estimated position
     const charGeometry = await util.geometryProvider!.drawText(
       char,
       {
-        startX: 0,
+        startX: charX,
         startY: 0,
         fontSize: fontSize,
         fontFamily: fontFamily,
@@ -139,48 +177,18 @@ async function textGeom(
       context
     );
     
-    // Get the bounding box to determine character width
-    const drawing = await util.geometryProvider!.get(charGeometry, context);
-    let charWidth = fontSize * AVERAGE_CHAR_WIDTH_RATIO; // fallback
-    if (drawing && drawing.boundingBox) {
-      charWidth = drawing.boundingBox.width;
-    }
-    
-    // Translate the character to its position if needed
-    let finalGeometry = charGeometry;
-    if (currentX !== 0) {
-      finalGeometry = await util.geometryProvider!.move(
-        charGeometry,
-        currentX,
-        0,
-        0,
-        context
-      );
-    }
-    
-    // Create a leaf geometry for this character
     letterGeometries.push({
-      geometry: finalGeometry,
+      geometry: charGeometry,
       dimension: "2D",
       tags: [],
       plane: util.XYPlane,
       color: util.defaultColor,
       bom: [],
     });
-    
-    // Update position for next character
-    currentX += charWidth;
   }
   
-  // Return as an assembly (branch) with array of letter geometries
-  return {
-    geometry: letterGeometries,
-    dimension: "2D",
-    tags: [],
-    plane: util.XYPlane,
-    color: util.defaultColor,
-    bom: [],
-  };
+  // Use the assembly function to create a proper assembly structure
+  return await assembly(letterGeometries, context);
 }
 
 export { circle, rectangle, regularPolygon, textGeom as text };
