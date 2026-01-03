@@ -118,6 +118,22 @@ async function textGeom(
     };
   }
   
+  // Start batch operation for assembly caching
+  let startedBatch = false;
+  if (!context.operationId) {
+    const batchId = "text-" + util.hashString(text + fontSize + fontFamily);
+    const batch: RequestContext | AbundanceObject =
+      await util.geometryProvider!.startBatchOperation(context, batchId);
+    
+    // Full assembly cache hit. No work to do.
+    if (util.isAbundanceObject(batch)) {
+      return batch;
+    }
+    
+    context = batch;
+    startedBatch = true;
+  }
+  
   // Create an array to hold each letter's geometry
   const letterGeometries: AbundanceLeaf[] = [];
   let currentX = 0;
@@ -159,7 +175,7 @@ async function textGeom(
   }
   
   // Return as an assembly (branch) with array of letter geometries
-  return {
+  const result = {
     geometry: letterGeometries,
     dimension: "2D",
     tags: [],
@@ -167,6 +183,12 @@ async function textGeom(
     color: util.defaultColor,
     bom: [],
   };
+  
+  if (startedBatch) {
+    await util.geometryProvider!.endBatchOperation(context, result);
+  }
+  
+  return result;
 }
 
 export { circle, rectangle, regularPolygon, textGeom as text };
