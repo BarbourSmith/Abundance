@@ -1,6 +1,6 @@
 import Fonts from "../js/fonts.js";
 import * as util from "./util";
-import { AbundanceLeaf } from "./util";
+import { AbundanceLeaf, AbundanceObject } from "./util";
 import { RequestContext } from "./geometryProvider";
 
 /**
@@ -88,7 +88,7 @@ async function regularPolygon(
  * @param {string} text - The text content to be rendered
  * @param {number} fontSize - The size of the font
  * @param {string} fontFamily - The font family to use for rendering the text
- * @returns {Promise<AbundanceLeaf>} Promise of an Assembly containing text geometry on the XY plane
+ * @returns {Promise<AbundanceObject>} Promise of an Assembly containing individual letter geometries on the XY plane
  * @throws {Error} Throws an error if the font fails to load
  */
 async function textGeom(
@@ -96,23 +96,68 @@ async function textGeom(
   fontSize: number,
   fontFamily: string,
   context: RequestContext
-): Promise<AbundanceLeaf> {
+): Promise<AbundanceObject> {
   await util.init();
   await util.replicad.loadFont(
     Fonts[fontFamily as keyof typeof Fonts],
     fontFamily
   );
-  return {
-    geometry: await util.geometryProvider!.drawText(
-      text,
+  
+  // Handle empty string case
+  if (!text || text.length === 0) {
+    return {
+      geometry: [],
+      dimension: "2D",
+      tags: [],
+      plane: util.XYPlane,
+      color: util.defaultColor,
+      bom: [],
+    };
+  }
+  
+  // Create an array to hold each letter's geometry
+  const letterGeometries: AbundanceLeaf[] = [];
+  let currentX = 0;
+  
+  // Process each character individually
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    
+    // Draw the individual character
+    const charGeometry = await util.geometryProvider!.drawText(
+      char,
       {
-        startX: 0,
+        startX: currentX,
         startY: 0,
         fontSize: fontSize,
         fontFamily: fontFamily,
       },
       context
-    ),
+    );
+    
+    // Create a leaf geometry for this character
+    letterGeometries.push({
+      geometry: charGeometry,
+      dimension: "2D",
+      tags: [],
+      plane: util.XYPlane,
+      color: util.defaultColor,
+      bom: [],
+    });
+    
+    // Get the bounding box to calculate the next character position
+    const drawing = await util.geometryProvider!.get(charGeometry, context);
+    if (drawing && drawing.boundingBox) {
+      currentX += drawing.boundingBox.width;
+    } else {
+      // Fallback: estimate width as roughly fontSize * 0.6 for average character
+      currentX += fontSize * 0.6;
+    }
+  }
+  
+  // Return as an assembly (branch) with array of letter geometries
+  return {
+    geometry: letterGeometries,
     dimension: "2D",
     tags: [],
     plane: util.XYPlane,
