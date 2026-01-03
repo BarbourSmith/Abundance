@@ -103,11 +103,19 @@ async function textGeom(
   console.log("[textGeom] context:", JSON.stringify(context));
   
   await util.init();
-  await util.replicad.loadFont(
-    Fonts[fontFamily as keyof typeof Fonts],
-    fontFamily
-  );
-  console.log("[textGeom] Font loaded successfully");
+  
+  // Try to load font, but catch errors to provide better diagnostics
+  try {
+    const fontData = Fonts[fontFamily as keyof typeof Fonts];
+    console.log("[textGeom] Font data type:", typeof fontData, "length:", fontData?.length || "N/A");
+    await util.replicad.loadFont(fontData, fontFamily);
+    console.log("[textGeom] Font loaded successfully");
+  } catch (error) {
+    console.error("[textGeom] ERROR loading font:", error);
+    console.error("[textGeom] Font family:", fontFamily);
+    console.error("[textGeom] Fonts object keys:", Object.keys(Fonts));
+    throw new Error(`Failed to load font ${fontFamily}: ${error.message}`);
+  }
   
   // Handle empty string case
   if (!text || text.length === 0) {
