@@ -14,6 +14,9 @@ const fonts = {
   AGUAFINA:
     "https://fonts.gstatic.com/s/aguafinascript/v5/65g7cgMtMGnNlNyq_Z6CvMxLhO8OSNnfAp53LK1_iRs.ttf",
 
+  PACIFICO:
+    "https://fonts.gstatic.com/s/pacifico/v22/FwZY7-Qmy14u9lezJ96A4sijpFu_.ttf",
+
   OPEN_SANS:
     "https://fonts.gstatic.com/s/opensans/v13/IgZJs4-7SA1XX_edsoXWog.ttf",
   INCONSOLATA:

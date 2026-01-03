@@ -104,9 +104,17 @@ async function textGeom(
   
   await util.init();
   
+  // Check if font exists and load it
+  const fontData = Fonts[fontFamily as keyof typeof Fonts];
+  if (!fontData) {
+    const availableFonts = Object.keys(Fonts).join(", ");
+    const errorMsg = `Font "${fontFamily}" is not available. Available fonts: ${availableFonts}`;
+    console.error("[textGeom] ERROR:", errorMsg);
+    throw new Error(errorMsg);
+  }
+  
   // Try to load font, but catch errors to provide better diagnostics
   try {
-    const fontData = Fonts[fontFamily as keyof typeof Fonts];
     console.log("[textGeom] Font data type:", typeof fontData, "length:", fontData?.length || "N/A");
     await util.replicad.loadFont(fontData, fontFamily);
     console.log("[textGeom] Font loaded successfully");
