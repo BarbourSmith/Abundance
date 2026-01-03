@@ -164,6 +164,7 @@ async function textGeom(
   }
   
   console.log("[textGeom] Multiple characters - generating assembly");
+  console.log("[textGeom] Text length:", text.length, "Text chars:", text.split('').join(', '));
   
   // To preserve exact font spacing, we need to determine where each letter
   // would naturally be positioned in the full text string.
@@ -178,6 +179,7 @@ async function textGeom(
     const substring = text.substring(0, i);
     if (i === 0) {
       letterPositions.push(0);
+      console.log(`[textGeom] Position[${i}]: 0 (start)`);
       continue;
     }
     
@@ -194,14 +196,17 @@ async function textGeom(
     const substringDrawing = await util.geometryProvider!.get(substringGeometry, context);
     const substringWidth = substringDrawing.boundingBox ? substringDrawing.boundingBox.width : i * fontSize * 0.6;
     letterPositions.push(substringWidth);
-    console.log(`[textGeom] Position after '${substring}': ${substringWidth}`);
+    console.log(`[textGeom] Position[${i}] after '${substring}': ${substringWidth} (bbox: ${substringDrawing.boundingBox ? 'yes' : 'no'})`);
   }
   
   const totalWidth = letterPositions[text.length];
+  console.log("[textGeom] ==========================================");
   console.log("[textGeom] Total text width:", totalWidth);
+  console.log("[textGeom] All positions:", JSON.stringify(letterPositions));
   
   // Create individual letter geometries at their natural positions
   const letterGeometries: AbundanceLeaf[] = [];
+  console.log("[textGeom] ==========================================");
   console.log("[textGeom] Step 2: Creating individual letter geometries");
   
   // Position letters from right to left to compensate for rendering order
@@ -209,11 +214,21 @@ async function textGeom(
   for (let i = 0; i < text.length; i++) {
     const char = text[i];
     // The natural position of this letter (from left)
-    const naturalX = letterPositions[i];
-    // Transform to right-to-left: rightmost position - natural position
+    const naturalStartX = letterPositions[i];
+    const naturalEndX = letterPositions[i + 1];
+    const letterWidth = naturalEndX - naturalStartX;
+    
+    // Transform to right-to-left: total width - ending position of this letter
     const charX = totalWidth - letterPositions[i + 1];
     
-    console.log(`[textGeom] Letter ${i}: '${char}' natural=${naturalX} transformed=${charX}`);
+    console.log("==========================================");
+    console.log(`[textGeom] Letter ${i}: '${char}'`);
+    console.log(`  - naturalStart: ${naturalStartX}`);
+    console.log(`  - naturalEnd: ${naturalEndX}`);
+    console.log(`  - letterWidth: ${letterWidth}`);
+    console.log(`  - totalWidth: ${totalWidth}`);
+    console.log(`  - formula: ${totalWidth} - ${naturalEndX} = ${charX}`);
+    console.log(`  - transformed position: ${charX}`);
     
     // Draw each character at its transformed position
     const charGeometry = await util.geometryProvider!.drawText(
@@ -226,7 +241,15 @@ async function textGeom(
       },
       context
     );
-    console.log(`[textGeom] Letter ${i} geometry ID:`, charGeometry);
+    console.log(`  - geometry ID:`, charGeometry);
+    
+    // Verify the geometry by getting its bounding box
+    const charDrawing = await util.geometryProvider!.get(charGeometry, context);
+    if (charDrawing.boundingBox) {
+      console.log(`  - actual bbox: x=${charDrawing.boundingBox.center[0]}, width=${charDrawing.boundingBox.width}`);
+      console.log(`  - actual xMin=${charDrawing.boundingBox.center[0] - charDrawing.boundingBox.width/2}`);
+      console.log(`  - actual xMax=${charDrawing.boundingBox.center[0] + charDrawing.boundingBox.width/2}`);
+    }
     
     const letterLeaf = {
       geometry: charGeometry,
@@ -236,12 +259,11 @@ async function textGeom(
       color: util.defaultColor,
       bom: [],
     };
-    console.log(`[textGeom] Letter ${i} leaf:`, JSON.stringify(letterLeaf));
     letterGeometries.push(letterLeaf);
   }
   
-  console.log("[textGeom] Step 4: Creating assembly with", letterGeometries.length, "letters");
-  console.log("[textGeom] Letter geometries array:", JSON.stringify(letterGeometries));
+  console.log("[textGeom] ==========================================");
+  console.log("[textGeom] Step 3: Creating assembly with", letterGeometries.length, "letters");
   
   // Return as a simple assembly without cutting behavior
   // We don't want letters to cut into each other - they should overlap naturally
