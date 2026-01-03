@@ -2,7 +2,6 @@ import Fonts from "../js/fonts.js";
 import * as util from "./util";
 import { AbundanceLeaf, AbundanceObject } from "./util";
 import { RequestContext } from "./geometryProvider";
-import { assembly } from "./interaction";
 
 /**
  * Methods in this file create a new geometry from non-geometric inputs. Eg:
@@ -226,20 +225,23 @@ async function textGeom(
     letterGeometries.push(letterLeaf);
   }
   
-  console.log("[textGeom] Step 4: Calling assembly() with", letterGeometries.length, "letters");
+  console.log("[textGeom] Step 4: Creating assembly with", letterGeometries.length, "letters");
   console.log("[textGeom] Letter geometries array:", JSON.stringify(letterGeometries));
   
-  // Use the assembly function to create a proper assembly structure
-  try {
-    const result = await assembly(letterGeometries, context);
-    console.log("[textGeom] Assembly result:", JSON.stringify(result));
-    console.log("[textGeom] END - Success");
-    return result;
-  } catch (error) {
-    console.error("[textGeom] ERROR in assembly():", error);
-    console.error("[textGeom] Error stack:", error.stack);
-    throw error;
-  }
+  // Return as a simple assembly without cutting behavior
+  // We don't want letters to cut into each other - they should overlap naturally
+  const result = {
+    geometry: letterGeometries,
+    dimension: "2D",
+    tags: [],
+    plane: util.XYPlane,
+    color: util.defaultColor,
+    bom: [],
+  };
+  
+  console.log("[textGeom] Assembly result:", JSON.stringify(result));
+  console.log("[textGeom] END - Success");
+  return result;
 }
 
 export { circle, rectangle, regularPolygon, textGeom as text };
