@@ -194,13 +194,14 @@ async function textGeom(
       context
     );
     const substringDrawing = await util.geometryProvider!.get(substringGeometry, context);
-    // Use xMax (rightmost extent) to know where the next letter should start
-    // This is center[0] + width/2
-    const substringEndX = substringDrawing.boundingBox 
-      ? substringDrawing.boundingBox.center[0] + substringDrawing.boundingBox.width / 2
+    
+    // Get the actual width - this should tell us how far the text extends
+    // For progressive substrings, each one should be wider than the last
+    const substringWidth = substringDrawing.boundingBox 
+      ? substringDrawing.boundingBox.width
       : i * fontSize * 0.6;
-    letterPositions.push(substringEndX);
-    console.log(`[textGeom] Position[${i}] after '${substring}': ${substringEndX} (bbox: ${substringDrawing.boundingBox ? 'yes' : 'no'})`);
+    letterPositions.push(substringWidth);
+    console.log(`[textGeom] Position[${i}] after '${substring}': width=${substringWidth} (bbox: ${substringDrawing.boundingBox ? JSON.stringify({center: substringDrawing.boundingBox.center, width: substringDrawing.boundingBox.width}) : 'no'})`);
   }
   
   const totalWidth = letterPositions[text.length];
