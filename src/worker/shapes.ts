@@ -230,8 +230,9 @@ async function textGeom(
   
   // Return as a simple assembly without cutting behavior
   // We don't want letters to cut into each other - they should overlap naturally
+  // NOTE: Reverse the array because the rendering pipeline reverses it
   const result = {
-    geometry: letterGeometries,
+    geometry: letterGeometries.reverse(),
     dimension: "2D",
     tags: [],
     plane: util.XYPlane,
