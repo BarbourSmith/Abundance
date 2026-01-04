@@ -207,11 +207,11 @@ async function textGeom(
     
     console.log(`[textGeom] Letter[${i}] '${char}': naturalStart=${naturalStartX.toFixed(2)}, naturalEnd=${naturalEndX.toFixed(2)}, transformed X=${charX.toFixed(2)}`);
     
-    // Draw each character at its transformed position
+    // Draw each character at origin (0, 0)
     const charGeometry = await util.geometryProvider!.drawText(
       char,
       {
-        startX: charX,
+        startX: 0,
         startY: 0,
         fontSize: fontSize,
         fontFamily: fontFamily,
@@ -219,8 +219,17 @@ async function textGeom(
       context
     );
     
+    // Then translate it to the correct position
+    const translatedGeometry = await util.geometryProvider!.move(
+      charGeometry,
+      charX,
+      0,
+      0,
+      context
+    );
+    
     const letterLeaf = {
-      geometry: charGeometry,
+      geometry: translatedGeometry,
       dimension: "2D",
       tags: [],
       plane: util.XYPlane,
