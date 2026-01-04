@@ -198,12 +198,14 @@ async function textGeom(
   // Use the natural letter positions from progressive substring measurement
   for (let i = 0; i < text.length; i++) {
     const char = text[i];
+    const naturalStartX = letterPositions[i];
     const naturalEndX = letterPositions[i + 1];
     
-    // Transform to right-to-left: total width - ending position of this letter
-    const charX = totalWidth - naturalEndX;
+    // Transform to right-to-left: total width - starting position of this letter
+    // This places each letter at the correct position with proper spacing
+    const charX = totalWidth - naturalStartX;
     
-    console.log(`[textGeom] Letter[${i}] '${char}': X=${charX.toFixed(2)}`);
+    console.log(`[textGeom] Letter[${i}] '${char}': naturalStart=${naturalStartX.toFixed(2)}, naturalEnd=${naturalEndX.toFixed(2)}, transformed X=${charX.toFixed(2)}`);
     
     // Draw each character at its transformed position
     const charGeometry = await util.geometryProvider!.drawText(
