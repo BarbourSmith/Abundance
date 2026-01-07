@@ -90,6 +90,20 @@ jobs:
           timeout 30 bash -c 'until curl -s http://localhost:4444 > /dev/null; do sleep 1; done'
       - name: Run Tests
         run: npm test
+      - name: Run Metrics Test
+        id: metrics
+        run: |
+          echo "Running metrics test..."
+          npm run test:metrics > metrics-output.txt 2>&1 || true
+          cat metrics-output.txt
+          
+          # Extract JSON from output
+          sed -n '/^{$/,/^}$/p' metrics-output.txt > metrics.json || echo "[]" > metrics.json
+          
+          # Store metrics for comment
+          echo "METRICS_OUTPUT<<EOF" >> $GITHUB_ENV
+          cat metrics-output.txt >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         if: always() && env.AWS_ACCESS_KEY_ID != ''
@@ -212,6 +226,100 @@ jobs:
                 body: comment
               });
             } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: comment
+              });
+            }
+      - name: Create metrics comment
+        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request_target'
+        with:
+          script: |
+            const fs = require('fs');
+            
+            // Read metrics output
+            let metricsOutput = '';
+            try {
+              metricsOutput = process.env.METRICS_OUTPUT || '';
+            } catch (e) {
+              console.log('Could not read metrics output');
+              return;
+            }
+
+            if (!metricsOutput) {
+              console.log('No metrics output found');
+              return;
+            }
+
+            // Parse JSON from output
+            let metrics = [];
+            try {
+              const jsonMatch = metricsOutput.match(/\[\s*\{[\s\S]*\}\s*\]/);
+              if (jsonMatch) {
+                metrics = JSON.parse(jsonMatch[0]);
+              }
+            } catch (e) {
+              console.log('Could not parse metrics JSON:', e.message);
+            }
+
+            // Build comment
+            let comment = '## ⚡ Performance Metrics\n\n';
+            comment += `Metrics from commit: ${context.sha.substring(0, 7)}\n\n`;
+
+            if (metrics.length === 0) {
+              comment += 'No metrics were collected. Check workflow logs for errors.\n';
+            } else {
+              comment += '| Project | Cold Load Time | Cache Size | Status |\n';
+              comment += '|---------|----------------|------------|--------|\n';
+              
+              metrics.forEach(m => {
+                if (m.error) {
+                  comment += `| ${m.projectName} | - | - | ❌ Failed |\n`;
+                } else {
+                  comment += `| ${m.projectName} | ${m.coldLoadTimeMs}ms | ${m.cacheSizeFormatted} | ✅ Success |\n`;
+                }
+              });
+              
+              comment += '\n### Details\n\n';
+              metrics.forEach(m => {
+                comment += `**${m.projectName}**\n`;
+                if (m.error) {
+                  comment += `- ❌ Error: ${m.error}\n`;
+                } else {
+                  comment += `- Cold Load Time: ${m.coldLoadTimeMs}ms\n`;
+                  comment += `- IndexedDB Cache Size: ${m.cacheSizeFormatted} (${m.cacheSize} bytes)\n`;
+                }
+                comment += '\n';
+              });
+              
+              comment += '---\n';
+              comment += '*Cold load measured from navigation start to full render completion. ';
+              comment += 'Cache size measured after project load completes.*\n';
+            }
+
+            // Find existing comment to update or create new one
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.data.find(comment => 
+              comment.user.type === 'Bot' && comment.body.includes('⚡ Performance Metrics')
+            );
+
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: comment
+              });
+            } else {
+              console.log('Creating new comment for performance metrics');
               await github.rest.issues.createComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
