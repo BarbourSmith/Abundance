@@ -8,6 +8,7 @@ import { BOMEntry } from "../js/BOM";
 
 import { Status } from "../prototypes/observableEntity.js";
 import { saveAs } from "file-saver";
+import { recordMoleculeUsed } from "../js/recentProjectsManager.js";
 
 /**
  * This class creates the Molecule atom.
@@ -1304,6 +1305,12 @@ export default class Molecule extends Atom {
     position
   ) {
     let octokit = new Octokit();
+    
+    // Record that this molecule was used
+    if (gitObj?.owner && gitObj?.repoName) {
+      recordMoleculeUsed(gitObj.owner, gitObj.repoName, gitObj.displayName || gitObj.repoName);
+    }
+    
     try {
       await octokit
         .request("GET /repos/{owner}/{repo}/contents/project.abundance", {

@@ -1,5 +1,6 @@
 import CMenu from "./circular-menu";
 import GlobalVariables from "./globalvariables.js";
+import { getRecentProjects, getFrequentMolecules } from "./recentProjectsManager.js";
 
 /**
  * Html element that contains the circular menu
@@ -64,6 +65,94 @@ const createCMenu = (targetElement, setExpandedMenu, shortCuts) => {
   };
 
   /**
+   * Creates the GitHub submenu with recent projects and frequent molecules
+   */
+  const makeGithubMenu = () => {
+    const menuArray = [];
+    
+    // Add recent projects
+    const recentProjects = getRecentProjects();
+    recentProjects.forEach((project, index) => {
+      const displayName = project.repoName.replace(/-/g, ' ');
+      const subMenu = {
+        title: `${displayName}`,
+        icon: "github",
+        name: `${project.owner}/${project.repoName}`,
+        isProject: true,
+        owner: project.owner,
+        repoName: project.repoName,
+        click: function menuClick(e, title) {
+          // Navigate to the project
+          const isOwned = title.owner === GlobalVariables.currentUser;
+          const route = isOwned 
+            ? `/${title.owner}/${title.repoName}`
+            : `/run/${title.owner}/${title.repoName}`;
+          window.location.href = `#${route}`;
+        }
+      };
+      menuArray.push(subMenu);
+    });
+    
+    // Add a separator if we have both projects and molecules
+    const frequentMolecules = getFrequentMolecules();
+    if (recentProjects.length > 0 && frequentMolecules.length > 0) {
+      menuArray.push({
+        title: "---",
+        icon: "separator",
+        name: "separator",
+        disabled: true
+      });
+    }
+    
+    // Add frequent molecules
+    frequentMolecules.forEach((molecule, index) => {
+      const displayName = molecule.displayName || molecule.repoName.replace(/-/g, ' ');
+      const subMenu = {
+        title: `${displayName}`,
+        icon: "GitHubMolecule",
+        name: `${molecule.owner}/${molecule.repoName}`,
+        isMolecule: true,
+        owner: molecule.owner,
+        repoName: molecule.repoName,
+        click: function menuClick(e, title) {
+          // Place the molecule on the canvas
+          const containerX = parseInt(cmenu._container.style.left, 10);
+          const containerY = parseInt(cmenu._container.style.top, 10);
+          const position = {
+            x: GlobalVariables.pixelsToWidth(containerX),
+            y: GlobalVariables.pixelsToHeight(containerY)
+          };
+          
+          GlobalVariables.currentMolecule.loadGithubMoleculeByName(
+            { owner: title.owner, repoName: title.repoName },
+            {},
+            [],
+            position
+          ).catch((error) => {
+            console.error('Error loading molecule:', error);
+            alert(`Error loading molecule: ${title.name}`);
+          });
+          
+          cmenu.hide();
+        }
+      };
+      menuArray.push(subMenu);
+    });
+    
+    // If no items, show a placeholder
+    if (menuArray.length === 0) {
+      menuArray.push({
+        title: "No recent items",
+        icon: "github",
+        name: "empty",
+        disabled: true
+      });
+    }
+    
+    return menuArray;
+  };
+
+  /**
    * This creates a new instance of the circular menu.
    */
   cmenu = CMenu(ele.current).config({
@@ -100,6 +189,11 @@ const createCMenu = (targetElement, setExpandedMenu, shortCuts) => {
         title: "Interactions",
         icon: "Interaction",
         menus: makeArray("Interactions"),
+      },
+      {
+        title: "GitHub",
+        icon: "github",
+        menus: makeGithubMenu(),
       },
     ],
   });

@@ -145,6 +145,16 @@
   width: 250%;
   height: 250%;
 }
+.github {
+  background: url("/imgs/githubmolecule.png");
+  width: 250%;
+  height: 250%;
+}
+.separator {
+  background: none;
+  width: 100%;
+  height: 2px;
+}
 .GeneticAlgorithm {
   background: url("/imgs/genetic.svg");
   width: 150%;
