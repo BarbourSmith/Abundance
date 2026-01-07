@@ -1,6 +1,6 @@
 import CMenu from "./circular-menu";
 import GlobalVariables from "./globalvariables.js";
-import { getRecentProjects, getFrequentMolecules } from "./recentProjectsManager.js";
+import { getFrequentMolecules } from "./recentProjectsManager.js";
 
 /**
  * Html element that contains the circular menu
@@ -65,46 +65,13 @@ const createCMenu = (targetElement, setExpandedMenu, shortCuts) => {
   };
 
   /**
-   * Creates the GitHub submenu with recent projects and frequent molecules
+   * Creates the GitHub submenu with frequently used GitHub molecules
    */
   const makeGithubMenu = () => {
     const menuArray = [];
     
-    // Add recent projects
-    const recentProjects = getRecentProjects();
-    recentProjects.forEach((project, index) => {
-      const displayName = project.repoName.replace(/-/g, ' ');
-      const subMenu = {
-        title: `${displayName}`,
-        icon: "github",
-        name: `${project.owner}/${project.repoName}`,
-        isProject: true,
-        owner: project.owner,
-        repoName: project.repoName,
-        click: function menuClick(e, title) {
-          // Navigate to the project
-          const isOwned = title.owner === GlobalVariables.currentUser;
-          const route = isOwned 
-            ? `/${title.owner}/${title.repoName}`
-            : `/run/${title.owner}/${title.repoName}`;
-          window.location.href = `#${route}`;
-        }
-      };
-      menuArray.push(subMenu);
-    });
-    
-    // Add a separator if we have both projects and molecules
-    const frequentMolecules = getFrequentMolecules();
-    if (recentProjects.length > 0 && frequentMolecules.length > 0) {
-      menuArray.push({
-        title: "---",
-        icon: "separator",
-        name: "separator",
-        disabled: true
-      });
-    }
-    
     // Add frequent molecules
+    const frequentMolecules = getFrequentMolecules();
     frequentMolecules.forEach((molecule, index) => {
       const displayName = molecule.displayName || molecule.repoName.replace(/-/g, ' ');
       const subMenu = {

@@ -20,7 +20,6 @@ import * as workerpool from "workerpool";
 
 import { QueryClient, QueryClientProvider } from "react-query";
 import Callback from "./components/main-routes/CallBack.jsx";
-import { recordProjectOpened } from "./js/recentProjectsManager.js";
 
 // Import contexts
 import {
@@ -369,11 +368,6 @@ function AppContent() {
     GlobalVariables.totalAtomCount = 0;
     GlobalVariables.numberOfAtomsToLoad = 0;
     GlobalVariables.startTime = new Date().getTime();
-
-    // Record that this project was opened
-    if (project?.owner && project?.repoName) {
-      recordProjectOpened(project.owner, project.repoName);
-    }
 
     if (authorizedUser) {
       var octokit = authorizedUser;

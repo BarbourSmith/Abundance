@@ -1,61 +1,9 @@
 /**
- * Manages tracking of recently opened projects and frequently used GitHub molecules
- * using localStorage
+ * Manages tracking of frequently used GitHub molecules using localStorage
  */
 
-const RECENT_PROJECTS_KEY = 'abundance_recent_projects';
 const MOLECULE_USAGE_KEY = 'abundance_molecule_usage';
-const MAX_RECENT_PROJECTS = 5;
 const MAX_FREQUENT_MOLECULES = 5;
-
-/**
- * Record that a project was opened
- * @param {string} owner - GitHub username/org
- * @param {string} repoName - Repository name
- */
-export function recordProjectOpened(owner, repoName) {
-  if (!owner || !repoName) return;
-  
-  try {
-    const recentProjects = getRecentProjects();
-    const projectKey = `${owner}/${repoName}`;
-    
-    // Remove if already exists (to move it to front)
-    const filtered = recentProjects.filter(p => p.key !== projectKey);
-    
-    // Add to front
-    filtered.unshift({
-      key: projectKey,
-      owner,
-      repoName,
-      timestamp: Date.now()
-    });
-    
-    // Keep only MAX_RECENT_PROJECTS
-    const trimmed = filtered.slice(0, MAX_RECENT_PROJECTS);
-    
-    localStorage.setItem(RECENT_PROJECTS_KEY, JSON.stringify(trimmed));
-  } catch (error) {
-    console.error('Error recording project opened:', error);
-  }
-}
-
-/**
- * Get the list of recently opened projects
- * @returns {Array} Array of recent project objects
- */
-export function getRecentProjects() {
-  try {
-    const stored = localStorage.getItem(RECENT_PROJECTS_KEY);
-    if (!stored) return [];
-    
-    const projects = JSON.parse(stored);
-    return Array.isArray(projects) ? projects : [];
-  } catch (error) {
-    console.error('Error getting recent projects:', error);
-    return [];
-  }
-}
 
 /**
  * Record that a GitHub molecule was used
@@ -137,7 +85,6 @@ export function getFrequentMolecules() {
  */
 export function clearTrackingData() {
   try {
-    localStorage.removeItem(RECENT_PROJECTS_KEY);
     localStorage.removeItem(MOLECULE_USAGE_KEY);
   } catch (error) {
     console.error('Error clearing tracking data:', error);
