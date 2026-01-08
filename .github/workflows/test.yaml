@@ -228,6 +228,7 @@ jobs:
                 body: comment
               });
             }
+            console.log(context.issue)
       - name: Add metrics to comment
         uses: actions/github-script@v7
         if: github.event_name == 'pull_request_target' && matrix.branch_name == 'pr'
@@ -246,6 +247,7 @@ jobs:
               console.log(`\n\nContents of ${file}:\n`);
               console.log(content);
             }
+            console.log(context.issue)
   compare-and-comment:
     needs: test
     runs-on: ubuntu-latest
@@ -267,9 +269,23 @@ jobs:
           script: |
             const fs = require('fs');
             console.log("reading metrics files from follow-up task. pr then base:")
-            console.log(fs.readFileSync('pr/metrics-pr.json', 'utf8'));
-            console.log();
-            console.log(fs.readFileSync('base/metrics-base.json', 'utf8'));
+
+            const prOutput = fs.readFileSync('pr/metrics-pr.json', 'utf8');
+            const baseOutput = fs.readFileSync('base/metrics-base.json', 'utf8');
+
+            const extractJson = (text) => {
+              const jsonStart = text.indexOf('[');
+              const jsonEnd = text.lastIndexOf(']') + 1;
+              if (jsonStart === -1 || jsonEnd === 0) return [];
+              return JSON.parse(text.slice(jsonStart, jsonEnd));
+            };
+
+            const baseMetrics = extractJson(baseOutput);
+            const prMetrics = extractJson(prOutput);
+            console.log(baseMetrics)
+            console.log(prMetrics)
+
+            console.log(context.issue)
 
 #  compare-metrics:
 #    runs-on: ubuntu-latest
