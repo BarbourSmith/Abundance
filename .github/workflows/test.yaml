@@ -294,7 +294,13 @@ jobs:
             markdown += '\n---\n';
             markdown += '*Cold load time includes full page load + rendering + cache write*\n';
             markdown += '*Cache size is IndexedDB storage for serialized geometry*\n';
+            console.log(context);
+            console.log(context.payload);
             const prNumber = context.payload.pull_request?.number
+            if (!prNumber) {
+              console.log('No pull request number found in context, skipping comment.');
+              return;
+            }
             // Find or create comment
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
