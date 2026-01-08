@@ -280,12 +280,73 @@ jobs:
               return JSON.parse(text.slice(jsonStart, jsonEnd));
             };
 
-            const baseMetrics = extractJson(baseOutput);
-            const prMetrics = extractJson(prOutput);
+            const keyByName = (metrics) => {
+              return {metrics.projectName: metrics};
+            }
+
+            const baseMetrics = keyByName(extractJson(baseOutput));
+            const prMetrics = keyByName(extractJson(prOutput));
             console.log(baseMetrics)
             console.log(prMetrics)
 
             console.log(context.issue)
+            const metricKeys = Object.keys(Object.values(prMetrics)[0]);
+
+            let markdown = '## ⚡ Performance Metrics Comparison\n\n';
+            markdown += `| ${metricKeys.join(" | ")} |\n`;
+            markdown += '|---------|--------|--------|--------|--------|\n';
+
+            const specialThresholds = {
+              coldLoadTimeMs: 100, // ms
+              cacheSize: 10240,    // bytes
+            };
+
+            Object.keys(prMetrics).forEach((projectName) => {
+              const prM = prMetrics[projectName];
+              const baseM = baseMetrics[projectName];
+              if (!baseM) return;
+
+              markdown += `| ${projectName} `;
+              metricKeys.forEach((key) => {
+                if (key === 'projectName') return;
+                const prValue = prM[key];
+                const baseValue = baseM[key];
+                const diff = prValue - baseValue;
+                const pct = ((diff / baseValue) * 100).toFixed(1);
+                const emoji = pct < 10 ? '✅' :  '⚠️';
+                markdown += `| ${baseValue} → ${prValue},  ${emoji} ${diff > 0 ? '+' : ''}${diff} (${pct}%) `;
+              });
+              markdown += '|\n';
+            });
+            markdown += '\n---\n';
+
+            console.log(markdown);
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.find(c =>
+              c.user.type === 'Bot' && c.body.includes('Performance Metrics Comparison')
+            );
+
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: markdown
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: markdown
+              });
+            }
+
 
 #  compare-metrics:
 #    runs-on: ubuntu-latest
@@ -352,28 +413,28 @@ jobs:
 #            markdown += '*Cache size is IndexedDB storage for serialized geometry*\n';
 #            console.log(context);
 #            // Find or create comment
-#            const { data: comments } = await github.rest.issues.listComments({
-#              owner: context.repo.owner,
-#              repo: context.repo.repo,
-#              issue_number: context.issue.number,
-#            });
-#
-#            const botComment = comments.find(c =>
-#              c.user.type === 'Bot' && c.body.includes('Performance Metrics Comparison')
-#            );
-#
-#            if (botComment) {
-#              await github.rest.issues.updateComment({
-#                owner: context.repo.owner,
-#                repo: context.repo.repo,
-#                comment_id: botComment.id,
-#                body: markdown
-#              });
-#            } else {
-#              await github.rest.issues.createComment({
-#                owner: context.repo.owner,
-#                repo: context.repo.repo,
-#                issue_number: context.issue.number,
-#                body: markdown
-#              });
-#            }
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.find(c =>
+              c.user.type === 'Bot' && c.body.includes('Performance Metrics Comparison')
+            );
+
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: markdown
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: markdown
+              });
+            }
