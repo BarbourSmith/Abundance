@@ -265,6 +265,7 @@ jobs:
           path: ./pr
       - name: Compare metrics and comment
         uses: actions/github-script@v7
+        if: always()
         with:
           script: |
             const fs = require('fs');
