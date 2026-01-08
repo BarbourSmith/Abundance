@@ -281,9 +281,13 @@ jobs:
               return JSON.parse(text.slice(jsonStart, jsonEnd));
             };
 
-            const keyByName = (metrics) => {
-              return {metrics.projectName: metrics};
-            }
+            const keyByName = (metricsArray) => {
+              const result = {};
+              metricsArray.forEach((m) => {
+                result[m.projectName] = m;
+              });
+              return result;
+            };
 
             const baseMetrics = keyByName(extractJson(baseOutput));
             const prMetrics = keyByName(extractJson(prOutput));
