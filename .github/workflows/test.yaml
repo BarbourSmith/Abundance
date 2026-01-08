@@ -230,94 +230,112 @@ jobs:
                 body: comment
               });
             }
-
-  compare-metrics:
-    runs-on: ubuntu-latest
-    needs: test
-    if: github.event.action != 'closed' && github.event_name == 'pull_request_target'
-    steps:
-      - name: Download base metrics
-        uses: actions/download-artifact@v4
-        with:
-          name: performance-metrics-base
-          path: ./base
-
-      - name: Download PR metrics
-        uses: actions/download-artifact@v4
-        with:
-          name: performance-metrics-pr
-          path: ./pr
-
-      - name: Compare metrics and comment
+      - name: Add metrics to comment
         uses: actions/github-script@v7
+        if: github.event_name == 'pull_request_target' && matrix.branch_name == 'pr'
         with:
           script: |
             const fs = require('fs');
-
-            // Read metrics files
-            const baseOutput = fs.readFileSync('./base/metrics-base.json', 'utf8');
-            const prOutput = fs.readFileSync('./pr/metrics-pr.json', 'utf8');
-
-            // Extract JSON
-            const extractJson = (text) => {
-              const jsonStart = text.indexOf('[');
-              const jsonEnd = text.lastIndexOf(']') + 1;
-              if (jsonStart === -1 || jsonEnd === 0) return [];
-              return JSON.parse(text.slice(jsonStart, jsonEnd));
-            };
-
-            const baseMetrics = extractJson(baseOutput);
-            const prMetrics = extractJson(prOutput);
-
-            // Generate markdown table
-            let markdown = '## ⚡ Performance Metrics Comparison\n\n';
-            markdown += '| Project | Metric | Base | PR | Change |\n';
-            markdown += '|---------|--------|------|----|---------|\n';
-
-            prMetrics.forEach((prM, idx) => {
-              const baseM = baseMetrics[idx];
-              if (!baseM || prM.projectName !== baseM.projectName) return;
-              
-              // Cold load time
-              const loadDiff = prM.coldLoadTimeMs - baseM.coldLoadTimeMs;
-              const loadPct = ((loadDiff / baseM.coldLoadTimeMs) * 100).toFixed(1);
-              const loadEmoji = Math.abs(loadDiff) < 100 ? '✅' : (loadDiff > 0 ? '⚠️' : '🎉');
-              markdown += `| ${prM.projectName} | Cold Load | ${baseM.coldLoadTimeMs}ms | ${prM.coldLoadTimeMs}ms | ${loadEmoji} ${loadDiff > 0 ? '+' : ''}${loadDiff}ms (${loadPct}%) |\n`;
-              
-              // Cache size
-              const sizeDiff = prM.cacheSize - baseM.cacheSize;
-              const sizePct = ((sizeDiff / baseM.cacheSize) * 100).toFixed(1);
-              const sizeEmoji = Math.abs(sizeDiff) < 10240 ? '✅' : (sizeDiff > 0 ? '⚠️' : '🎉');
-              markdown += `| ${prM.projectName} | Cache Size | ${baseM.cacheSizeFormatted} | ${prM.cacheSizeFormatted} | ${sizeEmoji} ${sizeDiff > 0 ? '+' : ''}${(sizeDiff / 1024).toFixed(1)}KB (${sizePct}%) |\n`;
-            });
-
-            markdown += '\n---\n';
-            markdown += '*Cold load time includes full page load + rendering + cache write*\n';
-            markdown += '*Cache size is IndexedDB storage for serialized geometry*\n';
-            console.log(context);
-            // Find or create comment
-            const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-            });
-
-            const botComment = comments.find(c => 
-              c.user.type === 'Bot' && c.body.includes('Performance Metrics Comparison')
-            );
-
-            if (botComment) {
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: botComment.id,
-                body: markdown
-              });
-            } else {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.issue.number,
-                body: markdown
-              });
+            let files = [];
+            try {
+              files = fs.readdirSync(".").filter(file => file.startsWith('metrics-') && file.endsWith('.json'));
+            } catch (e) {
+              console.log('Screenshot directory not found or empty');
             }
+            console.log("metrics files:", files);
+            for (const file of files) {
+              const content = fs.readFileSync(file, 'utf8');
+              console.log(`\n\nContents of ${file}:\n`);
+              console.log(content);
+            }
+
+#  compare-metrics:
+#    runs-on: ubuntu-latest
+#    needs: test
+#    if: github.event.action != 'closed' && github.event_name == 'pull_request_target'
+#    steps:
+#      - name: Download base metrics
+#        uses: actions/download-artifact@v4
+#        with:
+#          name: performance-metrics-base
+#          path: ./base
+#
+#      - name: Download PR metrics
+#        uses: actions/download-artifact@v4
+#        with:
+#          name: performance-metrics-pr
+#          path: ./pr
+#
+#      - name: Compare metrics and comment
+#        uses: actions/github-script@v7
+#        with:
+#          script: |
+#            const fs = require('fs');
+#
+#            // Read metrics files
+#            const baseOutput = fs.readFileSync('./base/metrics-base.json', 'utf8');
+#            const prOutput = fs.readFileSync('./pr/metrics-pr.json', 'utf8');
+#
+#            // Extract JSON
+#            const extractJson = (text) => {
+#              const jsonStart = text.indexOf('[');
+#              const jsonEnd = text.lastIndexOf(']') + 1;
+#              if (jsonStart === -1 || jsonEnd === 0) return [];
+#              return JSON.parse(text.slice(jsonStart, jsonEnd));
+#            };
+#
+#            const baseMetrics = extractJson(baseOutput);
+#            const prMetrics = extractJson(prOutput);
+#
+#            // Generate markdown table
+#            let markdown = '## ⚡ Performance Metrics Comparison\n\n';
+#            markdown += '| Project | Metric | Base | PR | Change |\n';
+#            markdown += '|---------|--------|------|----|---------|\n';
+#
+#            prMetrics.forEach((prM, idx) => {
+#              const baseM = baseMetrics[idx];
+#              if (!baseM || prM.projectName !== baseM.projectName) return;
+#
+#              // Cold load time
+#              const loadDiff = prM.coldLoadTimeMs - baseM.coldLoadTimeMs;
+#              const loadPct = ((loadDiff / baseM.coldLoadTimeMs) * 100).toFixed(1);
+#              const loadEmoji = Math.abs(loadDiff) < 100 ? '✅' : (loadDiff > 0 ? '⚠️' : '🎉');
+#              markdown += `| ${prM.projectName} | Cold Load | ${baseM.coldLoadTimeMs}ms | ${prM.coldLoadTimeMs}ms | ${loadEmoji} ${loadDiff > 0 ? '+' : ''}${loadDiff}ms (${loadPct}%) |\n`;
+#
+#              // Cache size
+#              const sizeDiff = prM.cacheSize - baseM.cacheSize;
+#              const sizePct = ((sizeDiff / baseM.cacheSize) * 100).toFixed(1);
+#              const sizeEmoji = Math.abs(sizeDiff) < 10240 ? '✅' : (sizeDiff > 0 ? '⚠️' : '🎉');
+#              markdown += `| ${prM.projectName} | Cache Size | ${baseM.cacheSizeFormatted} | ${prM.cacheSizeFormatted} | ${sizeEmoji} ${sizeDiff > 0 ? '+' : ''}${(sizeDiff / 1024).toFixed(1)}KB (${sizePct}%) |\n`;
+#            });
+#
+#            markdown += '\n---\n';
+#            markdown += '*Cold load time includes full page load + rendering + cache write*\n';
+#            markdown += '*Cache size is IndexedDB storage for serialized geometry*\n';
+#            console.log(context);
+#            // Find or create comment
+#            const { data: comments } = await github.rest.issues.listComments({
+#              owner: context.repo.owner,
+#              repo: context.repo.repo,
+#              issue_number: context.issue.number,
+#            });
+#
+#            const botComment = comments.find(c =>
+#              c.user.type === 'Bot' && c.body.includes('Performance Metrics Comparison')
+#            );
+#
+#            if (botComment) {
+#              await github.rest.issues.updateComment({
+#                owner: context.repo.owner,
+#                repo: context.repo.repo,
+#                comment_id: botComment.id,
+#                body: markdown
+#              });
+#            } else {
+#              await github.rest.issues.createComment({
+#                owner: context.repo.owner,
+#                repo: context.repo.repo,
+#                issue_number: context.issue.number,
+#                body: markdown
+#              });
+#            }
