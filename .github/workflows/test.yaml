@@ -246,30 +246,30 @@ jobs:
               console.log(`\n\nContents of ${file}:\n`);
               console.log(content);
             }
-    compare-and-comment:
-      needs: test
-      runs-on: ubuntu-latest
-      if: always()
-      steps:
-        - name: Download base metrics
-          uses: actions/download-artifact@v4
-          with:
-            name: performance-metrics-base
-            path: ./base
-        - name: Download PR metrics
-          uses: actions/download-artifact@v4
-          with:
-            name: performance-metrics-pr
-            path: ./pr
-        - name: Compare metrics and comment
-          uses: actions/github-script@v7
-          with:
-            script: |
-              const fs = require('fs');
-              console.log("reading metrics files from follow-up task. pr then base:")
-              console.log(fs.readFileSync('pr/metrics-pr.json', 'utf8'));
-              console.log();
-              console.log(fs.readFileSync('base/metrics-base.json', 'utf8'));
+  compare-and-comment:
+    needs: test
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Download base metrics
+        uses: actions/download-artifact@v4
+        with:
+          name: performance-metrics-base
+          path: ./base
+      - name: Download PR metrics
+        uses: actions/download-artifact@v4
+        with:
+          name: performance-metrics-pr
+          path: ./pr
+      - name: Compare metrics and comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            console.log("reading metrics files from follow-up task. pr then base:")
+            console.log(fs.readFileSync('pr/metrics-pr.json', 'utf8'));
+            console.log();
+            console.log(fs.readFileSync('base/metrics-base.json', 'utf8'));
 
 #  compare-metrics:
 #    runs-on: ubuntu-latest
