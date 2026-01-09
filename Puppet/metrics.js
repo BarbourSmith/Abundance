@@ -17,6 +17,7 @@ async function getIndexedDBSize(page, dbName) {
       request.onsuccess = function (event) {
         const db = event.target.result;
         let totalSize = 0;
+        let entryCount = 0;
 
         // Get all object stores
         const storeNames = Array.from(db.objectStoreNames);
@@ -29,40 +30,40 @@ async function getIndexedDBSize(page, dbName) {
 
         try {
           const transaction = db.transaction(storeNames, "readonly");
+          let processedStores = 0;
 
           transaction.onerror = function () {
             db.close();
             reject(new Error("Transaction error: " + transaction.error));
           };
 
-          const keyedSizes = {};
-
           storeNames.forEach((storeName) => {
             const objectStore = transaction.objectStore(storeName);
-            const request = objectStore.openCursor();
-            request.onsuccess = function () {
-              const cursor = request.result;
-              if (cursor) {
-                const record = cursor.value;
+            const getAllRequest = objectStore.getAll();
+
+            getAllRequest.onsuccess = function () {
+              const records = getAllRequest.result;
+
+              // Calculate size of all records in this store
+              records.forEach((record) => {
                 const recordString = JSON.stringify(record);
-                const recordBlob = new Blob([recordString]);
-                const keyBlob = new Blob([JSON.stringify(cursor.key)]);
-                totalSize += recordBlob.size + keyBlob.size;
-                keyedSizes[cursor.key] = recordBlob.size;
-                cursor.continue();
-              } else {
+                // Use Blob size for more accurate byte count
+                const blob = new Blob([recordString]);
+                totalSize += blob.size;
+                entryCount++;
+              });
+
+              processedStores++;
+
+              if (processedStores === storeNames.length) {
                 db.close();
-                resolve({
-                  totalSize,
-                  entryCount: Object.keys(keyedSizes).length,
-                  keyedSizes,
-                });
+                resolve({ totalSize, entryCount });
               }
             };
 
-            request.onerror = function () {
+            getAllRequest.onerror = function () {
               db.close();
-              reject(new Error("ObjectStore error: " + request.error));
+              reject(new Error("ObjectStore error: " + getAllRequest.error));
             };
           });
         } catch (err) {
@@ -126,16 +127,16 @@ async function getProjectFileSize(page) {
         window.GlobalVarsForPuppeteer.topLevelMolecule.serialize();
       console.log("Serialized project:", serialized);
       // Convert to JSON string and measure size
-      const jsonString = JSON.stringify(serialized, null, 2);
+      const jsonString = JSON.stringify(serialized);
       const blob = new Blob([jsonString]);
 
       return {
         size: blob.size,
-        rawJson: jsonString,
+        jsonLength: jsonString.length,
       };
     } catch (error) {
       console.error("Error getting project file size:", error);
-      return { size: 0, rawJson: "", error: error.message };
+      return { size: 0, jsonLength: 0, error: error.message };
     }
   });
 }
@@ -190,8 +191,6 @@ async function runMetricsTest(browser, projectName) {
     metrics.cacheSize = cacheMetrics.totalSize;
     metrics.cacheSizeFormatted = formatBytes(cacheMetrics.totalSize);
     metrics.cacheEntryCount = cacheMetrics.entryCount;
-    console.log("sizes by cache key: ");
-    console.log(cacheMetrics.keyedSizes);
 
     // Warm load
     await page.reload({ waitUntil: "load", timeout: 120000 });
@@ -210,8 +209,6 @@ async function runMetricsTest(browser, projectName) {
     }
     metrics.projectFileSize = projectFileMetrics.size;
     metrics.projectFileSizeFormatted = formatBytes(projectFileMetrics.size);
-    console.log("Raw save file contents: ");
-    console.log(projectFileMetrics.rawJson);
   } catch (error) {
     metrics.error = error.message;
     console.error(`✗ Error testing ${projectName}: ${error.message}`);
