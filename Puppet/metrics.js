@@ -127,16 +127,16 @@ async function getProjectFileSize(page) {
         window.GlobalVarsForPuppeteer.topLevelMolecule.serialize();
       console.log("Serialized project:", serialized);
       // Convert to JSON string and measure size
-      const jsonString = JSON.stringify(serialized);
+      const jsonString = JSON.stringify(serialized, null, 2);
       const blob = new Blob([jsonString]);
 
       return {
         size: blob.size,
-        jsonLength: jsonString.length,
+        rawJson: jsonString,
       };
     } catch (error) {
       console.error("Error getting project file size:", error);
-      return { size: 0, jsonLength: 0, error: error.message };
+      return { size: 0, rawJson: "", error: error.message };
     }
   });
 }
@@ -209,6 +209,8 @@ async function runMetricsTest(browser, projectName) {
     }
     metrics.projectFileSize = projectFileMetrics.size;
     metrics.projectFileSizeFormatted = formatBytes(projectFileMetrics.size);
+    console.log("Raw save file contents: ");
+    console.log(projectFileMetrics.rawJson);
   } catch (error) {
     metrics.error = error.message;
     console.error(`✗ Error testing ${projectName}: ${error.message}`);
