@@ -76,6 +76,11 @@ export default class CutLayout extends Atom {
         defaultValue:
           GlobalVariables.topLevelMolecule.unitsKey == "MM" ? 10 : 0.4,
       },
+      {
+        name: "Orientations per Part",
+        valueType: "number",
+        defaultValue: 12,
+      },
       { name: "geometry", valueType: "geometry", type: "output" },
     ]);
 
@@ -196,6 +201,7 @@ export default class CutLayout extends Atom {
       var sheetWidth = this.findIOValue("Sheet Width");
       var sheetHeight = this.findIOValue("Sheet Height");
       var partPadding = this.findIOValue("Part Padding");
+      var rotations = this.findIOValue("Orientations per Part");
       const priorStatus = this.status;
       this.setProcessing();
       console.trace("Displaying layout with " + placements.length + " sheets.");
@@ -215,6 +221,7 @@ export default class CutLayout extends Atom {
               GlobalVariables.topLevelMolecule.units[
                 GlobalVariables.topLevelMolecule.unitsKey
               ],
+            rotations: rotations,
           },
           this.getContext()
         )
@@ -284,6 +291,7 @@ export default class CutLayout extends Atom {
       var sheetWidth = this.findIOValue("Sheet Width");
       var sheetHeight = this.findIOValue("Sheet Height");
       var partPadding = this.findIOValue("Part Padding");
+      var rotations = this.findIOValue("Orientations per Part");
 
       if (!inputGeom) {
         this.setError('"geometry" input is missing');
@@ -313,6 +321,7 @@ export default class CutLayout extends Atom {
               GlobalVariables.topLevelMolecule.units[
                 GlobalVariables.topLevelMolecule.unitsKey
               ],
+            rotations: rotations,
           },
           this.getContext(),
           this.placements

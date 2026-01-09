@@ -14,6 +14,7 @@ type LayoutConfig = {
   height: number;
   partPadding: number;
   units?: string;
+  rotations: number;
 };
 
 type Placement = {
@@ -535,7 +536,7 @@ function computePositions(
   const config = {
     curveTolerance: 0.1,
     spacing: layoutConfig.partPadding + tolerance * 2,
-    rotations: 12,
+    rotations: layoutConfig.rotations,
     populationSize: 8,
     mutationRate: 50,
     useHoles: false,
