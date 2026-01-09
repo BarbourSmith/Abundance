@@ -2,8 +2,12 @@
 name: Puppeteer Tests
 
 on:
+  pull_request:
+    branches: [main, puppet-metrics]
+    types: [opened, synchronize, closed]
+
   pull_request_target:
-    branches: [main]
+    branches: [main, puppet-metrics]
     types: [opened, synchronize, closed]
 
   # Allows you to run this workflow manually from the Actions tab
