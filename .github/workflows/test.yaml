@@ -311,12 +311,11 @@ jobs:
             const metricsAllowList = [
               'coldLoadTimeMs',
               'cacheSize',
-              'numFeaturesLoaded',
             ];
 
             let markdown = '## ⚡ Performance Metrics Comparison\n\n';
             markdown += `| ProjectName | ${metricsAllowList.join(" | ")} |\n`;
-            markdown += '|---------|--------|--------|--------|--------|\n';
+            markdown += `| --- | ${metricsAllowList.map(() => '---').join(' | ')} |\n`;
 
 
             Object.keys(prMetrics).forEach((projectName) => {
