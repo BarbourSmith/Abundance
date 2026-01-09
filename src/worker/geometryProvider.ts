@@ -904,7 +904,9 @@ class GeometryProvider {
           );
         } else if (transform.type === "rotate") {
           throw new Error("Rotate transform not yet supported in lazy IDs");
-          /*          if (baseGeom instanceof replicad.Drawing) {
+          /*
+          uncomment once we start using rotations lazily
+          if (baseGeom instanceof replicad.Drawing) {
             // TODO(tristan): should this rotate around center of bounding box?
             baseGeom = baseGeom.rotate(transform.angles[2], [0, 0]);
           } else {
