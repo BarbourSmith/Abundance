@@ -310,7 +310,10 @@ jobs:
             const metricKeys = Object.keys(Object.values(prMetrics)[0]);
             const metricsAllowList = [
               'coldLoadTimeMs',
+              'warmLoadTimeMs',
               'cacheSize',
+              'cacheEntryCount',
+              'projectFileSize',
             ];
 
             let markdown = '## ⚡ Performance Metrics Comparison\n\n';

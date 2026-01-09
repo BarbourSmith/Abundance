@@ -682,7 +682,13 @@ class GlobalVariables {
   }
 }
 
+const globalVariables = new GlobalVariables();
+
+if (typeof window !== "undefined") {
+  window.GlobalVarsForPuppeteer = globalVariables;
+}
+
 /**
  * Because we want global variables to be the same every time it is imported we export an instance of global variables instead of the constructor.
  */
-export default new GlobalVariables();
+export default globalVariables;

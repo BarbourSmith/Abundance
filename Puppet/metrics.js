@@ -18,6 +18,7 @@ async function getIndexedDBSize(page, dbName) {
       request.onsuccess = function (event) {
         const db = event.target.result;
         let totalSize = 0;
+        let entryCount = 0;
 
         // Get all object stores
         const storeNames = Array.from(db.objectStoreNames);
@@ -50,13 +51,14 @@ async function getIndexedDBSize(page, dbName) {
                 // Use Blob size for more accurate byte count
                 const blob = new Blob([recordString]);
                 totalSize += blob.size;
+                entryCount++;
               });
 
               processedStores++;
 
               if (processedStores === storeNames.length) {
                 db.close();
-                resolve(totalSize);
+                resolve({ totalSize, entryCount });
               }
             };
 
@@ -107,7 +109,37 @@ async function clearIndexedDBCache(browser) {
     await page.close();
   }
 }
+/**
+ * Gets size of the serialized top level molecule in the project
+ * @param {} page
+ * @returns
+ */
+async function getProjectFileSize(page) {
+  return await page.evaluate(() => {
+    try {
+      // Access the global variable (adjust path if needed)
+      if (!window.GlobalVarsForPuppeteer?.topLevelMolecule) {
+        throw new Error("window.GlobalVarsForPuppeteer not found");
+      }
 
+      // Call serialize on the molecule
+      const serialized =
+        window.GlobalVarsForPuppeteer.topLevelMolecule.serialize();
+      console.log("Serialized project:", serialized);
+      // Convert to JSON string and measure size
+      const jsonString = JSON.stringify(serialized);
+      const blob = new Blob([jsonString]);
+
+      return {
+        size: blob.size,
+        jsonLength: jsonString.length,
+      };
+    } catch (error) {
+      console.error("Error getting project file size:", error);
+      return { size: 0, jsonLength: 0, error: error.message };
+    }
+  });
+}
 /**
  * Run metrics test for a single project
  * @param {Object} browser - Puppeteer browser instance
@@ -120,8 +152,12 @@ async function runMetricsTest(browser, projectName) {
     projectName,
     timestamp: new Date().toISOString(),
     coldLoadTimeMs: null,
+    warmLoadTimeMs: null,
     cacheSize: null,
     cacheSizeFormatted: null,
+    cacheEntryCount: null,
+    projectFileSize: null,
+    projectFileSizeFormatted: null,
     error: null,
   };
 
@@ -151,22 +187,39 @@ async function runMetricsTest(browser, projectName) {
       selector
     );
 
-    // Wait a bit more to ensure all caching is complete
-    await new Promise((resolve) => setTimeout(resolve, CACHE_WAIT_TIME_MS));
-
     // Calculate cold load time
     const endTime = Date.now();
     metrics.coldLoadTimeMs = endTime - startTime;
 
     // Measure IndexedDB cache size
-    const cacheSize = await getIndexedDBSize(page, "AbundanceProjectCaches");
-    metrics.cacheSize = cacheSize;
-    metrics.cacheSizeFormatted = formatBytes(cacheSize);
+    const cacheMetrics = await getIndexedDBSize(page, "AbundanceProjectCaches");
+    metrics.cacheSize = cacheMetrics.totalSize;
+    metrics.cacheSizeFormatted = formatBytes(cacheMetrics.totalSize);
+    metrics.cacheEntryCount = cacheMetrics.entryCount;
 
-    console.log(`✓ Cold load time: ${metrics.coldLoadTimeMs}ms`);
-    console.log(
-      `✓ Cache size: ${metrics.cacheSizeFormatted} (${metrics.cacheSize} bytes)`
+    // Warm load
+    const warmStartTime = Date.now();
+    page.reload({ waitUntil: "domcontentloaded", timeout: 120000 });
+    await page.waitForFunction(
+      (selector) => !!document.querySelector(selector),
+      { timeout: 120000 },
+      selector
     );
+    const warmEndTime = Date.now();
+    metrics.warmLoadTimeMs = warmEndTime - warmStartTime;
+
+    // Project save size
+    const projectFileMetrics = await getProjectFileSize(page);
+    if (projectFileMetrics.error) {
+      throw new Error(
+        `Error getting project file size: ${projectFileMetrics.error}`
+      );
+    }
+    metrics.projectFileSize = projectFileMetrics.size;
+    metrics.projectFileSizeFormatted = formatBytes(projectFileMetrics.size);
+
+    console.log(`✓ Metrics collected for ${projectName}`);
+    console.log(metrics);
   } catch (error) {
     metrics.error = error.message;
     console.error(`✗ Error testing ${projectName}: ${error.message}`);
