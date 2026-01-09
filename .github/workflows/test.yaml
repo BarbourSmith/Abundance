@@ -333,7 +333,7 @@ jobs:
                 const diff = key.endsWith("Size") ? formatBytes(prM[key] - baseM[key]) : prM[key] - baseM[key];
                 const pct = (((prM[key] - baseM[key]) / baseM[key]) * 100).toFixed(1);
                 const emoji = pct < 10 ? '✅' :  '⚠️';
-                markdown += `| ${baseValue} → ${prValue},  ${emoji} ${diff > 0 ? '+' : ''}${diff} (${pct}%) `;
+                markdown += `| ${baseValue} → ${prValue}<br> ${emoji} ${diff > 0 ? '+' : ''}${diff} (${pct}%) `;
               });
               markdown += '|\n';
             });
