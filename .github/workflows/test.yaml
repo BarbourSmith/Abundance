@@ -289,6 +289,18 @@ jobs:
               return result;
             };
 
+            const formatBytes = (bytes) => {
+              if (bytes === 0) return "0 Bytes";
+              const k = 1024;
+              const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
+              const i = Math.min(
+                Math.floor(Math.log(bytes) / Math.log(k)),
+                sizes.length - 1
+              );
+              return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+            }
+
+
             const baseMetrics = keyByName(extractJson(baseOutput));
             const prMetrics = keyByName(extractJson(prOutput));
             console.log(baseMetrics)
@@ -296,15 +308,16 @@ jobs:
 
             console.log(context.issue)
             const metricKeys = Object.keys(Object.values(prMetrics)[0]);
+            const metricsAllowList = [
+              'coldLoadTimeMs',
+              'cacheSize',
+              'numFeaturesLoaded',
+            ];
 
             let markdown = '## ⚡ Performance Metrics Comparison\n\n';
-            markdown += `| ${metricKeys.join(" | ")} |\n`;
+            markdown += `| ProjectName | ${metricsAllowList.join(" | ")} |\n`;
             markdown += '|---------|--------|--------|--------|--------|\n';
 
-            const specialThresholds = {
-              coldLoadTimeMs: 100, // ms
-              cacheSize: 10240,    // bytes
-            };
 
             Object.keys(prMetrics).forEach((projectName) => {
               const prM = prMetrics[projectName];
@@ -312,12 +325,11 @@ jobs:
               if (!baseM) return;
 
               markdown += `| ${projectName} `;
-              metricKeys.forEach((key) => {
-                if (key === 'projectName') return;
-                const prValue = prM[key];
-                const baseValue = baseM[key];
-                const diff = prValue - baseValue;
-                const pct = ((diff / baseValue) * 100).toFixed(1);
+              metricsAllowList.forEach((key) => {
+                const prValue = key.endsWith("Size") ? formatBytes(prM[key]) : prM[key];
+                const baseValue = key.endsWith("Size") ? formatBytes(baseM[key]) : baseM[key];
+                const diff = key.endsWith("Size") ? formatBytes(prM[key] - baseM[key]) : prM[key] - baseM[key];
+                const pct = (((prM[key] - baseM[key]) / baseM[key]) * 100).toFixed(1);
                 const emoji = pct < 10 ? '✅' :  '⚠️';
                 markdown += `| ${baseValue} → ${prValue},  ${emoji} ${diff > 0 ? '+' : ''}${diff} (${pct}%) `;
               });
