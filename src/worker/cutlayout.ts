@@ -422,16 +422,17 @@ async function applyLayout(
   const result = util.actOnLeafs(
     rotatedAssembly,
     async (leaf: AbundanceLeaf) => {
-      let transform, index;
+      let transform;
+      let sheetNumber = 0;
       // @ts-ignore TODO: some fancy subtyping to define an id-ed AbundanceLeaf variant
       const leafID = leaf.id;
-      for (var i = 0; i < positions.length; i++) {
-        let candidates = positions[i].filter(
+      for (var sheet = 0; sheet < positions.length; sheet++) {
+        let candidates = positions[sheet].filter(
           (transform) => transform.id == leafID
         );
         if (candidates.length == 1) {
           transform = candidates[0];
-          index = i;
+          sheetNumber = sheet;
           break;
         } else if (candidates.length > 1) {
           console.warn("Found more than one transformation for same id");
@@ -457,7 +458,9 @@ async function applyLayout(
       newGeom = await util.geometryProvider!.move(
         newGeom,
         transform.translate.x - layoutConfig.width / 2,
-        transform.translate.y + i * layoutConfig.height - layoutConfig.height / 2,
+        transform.translate.y +
+          sheetNumber * layoutConfig.height -
+          layoutConfig.height / 2,
         0,
         context
       );
@@ -466,6 +469,7 @@ async function applyLayout(
         ...leaf,
         geometry: newGeom,
         referencePoint: undefined,
+        tags: [...(leaf.tags || []), `sheet:${sheetNumber}`],
       };
     }
   );
