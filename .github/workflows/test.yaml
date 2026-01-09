@@ -6,6 +6,10 @@ on:
     branches: [main]
     types: [opened, synchronize, closed]
 
+  pull_request:
+    branches: [main, puppet-debug-info]
+    types: [opened, synchronize, closed]
+
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
@@ -249,6 +253,7 @@ jobs:
         with:
           script: |
             const fs = require('fs');
+            const { diff } = require('jest-diff');
 
             const prOutput = fs.readFileSync('pr/metrics-pr.json', 'utf8');
             const baseOutput = fs.readFileSync('base/metrics-base.json', 'utf8');
@@ -294,6 +299,7 @@ jobs:
               'cacheEntryCount',
               'projectFileSize',
             ];
+            const withDiffs = [];
 
             let markdown = '## ⚡ Performance Metrics Comparison\n\n';
             markdown += `| ProjectName | ${metricsAllowList.join(" | ")} |\n`;
@@ -319,10 +325,38 @@ jobs:
                 } else {
                   markdown += `| ${baseValue} → ${prValue}<br> ${emoji} ${diff > 0 ? '+' : ''}${diff} (${pct}%) `;
                 }
+                if (diff != 0) {
+                  withDiffs.push(key)
+                }
               });
               markdown += '|\n';
             });
             markdown += '\n---\n';
+
+
+            if ("cacheSize" in withDiffs) {
+              markdown += '### Detailed Cache entry diff (key: size)\n\n';
+              markdown += "```"
+              markdown += diff(
+                JSON.stringify(baseMetrics.cacheKeyedSizes, null, 2),
+                JSON.stringify(prMetrics.cacheKeyedSizes, null, 2),
+                { expand: false, aAnnotation: 'Base branch', bAnnotation: 'PR branch' }
+              );
+              markdown += "```"
+            }
+
+            if ("projectFileSize" in withDiffs) {
+              markdown += '### Detailed Project File contents diff\n\n';
+              markdown += "```"
+              markdown += diff(
+                JSON.stringify(baseMetrics.projectFileRawJson, null, 2),
+                JSON.stringify(prMetrics.projectFileRawJson, null, 2),
+                { expand: false, aAnnotation: 'Base branch', bAnnotation: 'PR branch' }
+              );
+              markdown += "```"
+            }
+
+
 
             console.log(markdown);
 

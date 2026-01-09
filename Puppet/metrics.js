@@ -190,8 +190,7 @@ async function runMetricsTest(browser, projectName) {
     metrics.cacheSize = cacheMetrics.totalSize;
     metrics.cacheSizeFormatted = formatBytes(cacheMetrics.totalSize);
     metrics.cacheEntryCount = cacheMetrics.entryCount;
-    console.log("sizes by cache key: ");
-    console.log(cacheMetrics.keyedSizes);
+    metrics.cacheKeyedSizes = cacheMetrics.keyedSizes;
 
     // Warm load
     await page.reload({ waitUntil: "load", timeout: 120000 });
@@ -210,8 +209,7 @@ async function runMetricsTest(browser, projectName) {
     }
     metrics.projectFileSize = projectFileMetrics.size;
     metrics.projectFileSizeFormatted = formatBytes(projectFileMetrics.size);
-    console.log("Raw save file contents: ");
-    console.log(projectFileMetrics.rawJson);
+    metrics.projectFileRawJson = projectFileMetrics.rawJson;
   } catch (error) {
     metrics.error = error.message;
     console.error(`✗ Error testing ${projectName}: ${error.message}`);
