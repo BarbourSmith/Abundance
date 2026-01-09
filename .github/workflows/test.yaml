@@ -6,6 +6,10 @@ on:
     branches: [main]
     types: [opened, synchronize, closed]
 
+  pull_request:
+    branches: [main, puppet-metrics]
+    types: [opened, synchronize, closed]
+
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
@@ -228,7 +232,6 @@ jobs:
                 body: comment
               });
             }
-            console.log(context.issue)
   compare-and-comment:
     needs: test
     runs-on: ubuntu-latest
@@ -250,7 +253,6 @@ jobs:
         with:
           script: |
             const fs = require('fs');
-            console.log("reading metrics files from follow-up task. pr then base:")
 
             const prOutput = fs.readFileSync('pr/metrics-pr.json', 'utf8');
             const baseOutput = fs.readFileSync('base/metrics-base.json', 'utf8');
@@ -281,13 +283,14 @@ jobs:
               return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
             }
 
+            const safePercent = (pr, base) => {
+              if (base === 0) return 'N/A';
+              return (((pr - base) / base) * 100).toFixed(1);
+            }
 
             const baseMetrics = keyByName(extractJson(baseOutput));
             const prMetrics = keyByName(extractJson(prOutput));
-            console.log(baseMetrics)
-            console.log(prMetrics)
 
-            console.log(context.issue)
             const metricKeys = Object.keys(Object.values(prMetrics)[0]);
             const metricsAllowList = [
               'coldLoadTimeMs',
@@ -309,12 +312,17 @@ jobs:
 
               markdown += `| ${projectName} `;
               metricsAllowList.forEach((key) => {
-                const prValue = key.endsWith("Size") ? formatBytes(prM[key]) : prM[key];
-                const baseValue = key.endsWith("Size") ? formatBytes(baseM[key]) : baseM[key];
-                const diff = key.endsWith("Size") ? formatBytes(prM[key] - baseM[key]) : prM[key] - baseM[key];
-                const pct = (((prM[key] - baseM[key]) / baseM[key]) * 100).toFixed(1);
-                const emoji = pct < 10 ? '✅' :  '⚠️';
-                markdown += `| ${baseValue} → ${prValue}<br> ${emoji} ${diff > 0 ? '+' : ''}${diff} (${pct}%) `;
+                const prValue = prM[key];
+                const baseValue = baseM[key];
+                const diff = prValue - baseValue;
+                const pct = safePercent(prValue, baseValue);
+                if (key.endsWith("Size")) {
+                  const emoji = diff == 0 ? '✅' :  '⚠️';
+                  markdown += `| ${formatBytes(baseValue)} → ${formatBytes(prValue)}<br> ${emoji} ${diff > 0 ? '+' : '-'}${formatBytes(Math.abs(diff))} (${pct}%) `;
+                } else {
+                  const emoji = pct < 10 ? '✅' :  '⚠️';
+                  markdown += `| ${baseValue} → ${prValue}<br> ${emoji} ${diff > 0 ? '+' : ''}${diff} (${pct}%) `;
+                }
               });
               markdown += '|\n';
             });

@@ -193,7 +193,7 @@ async function runMetricsTest(browser, projectName) {
     metrics.cacheEntryCount = cacheMetrics.entryCount;
 
     // Warm load
-    page.reload({ waitUntil: "load", timeout: 120000 });
+    await page.reload({ waitUntil: "load", timeout: 120000 });
     await page.waitForSelector(canvasSelector, { timeout: 120000 });
     const warmStartTime = Date.now();
     await page.waitForSelector(projectReadySelector, { timeout: 120000 });
@@ -210,8 +210,6 @@ async function runMetricsTest(browser, projectName) {
     metrics.projectFileSize = projectFileMetrics.size;
     metrics.projectFileSizeFormatted = formatBytes(projectFileMetrics.size);
 
-    console.log(`✓ Metrics collected for ${projectName}`);
-    console.log(metrics);
   } catch (error) {
     metrics.error = error.message;
     console.error(`✗ Error testing ${projectName}: ${error.message}`);
