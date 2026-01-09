@@ -131,7 +131,7 @@ async function getProjectFileSize(page) {
 
       return {
         size: blob.size,
-        rawJson: jsonString,
+        rawJson: serialized,
       };
     } catch (error) {
       console.error("Error getting project file size:", error);

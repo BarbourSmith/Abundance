@@ -6,6 +6,10 @@ on:
     branches: [main]
     types: [opened, synchronize, closed]
 
+  pull_request:
+    branches: [main, lazy-move]
+    types: [opened, synchronize, closed]
+
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
@@ -297,7 +301,7 @@ jobs:
               'cacheEntryCount',
               'projectFileSize',
             ];
-            const withDiffs = [];
+            const withDiffs = {};
 
             let markdown = '## ⚡ Performance Metrics Comparison\n\n';
             markdown += `| ProjectName | ${metricsAllowList.join(" | ")} |\n`;
@@ -324,37 +328,33 @@ jobs:
                   markdown += `| ${baseValue} → ${prValue}<br> ${emoji} ${diff > 0 ? '+' : ''}${diff} (${pct}%) `;
                 }
                 if (diff != 0) {
-                  withDiffs.push(key)
+                  withDiffs[projectName] = (withDiffs[projectName] || []).concat(key);
                 }
               });
               markdown += '|\n';
             });
             markdown += '\n---\n';
-
             console.log(withDiffs);
-            if (withDiffs.indexOf("cacheSize") !== -1) {
-              markdown += '### Detailed Cache entry diff (key: size)\n\n';
-              markdown += "```"
-              markdown += diff(
-                JSON.stringify(baseMetrics.cacheKeyedSizes, null, 2),
-                JSON.stringify(prMetrics.cacheKeyedSizes, null, 2),
-                { expand: false, aAnnotation: 'Base branch', bAnnotation: 'PR branch' }
-              );
-              markdown += "```"
-            }
-            markdown += '\n\n';
 
-            if (withDiffs.indexOf("projectFileSize") !== -1) {
-              markdown += '### Detailed Project File contents diff\n\n';
-              markdown += "```"
-              markdown += diff(
-                JSON.stringify(baseMetrics.projectFileRawJson, null, 2),
-                JSON.stringify(prMetrics.projectFileRawJson, null, 2),
-                { expand: false, aAnnotation: 'Base branch', bAnnotation: 'PR branch' }
-              );
-              markdown += "```"
-            }
+            Object.keys(withDiffs).forEach((projectName) => {
+              const projDiffs = withDiffs[projectName];
+              const prM = prMetrics[projectName];
+              const baseM = baseMetrics[projectName];
+              console.log(projDiffs);
+              console.log(prM);
+              console.log(baseM);
 
+              if (projDiffs.indexOf("projectFileSize") !== -1) {
+                markdown += '### Detailed Project File contents diff in project ' + projectName + '\n\n';
+                markdown += "```"
+                markdown += diff(
+                  (typeof baseM.projectFileRawJson === "string" ? baseM.projectFileRawJson : JSON.stringify(baseM.projectFileRawJson, null, 2)),
+                  (typeof prM.projectFileRawJson === "string" ? prM.projectFileRawJson : JSON.stringify(prM.projectFileRawJson, null, 2)),
+                  { expand: false, aAnnotation: 'Base branch', bAnnotation: 'PR branch' }
+                );
+                markdown += "```"
+              }
+            });
             console.log(markdown);
 
             const prNumber = context.issue.number;
