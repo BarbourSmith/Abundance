@@ -88,12 +88,15 @@ async function clearIndexedDBCache(browser) {
   try {
     await page.goto("http://localhost:4444", {
       timeout: 30000,
-      waitUntil: "domcontentloaded",
+      waitUntil: "load",
     });
     await page.evaluate(() => {
       return new Promise((resolve, reject) => {
         const request = indexedDB.deleteDatabase("AbundanceProjectCaches");
-        request.onsuccess = () => resolve();
+        request.onsuccess = () => {
+          console.log("got a success response from db deletion");
+          resolve();
+        };
         request.onerror = () => reject(request.error);
         request.onblocked = () => {
           console.log("IndexedDB deletion blocked");
@@ -104,8 +107,6 @@ async function clearIndexedDBCache(browser) {
     console.log("✓ IndexedDB cache cleared");
   } catch (error) {
     console.log("⚠ Could not clear IndexedDB cache:", error.message);
-  } finally {
-    await page.close();
   }
 }
 /**
@@ -209,7 +210,6 @@ async function runMetricsTest(browser, projectName) {
     }
     metrics.projectFileSize = projectFileMetrics.size;
     metrics.projectFileSizeFormatted = formatBytes(projectFileMetrics.size);
-
   } catch (error) {
     metrics.error = error.message;
     console.error(`✗ Error testing ${projectName}: ${error.message}`);
@@ -254,11 +254,11 @@ function formatBytes(bytes) {
       args: ["--no-sandbox", "--disable-setuid-sandbox"],
     });
 
-    // Clear IndexedDB cache before starting tests for cold load measurement
-    await clearIndexedDBCache(browser);
-
     // Run metrics test for each project
     for (const projectName of projects_to_test) {
+      // Clear IndexedDB cache before starting tests for cold load measurement
+      await clearIndexedDBCache(browser);
+
       const metrics = await runMetricsTest(browser, projectName);
       allMetrics.push(metrics);
 
