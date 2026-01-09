@@ -287,7 +287,6 @@ jobs:
             const baseMetrics = keyByName(extractJson(baseOutput));
             const prMetrics = keyByName(extractJson(prOutput));
 
-            const metricKeys = Object.keys(Object.values(prMetrics)[0]);
             const metricsAllowList = [
               'coldLoadTimeMs',
               'warmLoadTimeMs',
@@ -313,7 +312,7 @@ jobs:
                 const diff = prValue - baseValue;
                 const pct = safePercent(prValue, baseValue);
                 const emoji = key.endsWith("TimeMs") ?
-                  (pct < 20 ? '✅' : '⚠️') :
+                  (pct != 'N/A' && pct < 20 ? '✅' : '⚠️') :
                   (diff <= 0 ? '✅' : '⚠️');
                 if (key.endsWith("Size")) {
                   markdown += `| ${formatBytes(baseValue)} → ${formatBytes(prValue)}<br> ${emoji} ${diff >= 0 ? '+' : '-'}${formatBytes(Math.abs(diff))} (${pct}%) `;

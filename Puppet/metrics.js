@@ -168,7 +168,6 @@ async function runMetricsTest(browser, projectName) {
     const navigationUrl = `http://localhost:4444/run/${projectUser}/${projectName}`;
     console.log(`\nTesting metrics for: ${projectName}`);
     console.log(`URL: ${navigationUrl}`);
-    metrics.projectName = projectName;
     const projectReadySelector = "#molecule-fully-render-puppeteer";
     const canvasSelector = "#flow-canvas";
 
