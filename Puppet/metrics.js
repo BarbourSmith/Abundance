@@ -259,6 +259,9 @@ function formatBytes(bytes) {
       // Clear IndexedDB cache before starting tests for cold load measurement
       await clearIndexedDBCache(browser);
 
+      // Wait an additional 10 seconds to ensure cache is cleared
+      await new Promise((resolve) => setTimeout(resolve, 10000));
+
       const metrics = await runMetricsTest(browser, projectName);
       allMetrics.push(metrics);
 
