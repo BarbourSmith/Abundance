@@ -17,7 +17,6 @@ async function getIndexedDBSize(page, dbName) {
       request.onsuccess = function (event) {
         const db = event.target.result;
         let totalSize = 0;
-        let entryCount = 0;
 
         // Get all object stores
         const storeNames = Array.from(db.objectStoreNames);
@@ -30,40 +29,40 @@ async function getIndexedDBSize(page, dbName) {
 
         try {
           const transaction = db.transaction(storeNames, "readonly");
-          let processedStores = 0;
 
           transaction.onerror = function () {
             db.close();
             reject(new Error("Transaction error: " + transaction.error));
           };
 
+          const keyedSizes = {};
+
           storeNames.forEach((storeName) => {
             const objectStore = transaction.objectStore(storeName);
-            const getAllRequest = objectStore.getAll();
-
-            getAllRequest.onsuccess = function () {
-              const records = getAllRequest.result;
-
-              // Calculate size of all records in this store
-              records.forEach((record) => {
+            const request = objectStore.openCursor();
+            request.onsuccess = function () {
+              const cursor = request.result;
+              if (cursor) {
+                const record = cursor.value;
                 const recordString = JSON.stringify(record);
-                // Use Blob size for more accurate byte count
-                const blob = new Blob([recordString]);
-                totalSize += blob.size;
-                entryCount++;
-              });
-
-              processedStores++;
-
-              if (processedStores === storeNames.length) {
+                const recordBlob = new Blob([recordString]);
+                const keyBlob = new Blob([JSON.stringify(cursor.key)]);
+                totalSize += recordBlob.size + keyBlob.size;
+                keyedSizes[cursor.key] = recordBlob.size;
+                cursor.continue();
+              } else {
                 db.close();
-                resolve({ totalSize, entryCount });
+                resolve({
+                  totalSize,
+                  entryCount: Object.keys(keyedSizes).length,
+                  keyedSizes,
+                });
               }
             };
 
-            getAllRequest.onerror = function () {
+            request.onerror = function () {
               db.close();
-              reject(new Error("ObjectStore error: " + getAllRequest.error));
+              reject(new Error("ObjectStore error: " + request.error));
             };
           });
         } catch (err) {
@@ -191,6 +190,8 @@ async function runMetricsTest(browser, projectName) {
     metrics.cacheSize = cacheMetrics.totalSize;
     metrics.cacheSizeFormatted = formatBytes(cacheMetrics.totalSize);
     metrics.cacheEntryCount = cacheMetrics.entryCount;
+    console.log("sizes by cache key: ");
+    console.log(cacheMetrics.keyedSizes);
 
     // Warm load
     await page.reload({ waitUntil: "load", timeout: 120000 });
