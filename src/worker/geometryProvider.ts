@@ -279,8 +279,6 @@ class GeometryProvider {
     // Step 1: filter geometries based on key since that's a much faster approach
     // and we don't need access to the geom values.
     const s = performance.now();
-    const allShapes = await getAllShapesForProject(context.project);
-    console.log(allShapes);
     const deletedGeoms = await filter(
       context.project,
       "ReplicadObject",
@@ -323,10 +321,6 @@ class GeometryProvider {
     console.log(
       `swept cache. removed ${deletedGeoms} geoms in ${geomTime}ms and ${deletedAssemblies} assemblies in ${assemblyTime}ms`
     );
-
-    const remainingShapes = await getAllShapesForProject(context.project);
-    console.log("after sweeping the cache, remaining shapes are:");
-    console.log(remainingShapes);
 
     return deletedGeoms + deletedAssemblies;
   }
@@ -440,14 +434,6 @@ class GeometryProvider {
         offset: [dx, dy, dz],
       },
     ]);
-    /*    const movedId = this._makeId("move", id, dx, dy, dz);
-    await this.createIfAbsent(movedId, context, async () => {
-      const geometry = await this.get(id, context);
-      return geometry.translate(dx, dy, dz);
-    });
-    return movedId;
-*/
-    // TODO I think this should also be checking the warm cache?
     return this.lazyCreateIfAbsent(resultId, context, async () => {
       return this._realizeLazyId(resultId, context);
     });
@@ -464,7 +450,6 @@ class GeometryProvider {
     await this.createIfAbsent(rotateId, context, async () => {
       const geometry = await this.get(id, context);
       if (geometry instanceof replicad.Drawing) {
-        // TODO(tristan): should this rotate around center of bounding box?
         return geometry.rotate(z, [0, 0]);
       } else {
         return geometry
@@ -732,23 +717,26 @@ class GeometryProvider {
       // For all intermediate shapes which are part of the result assembly,
       // promote them to the serialized cache.
       for (const leaf of flattenAssembly(result)) {
-        if (this._isLazyId(leaf.geometry)) {
+        let geomId = leaf.geometry;
+        const asLazy = this._asIdStruct(geomId);
+        if (asLazy) {
           // lazy IDs don't need to be promoted since they can be re-realized
-          continue;
+          // but their target geometries do need to be promoted.
+          geomId = asLazy.target;
         }
-        const geom = this.getFromWarmCache(leaf.geometry, context);
+        const geom = this.getFromWarmCache(geomId, context);
         if (geom) {
           putShape(
             context.project,
-            leaf.geometry,
-            this.getFromWarmCache(leaf.geometry, context)!.serialize()
+            geomId,
+            this.getFromWarmCache(geomId, context)!.serialize()
           );
         } else {
           // check that it's already in the serialized cache
-          const exists = await shapeExists(context.project, leaf.geometry);
+          const exists = await shapeExists(context.project, geomId);
           if (!exists) {
             throw new Error(
-              "Batch operation references unknown geometry: " + leaf.geometry
+              "Batch operation references unknown geometry: " + geomId
             );
           }
         }
@@ -891,6 +879,15 @@ class GeometryProvider {
     }
   }
 
+  _asIdStruct(id: string): IdStruct | undefined {
+    try {
+      return JSON.parse(id) as IdStruct;
+    } catch (e) {
+      console.warn("Failed to parse IdStruct JSON:", e);
+      return undefined;
+    }
+  }
+
   _realizeLazyId(
     id: IdStruct,
     context: RequestContext
@@ -906,7 +903,8 @@ class GeometryProvider {
             transform.offset[2]
           );
         } else if (transform.type === "rotate") {
-          if (baseGeom instanceof replicad.Drawing) {
+          throw new Error("Rotate transform not yet supported in lazy IDs");
+          /*          if (baseGeom instanceof replicad.Drawing) {
             // TODO(tristan): should this rotate around center of bounding box?
             baseGeom = baseGeom.rotate(transform.angles[2], [0, 0]);
           } else {
@@ -914,7 +912,9 @@ class GeometryProvider {
               .rotate(transform.angles[0], [0, 0, 0], [1, 0, 0])
               .rotate(transform.angles[1], [0, 0, 0], [0, 1, 0])
               .rotate(transform.angles[2], [0, 0, 0], [0, 0, 1]);
-          }
+          }*/
+        } else {
+          throw new Error("Unknown transform type in lazy ID: " + transform);
         }
       }
       return baseGeom;
