@@ -302,7 +302,7 @@ jobs:
 
             let markdown = '## ⚡ Performance Metrics Comparison\n\n';
             markdown += `| ProjectName | ${metricsAllowList.join(" | ")} |\n`;
-            markdown += `| --- | ${metricsAllowList.map(() => '---').join(' | ')} |\n`;
+            markdown += `| --- | ${metricsAllowList.map(() => '------------').join(' | ')} |\n`;
 
 
             Object.keys(prMetrics).forEach((projectName) => {
@@ -316,11 +316,12 @@ jobs:
                 const baseValue = baseM[key];
                 const diff = prValue - baseValue;
                 const pct = safePercent(prValue, baseValue);
+                const emoji = key.endsWith("TimeMs") ?
+                  (pct < 20 ? '✅' : '⚠️') :
+                  (diff <= 0 ? '✅' : '⚠️');
                 if (key.endsWith("Size")) {
-                  const emoji = diff == 0 ? '✅' :  '⚠️';
-                  markdown += `| ${formatBytes(baseValue)} → ${formatBytes(prValue)}<br> ${emoji} ${diff > 0 ? '+' : '-'}${formatBytes(Math.abs(diff))} (${pct}%) `;
+                  markdown += `| ${formatBytes(baseValue)} → ${formatBytes(prValue)}<br> ${emoji} ${diff >= 0 ? '+' : '-'}${formatBytes(Math.abs(diff))} (${pct}%) `;
                 } else {
-                  const emoji = pct < 10 ? '✅' :  '⚠️';
                   markdown += `| ${baseValue} → ${prValue}<br> ${emoji} ${diff > 0 ? '+' : ''}${diff} (${pct}%) `;
                 }
               });
