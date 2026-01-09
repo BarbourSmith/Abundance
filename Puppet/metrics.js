@@ -2,7 +2,6 @@ import puppeteer from "puppeteer";
 import projects_to_test from "./projects_to_test.js";
 
 const projectUser = "moatmaslow";
-const CACHE_WAIT_TIME_MS = 3000; // Wait time for cache operations to complete
 
 /**
  * Get the size of IndexedDB database storage
@@ -25,7 +24,7 @@ async function getIndexedDBSize(page, dbName) {
 
         if (storeNames.length === 0) {
           db.close();
-          resolve(0);
+          resolve({ totalSize: 0, entryCount: 0 });
           return;
         }
 
@@ -98,7 +97,7 @@ async function clearIndexedDBCache(browser) {
         request.onerror = () => reject(request.error);
         request.onblocked = () => {
           console.log("IndexedDB deletion blocked");
-          resolve(); // Continue anyway
+          reject("Indexdb deletion was blocked");
         };
       });
     });
@@ -169,23 +168,19 @@ async function runMetricsTest(browser, projectName) {
     console.log(`\nTesting metrics for: ${projectName}`);
     console.log(`URL: ${navigationUrl}`);
     metrics.projectName = projectName;
-
-    // Start timing
-    const startTime = Date.now();
+    const projectReadySelector = "#molecule-fully-render-puppeteer";
+    const canvasSelector = "#flow-canvas";
 
     // Navigate to the project
     await page.goto(navigationUrl, {
       timeout: 120000,
-      waitUntil: "domcontentloaded",
+      waitUntil: "load",
     });
 
+    await page.waitForSelector(canvasSelector, { timeout: 120000 });
     // Wait for the project to fully render
-    const selector = "#molecule-fully-render-puppeteer";
-    await page.waitForFunction(
-      (selector) => !!document.querySelector(selector),
-      { timeout: 120000 },
-      selector
-    );
+    const startTime = Date.now();
+    await page.waitForSelector(projectReadySelector, { timeout: 120000 });
 
     // Calculate cold load time
     const endTime = Date.now();
@@ -198,13 +193,10 @@ async function runMetricsTest(browser, projectName) {
     metrics.cacheEntryCount = cacheMetrics.entryCount;
 
     // Warm load
+    page.reload({ waitUntil: "load", timeout: 120000 });
+    await page.waitForSelector(canvasSelector, { timeout: 120000 });
     const warmStartTime = Date.now();
-    page.reload({ waitUntil: "domcontentloaded", timeout: 120000 });
-    await page.waitForFunction(
-      (selector) => !!document.querySelector(selector),
-      { timeout: 120000 },
-      selector
-    );
+    await page.waitForSelector(projectReadySelector, { timeout: 120000 });
     const warmEndTime = Date.now();
     metrics.warmLoadTimeMs = warmEndTime - warmStartTime;
 
