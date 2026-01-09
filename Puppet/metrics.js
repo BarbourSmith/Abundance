@@ -111,8 +111,8 @@ async function clearIndexedDBCache(browser) {
 }
 /**
  * Gets size of the serialized top level molecule in the project
- * @param {} page
- * @returns
+ * @param {Object} page - Puppeteer page object
+ * @returns {Promise<Object>} Object containing size and jsonLength properties
  */
 async function getProjectFileSize(page) {
   return await page.evaluate(() => {
@@ -125,7 +125,6 @@ async function getProjectFileSize(page) {
       // Call serialize on the molecule
       const serialized =
         window.GlobalVarsForPuppeteer.topLevelMolecule.serialize();
-      console.log("Serialized project:", serialized);
       // Convert to JSON string and measure size
       const jsonString = JSON.stringify(serialized);
       const blob = new Blob([jsonString]);
@@ -168,7 +167,6 @@ async function runMetricsTest(browser, projectName) {
     const navigationUrl = `http://localhost:4444/run/${projectUser}/${projectName}`;
     console.log(`\nTesting metrics for: ${projectName}`);
     console.log(`URL: ${navigationUrl}`);
-    metrics.projectName = projectName;
     const projectReadySelector = "#molecule-fully-render-puppeteer";
     const canvasSelector = "#flow-canvas";
 

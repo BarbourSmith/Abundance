@@ -287,6 +287,11 @@ jobs:
             const baseMetrics = keyByName(extractJson(baseOutput));
             const prMetrics = keyByName(extractJson(prOutput));
 
+            if (Object.keys(prMetrics).length === 0) {
+              console.log("No metrics to compare");
+              return;
+            }
+
             const metricKeys = Object.keys(Object.values(prMetrics)[0]);
             const metricsAllowList = [
               'coldLoadTimeMs',
@@ -313,8 +318,8 @@ jobs:
                 const diff = prValue - baseValue;
                 const pct = safePercent(prValue, baseValue);
                 const emoji = key.endsWith("TimeMs") ?
-                  (pct < 20 ? '✅' : '⚠️') :
-                  (diff <= 0 ? '✅' : '⚠️');
+                  (pct !== 'N/A' && parseFloat(pct) > 10 ? '⚠️' : '✅') :
+                  (diff <= 0 ? '✅' : (pct !== 'N/A' && parseFloat(pct) > 10 ? '⚠️' : '✅'));
                 if (key.endsWith("Size")) {
                   markdown += `| ${formatBytes(baseValue)} → ${formatBytes(prValue)}<br> ${emoji} ${diff >= 0 ? '+' : '-'}${formatBytes(Math.abs(diff))} (${pct}%) `;
                 } else {
@@ -324,8 +329,6 @@ jobs:
               markdown += '|\n';
             });
             markdown += '\n---\n';
-
-            console.log(markdown);
 
             const prNumber = context.issue.number;
             if (!prNumber) {
