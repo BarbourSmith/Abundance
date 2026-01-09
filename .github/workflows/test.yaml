@@ -229,25 +229,6 @@ jobs:
               });
             }
             console.log(context.issue)
-      - name: Add metrics to comment
-        uses: actions/github-script@v7
-        if: github.event_name == 'pull_request_target' && matrix.branch_name == 'pr'
-        with:
-          script: |
-            const fs = require('fs');
-            let files = [];
-            try {
-              files = fs.readdirSync(".").filter(file => file.startsWith('metrics-') && file.endsWith('.json'));
-            } catch (e) {
-              console.log('Screenshot directory not found or empty');
-            }
-            console.log("metrics files from pr branch of matrix:", files);
-            for (const file of files) {
-              const content = fs.readFileSync(file, 'utf8');
-              console.log(`\n\nContents of ${file}:\n`);
-              console.log(content);
-            }
-            console.log(context.issue)
   compare-and-comment:
     needs: test
     runs-on: ubuntu-latest
