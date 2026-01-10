@@ -335,8 +335,8 @@ jobs:
             });
             markdown += '\n---\n';
 
-
-            if ("cacheSize" in withDiffs) {
+            console.log(withDiffs);
+            if (withDiffs.indexOf("cacheSize") !== -1) {
               markdown += '### Detailed Cache entry diff (key: size)\n\n';
               markdown += "```"
               markdown += diff(
@@ -347,7 +347,7 @@ jobs:
               markdown += "```"
             }
 
-            if ("projectFileSize" in withDiffs) {
+            if (withDiffs.indexOf("projectFileSize") !== -1) {
               markdown += '### Detailed Project File contents diff\n\n';
               markdown += "```"
               markdown += diff(
@@ -357,8 +357,6 @@ jobs:
               );
               markdown += "```"
             }
-
-
 
             console.log(markdown);
 
