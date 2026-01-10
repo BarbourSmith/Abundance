@@ -247,6 +247,8 @@ jobs:
         with:
           name: performance-metrics-pr
           path: ./pr
+      - name: install compare dependencies
+        run: npm install jest-diff
       - name: Compare metrics and comment
         uses: actions/github-script@v7
         if: always()
