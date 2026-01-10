@@ -346,6 +346,7 @@ jobs:
               );
               markdown += "```"
             }
+            markdown += '\n\n';
 
             if (withDiffs.indexOf("projectFileSize") !== -1) {
               markdown += '### Detailed Project File contents diff\n\n';

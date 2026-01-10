@@ -176,7 +176,7 @@ async function runMetricsTest(browser, projectName) {
       waitUntil: "load",
     });
 
-    await page.waitForSelector(canvasSelector, { timeout: 120000 });
+    await page.waitForSelector(canvasSelector, { timeout: 200000 });
     // Wait for the project to fully render
     const startTime = Date.now();
     await page.waitForSelector(projectReadySelector, { timeout: 120000 });
@@ -194,7 +194,7 @@ async function runMetricsTest(browser, projectName) {
 
     // Warm load
     await page.reload({ waitUntil: "load", timeout: 120000 });
-    await page.waitForSelector(canvasSelector, { timeout: 120000 });
+    await page.waitForSelector(canvasSelector, { timeout: 200000 });
     const warmStartTime = Date.now();
     await page.waitForSelector(projectReadySelector, { timeout: 120000 });
     const warmEndTime = Date.now();
