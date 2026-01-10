@@ -350,7 +350,7 @@ jobs:
                 markdown += diff(
                   (typeof baseM.projectFileRawJson === "string" ? baseM.projectFileRawJson : JSON.stringify(baseM.projectFileRawJson, null, 2)),
                   (typeof prM.projectFileRawJson === "string" ? prM.projectFileRawJson : JSON.stringify(prM.projectFileRawJson, null, 2)),
-                  { expand: false, aAnnotation: 'Base branch', bAnnotation: 'PR branch' }
+                  { expand: false, aAnnotation: 'Base branch', bAnnotation: 'PR branch', contextLines: 0 }
                 );
                 markdown += "```"
               }
