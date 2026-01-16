@@ -328,43 +328,41 @@ export default function GitSearchMenu({
    */
   function getLocalAtomIconPath(atomType) {
     // Map atom types to their corresponding image files
+    const basePath = import.meta.env.VITE_APP_PATH_FOR_PICS;
     const iconMap = {
-      Circle: "/imgs/circle.png",
-      Rectangle: "/imgs/rectangle.png",
-      RegularPolygon: "/imgs/RegularPolygon.png",
-      Text: "/imgs/text.png",
-      Assembly: "/imgs/Assembly.png",
-      Fusion: "/imgs/fusion.png",
-      Intersection: "/imgs/intersection.png",
-      Difference: "/imgs/difference.png",
-      ShrinkWrap: "/imgs/shrinkwrap.png",
-      Loft: "/imgs/loft.png",
-      Extrude: "/imgs/extrude.png",
-      Move: "/imgs/move.png",
-      Rotate: "/imgs/Rotate.png",
-      Constant: "/imgs/Constant.png",
-      Equation: "/imgs/Equation.png",
-      Input: "/imgs/Input.png",
-      Code: "/imgs/code.png",
-      Gcode: "/imgs/gcode.png",
-      Molecule: "/imgs/molecule.png",
-      GitHubMolecule: "/imgs/githubmolecule.png",
-      Import: "/imgs/Import_menu.svg",
-      Export: "/imgs/Export_menu.svg",
-      Tag: "/imgs/tag.png",
-      "Add-BOM-Tag": "/imgs/Bom.png",
-      Readme: "/imgs/readme.png",
-      Color: "/imgs/Color.png",
-      ExtractTag: "/imgs/extracttag.png",
-      CutLayout: "/imgs/cutlayout.png",
-      GeneticAlgorithm: "/imgs/genetic.svg",
+      Circle: `${basePath}/imgs/circle.png`,
+      Rectangle: `${basePath}/imgs/rectangle.png`,
+      RegularPolygon: `${basePath}/imgs/RegularPolygon.png`,
+      Text: `${basePath}/imgs/text.png`,
+      Assembly: `${basePath}/imgs/Assembly.png`,
+      Fusion: `${basePath}/imgs/fusion.png`,
+      Intersection: `${basePath}/imgs/intersection.png`,
+      Difference: `${basePath}/imgs/difference.png`,
+      ShrinkWrap: `${basePath}/imgs/shrinkwrap.png`,
+      Loft: `${basePath}/imgs/loft.png`,
+      Extrude: `${basePath}/imgs/extrude.png`,
+      Move: `${basePath}/imgs/move.png`,
+      Rotate: `${basePath}/imgs/Rotate.png`,
+      Constant: `${basePath}/imgs/Constant.png`,
+      Equation: `${basePath}/imgs/Equation.png`,
+      Input: `${basePath}/imgs/Input.png`,
+      Code: `${basePath}/imgs/code.png`,
+      Gcode: `${basePath}/imgs/gcode.png`,
+      Molecule: `${basePath}/imgs/molecule.png`,
+      GitHubMolecule: `${basePath}/imgs/githubmolecule.png`,
+      Import: `${basePath}/imgs/Import_menu.svg`,
+      Export: `${basePath}/imgs/Export_menu.svg`,
+      Tag: `${basePath}/imgs/tag.png`,
+      "Add-BOM-Tag": `${basePath}/imgs/Bom.png`,
+      Readme: `${basePath}/imgs/readme.png`,
+      Color: `${basePath}/imgs/Color.png`,
+      ExtractTag: `${basePath}/imgs/extracttag.png`,
+      CutLayout: `${basePath}/imgs/cutlayout.png`,
+      GeneticAlgorithm: `${basePath}/imgs/genetic.svg`,
     };
 
     // Return the icon path or a default thumbnail
-    return (
-      iconMap[atomType] ||
-      import.meta.env.VITE_APP_PATH_FOR_PICS + "/imgs/defaultThumbnail.svg"
-    );
+    return iconMap[atomType] || `${basePath}/imgs/defaultThumbnail.svg`;
   }
 
   /**
