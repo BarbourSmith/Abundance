@@ -361,7 +361,10 @@ export default function GitSearchMenu({
     };
 
     // Return the icon path or a default thumbnail
-    return iconMap[atomType] || "/imgs/defaultThumbnail.svg";
+    return (
+      iconMap[atomType] ||
+      import.meta.env.VITE_APP_PATH_FOR_PICS + "/imgs/defaultThumbnail.svg"
+    );
   }
 
   /**
@@ -465,7 +468,9 @@ export default function GitSearchMenu({
               src={panelItem.isLocal ? panelItem.iconPath : panelItem.svgURL}
               onError={({ currentTarget }) => {
                 currentTarget.onerror = null; // prevents looping
-                currentTarget.src = "/imgs/defaultThumbnail.svg";
+                currentTarget.src =
+                  import.meta.env.VITE_APP_PATH_FOR_PICS +
+                  "/imgs/defaultThumbnail.svg";
               }}
               alt={panelItem.isLocal ? panelItem.atomType : panelItem.repoName}
             />
