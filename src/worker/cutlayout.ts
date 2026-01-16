@@ -50,6 +50,8 @@ async function layout(
   context: RequestContext,
   previousPlacements: Placement[][] | undefined = undefined
 ): Promise<[AbundanceObject, Placement[][]]> {
+  checkConfig(layoutConfig);
+
   var [rotatedAssembly, shapesForLayout] = await rotateForLayout(
     assembly,
     layoutConfig,
@@ -476,6 +478,15 @@ async function applyLayout(
   );
 
   return result;
+}
+
+function checkConfig(layoutConfig: LayoutConfig) {
+  if (layoutConfig.width <= 0 || layoutConfig.height <= 0) {
+    throw new Error("Sheet width and height must be greater than zero.");
+  }
+  if (layoutConfig.rotations < 1 || !Number.isInteger(layoutConfig.rotations)) {
+    throw new Error("Orientations must be an integer of 1 or more.");
+  }
 }
 
 /**
