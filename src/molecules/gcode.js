@@ -174,16 +174,15 @@ export default class Gcode extends Atom {
    * @returns {Function} The gcode callback function
    */
   _createGcodeCallback() {
-    return (gcode) => {
+    return async (gcode) => {
       this.gcodeString = gcode;
       this.gcodeGenerated = true;
       this.progress = 1.0; // Complete progress
-      this.setReady(
-        GlobalVariables.cad.visualizeGcodeIncremental(
-          [gcode],
-          this.getContext()
-        )
+      const gcodeWire = await GlobalVariables.cad.visualizeGcodeIncremental(
+        [gcode],
+        this.getContext()
       );
+      this.setReady(gcodeWire);
       this.sendToRender();
     };
   }
