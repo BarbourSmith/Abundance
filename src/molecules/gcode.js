@@ -184,6 +184,7 @@ export default class Gcode extends Atom {
           this.getContext()
         )
       );
+      this.sendToRender();
     };
   }
 
@@ -542,6 +543,7 @@ export default class Gcode extends Atom {
     );
     this.setReady(gcodeWire);
     this.progress = 1.0;
+    this.sendToRender();
     return gcodeWire;
   }
 
