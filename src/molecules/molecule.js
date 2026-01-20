@@ -268,6 +268,14 @@ export default class Molecule extends Atom {
           console.log(`Downloading Gcode: ${atom.partName}`);
         },
       };
+      exportParams[`Preview Gcode – ${atom.partName}`] = {
+        type: "button",
+        label: `Preview Gcode – ${atom.partName}`,
+        onClick: () => {
+          atom.sendToRender();
+          console.log(`Previewing Gcode: ${atom.partName}`);
+        },
+      };
     });
 
     return exportParams;
