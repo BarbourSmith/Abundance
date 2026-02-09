@@ -142,6 +142,11 @@ async function downExport(
       throw new Error("SVG export requires 2D geometry");
     }
     let svg = geom.clone().scale(scaling).toSVG(scaling);
+    
+    // Ensure SVG paths use fill-rule="evenodd" to properly display interior profiles (holes)
+    // This is necessary for compound shapes where interior contours should create holes
+    svg = svg.replace(/<path /g, '<path fill-rule="evenodd" ');
+    
     var blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
 
     return blob;
