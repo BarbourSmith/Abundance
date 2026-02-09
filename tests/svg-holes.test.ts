@@ -45,10 +45,6 @@ describe("SVG Export with Interior Profiles", () => {
     // Convert to SVG string
     const svgString = geom.toSVG();
     
-    console.log("SVG output:", svgString);
-    
-    // SVG should contain multiple paths or a path with multiple subpaths
-    // to represent the hole
     expect(svgString).toBeDefined();
     expect(svgString.length).toBeGreaterThan(0);
     
@@ -57,8 +53,6 @@ describe("SVG Export with Interior Profiles", () => {
     // Or a single path with multiple M (moveto) commands indicating subpaths
     const pathCount = (svgString.match(/<path/g) || []).length;
     const moveToCount = (svgString.match(/M[\s\-\d.,]+/g) || []).length;
-    
-    console.log(`SVG has ${pathCount} path elements and ${moveToCount} moveto commands`);
     
     // We expect either:
     // 1. Multiple path elements (one for outline, one for hole), OR
@@ -92,16 +86,12 @@ describe("SVG Export with Interior Profiles", () => {
     // Convert to SVG string
     const svgString = geom.toSVG();
     
-    console.log("2D SVG output:", svgString);
-    
     expect(svgString).toBeDefined();
     expect(svgString.length).toBeGreaterThan(0);
     
     // Check for multiple contours
     const pathCount = (svgString.match(/<path/g) || []).length;
     const moveToCount = (svgString.match(/M[\s\-\d.,]+/g) || []).length;
-    
-    console.log(`2D SVG has ${pathCount} path elements and ${moveToCount} moveto commands`);
     
     // Should have multiple contours
     expect(pathCount + moveToCount).toBeGreaterThan(1);

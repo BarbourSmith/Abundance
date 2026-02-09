@@ -145,7 +145,10 @@ async function downExport(
     
     // Ensure SVG paths use fill-rule="evenodd" to properly display interior profiles (holes)
     // This is necessary for compound shapes where interior contours should create holes
-    svg = svg.replace(/<path /g, '<path fill-rule="evenodd" ');
+    // Only add if not already present
+    if (!/fill-rule\s*=/.test(svg)) {
+      svg = svg.replace(/<path /g, '<path fill-rule="evenodd" ');
+    }
     
     var blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
 
