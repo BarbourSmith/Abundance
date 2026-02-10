@@ -943,6 +943,28 @@ export default class Molecule extends Atom {
     }
   }
 
+  /**
+   * Called by Input atoms when their value changes, to notify nested Input atoms
+   * inside this molecule that share the same name.
+   * This ensures input propagation works correctly in nested molecules.
+   * @param {string} inputName - The name of the input that changed
+   */
+  propagateInputChange(inputName) {
+    // Find any Input atoms inside this molecule that match the input name
+    const matchingInputAtoms = this.nodesOnTheScreen.filter(
+      (atom) => atom.atomType === "Input" && atom.name === inputName
+    );
+    
+    // Notify each matching Input atom that its parent attachment point has changed
+    matchingInputAtoms.forEach((inputAtom) => {
+      // The Input atom subscribes to its parentAP, so triggering onUpstreamChange
+      // will cause it to read the new value from parentAP
+      if (typeof inputAtom.onUpstreamChange === "function") {
+        inputAtom.onUpstreamChange();
+      }
+    });
+  }
+
   propagateChange() {
     if (this == GlobalVariables.currentMolecule) {
       // This is the output of the currently focused molecule
