@@ -950,7 +950,9 @@ export default class Molecule extends Atom {
    * @param {string} inputName - The name of the input that changed
    */
   propagateInputChange(inputName) {
-    // Find any Input atoms inside this molecule that match the input name
+    // Find ALL Input atoms inside this molecule that match the input name.
+    // Multiple Input atoms can have the same name in different parts of the molecule,
+    // and all need to be notified.
     const matchingInputAtoms = this.nodesOnTheScreen.filter(
       (atom) => atom.atomType === "Input" && atom.name === inputName
     );
@@ -958,7 +960,8 @@ export default class Molecule extends Atom {
     // Notify each matching Input atom that its parent attachment point has changed
     matchingInputAtoms.forEach((inputAtom) => {
       // The Input atom subscribes to its parentAP, so triggering onUpstreamChange
-      // will cause it to read the new value from parentAP
+      // will cause it to read the new value from parentAP.
+      // Defensive check for robustness, though all Input atoms should have this method.
       if (typeof inputAtom.onUpstreamChange === "function") {
         inputAtom.onUpstreamChange();
       }
