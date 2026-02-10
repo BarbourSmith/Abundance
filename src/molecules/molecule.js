@@ -1334,9 +1334,7 @@ export default class Molecule extends Atom {
     this.disable();
     await GlobalVariables.cad.clearCache(this.getContext());
     this.enable();
-    for (const atom of this.nodesOnTheScreen) {
-      atom.enable();
-    }
+    this.enableAllChildren();
   }
 
   /**
