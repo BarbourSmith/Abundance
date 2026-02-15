@@ -125,7 +125,7 @@ const generateGcode = (
           {
             all: false,
             disabled: false,
-            down: depthPerPass,
+            down: totalDepth,
             flats: false,
             inside: true,
             leave: 0,
@@ -192,7 +192,7 @@ const generateGcode = (
           // Second: Cut exterior shapes (outside cuts)
           ops.push({
             disabled: false,
-            dogbones: true,
+            dogbones: false,
             down: currentDepth,
             inside: false,
             omitthru: false,
