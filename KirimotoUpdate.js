@@ -107,7 +107,8 @@ const generateGcode = (
         if (progressCallback) progressCallback(0.25); // 25% - Tools set
 
         const bounds = eng.widget.getBoundingBox();
-        const down = (bounds.dim.z + CUT_THROUGH) / (passes - 1);
+        const totalDepth = bounds.dim.z + CUT_THROUGH;
+        const depthPerPass = totalDepth / passes;
         const stepOver = 0.8;
         // camZAnchor is only for UI
         eng.setOrigin(bounds.mid.x, bounds.mid.y, bounds.max.z);
@@ -119,6 +120,99 @@ const generateGcode = (
           z: bounds.dim.z + stock_offset.z,
         });
 
+        // Build operations array with interior-first cutting order
+        const ops = [
+          {
+            all: false,
+            disabled: false,
+            down: depthPerPass,
+            flats: false,
+            inside: true,
+            leave: 0,
+            leavez: 0,
+            omitthru: true,
+            ov_botz: 0,
+            ov_conv: false,
+            ov_topz: 0,
+            plunge: plunge,
+            rate: speed,
+            spindle: 13000,
+            step: stepOver,
+            tool: 1000,
+            type: "rough",
+            voids: false,
+          },
+          {
+            disabled: false,
+            down: 0,
+            flats: flats,
+            leave: 0,
+            leavez: 0,
+            mode: "clear",
+            ov_botz: 0,
+            ov_conv: false,
+            ov_topz: bounds.max.z,
+            plunge: plunge,
+            rate: speed,
+            shadow: true,
+            spindle: 13000,
+            step: stepOver,
+            tool: 1000,
+            type: "area",
+          },
+        ];
+
+        // For each pass, add interior cut first, then exterior cut
+        for (let i = 1; i <= passes; i++) {
+          const currentDepth = depthPerPass * i;
+
+          // First: Cut interior shapes (inside cuts)
+          ops.push({
+            disabled: false,
+            dogbones: true,
+            down: currentDepth,
+            inside: true,
+            omitthru: false,
+            omitvoid: false,
+            outside: false,
+            ov_botz: 0,
+            ov_conv: false,
+            ov_topz: 0,
+            plunge: plunge,
+            rate: speed,
+            spindle: 13000,
+            step: depthPerPass,
+            steps: 1,
+            tool: 1000,
+            top: true,
+            type: "outline",
+            wide: false,
+          });
+
+          // Second: Cut exterior shapes (outside cuts)
+          ops.push({
+            disabled: false,
+            dogbones: true,
+            down: currentDepth,
+            inside: false,
+            omitthru: false,
+            omitvoid: false,
+            outside: true,
+            ov_botz: -CUT_THROUGH,
+            ov_conv: true,
+            ov_topz: 0,
+            plunge: plunge,
+            rate: speed,
+            spindle: 13000,
+            step: depthPerPass,
+            steps: 1,
+            tool: 1000,
+            top: false,
+            type: "outline",
+            wide: false,
+          });
+        }
+
         eng.setProcess({
           camDepthFirst: true,
           camEaseAngle: 40,
@@ -128,67 +222,7 @@ const generateGcode = (
           camStockOffset: false,
           camToolInit: true,
           //zBottom: -bounds.max.z - CUT_THROUGH,
-          ops: [
-            {
-              all: false,
-              disabled: false,
-              down: down,
-              flats: false,
-              inside: true,
-              leave: 0,
-              leavez: 0,
-              omitthru: true,
-              ov_botz: 0,
-              ov_conv: false,
-              ov_topz: 0,
-              plunge: plunge,
-              rate: speed,
-              spindle: 13000,
-              step: stepOver,
-              tool: 1000,
-              type: "rough",
-              voids: false,
-            },
-            {
-              disabled: false,
-              down: 0,
-              flats: flats,
-              leave: 0,
-              leavez: 0,
-              mode: "clear",
-              ov_botz: 0,
-              ov_conv: false,
-              ov_topz: bounds.max.z,
-              plunge: plunge,
-              rate: speed,
-              shadow: true,
-              spindle: 13000,
-              step: stepOver,
-              tool: 1000,
-              type: "area",
-            },
-            {
-              disabled: false,
-              dogbones: false,
-              down: down,
-              inside: false,
-              omitthru: false,
-              omitvoid: false,
-              outside: true,
-              ov_botz: -CUT_THROUGH,
-              ov_conv: true,
-              ov_topz: 0,
-              plunge: plunge,
-              rate: speed,
-              spindle: 13000,
-              step: stepOver,
-              steps: 1,
-              tool: 1000,
-              top: false,
-              type: "outline",
-              wide: false,
-            },
-          ],
+          ops: ops,
         });
 
         const unitsCommand =
