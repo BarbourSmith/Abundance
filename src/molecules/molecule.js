@@ -1323,6 +1323,10 @@ export default class Molecule extends Atom {
     this.enable();
     for (const atom of this.nodesOnTheScreen) {
       atom.enable();
+      // If this atom is a molecule (interior molecule), enable all its children too
+      if (atom.atomType === "Molecule" || atom.atomType === "GitHubMolecule") {
+        atom.enableAllChildren();
+      }
     }
   }
 
