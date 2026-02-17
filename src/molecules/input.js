@@ -263,8 +263,12 @@ export default class Input extends Atom {
           this.setStatus(Status.READY, apState.value);
           return true;
         }
+        // If parentAP exists but has no value, sync with parentAP state
+        this.setWaiting();
+        this.onUpstreamChange();
       } else {
         this.setWaiting();
+        this.onUpstreamChange();
       }
     }
     return true;
