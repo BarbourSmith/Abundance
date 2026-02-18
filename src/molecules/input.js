@@ -238,6 +238,11 @@ export default class Input extends Atom {
             didPropagateUpstream = upstreamAtom.enable();
           }
         });
+        // If upstream atoms were already enabled (returned false), sync with current state
+        if (!didPropagateUpstream) {
+          this.onUpstreamChange();
+          return true;
+        }
       }
     }
     if (!didPropagateUpstream) {
