@@ -238,8 +238,21 @@ export default class Input extends Atom {
             didPropagateUpstream = upstreamAtom.enable();
           }
         });
-        // If upstream atoms were already enabled (returned false), sync with current state
+        // If upstream atoms were already enabled (returned false), sync directly with upstream state
+        // This mimics how variable-based subscriptions work - reading directly from the source
         if (!didPropagateUpstream) {
+          this.parentAP.connectors.forEach((connector) => {
+            const upstreamAtom = connector.attachmentPoint1?.parentMolecule;
+            if (upstreamAtom && upstreamAtom !== this) {
+              // Read directly from the upstream atom's state, like variable subscriptions do
+              const upstreamState = upstreamAtom.getState();
+              if (upstreamState.status === Status.READY && upstreamState.value !== null && upstreamState.value !== undefined) {
+                this.setStatus(Status.READY, upstreamState.value);
+                return true;
+              }
+            }
+          });
+          // If we couldn't get a ready value from upstream, call onUpstreamChange as fallback
           this.onUpstreamChange();
           return true;
         }
