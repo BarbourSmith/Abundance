@@ -395,14 +395,6 @@ export const SimpleControlPanel = forwardRef(function SimpleControlPanel(
   // Only focus input on keyboard event, not on mount/controls change
   const [shouldFocus, setShouldFocus] = React.useState(false);
 
-  // Focus the first control when panel is opened (expanded and content not collapsed)
-  React.useEffect(() => {
-    if (!collapsed && !contentCollapsed && controlKeys.length > 0) {
-      setFocusedIndex(0);
-      setShouldFocus(true);
-    }
-  }, [collapsed, contentCollapsed, controlKeys.length]);
-
   // Focus the current control when focusedIndex changes and shouldFocus is true
   React.useEffect(() => {
     if (shouldFocus && inputRefs.current[focusedIndex]) {
