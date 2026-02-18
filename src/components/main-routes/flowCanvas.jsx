@@ -359,10 +359,10 @@ export default memo(function FlowCanvas({
       });
     }
 
-    if (GlobalVariables.ctrlDown && shortCuts.hasOwnProperty([e.key])) {
+    if (GlobalVariables.ctrlDown && shortCuts.hasOwnProperty([e.key.toLowerCase()])) {
       e.preventDefault();
       // Undo
-      if (e.key == "z") {
+      if (e.key.toLowerCase() == "z") {
         // Get operation info before undo (it gets popped during undo)
         const operationInfo =
           GlobalVariables.undoOperationHistory.length > 0
@@ -391,21 +391,21 @@ export default memo(function FlowCanvas({
         setTimeout(() => setUndoNotification(null), 3000);
       }
       //Copy & Paste
-      else if (e.key == "c") {
+      else if (e.key.toLowerCase() == "c") {
         GlobalVariables.atomsSelected = [];
         GlobalVariables.connectorsSelected = [];
         // Ctrl+C: Enhanced copy with connectors
         GlobalVariables.currentMolecule.copyWithConnectors();
-      } else if (e.key == "v") {
+      } else if (e.key.toLowerCase() == "v") {
         Paste();
       }
 
       // Move selected atoms to new molecule with connectors
-      else if (e.key == "m") {
+      else if (e.key.toLowerCase() == "m") {
         GlobalVariables.currentMolecule.moveSelectedAtomsToMolecule();
       }
       //Opens menu to search for github molecule
-      else if (e.key == "g") {
+      else if (e.key.toLowerCase() == "g") {
         setExpandedMenu("git-search");
         setIsShortcutTriggered(true); // Set the shortcut flag
         GlobalVariables.ctrlDown = false;
@@ -416,7 +416,7 @@ export default memo(function FlowCanvas({
             x: 0.5,
             y: 0.5,
             parent: GlobalVariables.currentMolecule,
-            atomType: `${shortCuts[e.key]}`,
+            atomType: `${shortCuts[e.key.toLowerCase()]}`,
             uniqueID: GlobalVariables.generateUniqueID(),
           },
           true
