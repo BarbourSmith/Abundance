@@ -4,6 +4,9 @@ import GlobalVariables from "../js/globalvariables.js";
 import { proxy } from "comlink";
 import { Status } from "../prototypes/observableEntity.js";
 
+/** Opacity applied to the mesh when a layout has not yet been computed. */
+const UNCOMPUTED_LAYOUT_OPACITY = 0.4;
+
 /**
  * Rearrange all input geometries to fit on a sheet of material. Parts are packed
  * as densely as possible while still respecting part padding. In general, all parts
@@ -56,6 +59,14 @@ export default class CutLayout extends Atom {
 
     this.cancelationHandle = undefined;
 
+    /**
+     * Whether the user has triggered at least one layout computation.
+     * When false, the displayed mesh is shown semi-transparent to indicate
+     * that "Compute Layout" needs to be clicked for a valid layout.
+     * @type {boolean}
+     */
+    this.layoutComputedAtLeastOnce = false;
+
     this.addAllIOs([
       { name: "geometry", valueType: "geometry", type: "input" },
       {
@@ -85,6 +96,12 @@ export default class CutLayout extends Atom {
     ]);
 
     this.setValues(values);
+
+    // Backward compatibility: if we have saved placements but no layoutComputedAtLeastOnce
+    // flag in the serialized data, assume the layout was previously computed.
+    if (this.placements?.length > 0 && values?.layoutComputedAtLeastOnce === undefined) {
+      this.layoutComputedAtLeastOnce = true;
+    }
   }
 
   /**
@@ -167,6 +184,19 @@ export default class CutLayout extends Atom {
       this.cancelationHandle = undefined;
     }
     return super.deleteNode(backgroundClickAfter, deletePath, silent);
+  }
+
+  /**
+   * Override sendToRender to dim the mesh when the layout has not yet been
+   * computed. This signals to the user that "Compute Layout" needs to be clicked.
+   */
+  sendToRender() {
+    if (!this.layoutComputedAtLeastOnce && this.value) {
+      const displayValue = Object.assign({}, this.value, { opacity: UNCOMPUTED_LAYOUT_OPACITY });
+      GlobalVariables.writeToDisplay(displayValue, this.getContext());
+    } else {
+      super.sendToRender();
+    }
   }
 
   handleNewPlacements(placements, forGeom, isFinalPlacement = false) {
@@ -270,6 +300,7 @@ export default class CutLayout extends Atom {
         // saved placements are here. Clear the placements and create default ones instead.
         this.placements = [];
         this.placementsFor = "";
+        this.layoutComputedAtLeastOnce = false;
         this.createDefaultPlacements();
       });
     } else {
@@ -357,6 +388,7 @@ export default class CutLayout extends Atom {
         .then((layoutAndPositions) => {
           const [layout, positions] = layoutAndPositions;
           this.handleNewPlacements(positions, inputGeom, true);
+          this.layoutComputedAtLeastOnce = true;
         })
         .catch((err) => {
           this.alertingErrorHandler()(err);
@@ -467,6 +499,7 @@ export default class CutLayout extends Atom {
     //Save the readme text to the serial stream
     var valuesObj = super.serialize(values);
     valuesObj.placements = this.placements;
+    valuesObj.layoutComputedAtLeastOnce = this.layoutComputedAtLeastOnce;
 
     return valuesObj;
   }

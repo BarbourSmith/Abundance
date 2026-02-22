@@ -40,6 +40,7 @@ interface AbundanceBranch {
   color: string;
   tags: string[];
   bom: string[];
+  opacity?: number;
 }
 
 interface AbundanceLeaf {
@@ -49,6 +50,7 @@ interface AbundanceLeaf {
   color: string;
   tags: string[];
   bom: string[];
+  opacity?: number;
 }
 
 function is3D(part: AbundanceObject): boolean {

@@ -18,6 +18,7 @@ type DisplayMesh = {
     }[];
   };
   color: string;
+  opacity?: number;
 };
 
 let defaultMesh: any = undefined;
@@ -199,6 +200,9 @@ async function generateDisplayMesh(
       return { id: id, mesh: await generateDefaultMesh(context) };
     }
 
+    // Extract optional top-level opacity (e.g. set by CutLayout for uncomputed layouts)
+    const topLevelOpacity: number | undefined = id.opacity;
+
     // Flatten the assembly to remove hierarchy
     const flattened = util.flattenAssembly(geom);
 
@@ -241,6 +245,7 @@ async function generateDisplayMesh(
               angularTolerance: 0.5,
             }),
             color: meshObj.color,
+            ...(topLevelOpacity !== undefined && { opacity: topLevelOpacity }),
           });
         } else {
           finalMeshes.push({
@@ -254,6 +259,7 @@ async function generateDisplayMesh(
               angularTolerance: 0.5,
             }),
             color: meshObj.color,
+            ...(topLevelOpacity !== undefined && { opacity: topLevelOpacity }),
           });
         }
       } catch (e) {

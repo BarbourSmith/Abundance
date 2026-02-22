@@ -72,6 +72,7 @@ export default React.memo(
             lines: thisLines,
             color: thisColor,
             solid: isSolid,
+            opacity: m.opacity,
           });
         }
       });
@@ -328,6 +329,17 @@ export default React.memo(
                 <mesh geometry={m.body} key={"mesh" + m.color}>
                   {/*the offsets are here to avoid z fighting between the mesh and the lines*/}
                   {m.color != "#D9544D" && m.color != "#E6F3FF" ? (
+                    m.opacity !== undefined ? (
+                      <meshStandardMaterial
+                        color={m.color}
+                        key={"material" + m.color}
+                        transparent={true}
+                        opacity={m.opacity}
+                        polygonOffset
+                        polygonOffsetFactor={2.0}
+                        polygonOffsetUnits={1.0}
+                      />
+                    ) : (
                     <meshMatcapMaterial
                       color={m.color}
                       key={"material" + m.color}
@@ -335,6 +347,7 @@ export default React.memo(
                       polygonOffsetFactor={2.0}
                       polygonOffsetUnits={1.0}
                     />
+                    )
                   ) : m.color == "#E6F3FF" ? (
                     <meshPhysicalMaterial
                       color={m.color}
