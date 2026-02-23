@@ -556,7 +556,9 @@ export default class Input extends Atom {
    * Override mouseMove to handle tooltip functionality
    */
   mouseMove(x, y) {
+    const lockedX = this.x; // Input atoms are locked to the left side, preserve x
     super.mouseMove(x, y);
+    this.x = lockedX; // Restore x after super call to prevent horizontal movement
 
     // Only show tooltip if text is truncated
     if (!this.isTextTruncated) {
