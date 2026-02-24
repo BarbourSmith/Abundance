@@ -21,6 +21,32 @@ describe("Auto Connector Feature", () => {
         return atom.inputs.find((input) => {
           return input.valueType === "geometry" && input.connectors.length === 0;
         }) || null;
+      },
+
+      findFirstGeometryInputForReplacement(atom) {
+        if (!atom.inputs) return null;
+        return atom.inputs.find((input) => input.valueType === "geometry") || null;
+      },
+
+      autoCreateConnector(newAtom) {
+        const selectedGeometryAtoms = this.findSelectedAtomsWithGeometryOutput();
+        if (selectedGeometryAtoms.length === 0) return;
+
+        let geometryInput = this.findFirstAvailableGeometryInput(newAtom);
+
+        // For Code atoms, if no free geometry input is found, allow replacement of an occupied one
+        if (!geometryInput && newAtom.atomType === "Code") {
+          geometryInput = this.findFirstGeometryInputForReplacement(newAtom);
+        }
+
+        if (!geometryInput) return;
+
+        const sourceAtom = selectedGeometryAtoms[0];
+        this.placeConnector({
+          ap1ID: sourceAtom.uniqueID,
+          ap2ID: newAtom.uniqueID,
+          ap2Name: geometryInput.name,
+        });
       }
     };
   }
@@ -50,6 +76,46 @@ describe("Auto Connector Feature", () => {
         },
         {
           name: "height",
+          valueType: "number",
+          connectors: []
+        }
+      ]
+    };
+  }
+
+  function createMockCodeAtomWithOccupiedGeometryInput() {
+    return {
+      atomType: "Code",
+      selected: false,
+      output: null,
+      inputs: [
+        {
+          name: "shape",
+          valueType: "geometry",
+          connectors: [{ id: "existing-connector" }] // already connected
+        },
+        {
+          name: "radius",
+          valueType: "number",
+          connectors: []
+        }
+      ]
+    };
+  }
+
+  function createMockCodeAtomWithFreeGeometryInput() {
+    return {
+      atomType: "Code",
+      selected: false,
+      output: null,
+      inputs: [
+        {
+          name: "shape",
+          valueType: "geometry",
+          connectors: []
+        },
+        {
+          name: "radius",
           valueType: "number",
           connectors: []
         }
@@ -162,29 +228,6 @@ describe("Auto Connector Feature", () => {
       connectorData = connectorObj;
     };
     
-    // Add the autoCreateConnector function
-    molecule.autoCreateConnector = function(newAtom) {
-      const selectedGeometryAtoms = this.findSelectedAtomsWithGeometryOutput();
-      
-      if (selectedGeometryAtoms.length === 0) {
-        return;
-      }
-
-      const geometryInput = this.findFirstAvailableGeometryInput(newAtom);
-      
-      if (!geometryInput) {
-        return;
-      }
-
-      const sourceAtom = selectedGeometryAtoms[0];
-      
-      this.placeConnector({
-        ap1ID: sourceAtom.uniqueID,
-        ap2ID: newAtom.uniqueID,
-        ap2Name: geometryInput.name,
-      });
-    };
-    
     // Setup: Selected atom with geometry output
     const selectedCircle = createMockAtomWithGeometryOutput("Circle", true);
     selectedCircle.uniqueID = "circle-1";
@@ -213,29 +256,6 @@ describe("Auto Connector Feature", () => {
       connectorCreated = true;
     };
     
-    // Add the autoCreateConnector function
-    molecule.autoCreateConnector = function(newAtom) {
-      const selectedGeometryAtoms = this.findSelectedAtomsWithGeometryOutput();
-      
-      if (selectedGeometryAtoms.length === 0) {
-        return;
-      }
-
-      const geometryInput = this.findFirstAvailableGeometryInput(newAtom);
-      
-      if (!geometryInput) {
-        return;
-      }
-
-      const sourceAtom = selectedGeometryAtoms[0];
-      
-      this.placeConnector({
-        ap1ID: sourceAtom.uniqueID,
-        ap2ID: newAtom.uniqueID,
-        ap2Name: geometryInput.name,
-      });
-    };
-    
     // Test 1: No selected atoms
     const newExtrude1 = createMockAtomWithGeometryInput("Extrude");
     molecule.autoCreateConnector(newExtrude1);
@@ -248,5 +268,97 @@ describe("Auto Connector Feature", () => {
     const newCircle = createMockAtomWithoutGeometry("Circle");
     molecule.autoCreateConnector(newCircle);
     expect(connectorCreated).toBe(false);
+  });
+
+  it("should find geometry input for replacement in Code atoms", () => {
+    const molecule = createMockMolecule();
+
+    // Code atom with connected geometry input - should still find it for replacement
+    const codeAtom = createMockCodeAtomWithOccupiedGeometryInput();
+    const replacementInput = molecule.findFirstGeometryInputForReplacement(codeAtom);
+    
+    expect(replacementInput).not.toBeNull();
+    expect(replacementInput.name).toBe("shape");
+    expect(replacementInput.valueType).toBe("geometry");
+  });
+
+  it("should allow auto-connector to replace existing geometry connection on Code atoms", () => {
+    const molecule = createMockMolecule();
+
+    let connectorCreated = false;
+    let connectorData = null;
+    molecule.placeConnector = function(connectorObj) {
+      connectorCreated = true;
+      connectorData = connectorObj;
+    };
+
+    // Setup: Selected atom with geometry output
+    const selectedCircle = createMockAtomWithGeometryOutput("Circle", true);
+    selectedCircle.uniqueID = "circle-2";
+    molecule.nodesOnTheScreen.push(selectedCircle);
+
+    // Code atom with geometry input ALREADY connected (should be replaceable)
+    const codeAtom = createMockCodeAtomWithOccupiedGeometryInput();
+    codeAtom.uniqueID = "code-1";
+
+    molecule.autoCreateConnector(codeAtom);
+
+    // Verify: Connector was created (replacement) - Code atoms support replacement
+    expect(connectorCreated).toBe(true);
+    expect(connectorData).toEqual({
+      ap1ID: "circle-2",
+      ap2ID: "code-1",
+      ap2Name: "shape"
+    });
+  });
+
+  it("should NOT replace existing geometry connection on non-Code atoms", () => {
+    const molecule = createMockMolecule();
+
+    let connectorCreated = false;
+    molecule.placeConnector = function() {
+      connectorCreated = true;
+    };
+
+    // Setup: Selected atom with geometry output
+    const selectedCircle = createMockAtomWithGeometryOutput("Circle", true);
+    selectedCircle.uniqueID = "circle-3";
+    molecule.nodesOnTheScreen.push(selectedCircle);
+
+    // Non-Code atom with geometry input ALREADY connected (should NOT be replaceable via autoCreateConnector)
+    const extrudeAtom = createMockAtomWithGeometryInput("Extrude");
+    extrudeAtom.inputs[0].connectors.push({ id: "existing-connector" }); // mark as connected
+    extrudeAtom.uniqueID = "extrude-2";
+
+    molecule.autoCreateConnector(extrudeAtom);
+
+    // Verify: NO connector created for non-Code atoms when geometry input is occupied
+    expect(connectorCreated).toBe(false);
+  });
+
+  it("should prefer free geometry input over replacement for Code atoms", () => {
+    const molecule = createMockMolecule();
+
+    let connectorCreated = false;
+    let connectorData = null;
+    molecule.placeConnector = function(connectorObj) {
+      connectorCreated = true;
+      connectorData = connectorObj;
+    };
+
+    // Setup: Selected atom with geometry output
+    const selectedCircle = createMockAtomWithGeometryOutput("Circle", true);
+    selectedCircle.uniqueID = "circle-4";
+    molecule.nodesOnTheScreen.push(selectedCircle);
+
+    // Code atom with FREE geometry input (should use free input, not replacement)
+    const codeAtom = createMockCodeAtomWithFreeGeometryInput();
+    codeAtom.uniqueID = "code-2";
+
+    molecule.autoCreateConnector(codeAtom);
+
+    // Verify: Connector connects to the FREE "shape" input (preferred over replacement)
+    expect(connectorCreated).toBe(true);
+    expect(connectorData.ap2Name).toBe("shape");
   });
 });

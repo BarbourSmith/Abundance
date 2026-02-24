@@ -1567,6 +1567,19 @@ export default class Molecule extends Atom {
   }
 
   /**
+   * Finds the first geometry input on an atom that can be replaced (occupied or free).
+   * Used for Code atoms where connector replacement should be allowed even when all
+   * geometry inputs are already connected.
+   * @param {object} atom - The atom to search for geometry inputs
+   * @returns {object|null} The first geometry input or null if none found
+   */
+  findFirstGeometryInputForReplacement(atom) {
+    if (!atom.inputs) return null;
+
+    return atom.inputs.find((input) => input.valueType === "geometry") || null;
+  }
+
+  /**
    * Auto-creates connector from selected atom with geometry output to new atom with geometry input
    * @param {object} newAtom - The newly placed atom
    */
@@ -1579,16 +1592,22 @@ export default class Molecule extends Atom {
     }
 
     // Find first available geometry input on the new atom
-    const geometryInput = this.findFirstAvailableGeometryInput(newAtom);
+    let geometryInput = this.findFirstAvailableGeometryInput(newAtom);
+
+    // For Code atoms, if no free geometry input is found, allow replacement of an occupied one
+    if (!geometryInput && newAtom.atomType === "Code") {
+      geometryInput = this.findFirstGeometryInputForReplacement(newAtom);
+    }
 
     if (!geometryInput) {
-      return; // New atom doesn't have an available geometry input
+      return; // New atom doesn't have a geometry input
     }
 
     // Use the first selected atom with geometry output (could be enhanced to be smarter)
     const sourceAtom = selectedGeometryAtoms[0];
 
     // Create connector using the existing placeConnector logic
+    // placeConnector handles replacement of existing connections when types are compatible
     this.placeConnector({
       ap1ID: sourceAtom.uniqueID,
       ap2ID: newAtom.uniqueID,
