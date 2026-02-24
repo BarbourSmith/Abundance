@@ -23,20 +23,16 @@ describe("Auto Connector Feature", () => {
         }) || null;
       },
 
-      findFirstGeometryInputForReplacement(atom) {
-        if (!atom.inputs) return null;
-        return atom.inputs.find((input) => input.valueType === "geometry") || null;
-      },
-
       autoCreateConnector(newAtom) {
         const selectedGeometryAtoms = this.findSelectedAtomsWithGeometryOutput();
         if (selectedGeometryAtoms.length === 0) return;
 
         let geometryInput = this.findFirstAvailableGeometryInput(newAtom);
 
-        // For Code atoms, if no free geometry input is found, allow replacement of an occupied one
-        if (!geometryInput && newAtom.atomType === "Code") {
-          geometryInput = this.findFirstGeometryInputForReplacement(newAtom);
+        // If no free geometry input is found, fall back to any geometry input to allow replacement
+        // placeConnector will handle replacing the existing connection if types are compatible
+        if (!geometryInput && newAtom.inputs) {
+          geometryInput = newAtom.inputs.find((input) => input.valueType === "geometry") || null;
         }
 
         if (!geometryInput) return;

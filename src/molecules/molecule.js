@@ -1567,20 +1567,9 @@ export default class Molecule extends Atom {
   }
 
   /**
-   * Finds the first geometry input on an atom that can be replaced (occupied or free).
-   * Used for Code atoms where connector replacement should be allowed even when all
-   * geometry inputs are already connected.
-   * @param {object} atom - The atom to search for geometry inputs
-   * @returns {object|null} The first geometry input or null if none found
-   */
-  findFirstGeometryInputForReplacement(atom) {
-    if (!atom.inputs) return null;
-
-    return atom.inputs.find((input) => input.valueType === "geometry") || null;
-  }
-
-  /**
-   * Auto-creates connector from selected atom with geometry output to new atom with geometry input
+   * Auto-creates connector from selected atom with geometry output to new atom with geometry input.
+   * Prefers free geometry inputs, but will also connect to occupied geometry inputs to allow
+   * replacement of existing connections when types are compatible (handled by placeConnector).
    * @param {object} newAtom - The newly placed atom
    */
   async autoCreateConnector(newAtom) {
@@ -1591,12 +1580,14 @@ export default class Molecule extends Atom {
       return; // No selected atoms with geometry outputs
     }
 
-    // Find first available geometry input on the new atom
+    // Find first available (free) geometry input on the new atom
     let geometryInput = this.findFirstAvailableGeometryInput(newAtom);
 
-    // For Code atoms, if no free geometry input is found, allow replacement of an occupied one
-    if (!geometryInput && newAtom.atomType === "Code") {
-      geometryInput = this.findFirstGeometryInputForReplacement(newAtom);
+    // If no free geometry input is found, fall back to any geometry input to allow replacement
+    // placeConnector will handle replacing the existing connection if types are compatible
+    if (!geometryInput && newAtom.inputs) {
+      geometryInput =
+        newAtom.inputs.find((input) => input.valueType === "geometry") || null;
     }
 
     if (!geometryInput) {
