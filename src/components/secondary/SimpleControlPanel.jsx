@@ -277,12 +277,16 @@ export const SimpleControlPanel = forwardRef(function SimpleControlPanel(
     setContentCollapsed,
     closeMenu,
     activeAtom,
+    resetKey,
   },
   ref,
 ) {
   // Collapsed panel state
   const [collapsed, setCollapsed] = useState(initialCollapsed);
   const [activeEye, setActiveEye] = useState({});
+  useEffect(() => {
+    setActiveEye({});
+  }, [resetKey]);
   // Resizing state
   const [panelSize, setPanelSize] = useState({
     width: minWidth,

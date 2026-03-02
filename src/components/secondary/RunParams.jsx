@@ -49,6 +49,16 @@ export default function RunParams({
 
   const [inputChanged, setInputChanged] = useState("");
 
+  useEffect(() => {
+    if (!inputChanged || !activeAtom) return;
+    const gcodeAtoms = (activeAtom.nodesOnTheScreen ?? []).filter(
+      (node) => node.atomType === "Gcode" && node._isPreviewing,
+    );
+    gcodeAtoms.forEach((atom) => {
+      atom._isPreviewing = false;
+    });
+  }, [inputChanged]);
+
   let inputParams = {};
   let exportParams = {};
 
@@ -134,6 +144,7 @@ export default function RunParams({
         closeMenu={closeMenu}
         collapsedOffset={collapsedOffset}
         collapsedIcon={AtomIcon}
+        resetKey={inputChanged}
       />
     </div>
   );
