@@ -123,6 +123,11 @@ function AppContent() {
 
   const [processing, setProcessing] = useState(false);
 
+  // Incrementing this counter triggers the render progress interval to restart
+  // when a new project is loaded. This ensures the interval picks up the new
+  // project's molecule state even after the previous project's interval was cleared.
+  const [projectLoadCount, setProjectLoadCount] = useState(0);
+
   useEffect(() => {
     setRenderProgress(0);
     setRenderBarVisible(true);
@@ -185,6 +190,7 @@ function AppContent() {
     setRenderBarVisible,
     setRenderStage,
     processing,
+    projectLoadCount,
   ]);
 
   useEffect(() => {
@@ -426,6 +432,14 @@ function AppContent() {
    * @returns
    */
   const loadProject = function (project, authorizedUser) {
+    // Clear the top-level wireframe cache and display so the new project's
+    // wireframe is generated fresh when it becomes ready. Incrementing
+    // projectLoadCount also restarts the render progress interval so it can
+    // track the new project's molecule state from the beginning.
+    topLevelMesh.current = undefined;
+    setTopLevelWireMesh(null);
+    setProjectLoadCount((c) => c + 1);
+
     GlobalVariables.recentMoleculeRepresentation = [];
     GlobalVariables.undoOperationHistory = [];
     GlobalVariables.totalAtomCount = 0;
