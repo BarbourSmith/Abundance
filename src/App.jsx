@@ -372,6 +372,7 @@ function AppContent() {
         targetMesh.current = moleculeValue;
 
         if (
+          !nonReplicadGeometryFromAtom?.hideMainMesh &&
           JSON.stringify(targetMesh.current) ===
             JSON.stringify(backgroundMesh.current?.id) &&
           backgroundMesh.current?.mesh
@@ -388,7 +389,7 @@ function AppContent() {
         } else {
           // General case - generate the mesh for selected atom
           //Check if mesh should be hidden (a.e gcode)
-          if (!nonReplicadGeometryFromAtom.hideMainMesh) {
+          if (!nonReplicadGeometryFromAtom?.hideMainMesh) {
             makeMesh();
           } else {
             setMesh([]);

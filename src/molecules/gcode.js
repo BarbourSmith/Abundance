@@ -584,10 +584,20 @@ export default class Gcode extends Atom {
         allGcodeObjects.add(obj);
       });
       allGcodeObjects.rotation.x = Math.PI / 2;
+
+      // Check if the upstream atom is a CutLayout - if so, allow the main mesh to show
+      // alongside the G-code visualization (as the flat layout is useful context)
+      const geometryInput = this.inputs.find(
+        (input) => input.name === "geometry" && input.type === "input",
+      );
+      const upstreamAtom =
+        geometryInput?.connectors?.[0]?.attachmentPoint1?.parentMolecule;
+      const isPrecededByCutlayout = upstreamAtom?.type === "cutLayout";
+
       this.nonReplicadGeom = {
         geometry: [allGcodeObjects],
         material: null,
-        hideMainMesh: true, // Hide the main mesh when rendering G-code visualization
+        hideMainMesh: !isPrecededByCutlayout, // Hide the main mesh unless preceded by a cutlayout atom
       };
       //setObject(allGcodeObjects);
     } catch (err) {
