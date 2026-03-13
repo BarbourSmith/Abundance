@@ -47,15 +47,39 @@ export default class Label extends Atom {
         type: "input",
       },
       {
-        name: "startPosition",
-        valueType: "array",
-        defaultValue: [0, 0, 0],
+        name: "startX",
+        valueType: "number",
+        defaultValue: 0,
         type: "input",
       },
       {
-        name: "endPosition",
-        valueType: "array",
-        defaultValue: [10, 10, 0],
+        name: "startY",
+        valueType: "number",
+        defaultValue: 0,
+        type: "input",
+      },
+      {
+        name: "startZ",
+        valueType: "number",
+        defaultValue: 0,
+        type: "input",
+      },
+      {
+        name: "endX",
+        valueType: "number",
+        defaultValue: 10,
+        type: "input",
+      },
+      {
+        name: "endY",
+        valueType: "number",
+        defaultValue: 10,
+        type: "input",
+      },
+      {
+        name: "endZ",
+        valueType: "number",
+        defaultValue: 0,
         type: "input",
       },
       {
@@ -113,31 +137,21 @@ export default class Label extends Atom {
    * @param {string} color - The hex color string for the line and text
    */
   buildLabelGeometry() {
-    this.start = this.findIOValue("startPosition");
-    this.end = this.findIOValue("endPosition");
     this.text = this.findIOValue("text");
     this.color = this.findIOValue("color");
 
-    console.log(
-      "Building label geometry with start:",
-      this.start,
-      "end:",
-      this.end,
-      "text:",
-      this.text,
-      "color:",
-      this.color,
-    );
-    const start = new THREE.Vector3(
-      Number(this.start[0]) || 0,
-      Number(this.start[1]) || 0,
-      Number(this.start[2]) || 0,
-    );
-    const end = new THREE.Vector3(
-      Number(this.end[0]) || 0,
-      Number(this.end[1]) || 0,
-      Number(this.end[2]) || 0,
-    );
+    const startX = Number(this.findIOValue("startX")) || 0;
+    const startY = Number(this.findIOValue("startY")) || 0;
+    const startZ = Number(this.findIOValue("startZ")) || 0;
+    const endX = Number(this.findIOValue("endX")) || 0;
+    const endY = Number(this.findIOValue("endY")) || 0;
+    const endZ = Number(this.findIOValue("endZ")) || 0;
+
+    this.start = [startX, startY, startZ];
+    this.end = [endX, endY, endZ];
+
+    const start = new THREE.Vector3(startX, startY, startZ);
+    const end = new THREE.Vector3(endX, endY, endZ);
     const labelText = String(this.text || "label");
     const color = String(this.color || "#d72020");
 
@@ -263,26 +277,6 @@ export default class Label extends Atom {
                 input.setValue(value);
                 //this.onUpstreamChange();
               }
-            },
-          };
-        } else if (input.name === "startPosition") {
-          inputParams[this.uniqueID + "startPosition"] = {
-            type: "point",
-            value: [input.value[0], input.value[1], input.value[2]],
-            label: "Start position",
-            step: 0.1,
-            onChange: (value) => {
-              input.setValue([value[0], value[1], value[2]]);
-            },
-          };
-        } else if (input.name === "endPosition") {
-          inputParams[this.uniqueID + "endPosition"] = {
-            type: "point",
-            value: [input.value[0], input.value[1], input.value[2]],
-            label: "End position",
-            step: 0.1,
-            onChange: (value) => {
-              input.setValue([value[0], value[1], value[2]]);
             },
           };
         } else if (input.name === "color") {
