@@ -196,6 +196,13 @@ function AppContent() {
     }
   }, [renderProgress, setRenderBarVisible]);
 
+  // Invalidate top-level wireframe cache whenever a new render starts
+  useEffect(() => {
+    if (renderProgress < 100) {
+      topLevelMesh.current = undefined;
+    }
+  }, [renderProgress]);
+
   // Generate top-level molecule wireframe mesh when molecule is ready
   useEffect(() => {
     if (renderProgress >= 100 && GlobalVariables.topLevelMolecule) {
@@ -204,9 +211,9 @@ function AppContent() {
       const moleculeValue = molecule.value;
       const context = molecule.getContext();
 
-      // Check if we've already generated the mesh for this molecule
+      // Check if we've already generated the mesh for this render cycle
       if (topLevelMesh.current && topLevelMesh.current.id === moleculeId) {
-        // Already generated for this molecule, just ensure it's set
+        // Already generating or generated for this render cycle, just ensure it's set
         if (topLevelMesh.current.mesh) {
           setTopLevelWireMesh(topLevelMesh.current.mesh);
         }
@@ -214,7 +221,7 @@ function AppContent() {
       }
 
       if (moleculeValue && context) {
-        // Mark that we're generating for this molecule
+        // Mark that we're generating for this render cycle
         topLevelMesh.current = { id: moleculeId, mesh: undefined };
 
         pool
