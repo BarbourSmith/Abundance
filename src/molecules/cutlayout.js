@@ -462,7 +462,11 @@ export default class CutLayout extends Atom {
         proxy((progress, cancelationHandle) => {
           if (this.getState().status == Status.PROCESSING) {
             this.progress = progress;
-            this.cancelationHandle = cancelationHandle;
+            // Only update the cancel handle when one is provided (it is sent
+            // once per computation, not on every progress tick).
+            if (cancelationHandle !== undefined) {
+              this.cancelationHandle = cancelationHandle;
+            }
           }
         }),
         proxy((message) => {

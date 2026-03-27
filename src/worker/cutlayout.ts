@@ -57,7 +57,10 @@ function clearRotateCache() {
 
 async function layout(
   assembly: AbundanceObject,
-  progressCallback: (progress: number, cancelCallback: () => void) => void,
+  progressCallback: (
+    progress: number,
+    cancelCallback?: () => void,
+  ) => void | Promise<void>,
   warningCallback: (msg: string) => void,
   placementsCallback: (placements: Placement[][]) => void,
   layoutConfig: LayoutConfig,
@@ -597,7 +600,10 @@ function createDefaultPlacements(
  */
 function computePositions(
   shapesForLayout: ShapeForLayout[],
-  progressCallback: (progress: number, cancel: () => void) => void,
+  progressCallback: (
+    progress: number,
+    cancel?: () => void,
+  ) => void | Promise<void>,
   placementsCallback: (placements: Placement[][]) => void,
   layoutConfig: LayoutConfig,
   previousPlacements: Placement[][] | undefined = undefined,
@@ -637,17 +643,32 @@ function computePositions(
   const packer = new PolygonPacker();
 
   let progressCallbackCounter = 0;
+  // Create the cancel proxy once per computation to avoid flooding comlink with
+  // hundreds of short-lived MessageChannel proxies (one per 100ms callback).
+  // Sending a new proxy on every call caused ~300 leaked MessagePorts per
+  // computation, whose GC-triggered RELEASE handshakes overwhelmed the worker
+  // and produced abort errors on the second compute click.
+  const cancelFn = proxy(() => {
+    packer.stop(true);
+  });
+  let cancelFnSent = false;
   const callbackFunction = (num: any) => {
-    // Forward to the UI thread along with a cancelation handle.
+    // Forward to the UI thread along with a cancelation handle (first call only).
     // Expect a call every 0.1 seconds for this method.
     // Unclear what the num argument is supposed to represent
     progressCallbackCounter++;
-    progressCallback(
-      0.1 + 0.9 * ((progressCallbackCounter * 100) / runtimeMs),
-      proxy(() => {
-        packer.stop(true);
-      }),
-    );
+    const progress =
+      0.1 + 0.9 * ((progressCallbackCounter * 100) / runtimeMs);
+    // Only send the cancel handle on the very first tick; subsequent ticks send
+    // only the progress value so no additional proxies are created.
+    const callPromise = !cancelFnSent
+      ? ((cancelFnSent = true), progressCallback(progress, cancelFn))
+      : progressCallback(progress);
+    // Swallow any errors from the async proxy call to prevent unhandled
+    // promise rejections from crashing the worker.
+    if (callPromise) {
+      callPromise.catch(() => {});
+    }
   };
 
   const result = new Promise((resolve, reject) => {
