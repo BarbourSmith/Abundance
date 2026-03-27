@@ -153,30 +153,63 @@ export function ProjectProvider({ children, cad, loadProject }) {
 
     // Post new project to AWS database
     const apiUrl =
-      "https://hg5gsgv9te.execute-api.us-east-2.amazonaws.com/abundance-stage//post-new-project";
-    await fetch(apiUrl, {
-      method: "POST",
-      body: JSON.stringify(newProjectBody),
-      headers: {
-        "Content-type": "application/json; charset=UTF-8",
-      },
-    });
+      "https://hg5gsgv9te.execute-api.us-east-2.amazonaws.com/abundance-stage/post-new-project";
+    let postProjectResponse;
+    try {
+      postProjectResponse = await fetch(apiUrl, {
+        method: "POST",
+        body: JSON.stringify(newProjectBody),
+        headers: {
+          "Content-type": "application/json; charset=UTF-8",
+        },
+      });
+    } catch (err) {
+      console.error("Network error posting new project to AWS:", err);
+      throw new Error(
+        `Your GitHub repository "${currentRepoName}" was created successfully, but we could not register it in the Abundance database due to a network error. You can still access the project directly on GitHub at github.com/${currentUser}/${currentRepoName}.`,
+      );
+    }
+    if (!postProjectResponse.ok) {
+      console.error(
+        "AWS post-new-project failed with status:",
+        postProjectResponse.status,
+      );
+      throw new Error(
+        `Your GitHub repository "${currentRepoName}" was created successfully, but we could not register it in the Abundance database (error ${postProjectResponse.status}). You can still access the project directly on GitHub at github.com/${currentUser}/${currentRepoName}.`,
+      );
+    }
     GlobalVariables.currentAWSnode = newProjectBody;
 
-    // Add to user table
+    // Add to user table (non-critical — failure does not affect project availability)
     const apiUpdateUserUrl =
       "https://hg5gsgv9te.execute-api.us-east-2.amazonaws.com/abundance-stage/USER-TABLE";
-    await fetch(apiUpdateUserUrl, {
-      method: "POST",
-      body: JSON.stringify({
-        user: GlobalVariables.currentUser,
-        attributeUpdates: { numProjectsOwned: 1 },
-        updateType: "SET",
-      }),
-      headers: {
-        "Content-type": "application/json; charset=UTF-8",
-      },
-    });
+    try {
+      const userTableResponse = await fetch(apiUpdateUserUrl, {
+        method: "POST",
+        body: JSON.stringify({
+          user: GlobalVariables.currentUser,
+          attributeUpdates: { numProjectsOwned: 1 },
+          updateType: "SET",
+        }),
+        headers: {
+          "Content-type": "application/json; charset=UTF-8",
+        },
+      });
+      if (!userTableResponse.ok) {
+        console.error(
+          "AWS USER-TABLE update failed with status:",
+          userTableResponse.status,
+        );
+        errors.push(
+          "Your project statistics could not be updated, but the project was created successfully.",
+        );
+      }
+    } catch (err) {
+      console.error("Error updating user table in AWS:", err);
+      errors.push(
+        "Your project statistics could not be updated, but the project was created successfully.",
+      );
+    }
 
     // Create the project files sequentially
     await authorizedUserOcto.rest.repos.createOrUpdateFileContents({

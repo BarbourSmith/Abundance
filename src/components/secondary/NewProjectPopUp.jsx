@@ -210,7 +210,10 @@ const NewProjectPopUp = ({ setExportPopUp, authorizedUserOcto, exporting }) => {
     }).catch((error) => {
       console.error("Error creating project:", error);
       setPending(false);
-      window.alert("An error occurred while creating the project. Please try again.");
+      window.alert(
+        error.message ||
+          "An error occurred while creating the project. Please try again.",
+      );
     });
   };
 
