@@ -3,6 +3,7 @@ import { useEffect, useState, useMemo } from "react";
 import { SimpleControlPanel } from "./SimpleControlPanel";
 import { useControls } from "../../hooks/useControls";
 import { useAppState } from "../../contexts/index.js";
+import { useAuth } from "../../contexts/AuthContext";
 
 export default function ParamsMenu({
   position,
@@ -44,6 +45,7 @@ export default function ParamsMenu({
     </svg>
   );
   const { activeAtom } = useAppState();
+  const { authorizedUserOcto, userScopes } = useAuth();
 
   const [inputChanged, setInputChanged] = useState("");
 
@@ -51,7 +53,11 @@ export default function ParamsMenu({
   let predictedParams = {};
 
   if (activeAtom) {
-    inputParams = activeAtom.createInputParams(setInputChanged);
+    inputParams = activeAtom.createInputParams(
+      setInputChanged,
+      authorizedUserOcto,
+      userScopes,
+    );
     //inputParams = unusedDefault;
     predictedParams = activeAtom.createPredictedParams();
   }

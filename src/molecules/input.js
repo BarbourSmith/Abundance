@@ -52,6 +52,11 @@ export default class Input extends Atom {
     this.radius = 1 / 75;
 
     /**
+     * Properties for point type inputs
+     */
+    this.pointValue = null;
+
+    /**
      * Properties for import type inputs
      */
     this.fileName = null;
@@ -132,6 +137,11 @@ export default class Input extends Atom {
       this.parentAP.subscribe(() => {
         this.onUpstreamChange(); // Subscribe with our callback instead of our parent's which is default.
       }, this.uniqueID);
+
+      // If this is a range type, propagate min/max to parentAP (restored from serialized data)
+      if (this.type === "range" && (this.min !== undefined || this.max !== undefined)) {
+        this.updateParentAPRangeOptions();
+      }
     } else {
       throw new Error(
         "constructed an input with undefined parent. IDK what to do here",
@@ -969,6 +979,8 @@ export default class Input extends Atom {
         "array",
         "boolean",
         "range",
+        "point2d",
+        "point3d",
         "import",
       ],
       onChange: (newType) => {
@@ -1050,6 +1062,82 @@ export default class Input extends Atom {
       };
     }
 
+    // If type is point2d, add controls for x and y coordinates
+    if (this.type === "point2d") {
+      // Initialize pointValue if not set
+      if (this.pointValue === null) {
+        this.pointValue = [0, 0];
+      }
+
+      inputParams[this.uniqueID + "pointX"] = {
+        type: "number",
+        value: this.pointValue[0],
+        label: "X Coordinate",
+        step: 0.1,
+        disabled: false,
+        onChange: (val) => {
+          this.pointValue[0] = val;
+          this.setInputChanged(val);
+        },
+      };
+
+      inputParams[this.uniqueID + "pointY"] = {
+        type: "number",
+        value: this.pointValue[1],
+        label: "Y Coordinate",
+        step: 0.1,
+        disabled: false,
+        onChange: (val) => {
+          this.pointValue[1] = val;
+          this.setInputChanged(val);
+        },
+      };
+    }
+
+    // If type is point3d, add controls for x, y, and z coordinates
+    if (this.type === "point3d") {
+      // Initialize pointValue if not set
+      if (this.pointValue === null) {
+        this.pointValue = [0, 0, 0];
+      }
+
+      inputParams[this.uniqueID + "pointX"] = {
+        type: "number",
+        value: this.pointValue[0],
+        label: "X Coordinate",
+        step: 0.1,
+        disabled: false,
+        onChange: (val) => {
+          this.pointValue[0] = val;
+          this.setInputChanged(val);
+        },
+      };
+
+      inputParams[this.uniqueID + "pointY"] = {
+        type: "number",
+        value: this.pointValue[1],
+        label: "Y Coordinate",
+        step: 0.1,
+        disabled: false,
+        onChange: (val) => {
+          this.pointValue[1] = val;
+          this.setInputChanged(val);
+        },
+      };
+
+      inputParams[this.uniqueID + "pointZ"] = {
+        type: "number",
+        value: this.pointValue[2],
+        label: "Z Coordinate",
+        step: 0.1,
+        disabled: false,
+        onChange: (val) => {
+          this.pointValue[2] = val;
+          this.setInputChanged(val);
+        },
+      };
+    }
+
     // If type is import, add controls for file upload
     if (this.type === "import") {
       if (this.fileName === null) {
@@ -1122,6 +1210,11 @@ export default class Input extends Atom {
     if (this.type === "range") {
       superSerialObject.min = this.min;
       superSerialObject.max = this.max;
+    }
+
+    // Save point coordinates if type is point2d or point3d
+    if (this.type === "point2d" || this.type === "point3d") {
+      superSerialObject.pointValue = this.pointValue;
     }
 
     // Save import-related properties if type is import

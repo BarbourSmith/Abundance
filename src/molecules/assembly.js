@@ -66,17 +66,17 @@ export default class Assembly extends Atom {
     GlobalVariables.c.fillStyle = "#949294";
     GlobalVariables.c.moveTo(
       xInPixels - radiusInPixels / 2,
-      yInPixels + radiusInPixels / 2
+      yInPixels + radiusInPixels / 2,
     );
     GlobalVariables.c.lineTo(
       xInPixels + radiusInPixels / 2,
-      yInPixels + radiusInPixels / 2
+      yInPixels + radiusInPixels / 2,
     );
     GlobalVariables.c.lineTo(xInPixels + radiusInPixels / 2, yInPixels);
     GlobalVariables.c.lineTo(xInPixels - radiusInPixels / 2, yInPixels);
     GlobalVariables.c.lineTo(
       xInPixels - radiusInPixels / 2,
-      yInPixels + radiusInPixels / 2
+      yInPixels + radiusInPixels / 2,
     );
     //GlobalVariables.c.fill()
     GlobalVariables.c.stroke();
@@ -84,17 +84,17 @@ export default class Assembly extends Atom {
     GlobalVariables.c.beginPath();
     GlobalVariables.c.lineTo(
       xInPixels + radiusInPixels / 4,
-      yInPixels - radiusInPixels / 2
+      yInPixels - radiusInPixels / 2,
     );
     GlobalVariables.c.lineTo(
       xInPixels - radiusInPixels / 4,
-      yInPixels - radiusInPixels / 2
+      yInPixels - radiusInPixels / 2,
     );
     GlobalVariables.c.lineTo(xInPixels - radiusInPixels / 4, yInPixels);
     GlobalVariables.c.lineTo(xInPixels + radiusInPixels / 2, yInPixels);
     GlobalVariables.c.lineTo(
       xInPixels + radiusInPixels / 4,
-      yInPixels - radiusInPixels / 2
+      yInPixels - radiusInPixels / 2,
     );
 
     //GlobalVariables.c.fill()
@@ -142,16 +142,18 @@ export default class Assembly extends Atom {
           ioValues.push(saveIO);
           return;
         }
-        
+
         const value = io.getValue();
         // Only save numbers and strings, and check size
         if (typeof value === "number" || typeof value === "string") {
           const MAX_VALUE_SIZE = 10000;
           if (typeof value === "string" && value.length > MAX_VALUE_SIZE) {
-            console.warn(`Skipping large string value (${value.length} chars) for Assembly input: ${io.name}`);
+            console.warn(
+              `Skipping large string value (${value.length} chars) for Assembly input: ${io.name}`,
+            );
             return;
           }
-          
+
           var saveIO = {
             name: io.name,
             ioValue: value,

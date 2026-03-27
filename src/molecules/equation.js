@@ -118,7 +118,9 @@ export default class Equation extends Atom {
         }
       });
       // Remove duplicates and built-in constants
-      variables = [...new Set(variables)].filter(v => !Equation.BUILTIN_CONSTS.has(v));
+      variables = [...new Set(variables)].filter(
+        (v) => !Equation.BUILTIN_CONSTS.has(v),
+      );
     } catch (e) {
       // Fallback for string expressions that mathjs can't parse
       // Need to extract variables while respecting quote boundaries
@@ -179,7 +181,7 @@ export default class Equation extends Atom {
     // Extract identifiers from non-quoted parts
     const matches = part.match(/\b[a-zA-Z_][a-zA-Z0-9_]*\b/g) || [];
     // Filter out built-in constants
-    const filtered = matches.filter(m => !Equation.BUILTIN_CONSTS.has(m));
+    const filtered = matches.filter((m) => !Equation.BUILTIN_CONSTS.has(m));
     variables.push(...filtered);
   }
 
@@ -189,11 +191,9 @@ export default class Equation extends Atom {
   addAndRemoveInputs() {
     // Use AST-based variable extraction
     let variables = this._extractVariablesFromEquation();
-    // Only add inputs for variables NOT present in parent molecule's inputs
-    let moleculeInputs = [];
-    if (this.parent && this.parent.inputs) {
-      moleculeInputs = this.parent.inputs.map((input) => input.name);
-    }
+    // Only add inputs for variables NOT present in any ancestor molecule's inputs
+    const ancestorInputs = this.getInputsFromAncestors();
+    let moleculeInputs = ancestorInputs.map((input) => input.name);
 
     //Remove any inputs which are not needed
     const deleteExtraInputs = () => {
@@ -294,7 +294,12 @@ export default class Equation extends Atom {
 
     //Write the current equation to the serialized object
     // Use safe serialization to prevent large equations from bloating the save file
-    Atom.safeSerializeValue(superSerialObject, 'currentEquation', this.currentEquation, this.name || 'Equation');
+    Atom.safeSerializeValue(
+      superSerialObject,
+      "currentEquation",
+      this.currentEquation,
+      this.name || "Equation",
+    );
 
     return superSerialObject;
   }
@@ -304,16 +309,26 @@ export default class Equation extends Atom {
    */
   setEquation(newEquation) {
     let equation = String(newEquation).trim(); //convert to string first, then remove leading and trailing whitespace
-    
+
     // Normalize smart/curly quotes to standard ASCII quotes
     // This handles copy-paste from Word, Google Docs, etc.
     equation = equation
-      .replace(/[\u201C\u201D\u201E\u201F\u2033\u2036]/g, '"')  // Various double quote styles
+      .replace(/[\u201C\u201D\u201E\u201F\u2033\u2036]/g, '"') // Various double quote styles
       .replace(/[\u2018\u2019\u201A\u201B\u2032\u2035]/g, "'"); // Various single quote styles
-    
+
     this.currentEquation = equation;
     this.name = this.currentEquation; // Update the displayed name to match the current equation
     this.addAndRemoveInputs();
+
+    // When all equation variables are molecule-level inputs, no atom inputs exist and
+    // _subscribeToInputs() won't trigger onUpstreamChange(). Force a recompute so
+    // the result reflects the new equation rather than the previous stale value.
+    if (this.isEnabled() && this.inputs.length === 0) {
+      console.log(
+        "forcing recompute of Equation atom with molecule-level inputs",
+      );
+      this.onUpstreamChange();
+    }
   }
 
   /**

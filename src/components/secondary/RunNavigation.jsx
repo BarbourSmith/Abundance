@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import GlobalVariables from "../../js/globalvariables.js";
 import { re } from "mathjs";
 import { useProgressBar } from "./ProgressBarManager.jsx";
+import { useProject } from "../../contexts/ProjectContext.jsx";
 
 //navigation svg icons - turn into key pairs later
 let shareSvg = (
@@ -79,6 +80,8 @@ function RunNavigation({
   let [starredState, setStarred] = useState(false);
   let [dialogContent, setDialog] = useState("");
 
+  const { forkProject } = useProject();
+
   // Fork progress tracking
   const [forkProgress, setForkProgress] = useState(0);
   const [forkBarVisible, setForkBarVisible] = useState(false);
@@ -110,7 +113,7 @@ function RunNavigation({
 
       fetchUserData().then((awsUserJson) => {
         const isLiked = awsUserJson.repos.some(
-          (project) => project.owner === owner && project.repoName === repoName
+          (project) => project.owner === owner && project.repoName === repoName,
         );
         // Sync starred state with server state
         setStarred(isLiked);
@@ -204,129 +207,6 @@ function RunNavigation({
     });
   };
 
-  /** forkProject takes care of making the octokit request for the authenticated user to make a copy of a not owned repo */
-  const forkProject = async function (authorizedUserOcto) {
-    var owner = GlobalVariables.currentAWSnode.owner;
-    var repo = GlobalVariables.currentAWSnode.repoName;
-    // if authenticated and it is not your project, make a clone of the project and return to create mode
-    if (owner === GlobalVariables.currentUser) {
-      // Prevent forking your own project
-      console.warn("You cannot fork your own project.");
-      navigate(
-        `/${GlobalVariables.currentAWSnode.owner}/${GlobalVariables.currentAWSnode.repoName}`
-      );
-      return;
-    } else {
-      // Show progress bar and set initial progress
-      setForkBarVisible(true);
-      setForkProgress(0);
-
-      authorizedUserOcto
-        .request("GET /repos/{owner}/{repo}", {
-          owner: owner,
-          repo: repo,
-        })
-        .then((result) => {
-          // Initial checks complete
-          setForkProgress(5);
-
-          authorizedUserOcto.rest.repos
-            .createFork({
-              owner: owner,
-              repo: repo,
-            })
-            .then(() => {
-              // Fork created
-              setForkProgress(50);
-
-              /*aws dynamo post*/
-              const apiUrl =
-                "https://hg5gsgv9te.execute-api.us-east-2.amazonaws.com/abundance-stage//post-new-project";
-              let searchField = (
-                result.data.name +
-                " " +
-                GlobalVariables.currentUser
-              ).toLowerCase();
-              let forkedNodeBody = {
-                owner: GlobalVariables.currentUser,
-                ranking: result.data.stargazers_count,
-                description: result.data.description,
-                searchField: searchField,
-                repoName: result.data.name,
-                forks: 0,
-                topMoleculeID: GlobalVariables.topLevelMolecule.uniqueID,
-                topics: [],
-                readme:
-                  "https://raw.githubusercontent.com/" +
-                  GlobalVariables.currentUser +
-                  "/" +
-                  result.data.name +
-                  "/master/README.md?sanitize=true",
-                contentURL:
-                  "https://raw.githubusercontent.com/" +
-                  GlobalVariables.currentUser +
-                  "/" +
-                  result.data.name +
-                  "/master/project.abundance?sanitize=true",
-                githubMoleculesUsed: [],
-                parentRepo: owner + "/" + repo,
-                svgURL:
-                  "https://raw.githubusercontent.com/" +
-                  GlobalVariables.currentUser +
-                  "/" +
-                  result.data.name +
-                  "/master/project.svg?sanitize=true",
-                dateCreated: result.data.created_at,
-                html_url:
-                  "https://github.com/" +
-                  GlobalVariables.currentUser +
-                  "/" +
-                  result.data.name,
-              };
-
-              // Updating AWS database
-              setForkProgress(75);
-
-              fetch(apiUrl, {
-                method: "POST",
-                body: JSON.stringify(forkedNodeBody),
-                headers: {
-                  "Content-type": "application/json; charset=UTF-8",
-                },
-              }).then((response) => {
-                // Complete
-                setForkProgress(100);
-
-                GlobalVariables.currentAWSnode = forkedNodeBody;
-                setRedirectType(null);
-
-                // Hide progress bar after a short delay
-                setTimeout(() => {
-                  setForkBarVisible(false);
-                }, 1000);
-
-                navigate(
-                  `/${GlobalVariables.currentUser}/${GlobalVariables.currentAWSnode.repoName}`
-                ),
-                  { replace: true };
-              });
-            })
-            .catch((error) => {
-              console.error("Error during forking the repository:", error);
-              setRedirectType(null);
-              // Hide progress bar on error
-              setForkBarVisible(false);
-            });
-        })
-        .catch((error) => {
-          console.error("Error getting repository information:", error);
-          setRedirectType(null);
-          // Hide progress bar on error
-          setForkBarVisible(false);
-        });
-    }
-  };
-
   // Handler for fork button click - show confirmation dialog
   const handleForkClick = () => {
     setShowForkDialog(true);
@@ -337,7 +217,12 @@ function RunNavigation({
     setShowForkDialog(false);
     if (authorizedUserOcto) {
       // User is logged in, proceed with fork
-      forkProject(authorizedUserOcto);
+      forkProject(
+        authorizedUserOcto,
+        setForkBarVisible,
+        setForkProgress,
+        setRedirectType,
+      );
     } else {
       // User needs to log in first, clear redirectType temporarily
       // It will be set again after auth when the dialog shows
@@ -463,8 +348,8 @@ function RunNavigation({
             authorizedUserOcto && !starredState
               ? likeProject(authorizedUserOcto)
               : authorizedUserOcto && starredState
-              ? unlikeProject(authorizedUserOcto)
-              : authRedirectHandler({ authType: "like" });
+                ? unlikeProject(authorizedUserOcto)
+                : authRedirectHandler({ authType: "like" });
           }}
           title={tooltipMessages.Star}
         >

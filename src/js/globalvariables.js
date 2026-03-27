@@ -32,6 +32,7 @@ import Import from "../molecules/import.js";
 import Export from "../molecules/export.js";
 import Text from "../molecules/text.js";
 import Box from "../molecules/box.js";
+import Label from "../molecules/label.js";
 
 /**
  * This class defines things which are made available to all objects which import it. It is a singlton which means that each time it is imported the same instance is made available so if it is written to in one place, it can be read somewhere else.
@@ -118,6 +119,7 @@ class GlobalVariables {
       },
       circle: { creator: Circle, atomType: "Circle", atomCategory: "Shapes" },
       text: { creator: Text, atomType: "Text", atomCategory: "Shapes" },
+      label: { creator: Label, atomType: "Label", atomCategory: "Tags" },
       rectangle: {
         creator: Rectangle,
         atomType: "Rectangle",
@@ -224,6 +226,12 @@ class GlobalVariables {
      * @type {integer}
      */
     this.numberOfAtomsToLoad = 0;
+    /**
+     * A flag to indicate if the project is currently loading/deserializing.
+     * Used to block saves during deserialization to prevent wiping out the project structure.
+     * @type {boolean}
+     */
+    this.projectIsLoading = false;
     /**
      * A flag to indicate if the project is a fork.
      * @type {boolean}

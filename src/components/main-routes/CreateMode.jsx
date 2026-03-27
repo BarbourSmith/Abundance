@@ -39,7 +39,7 @@ import {
  */
 function CreateMode() {
   // Get context values
-  const { authorizedUserOcto, authRedirectHandler } = useAuth();
+  const { authorizedUserOcto, authRedirectHandler, userScopes } = useAuth();
   const {
     activeAtom,
     setActiveAtom,
@@ -604,7 +604,10 @@ function CreateMode() {
           />
           <div id="headerBar">
             <img
-              className="thumnail-logo"
+              className={
+                "thumnail-logo" +
+                (userScopes.includes("repo") ? " logo-private-scope" : "")
+              }
               src={
                 import.meta.env.VITE_APP_PATH_FOR_PICS +
                 "/imgs/abundance_logo.png"
@@ -612,6 +615,11 @@ function CreateMode() {
               alt="logo"
               onClick={() => navigate("/")}
               style={{ cursor: "pointer" }}
+              title={
+                userScopes.includes("repo")
+                  ? "Authenticated with private repository access"
+                  : undefined
+              }
             />
           </div>
 

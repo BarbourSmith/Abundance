@@ -1,4 +1,10 @@
-import { AbundanceLeaf, AbundanceObject, actOnLeafsSync, isLeaf } from "./util";
+import {
+  AbundanceLeaf,
+  AbundanceObject,
+  actOnLeafsSync,
+  isLeaf,
+  NonReplicadGeom,
+} from "./util";
 
 /**
  * Methods in this file act on the metadata of a geometry or assembly,
@@ -70,17 +76,19 @@ function bom(geom: AbundanceObject, BOM: any): AbundanceObject {
       } else if (Array.isArray(node.geometry) && node.geometry.length > 0) {
         // This is an assembly - recursively process children
         let bomApplied = false;
-        const newGeometry = (node.geometry as AbundanceObject[]).map((child) => {
-          if (!bomApplied) {
-            const result = applyBomToFirstLeaf(child);
-            if (result !== child) {
-              bomApplied = true;
+        const newGeometry = (node.geometry as AbundanceObject[]).map(
+          (child) => {
+            if (!bomApplied) {
+              const result = applyBomToFirstLeaf(child);
+              if (result !== child) {
+                bomApplied = true;
+              }
+              return result;
+            } else {
+              return child;
             }
-            return result;
-          } else {
-            return child;
-          }
-        });
+          },
+        );
 
         return {
           ...node,
@@ -101,7 +109,7 @@ function bom(geom: AbundanceObject, BOM: any): AbundanceObject {
  */
 function extractBomList(assembly: AbundanceObject): any[] {
   const bomList: any[] = [];
-  
+
   // Only collect BOM items from leaf nodes to avoid double counting
   function collectFromLeaves(node: AbundanceObject) {
     if (isLeaf(node)) {
@@ -118,9 +126,24 @@ function extractBomList(assembly: AbundanceObject): any[] {
       }
     }
   }
-  
+
   collectFromLeaves(assembly);
   return bomList;
+}
+
+function addNonReplicadGeom(
+  assembly: AbundanceObject,
+  nonReplicadGeom: any,
+): AbundanceObject {
+  const prev = Array.isArray(assembly.nonReplicadSerialized)
+    ? assembly.nonReplicadSerialized
+    : assembly.nonReplicadSerialized
+      ? [assembly.nonReplicadSerialized]
+      : [];
+  return {
+    ...assembly,
+    nonReplicadSerialized: [...prev, nonReplicadGeom],
+  };
 }
 
 /**
@@ -152,7 +175,7 @@ function extractAllTags(geom: AbundanceObject): string[] {
  * @returns {Object|boolean} The geometry without keepout tags, or false if all geometry has keepout tags
  */
 function extractKeepOut(
-  inputGeometry: AbundanceObject
+  inputGeometry: AbundanceObject,
 ): AbundanceObject | false {
   // Keepout is "strong" in that a branch with keepout removes all it's children.
   if (inputGeometry.tags.includes("keepout")) {
@@ -183,7 +206,7 @@ function extractKeepOut(
  */
 function walkAssembly(
   assembly: AbundanceObject,
-  action: (leaf: AbundanceObject) => void
+  action: (leaf: AbundanceObject) => void,
 ) {
   action(assembly);
   if (!isLeaf(assembly)) {
@@ -201,7 +224,7 @@ function walkAssembly(
  */
 function filterAssembly(
   assembly: AbundanceObject,
-  predicate: (leaf: AbundanceObject) => boolean
+  predicate: (leaf: AbundanceObject) => boolean,
 ): AbundanceObject | undefined {
   if (predicate(assembly)) {
     return assembly;
@@ -224,6 +247,12 @@ function filterAssembly(
 }
 
 export {
-  bom, color, extractAllTags, extractBomList,
-  extractKeepOut, extractTag, tag
+  addNonReplicadGeom,
+  bom,
+  color,
+  extractAllTags,
+  extractBomList,
+  extractKeepOut,
+  extractTag,
+  tag,
 };

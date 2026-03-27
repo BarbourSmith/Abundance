@@ -84,11 +84,11 @@ function AppContent() {
   } = useRendering();
 
   const {
-    setIsLoggedIn,
     isAuthorized,
     setIsAuthorized,
     setAuthorizedUserOcto,
     authRedirectHandler,
+    userScopes,
   } = useAuth();
 
   const {
@@ -124,6 +124,7 @@ function AppContent() {
   const [processing, setProcessing] = useState(false);
 
   useEffect(() => {
+    console.log("Processing state changed:", processing);
     setRenderProgress(0);
     setRenderBarVisible(true);
     setRenderStage("Waiting for input"); // Start with Building stage by default
@@ -179,13 +180,7 @@ function AppContent() {
     }, 500); // Poll every 500ms
 
     return () => clearInterval(interval);
-  }, [
-    GlobalVariables.topLevelMolecule,
-    setRenderProgress,
-    setRenderBarVisible,
-    setRenderStage,
-    processing,
-  ]);
+  }, [GlobalVariables.topLevelMolecule, processing]);
 
   useEffect(() => {
     if (renderProgress >= 100) {
@@ -297,6 +292,14 @@ function AppContent() {
           setMesh(mesh);
           setOutdatedMesh(false);
           setProcessing(false);
+          // Also update top-level wireframe if this is the top-level molecule's mesh
+          if (
+            GlobalVariables.topLevelMolecule &&
+            JSON.stringify(targetMesh.current) ===
+              JSON.stringify(GlobalVariables.topLevelMolecule.value)
+          ) {
+            setTopLevelWireMesh(mesh);
+          }
           /*Set plane and geometry type for ThreeContext*/
           setPlane(id?.plane);
           setGeometryType(id?.dimension);
@@ -317,6 +320,7 @@ function AppContent() {
       targetMesh.current = undefined;
       setMesh([]);
       setWireMesh([]);
+      setNonReplicadGeometry(null);
     };
     GlobalVariables.writeToDisplay = (
       moleculeValue,
@@ -338,7 +342,11 @@ function AppContent() {
       ) {
         setNonReplicadGeometry({ ...nonReplicadGeometryFromAtom });
       } else {
-        setNonReplicadGeometry(null);
+        //We only want to clear non-Replicad if we're not setting the backgroundMolecule
+        if (!backgroundMolecule) {
+          // If we're trying to set a background molecule but it doesn't have non-Replicad geometry, we should clear the existing non-Replicad geometry to avoid showing stale geometry from a previous background molecule
+          setNonReplicadGeometry(null);
+        }
       }
 
       if (backgroundMolecule) {
@@ -354,6 +362,14 @@ function AppContent() {
             worker.generateDisplayMesh(moleculeValue, context).then((m) => {
               backgroundMesh.current.mesh = m.mesh;
               setWireMesh(m.mesh);
+              // Also update top-level wireframe if this is the top-level molecule's mesh
+              if (
+                GlobalVariables.topLevelMolecule &&
+                JSON.stringify(moleculeValue) ===
+                  JSON.stringify(GlobalVariables.topLevelMolecule.value)
+              ) {
+                setTopLevelWireMesh(m.mesh);
+              }
               setOutdatedMesh(false);
             });
           });
@@ -372,6 +388,7 @@ function AppContent() {
         targetMesh.current = moleculeValue;
 
         if (
+          !nonReplicadGeometryFromAtom?.hideMainMesh &&
           JSON.stringify(targetMesh.current) ===
             JSON.stringify(backgroundMesh.current?.id) &&
           backgroundMesh.current?.mesh
@@ -380,7 +397,6 @@ function AppContent() {
           // wireframe background.
           setMesh(backgroundMesh.current.mesh);
           setOutdatedMesh(false);
-
           setPlane(targetMesh.current?.plane);
           setGeometryType(targetMesh.current?.dimension);
           // We're viewing the output mesh directly, hide the wireframe
@@ -388,10 +404,14 @@ function AppContent() {
         } else {
           // General case - generate the mesh for selected atom
           //Check if mesh should be hidden (a.e gcode)
-          if (!nonReplicadGeometryFromAtom.hideMainMesh) {
+          if (!nonReplicadGeometryFromAtom?.hideMainMesh) {
             makeMesh();
           } else {
+            // Invalidate any in-flight mesh render so it doesn't override the
+            // non-replicad geometry (e.g. gcode visualization) after computing
+            targetMesh.current = null;
             setMesh([]);
+            setOutdatedMesh(false);
           }
           // Check if we're viewing the same geometry as the wireframe
           if (
@@ -500,6 +520,19 @@ function AppContent() {
           });
           return;
         }
+        /* We are trying to open a private repo without sufficient scopes, trigger re-auth with repo scope*/
+        if (project.privateRepo ? !userScopes.includes("repo") : false) {
+          setErrorNotification(
+            "Insufficient token scopes to load private repository. Please re-authenticate with the 'repo' scope.",
+          );
+          authRedirectHandler({
+            authType: "reauth",
+            currentProjectRep: undefined,
+            returnTo: `/`,
+            privateRepo: true,
+          });
+          return;
+        }
 
         // If error is 404 (project not found), mark it in AWS
         if (e?.status === 404) {
@@ -565,7 +598,6 @@ function AppContent() {
             <Callback
               isAuthorized={isAuthorized}
               setIsAuthorized={setIsAuthorized}
-              setIsLoggedIn={setIsLoggedIn}
               setAuthorizedUserOcto={setAuthorizedUserOcto}
               setRedirectType={setRedirectType}
             />

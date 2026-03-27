@@ -20,7 +20,7 @@ export default class Output extends Atom {
         "Geometry",
         this.parent,
         "geometry",
-        this.parent.path
+        this.parent.path,
       );
     }
 
@@ -71,6 +71,7 @@ export default class Output extends Atom {
   }
 
   compute(argsDict) {
+    console.log("Output compute called with argsDict:", argsDict);
     return Promise.resolve(argsDict["number or geometry"]);
   }
 
@@ -97,7 +98,12 @@ export default class Output extends Atom {
       const asWireOnly =
         this.parent.uniqueID == GlobalVariables.currentMolecule.uniqueID &&
         !this.selected;
-      GlobalVariables.writeToDisplay(this.value, this.getContext(), asWireOnly);
+      GlobalVariables.writeToDisplay(
+        this.value,
+        this.getContext(),
+        asWireOnly,
+        this.nonReplicadGeom,
+      );
     } catch (err) {
       this.setError(err);
     }
@@ -132,7 +138,7 @@ export default class Output extends Atom {
         "update received. initial status: " +
           this.status +
           " input status: " +
-          this.inputs[0].status
+          this.inputs[0].status,
       );
       const result = super.onUpstreamChange();
       console.log("update received. final status: " + this.status);
@@ -166,20 +172,20 @@ export default class Output extends Atom {
     GlobalVariables.c.fillText(
       this.name,
       xInPixels - radiusInPixels,
-      yInPixels - radiusInPixels * 1.5
+      yInPixels - radiusInPixels * 1.5,
     );
     GlobalVariables.c.moveTo(
       xInPixels + radiusInPixels - radiusInPixels * 2,
-      yInPixels - this.height
+      yInPixels - this.height,
     );
     GlobalVariables.c.lineTo(xInPixels + radiusInPixels - 5, yInPixels);
     GlobalVariables.c.lineTo(
       xInPixels + radiusInPixels - radiusInPixels * 2,
-      yInPixels + this.height
+      yInPixels + this.height,
     );
     GlobalVariables.c.lineTo(
       xInPixels + radiusInPixels - radiusInPixels * 2,
-      yInPixels - this.height
+      yInPixels - this.height,
     );
     GlobalVariables.c.fillStyle = this.color;
     GlobalVariables.c.fill();

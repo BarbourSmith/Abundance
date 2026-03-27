@@ -149,7 +149,7 @@ const generateGcode = (
               type: "rough",
               voids: false,
             },
-            {
+            /*{
               disabled: false,
               down: 0,
               flats: flats,
@@ -166,7 +166,7 @@ const generateGcode = (
               step: stepOver,
               tool: 1000,
               type: "area",
-            },
+            },*/
             {
               disabled: false,
               dogbones: false,

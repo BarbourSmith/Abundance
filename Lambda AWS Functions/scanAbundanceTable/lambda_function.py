@@ -46,44 +46,96 @@ def lambda_handler(event: any, context: any):
     table_name = os.environ["TABLE_NAME"]
     table = dynamodb.Table(table_name)
 
-    user = event['queryStringParameters']['user']
-    searchAttribute = event['queryStringParameters']['attribute']
-    query = event['queryStringParameters']['query']
-    lastKey = event['queryStringParameters']['lastKey']
-    year = event['queryStringParameters']['yearShow']
+    # Support flexible query modes
+    params = event.get('queryStringParameters', {})
+    if params is None:
+        params = {}
+    mode = params.get('mode', 'public')
+    user = params.get('user')
+    # Default to repoName if not specified
+    searchAttribute = params.get('attribute', 'repoName')
+    query = params.get('query')
+    lastKey = params.get('lastKey')
+    year = params.get('yearShow')
 
     item_array = []
     # Get the current year
     current_year = datetime.now().year
-    # change year to integer
-    year = current_year
+    if not year:
+        year = current_year
+    else:
+        year = int(year)
 
     try:
-        if (user):
-            if (query):
-                print(query)
-                # Define the key condition expression
+        response = None
+
+        if mode == "user" and user:
+            # Mode: user - return user's projects (public and private)
+            if query:
+                # User's projects matching search
                 scan_args = {
-                    'FilterExpression': Attr(searchAttribute).contains(query) & Attr('owner').eq(user)
+                    'FilterExpression': (Attr('owner').eq(user)) & (Attr(searchAttribute).contains(query))
                 }
                 response = table.scan(**scan_args)
-
+                item_array.extend(response.get('Items', []))
             else:
+                # All user's projects
                 key_condition_expression = Key('owner').eq(user)
-
                 response = table.query(
                     KeyConditionExpression=key_condition_expression)
+                item_array.extend(response.get('Items', []))
 
-            item_array.extend(response.get('Items', []))
-            print(item_array)
-
-        elif (searchAttribute and query):
-            scan_args = {
-                'FilterExpression': Attr(searchAttribute).contains(query) & ~(Attr('privateRepo').eq(True)) & ~(Attr('repoName').eq('tutorial-default')),
-            }
-            response = table.scan(**scan_args)
-            item_array.extend(response.get('Items', []))
+        elif mode == "all":
+            # Mode: all
+            if user:
+                # All public projects + private projects owned by user
+                if query:
+                    # Public projects matching query + private projects owned by user matching query
+                    scan_args = {
+                        'FilterExpression': (
+                            (~(Attr('privateRepo').eq(True)) & ~(Attr('repoName').eq(
+                                'tutorial-default')) & Attr(searchAttribute).contains(query))
+                            | (Attr('owner').eq(user) & Attr(searchAttribute).contains(query))
+                        )
+                    }
+                    response = table.scan(**scan_args)
+                    item_array.extend(response.get('Items', []))
+                else:
+                    # All public projects + private projects owned by user (no search)
+                    scan_args = {
+                        'FilterExpression': (~Attr('privateRepo').eq(True) & ~Attr('repoName').eq('tutorial-default')) | (Attr('owner').eq(user))
+                    }
+                    response = table.scan(**scan_args)
+                    item_array.extend(response.get('Items', []))
+            else:
+                # No user specified - return all public projects
+                if query:
+                    # Public projects matching query
+                    scan_args = {
+                        'FilterExpression': ~(Attr('privateRepo').eq(True)) & ~(Attr('repoName').eq('tutorial-default')) & Attr(searchAttribute).contains(query)
+                    }
+                    response = table.scan(**scan_args)
+                    item_array.extend(response.get('Items', []))
+                else:
+                    # All public projects by year
+                    exclusiveKey = lookForLast()
+                    query_args = {
+                        'IndexName': 'yyyy-dateCreated-index',
+                        'KeyConditionExpression': Key('yyyy').eq(year),
+                        'FilterExpression': ~(Attr('privateRepo').eq(True)) & ~(Attr('repoName').eq('tutorial-default'))
+                    }
+                    if exclusiveKey:
+                        query_args['ExclusiveStartKey'] = exclusiveKey
+                    response = table.query(**query_args)
+                    item_array.extend(response.get('Items', []))
+                    if 0 < len(item_array) < 50:
+                        year = year - 1
+                        query_args['KeyConditionExpression'] = Key(
+                            'yyyy').eq(year)
+                        response2 = table.query(**query_args)
+                        item_array.extend(response2.get('Items', []))
         else:
+            # Default: public projects by year (no specific mode)
             exclusiveKey = lookForLast()
             query_args = {
                 'IndexName': 'yyyy-dateCreated-index',
@@ -92,25 +144,19 @@ def lambda_handler(event: any, context: any):
             }
             if exclusiveKey:
                 query_args['ExclusiveStartKey'] = exclusiveKey
-                print(query_args)
-            # response = table.scan(**scan_args)
             response = table.query(**query_args)
-            print(response)
             item_array.extend(response.get('Items', []))
             if 0 < len(item_array) < 50:
-                # Code to execute if the length of the array is between 1 and 49
-                print("Array length is between 0 and 50.")
                 year = year - 1
                 query_args['KeyConditionExpression'] = Key('yyyy').eq(year)
                 response2 = table.query(**query_args)
                 item_array.extend(response2.get('Items', []))
 
         lastKeyForward = ""
-        if 'LastEvaluatedKey' in response:
+        if response and 'LastEvaluatedKey' in response:
             lastKeyForward = response.get('LastEvaluatedKey')
-            print(response.get('LastEvaluatedKey'))
 
         return build_response(200, {'repos': item_array, "lastKey": lastKeyForward})
-    except:
-        print('Error')
+    except Exception as e:
+        print('Error', e)
         return build_response(400, {"error": "Something went wrong"})

@@ -5,6 +5,12 @@ import { ObservableEntity, Status } from "./observableEntity.js";
 import { getPredictedAtoms } from "../js/atomPrediction.js";
 import React from "react";
 
+/*THREEJS*/
+import * as THREE from "three";
+import { Line2 } from "three/addons/lines/Line2.js";
+import { LineMaterial } from "three/addons/lines/LineMaterial.js";
+import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
+
 // Make this an enum once we're using typescript
 const AlertType = Object.freeze({
   ERROR: "error",
@@ -664,6 +670,9 @@ export default class Atom extends ObservableEntity {
    * Delete this atom. Silent prevents it from telling its neighbors
    */
   deleteNode(backgroundClickAfter = true, deletePath = true, silent = false) {
+    // Dispose of label geometries to free GPU memory
+    this.disposeLabelGeometry();
+
     this.inputs.forEach((input) => {
       input.unsubscribe(this.uniqueID);
       input.deleteSelf(silent);
@@ -775,6 +784,40 @@ export default class Atom extends ObservableEntity {
           });
           return;
         }
+      }
+      // Handle array values
+      if (ap.valueType === "array" && Array.isArray(ap.getValue())) {
+        const currentValue = ap.getValue();
+        const isDifferentFromDefault =
+          !Array.isArray(ap.defaultValue) ||
+          JSON.stringify(ap.defaultValue) !== JSON.stringify(currentValue);
+        const isMoleculeInput = ap.type === "input";
+        if (isDifferentFromDefault || isMoleculeInput) {
+          ioValues.push({
+            name: ap.name,
+            ioValue: currentValue,
+          });
+        }
+        return;
+      }
+
+      // Handle point2d and point3d values (which are arrays)
+      if (
+        (ap.valueType === "point2d" || ap.valueType === "point3d") &&
+        Array.isArray(ap.getValue())
+      ) {
+        const currentValue = ap.getValue();
+        const isDifferentFromDefault =
+          !Array.isArray(ap.defaultValue) ||
+          JSON.stringify(ap.defaultValue) !== JSON.stringify(currentValue);
+        const isMoleculeInput = ap.type === "input";
+        if (isDifferentFromDefault || isMoleculeInput) {
+          ioValues.push({
+            name: ap.name,
+            ioValue: currentValue,
+          });
+        }
+        return;
       }
 
       if (
@@ -912,6 +955,125 @@ export default class Atom extends ObservableEntity {
     });
   }
 
+  // For label atoms, we serialize the geometry data in a custom way and reconstruct as THREEJS geometry here
+  disposeLabelGeometry() {
+    if (
+      this.nonReplicadGeom?.geometry &&
+      Array.isArray(this.nonReplicadGeom.geometry)
+    ) {
+      this.nonReplicadGeom.geometry.forEach((obj) => {
+        if (obj && typeof obj === "object") {
+          // Dispose geometry if it exists
+          if (obj.geometry && obj.geometry.dispose) {
+            obj.geometry.dispose();
+          }
+          // Dispose all materials and their textures
+          if (obj.material) {
+            if (Array.isArray(obj.material)) {
+              obj.material.forEach((mat) => {
+                if (mat && mat.dispose) {
+                  mat.dispose();
+                }
+                if (mat && mat.map && mat.map.dispose) {
+                  mat.map.dispose();
+                }
+              });
+            } else if (obj.material.dispose) {
+              obj.material.dispose();
+              if (obj.material.map && obj.material.map.dispose) {
+                obj.material.map.dispose();
+              }
+            }
+          }
+        }
+      });
+      this.nonReplicadGeom.geometry = null;
+    }
+  }
+
+  reconstructLabelGeometry(serializedLabels) {
+    // Accepts an array of label objects
+    const labels = Array.isArray(serializedLabels)
+      ? serializedLabels
+      : [serializedLabels];
+    const geometries = [];
+    labels.forEach((serializedLabel, idx) => {
+      // --- Line ---
+      const start = new THREE.Vector3(...serializedLabel.line.start);
+      const end = new THREE.Vector3(...serializedLabel.line.end);
+
+      const lineGeo = new LineGeometry();
+      lineGeo.setPositions([
+        ...serializedLabel.line.start,
+        ...serializedLabel.line.end,
+      ]);
+
+      const lineMat = new LineMaterial({
+        color: serializedLabel.line.color,
+        linewidth: serializedLabel.line.linewidth,
+        resolution: new THREE.Vector2(window.innerWidth, window.innerHeight),
+      });
+
+      const line = new Line2(lineGeo, lineMat);
+      line.name = `label-line-${idx}`;
+
+      // --- Text Sprite ---
+      const canvas = document.createElement("canvas");
+      canvas.width = 256;
+      canvas.height = 128;
+      const ctx = canvas.getContext("2d");
+      ctx.font = serializedLabel.text.font;
+      ctx.fillStyle = serializedLabel.text.color;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(
+        serializedLabel.text.value,
+        canvas.width / 2,
+        canvas.height / 2,
+      );
+
+      const texture = new THREE.CanvasTexture(canvas);
+      const material = new THREE.SpriteMaterial({
+        map: texture,
+        depthTest: false,
+      });
+      const sprite = new THREE.Sprite(material);
+      sprite.scale.set(...serializedLabel.text.scale);
+      sprite.position.set(...serializedLabel.text.position);
+      sprite.name = `label-text-${idx}`;
+
+      geometries.push(line, sprite);
+    });
+    return {
+      geometry: geometries,
+      material: null,
+      hideMainMesh: false,
+    };
+  }
+
+  //gets called after compute if there is a non-Replicad geometry result to convert it to threeJS geometry for rendering
+  buildNonReplicadGeom(atomValue) {
+    // Dispose old label geometries first
+    this.disposeLabelGeometry();
+
+    const nrs = atomValue.nonReplicadSerialized;
+    if (
+      nrs &&
+      ((Array.isArray(nrs) && nrs.length > 0 && nrs[0].type === "Label") ||
+        nrs.type === "Label")
+    ) {
+      this.nonReplicadGeom = this.reconstructLabelGeometry(nrs);
+      return;
+    } else {
+      //delete label geometry if it exists from a prior compute
+      this.nonReplicadGeom = {
+        geometry: [],
+        material: null,
+        hideMainMesh: false,
+      };
+    }
+  }
+
   /**
    * This method defines the core logic for propagating changes in the DAG.
    *
@@ -942,9 +1104,12 @@ export default class Atom extends ObservableEntity {
 
       // const inputVals = this.inputs.map((input) => {input.getValue());
       this.setProcessing();
+
       this.compute(argsDict)
         .then((value) => {
+          this.buildNonReplicadGeom(value);
           this.setReady(value);
+
           if (
             this.setInputChanged &&
             typeof this.setInputChanged === "function"
@@ -1083,6 +1248,36 @@ export default class Atom extends ObservableEntity {
               }
             },
           };
+        } else if (input.valueType === "point2d") {
+          // Handle 2D point inputs
+          const displayValue = hasConnector ? input.getValue() : input.value;
+          inputParams[this.uniqueID + input.name] = {
+            type: "point",
+            value: [displayValue?.[0] ?? 0, displayValue?.[1] ?? 0],
+            label: input.name,
+            step: 0.1,
+            disabled: hasConnector,
+            onChange: (value) => {
+              input.setValue([value[0], value[1]]);
+            },
+          };
+        } else if (input.valueType === "point3d") {
+          // Handle 3D point inputs
+          const displayValue = hasConnector ? input.getValue() : input.value;
+          inputParams[this.uniqueID + input.name] = {
+            type: "point",
+            value: [
+              displayValue?.[0] ?? 0,
+              displayValue?.[1] ?? 0,
+              displayValue?.[2] ?? 0,
+            ],
+            label: input.name,
+            step: 0.1,
+            disabled: hasConnector,
+            onChange: (value) => {
+              input.setValue([value[0], value[1], value[2]]);
+            },
+          };
         } else if (input.valueType === "array") {
           // Handle select controls for array inputs
           inputParams[this.uniqueID + input.name] = {
@@ -1210,13 +1405,11 @@ export default class Atom extends ObservableEntity {
 
     const variables = this.extractVariablesFromEquation(equation);
     const BUILTIN_CONSTS = new Set(["pi", "e", "tau", "Infinity", "NaN"]);
-    const parentInputs =
-      (this.parent && this.parent.inputs) ||
-      (this.parentMolecule && this.parentMolecule.inputs) ||
-      [];
+    // Check all ancestor molecules, not just the immediate parent
+    const ancestorInputs = this.getInputsFromAncestors();
 
     // Get parent input names to avoid duplicating them
-    const parentInputNames = parentInputs.map((input) => input.name);
+    const parentInputNames = ancestorInputs.map((input) => input.name);
 
     const inputsToAdd = [];
 
@@ -1344,16 +1537,15 @@ export default class Atom extends ObservableEntity {
     const resolvedValues = {};
     const BUILTIN_CONSTS = new Set(["pi", "e", "tau", "Infinity", "NaN"]);
     if (variables.length > 0) {
-      const parentInputs =
-        (this.parent && this.parent.inputs) ||
-        (this.parentMolecule && this.parentMolecule.inputs) ||
-        [];
+      // Get inputs from all ancestors up the chain, not just immediate parent
+      const parentInputs = this.getInputsFromAncestors();
+
       for (const variable of variables) {
         if (BUILTIN_CONSTS.has(variable)) {
           continue; // let evaluator handle it
         }
         let value = null;
-        // Try parent inputs first
+        // Try parent inputs first (now includes all ancestors)
         for (let j = 0; j < parentInputs.length; j++) {
           if (parentInputs[j].name === variable) {
             value =
@@ -1417,6 +1609,41 @@ export default class Atom extends ObservableEntity {
   }
 
   /**
+   * Get all inputs from this atom and all ancestor molecules up the chain
+   * @returns {Array} Array of all ancestor inputs
+   */
+  getInputsFromAncestors() {
+    const allInputs = [];
+    let current = this;
+
+    // Traverse up the parent chain (molecule hierarchy)
+    while (current) {
+      const parentInputs =
+        (current.parent && current.parent.inputs) ||
+        (current.parentMolecule && current.parentMolecule.inputs) ||
+        null;
+
+      if (parentInputs) {
+        // Add inputs from this level, avoiding duplicates (prefer higher in hierarchy)
+        parentInputs.forEach((input) => {
+          if (!allInputs.some((i) => i.name === input.name)) {
+            allInputs.push(input);
+          }
+        });
+      }
+
+      // Move up to parent molecule
+      current = current.parent || current.parentMolecule;
+      if (current && !current.inputs) {
+        // Stop if we hit a non-molecule parent
+        break;
+      }
+    }
+
+    return allInputs;
+  }
+
+  /**
    * Resolve a variable name to its value
    */
   resolveVariable(variableName) {
@@ -1432,11 +1659,8 @@ export default class Atom extends ObservableEntity {
       return num;
     }
 
-    // Try parent inputs first
-    const parentInputs =
-      (this.parent && this.parent.inputs) ||
-      (this.parentMolecule && this.parentMolecule.inputs) ||
-      [];
+    // Try parent inputs first (now includes all ancestors up the chain)
+    const parentInputs = this.getInputsFromAncestors();
     for (let j = 0; j < parentInputs.length; j++) {
       if (parentInputs[j].name === variableName) {
         const value =

@@ -41,6 +41,20 @@ const rotateMemoCache = new Map<
   [AbundanceObject, ShapeForLayout[], string]
 >();
 
+/**
+ * Explicitly clear the rotate memoization cache to free up memory in worker
+ * Called periodically to prevent memory accumulation with multiple CutLayout computations
+ */
+function clearRotateCache() {
+  // Dispose of any Three.js resources if they exist
+  rotateMemoCache.forEach((value) => {
+    // The cache stores [AbundanceObject, ShapeForLayout[], string]
+    // No explicit disposal needed here as the objects will be garbage collected
+  });
+  rotateMemoCache.clear();
+  console.log("Rotate memoization cache cleared");
+}
+
 async function layout(
   assembly: AbundanceObject,
   progressCallback: (progress: number, cancelCallback: () => void) => void,
@@ -220,8 +234,13 @@ async function rotateForLayout(
     }
   }
   console.log("rotateForLayout cache miss for: " + cacheID);
-  // Cache miss
-  rotateMemoCache.clear();
+  // Cache miss - only clear old entries to prevent memory leaks from long sessions
+  // but retain recent ones for chained cutlayouts
+  if (rotateMemoCache.size > 10) {
+    // Keep cache under control - if we have more than 10 entries, remove the oldest
+    const firstKey = rotateMemoCache.keys().next().value;
+    rotateMemoCache.delete(firstKey);
+  }
   // Compute rotated positions for this layout.
   var THICKNESS_TOLLERANCE = 0.001;
 
@@ -584,7 +603,7 @@ function computePositions(
   previousPlacements: Placement[][] | undefined = undefined,
 ): Promise<Placement[][]> {
   const tolerance = 0.2;
-  const runtimeMs = 120000;
+  const runtimeMs = 30000; // Reduced from 120000 (2 min) to 30 sec to prevent long-running workers
   const config = {
     curveTolerance: 0.1,
     spacing: layoutConfig.partPadding + tolerance * 2,
@@ -916,6 +935,7 @@ function areaApprox(bounds: {
 }
 
 export {
+  clearRotateCache,
   createAndDisplayDefaultLayout,
   createDefaultPlacements,
   displayLayout,

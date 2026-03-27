@@ -20,7 +20,7 @@ const init = async (logMetrics: boolean = true): Promise<boolean> => {
   replicad.setOC(OC);
   geometryProvider = new GeometryProvider(logMetrics);
   console.log(
-    `Replicad and OpenCascade initialized. took ${performance.now() - start} ms`
+    `Replicad and OpenCascade initialized. took ${performance.now() - start} ms`,
   );
 
   return true;
@@ -40,6 +40,7 @@ interface AbundanceBranch {
   color: string;
   tags: string[];
   bom: string[];
+  nonReplicadSerialized?: any;
 }
 
 interface AbundanceLeaf {
@@ -49,6 +50,7 @@ interface AbundanceLeaf {
   color: string;
   tags: string[];
   bom: string[];
+  nonReplicadSerialized?: any;
 }
 
 function is3D(part: AbundanceObject): boolean {
@@ -65,7 +67,7 @@ function is3D(part: AbundanceObject): boolean {
 
 async function getBounds(
   geometry: AbundanceObject,
-  context: RequestContext
+  context: RequestContext,
 ): Promise<{ min: number[]; max: number[] }> {
   try {
     let minX = Infinity,
@@ -117,14 +119,15 @@ function isLeaf(obj: AbundanceObject): obj is AbundanceLeaf {
 
 function actOnLeafsSync(
   assembly: AbundanceObject,
-  action: (leaf: AbundanceLeaf) => AbundanceObject
+  action: (leaf: AbundanceLeaf) => AbundanceObject,
 ): AbundanceObject {
   if (isLeaf(assembly)) {
     return action(assembly);
   } else {
     const newChildren = (assembly.geometry as AbundanceObject[]).map((child) =>
-      actOnLeafsSync(child, action)
+      actOnLeafsSync(child, action),
     );
+    // Preserve nonReplicadGeom if present
     return {
       ...assembly,
       geometry: newChildren,
@@ -135,14 +138,17 @@ function actOnLeafsSync(
 async function actOnLeafs(
   assembly: AbundanceObject,
   action: (
-    leaf: AbundanceLeaf
+    leaf: AbundanceLeaf,
   ) => AbundanceLeaf | Promise<AbundanceLeaf | undefined>,
-  plane?: SimplePlane
+  plane?: SimplePlane,
+  nonReplicadSerialized?: any,
 ): Promise<AbundanceObject> {
   if (!isAbundanceObject(assembly)) {
     return assembly;
   }
   plane = plane || assembly.plane;
+  nonReplicadSerialized =
+    nonReplicadSerialized || assembly.nonReplicadSerialized || {};
 
   if (isLeaf(assembly)) {
     const result = await action(assembly);
@@ -154,6 +160,7 @@ async function actOnLeafs(
         ...assembly,
         plane: plane,
         geometry: [],
+        nonReplicadSerialized: nonReplicadSerialized,
       };
     }
   } else {
@@ -171,6 +178,7 @@ async function actOnLeafs(
       color: assembly.color,
       tags: assembly.tags,
       bom: assembly.bom,
+      nonReplicadSerialized: nonReplicadSerialized,
     };
   }
 }
@@ -219,7 +227,7 @@ function asReplicadPlane(plane: SimplePlane): replicad.Plane {
   return new replicad.Plane(
     [plane.origin[0], plane.origin[1], plane.origin[2]],
     [plane.xDir[0], plane.xDir[1], plane.xDir[2]],
-    [plane.normal[0], plane.normal[1], plane.normal[2]]
+    [plane.normal[0], plane.normal[1], plane.normal[2]],
   );
 }
 
@@ -325,5 +333,6 @@ export {
   isWireGeometry,
   replicad,
   SimplePlane,
+  NonReplicadGeom,
   XYPlane,
 };

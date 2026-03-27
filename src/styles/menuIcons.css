@@ -187,6 +187,12 @@
   height: 150%;
 }
 
+.Label {
+  background: url("/imgs/label.png");
+  width: 160%;
+  height: 160%;
+}
+
 .Stretch {
   background: url("/imgs/Stretch.png");
   width: 150%;

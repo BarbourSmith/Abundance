@@ -560,6 +560,39 @@ export default class Gcode extends Atom {
     return this.gcodeString ?? null;
   }
 
+  /**
+   * Dispose of G-code geometries and materials to prevent GPU memory leaks
+   */
+  disposeGcodeGeometry() {
+    if (
+      this.nonReplicadGeom?.geometry &&
+      Array.isArray(this.nonReplicadGeom.geometry)
+    ) {
+      this.nonReplicadGeom.geometry.forEach((group) => {
+        if (group && typeof group === "object" && group.children) {
+          // Recursively dispose all children (LineSegments with geometries/materials)
+          group.traverse((child) => {
+            if (child.geometry) {
+              child.geometry.dispose();
+            }
+            if (child.material) {
+              if (Array.isArray(child.material)) {
+                child.material.forEach((mat) => {
+                  if (mat && typeof mat.dispose === "function") {
+                    mat.dispose();
+                  }
+                });
+              } else if (typeof child.material.dispose === "function") {
+                child.material.dispose();
+              }
+            }
+          });
+        }
+      });
+      this.nonReplicadGeom.geometry = null;
+    }
+  }
+
   parseGcodeString = async (allGcode) => {
     if (!allGcode) {
       console.warn("No G-code string available for parsing.");
@@ -568,6 +601,9 @@ export default class Gcode extends Atom {
     }
 
     try {
+      // Dispose old geometries before creating new ones
+      this.disposeGcodeGeometry();
+
       const loader = new GCodeLoader();
       const parsedObjects = [];
       let lastPosition = { x: 0, y: 0, z: 0 };
@@ -793,6 +829,14 @@ export default class Gcode extends Atom {
   /**
    * Add the part name and sort direction to the object which is saved for this molecule
    */
+  /**
+   * Override deleteNode to dispose of gcode geometries
+   */
+  deleteNode(backgroundClickAfter = true, deletePath = true, silent = false) {
+    this.disposeGcodeGeometry();
+    return super.deleteNode(backgroundClickAfter, deletePath, silent);
+  }
+
   serialize(offset = { x: 0, y: 0 }) {
     var superSerialObject = super.serialize(offset);
     superSerialObject.partName = this.partName;

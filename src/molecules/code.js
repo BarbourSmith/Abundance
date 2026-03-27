@@ -87,12 +87,12 @@ return assembly;
     GlobalVariables.c.beginPath();
     GlobalVariables.c.fillStyle = "#949294";
     GlobalVariables.c.font = `${GlobalVariables.widthToPixels(
-      this.radius
+      this.radius,
     )}px Work Sans Bold`;
     GlobalVariables.c.fillText(
       "</>",
       GlobalVariables.widthToPixels(this.x - this.radius / 1.5),
-      GlobalVariables.heightToPixels(this.y + this.radius * 1.5)
+      GlobalVariables.heightToPixels(this.y + this.radius * 1.5),
     );
   }
 
@@ -118,9 +118,9 @@ return assembly;
           this.inputs
             .map(
               (input) =>
-                `${input.name}:${input.defaultValue}:${input.valueType}`
+                `${input.name}:${input.defaultValue}:${input.valueType}`,
             )
-            .join("|")
+            .join("|"),
         );
       },
     };
@@ -160,7 +160,7 @@ return assembly;
       if (lineMatch) {
         const lineNumber = lineMatch[1];
         super.setError(
-          `User code error at line ${lineNumber}: ${err.name} - ${err.message}`
+          `User code error at line ${lineNumber}: ${err.name} - ${err.message}`,
         );
         logged = true;
       }
@@ -177,7 +177,7 @@ return assembly;
     return GlobalVariables.cad.code(
       this.code,
       argumentsArray,
-      this.getContext()
+      this.getContext(),
     );
   }
 
@@ -191,104 +191,145 @@ return assembly;
     // Remove all block comments and line comments before matching Inputs array
     let codeNoComments = this.code.replace(/\/\*[\s\S]*?\*\//g, ""); // Remove block comments
     codeNoComments = codeNoComments.replace(/\/\/.*$/gm, ""); // Remove line comments
-    const allInputsMatches = [
-      ...codeNoComments.matchAll(/(?:const\s+)?Inputs\s*=\s*\[(.*?)]\s*;?/gs),
-    ];
-    
-    if (allInputsMatches.length > 0) {
-      const firstMatch = allInputsMatches[0];
-      
-      // If it's a const declaration, use safe eval
-      if (/const\s+Inputs\s*=/.test(firstMatch[0])) {
-        try {
-          const sandboxFn = new Function(firstMatch[0] + "; return Inputs;");
-          const inputsArray = sandboxFn();
-          
-          const variableNames = [];
-          inputsArray.forEach(({ inputName, type, defaultValue }) => {
-            variableNames.push(inputName);
-            const existingInput = this.inputs.find(
-              (input) => input.name === inputName
-            );
 
-            if (!existingInput) {
-              this._addIOWithoutSubscribing(
-                inputName,
-                type,
-                defaultValue,
-                "input"
-              );
-            } else {
-              existingInput.valueType = type;
-              existingInput.defaultValue = defaultValue;
-            }
-          });
-          // Remove any inputs not in the new array
-          const inputList = [...this.inputs];
-          inputList.forEach((input) => {
-            if (!variableNames.includes(input.name)) {
-              this.removeIO(input.type, input.name, this);
-            }
-          });
-          return;
-        } catch (e) {
-          console.warn("Failed to eval const Inputs array from code:", e);
+    // Find Inputs = [ and extract the entire array by counting brackets
+    // This handles nested arrays in defaultValue (e.g., defaultValue: [0,0])
+    const inputsStart = codeNoComments.search(/(?:const\s+)?Inputs\s*=\s*\[/);
+    if (inputsStart !== -1) {
+      // Try to parse new format if found
+
+      // Find the matching closing bracket by counting bracket depth
+      let bracketCount = 0;
+      let arrayEndIndex = -1;
+      const startBracket = codeNoComments.indexOf("[", inputsStart);
+
+      for (let i = startBracket; i < codeNoComments.length; i++) {
+        if (codeNoComments[i] === "[") bracketCount++;
+        if (codeNoComments[i] === "]") {
+          bracketCount--;
+          if (bracketCount === 0) {
+            arrayEndIndex = i + 1;
+            break;
+          }
         }
-      } else {
-        // Otherwise, parse as JSON
-        let arrStr = firstMatch[1];
-        arrStr = arrStr.replace(/\n/g, ""); // Remove newlines
-        arrStr = arrStr.replace(/\r/g, ""); // Remove carriage returns
-        arrStr = arrStr.replace(/,\s*$/, ""); // Remove trailing comma at end
-        arrStr = arrStr.replace(/(\w+)\s*:/g, '"$1":');
-        arrStr = arrStr.replace(/'/g, '"');
-        
-        try {
-          const inputsArray = JSON.parse(`[${arrStr}]`);
-          
-          const variableNames = [];
-          inputsArray.forEach(({ inputName, type, defaultValue }) => {
-            variableNames.push(inputName);
-            const existingInput = this.inputs.find(
-              (input) => input.name === inputName
-            );
-            if (!existingInput) {
-              this._addIOWithoutSubscribing(
-                inputName,
-                type,
-                defaultValue,
-                "input"
+      }
+
+      if (arrayEndIndex !== -1) {
+        const fullMatch = codeNoComments.substring(inputsStart, arrayEndIndex);
+        const arrContent = fullMatch.match(/\[([\s\S]*)\]/)[1];
+        const allInputsMatches = [{ 0: fullMatch, 1: arrContent }];
+
+        if (allInputsMatches.length > 0) {
+          const firstMatch = allInputsMatches[0];
+
+          // If it's a const declaration, use safe eval
+          if (/const\s+Inputs\s*=/.test(firstMatch[0])) {
+            try {
+              const sandboxFn = new Function(
+                firstMatch[0] + "; return Inputs;",
               );
-            } else {
-              existingInput.valueType = type;
-              existingInput.defaultValue = defaultValue;
+              const inputsArray = sandboxFn();
+
+              const variableNames = [];
+              inputsArray.forEach(({ inputName, type, defaultValue }) => {
+                variableNames.push(inputName);
+                const existingInput = this.inputs.find(
+                  (input) => input.name === inputName,
+                );
+
+                if (!existingInput) {
+                  this._addIOWithoutSubscribing(
+                    inputName,
+                    type,
+                    defaultValue,
+                    "input",
+                  );
+                } else {
+                  existingInput.valueType = type;
+                  existingInput.defaultValue = defaultValue;
+                }
+              });
+              // Remove any inputs not in the new array
+              const inputList = [...this.inputs];
+              inputList.forEach((input) => {
+                if (!variableNames.includes(input.name)) {
+                  this.removeIO(input.type, input.name, this);
+                }
+              });
+              return;
+            } catch (e) {
+              console.warn("Failed to eval const Inputs array from code:", e);
             }
-          });
-          // Remove any inputs not in the new array
-          const inputList = [...this.inputs];
-          inputList.forEach((input) => {
-            if (!variableNames.includes(input.name)) {
-              this.removeIO(input.type, input.name, this);
+          } else {
+            // Otherwise, parse as JSON
+            let arrStr = firstMatch[1];
+            arrStr = arrStr.replace(/\n/g, ""); // Remove newlines
+            arrStr = arrStr.replace(/\r/g, ""); // Remove carriage returns
+            arrStr = arrStr.replace(/,\s*$/, ""); // Remove trailing comma at end
+            arrStr = arrStr.replace(/(\w+)\s*:/g, '"$1":');
+            arrStr = arrStr.replace(/'/g, '"');
+
+            try {
+              const inputsArray = JSON.parse(`[${arrStr}]`);
+
+              const variableNames = [];
+              inputsArray.forEach(({ inputName, type, defaultValue }) => {
+                variableNames.push(inputName);
+                const existingInput = this.inputs.find(
+                  (input) => input.name === inputName,
+                );
+                if (!existingInput) {
+                  this._addIOWithoutSubscribing(
+                    inputName,
+                    type,
+                    defaultValue,
+                    "input",
+                  );
+                } else {
+                  existingInput.valueType = type;
+                  existingInput.defaultValue = defaultValue;
+                }
+              });
+              // Remove any inputs not in the new array
+              const inputList = [...this.inputs];
+              inputList.forEach((input) => {
+                if (!variableNames.includes(input.name)) {
+                  this.removeIO(input.type, input.name, this);
+                }
+              });
+              return;
+            } catch (e) {
+              console.warn("Failed to parse Inputs array from code:", e);
             }
-          });
-          return;
-        } catch (e) {
-          console.warn("Failed to parse Inputs array from code:", e);
+          }
         }
       }
     }
-    // Fallback: legacy string parsing
-    const variables = /Inputs:\[\s*([^)]+?)\s*\]/.exec(this.code);
+
+    // Fallback: legacy string parsing for old format like //Inputs:[input1,input2,input3]
+    // This supports the old way of declaring inputs as simple comma-separated variable names
+    const legacyPattern = /(?:\/\/\s*)?Inputs\s*:\s*\[\s*([^\]]+?)\s*\]/;
+    const variables = legacyPattern.exec(this.code);
     if (variables) {
       const variableNames = [];
       const parsedVariables =
         variables[1]?.split(/\s*,\s*/).map((v) => v.split(/\s*=\s*/)) || [];
       parsedVariables.forEach(([name, defaultVal]) => {
-        const value = defaultVal || 10;
-        variableNames.push(name);
-        const existingInput = this.inputs.find((input) => input.name === name);
+        if (!name || name.trim() === "") return; // Skip empty entries
+        const trimmedName = name.trim();
+        // For legacy format, use null for geometry inputs (no default value specified)
+        const value = defaultVal ? defaultVal.trim() : null;
+        variableNames.push(trimmedName);
+        const existingInput = this.inputs.find(
+          (input) => input.name === trimmedName,
+        );
         if (!existingInput) {
-          this._addIOWithoutSubscribing(name, "geometry", value, "input");
+          this._addIOWithoutSubscribing(
+            trimmedName,
+            "geometry",
+            value,
+            "input",
+          );
         }
       });
       const inputList = [...this.inputs];
@@ -315,7 +356,7 @@ return assembly;
       x,
       xInPixels,
       y,
-      yInPixels
+      yInPixels,
     );
 
     if (distFromClick < this.radius) {

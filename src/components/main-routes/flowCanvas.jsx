@@ -84,35 +84,44 @@ export default memo(function FlowCanvas({
         (redirectType === "save" || redirectType === "reauth") &&
         authorizedUserOcto
       ) {
-        console.log("Loading pending project after reauthentication...");
         // If there's a pending project save in local storage, load it
         const pendingProject = localStorage.getItem("pendingProjectSave");
         if (pendingProject) {
           // Only deserialize after all atoms have been deleted
           let rawFile = JSON.parse(pendingProject);
-          // Reset ID counter to avoid collisions with existing IDs
-          GlobalVariables.resetIdCounter(rawFile);
-          let deserializedMolecule;
-
-          // For older file versions, try to deserialize directly for now
-          async function loadAndDeserialize() {
-            deserializedMolecule =
-              await GlobalVariables.topLevelMolecule.deserialize(rawFile);
-
-            setActiveAtom(GlobalVariables.currentMolecule);
-            GlobalVariables.currentMolecule.selected = true;
-            GlobalVariables.currentMolecule = GlobalVariables.topLevelMolecule;
-            //trigger a save to clear the pending project
-            //
-            setSavePopUp(true);
-            saveProject(setSaveState, "auto-save after reauthentication").then(
-              () => {
+          // Check if pending project matches current project
+          const pendingRepo = rawFile.repoName || rawFile.name;
+          const currentRepo = GlobalVariables.currentAWSnode.repoName;
+          if (pendingRepo === currentRepo) {
+            // Reset ID counter to avoid collisions with existing IDs
+            GlobalVariables.resetIdCounter(rawFile);
+            let deserializedMolecule;
+            async function loadAndDeserialize() {
+              deserializedMolecule =
+                await GlobalVariables.topLevelMolecule.deserialize(rawFile);
+              setActiveAtom(GlobalVariables.currentMolecule);
+              GlobalVariables.currentMolecule.selected = true;
+              GlobalVariables.currentMolecule =
+                GlobalVariables.topLevelMolecule;
+              // Only save if project matches
+              setSavePopUp(true);
+              saveProject(
+                setSaveState,
+                "auto-save after reauthentication",
+              ).then(() => {
                 localStorage.removeItem("pendingProjectSave");
                 setSavePopUp(false);
-              },
+              });
+            }
+            loadAndDeserialize();
+          } else {
+            // If not matching, clear pending and just load the current project
+            console.warn(
+              "Pending project does not match current project. Skipping auto-save.",
             );
+            localStorage.removeItem("pendingProjectSave");
+            loadProject(GlobalVariables.currentAWSnode, authorizedUserOcto);
           }
-          loadAndDeserialize();
         } else {
           console.warn("No pending project found in local storage.");
           // If no pending project found, just load the current project
@@ -340,6 +349,7 @@ export default memo(function FlowCanvas({
 
   const keyDown = async (e) => {
     if (e.key == "Backspace" || e.key == "Delete") {
+      e.stopPropagation();
       /* Save undo state before deletion */
       GlobalVariables.saveUndoState("DELETE", "Deleted selected atoms");
 

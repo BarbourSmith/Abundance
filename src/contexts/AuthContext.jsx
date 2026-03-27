@@ -14,10 +14,10 @@ const TOKEN_EXPIRY_DAYS = 60; // GitHub tokens typically expire after 60 days
  * Centralizes user authentication state and GitHub Octokit instance.
  */
 export function AuthProvider({ children }) {
-  const [isloggedIn, setIsLoggedIn] = useState(false);
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [authorizedUserOcto, setAuthorizedUserOcto] = useState(null);
   const [isRestoringSession, setIsRestoringSession] = useState(true);
+  const [userScopes, setUserScopes] = useState([]);
 
   /**
    * Store access token in localStorage
@@ -38,7 +38,7 @@ export function AuthProvider({ children }) {
     try {
       const token = localStorage.getItem(TOKEN_STORAGE_KEY);
       const timestamp = localStorage.getItem(TOKEN_TIMESTAMP_KEY);
-      
+
       if (!token || !timestamp) {
         return null;
       }
@@ -46,7 +46,7 @@ export function AuthProvider({ children }) {
       // Check if token is expired (older than TOKEN_EXPIRY_DAYS)
       const tokenAge = Date.now() - parseInt(timestamp, 10);
       const maxAge = TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000; // Convert days to milliseconds
-      
+
       if (tokenAge > maxAge) {
         console.log("Token expired, clearing storage");
         clearStoredToken();
@@ -78,11 +78,15 @@ export function AuthProvider({ children }) {
   const validateToken = async (token) => {
     try {
       const octokit = new Octokit({ auth: token });
-      const { data } = await octokit.request("GET /user");
-      return { valid: true, user: data };
+      // Get user info and response headers
+      const response = await octokit.request("GET /user");
+      const scopes = response.headers["x-oauth-scopes"]
+        ? response.headers["x-oauth-scopes"].split(",").map((s) => s.trim())
+        : [];
+      return { valid: true, user: response.data, scopes };
     } catch (error) {
       console.error("Token validation failed:", error);
-      return { valid: false, user: null };
+      return { valid: false, user: null, scopes: [] };
     }
   };
 
@@ -92,18 +96,16 @@ export function AuthProvider({ children }) {
   const restoreSession = async () => {
     setIsRestoringSession(true);
     const token = getStoredToken();
-    
+
     if (!token) {
       setIsRestoringSession(false);
       return false;
     }
+    const { valid, user, scopes } = await validateToken(token);
 
-    const { valid, user } = await validateToken(token);
-    
     if (valid && user) {
       const octokit = new Octokit({ auth: token });
       GlobalVariables.currentUser = user.login;
-      setIsLoggedIn(true);
       setIsAuthorized(true);
       setAuthorizedUserOcto(octokit);
       setIsRestoringSession(false);
@@ -127,6 +129,7 @@ export function AuthProvider({ children }) {
     authType,
     currentProjectRep,
     returnTo,
+    privateRepo = false,
   } = {}) => {
     // Helper to build the GitHub OAuth URL
     function buildOAuthUrl({ client_id, scope, csrfToken, stateObj }) {
@@ -140,7 +143,7 @@ export function AuthProvider({ children }) {
 
     const params = new URLSearchParams(window.location.search);
     let scope = "public_repo";
-    if (params.has("private")) scope = "repo";
+    if (params.has("private") || privateRepo) scope = "repo";
 
     const client_id =
       window.origin.includes("localhost") || window.origin.includes("abundance")
@@ -179,8 +182,6 @@ export function AuthProvider({ children }) {
   }, []);
 
   const value = {
-    isloggedIn,
-    setIsLoggedIn,
     isAuthorized,
     setIsAuthorized,
     authorizedUserOcto,
@@ -190,6 +191,8 @@ export function AuthProvider({ children }) {
     storeToken,
     clearStoredToken,
     restoreSession,
+    userScopes,
+    setUserScopes,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

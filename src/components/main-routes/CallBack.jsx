@@ -11,10 +11,10 @@ const Callback = ({ setRedirectType }) => {
   const {
     isAuthorized,
     setIsAuthorized,
-    setIsLoggedIn,
     authorizedUserOcto,
     setAuthorizedUserOcto,
     storeToken,
+    setUserScopes,
   } = useAuth();
 
   useEffect(() => {
@@ -39,7 +39,7 @@ const Callback = ({ setRedirectType }) => {
             headers: {
               "Content-Type": "application/json",
             },
-          }
+          },
         );
 
         const result = await response.json();
@@ -51,12 +51,18 @@ const Callback = ({ setRedirectType }) => {
         const authorizedUser = new Octokit({
           auth: access_token,
         });
-        const { data } = await authorizedUser.request("/user");
+        const userResponse = await authorizedUser.request("/user");
+        const { data, headers } = userResponse;
+        // Check and log OAuth scopes
+        const scopes = headers["x-oauth-scopes"]
+          ? headers["x-oauth-scopes"].split(",").map((s) => s.trim())
+          : [];
+
         GlobalVariables.currentUser = data.login;
         if (GlobalVariables.currentUser) {
-          setIsLoggedIn(true);
           setAuthorizedUserOcto(authorizedUser);
-
+          console.log("OAuth scopes for token:", scopes);
+          setUserScopes(scopes);
           return authorizedUser;
         }
       } catch (error) {
@@ -85,7 +91,7 @@ const Callback = ({ setRedirectType }) => {
           } else {
             // Match /run/owner/repoName or /owner/repoName
             const match = state.returnTo.match(
-              /(?:\/run)?\/(\w[\w-]*)\/(\w[\w-]*)/
+              /(?:\/run)?\/(\w[\w-]*)\/(\w[\w-]*)/,
             );
             if (match) {
               owner = match[1];
@@ -93,7 +99,7 @@ const Callback = ({ setRedirectType }) => {
             }
           }
           fetch(
-            `https://hg5gsgv9te.execute-api.us-east-2.amazonaws.com/abundance-stage/fetchSingleRepo?owner=${owner}&repoName=${repoName}`
+            `https://hg5gsgv9te.execute-api.us-east-2.amazonaws.com/abundance-stage/fetchSingleRepo?owner=${owner}&repoName=${repoName}`,
           )
             .then((res) => res.json())
             .then((data) => {

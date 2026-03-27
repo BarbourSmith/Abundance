@@ -8,6 +8,7 @@ import { BOMEntry } from "../js/BOM";
 
 import { Status } from "../prototypes/observableEntity.js";
 import { saveAs } from "file-saver";
+import { re } from "mathjs";
 
 /**
  * This class creates the Molecule atom.
@@ -182,9 +183,7 @@ export default class Molecule extends Atom {
 
     inputParams["molecule name" + this.uniqueID] = {
       type: "string",
-      value: this.topLevel
-        ? GlobalVariables.currentAWSnode.repoName
-        : this.name,
+      value: this.name,
       label: "Molecule Name",
       disabled: this.topLevel || this.atomType === "GitHubMolecule",
       onChange: (value) => {
@@ -317,39 +316,50 @@ export default class Molecule extends Atom {
             path: "project.abundance",
           })
           .then(async (response) => {
-            // Clear the nodesOnTheScreen array before deserialization to avoid doubling
-            GlobalVariables.topLevelMolecule.nodesOnTheScreen.forEach(
-              (atom) => {
-                atom.deleteNode();
-              },
-            );
-            GlobalVariables.topLevelMolecule.nodesOnTheScreen = []; // <-- clear the array
-            let rawFileContent;
-            // Handle large files (>1MB) using download_url
-            if (!response.data.content || response.data.content.length === 0) {
-              const fileResponse = await fetch(response.data.download_url);
-              rawFileContent = await fileResponse.text();
-            } else {
-              // Handle small files using base64 content with UTF-8 encoding
-              rawFileContent = GlobalVariables.fromBinaryStr(
-                atob(response.data.content),
-              );
-            }
-
-            let rawFile;
+            // Set loading flag before clearing atoms to prevent saves during the clear+reload window
+            GlobalVariables.projectIsLoading = true;
             try {
-              rawFile = await this.asyncJsonParse(rawFileContent); // Use the async parser from previous answer
-            } catch (err) {
-              console.error("Failed to parse project.abundance:", err);
-              return;
+              // Clear the nodesOnTheScreen array before deserialization to avoid doubling
+              GlobalVariables.topLevelMolecule.nodesOnTheScreen.forEach(
+                (atom) => {
+                  atom.deleteNode();
+                },
+              );
+              GlobalVariables.topLevelMolecule.nodesOnTheScreen = []; // <-- clear the array
+              let rawFileContent;
+              // Handle large files (>1MB) using download_url
+              if (
+                !response.data.content ||
+                response.data.content.length === 0
+              ) {
+                const fileResponse = await fetch(response.data.download_url);
+                rawFileContent = await fileResponse.text();
+              } else {
+                // Handle small files using base64 content with UTF-8 encoding
+                rawFileContent = GlobalVariables.fromBinaryStr(
+                  atob(response.data.content),
+                );
+              }
+
+              let rawFile;
+              try {
+                rawFile = await this.asyncJsonParse(rawFileContent); // Use the async parser from previous answer
+              } catch (err) {
+                console.error("Failed to parse project.abundance:", err);
+                return;
+              }
+              // Reset ID counter to avoid collisions with existing IDs
+              GlobalVariables.resetIdCounter(rawFile);
+              // Only call deserialize after rawFile is ready
+              if (rawFile.filetypeVersion == 1) {
+                await GlobalVariables.topLevelMolecule.deserialize(rawFile);
+              }
+              GlobalVariables.currentMolecule.selected = true;
+            } finally {
+              // Ensure flag is cleared even if fetch/parse/deserialize fails
+              // (deserialize's own .finally() also clears the flag when it runs)
+              GlobalVariables.projectIsLoading = false;
             }
-            // Reset ID counter to avoid collisions with existing IDs
-            GlobalVariables.resetIdCounter(rawFile);
-            // Only call deserialize after rawFile is ready
-            if (rawFile.filetypeVersion == 1) {
-              await GlobalVariables.topLevelMolecule.deserialize(rawFile);
-            }
-            GlobalVariables.currentMolecule.selected = true;
           });
       });
   }
@@ -445,6 +455,32 @@ export default class Molecule extends Atom {
   enableAllChildren() {
     this.nodesOnTheScreen.forEach((atom) => {
       if (atom.status === Status.DISABLED) {
+        atom.enable();
+      }
+    });
+  }
+
+  /**
+   * Enables child atoms in dependency order to ensure proper propagation chains.
+   * Phase 1: Enable Input atoms first (they have no upstream connector dependencies)
+   * Phase 2: Enable other atoms via recursive connector chain enabling
+   *
+   * This ensures:
+   * - Input atoms become READY and can propagate variable references
+   * - Other atoms can recursively enable through their connectors
+   * - Dependency ordering emerges naturally from connector topology
+   */
+  enableAllChildrenInOrder() {
+    // Phase 1: Enable Input atoms first (no upstream dependencies)
+    this.nodesOnTheScreen.forEach((atom) => {
+      if (atom.atomType === "Input" && atom.status === Status.DISABLED) {
+        atom.enable();
+      }
+    });
+
+    // Phase 2: Enable other atoms (recursively enable through connectors)
+    this.nodesOnTheScreen.forEach((atom) => {
+      if (atom.atomType !== "Input" && atom.status === Status.DISABLED) {
         atom.enable();
       }
     });
@@ -885,6 +921,7 @@ export default class Molecule extends Atom {
     if (outputAtom) {
       const outputState = outputAtom.getState();
       if (outputState.status == Status.READY) {
+        this.nonReplicadGeom = outputAtom.nonReplicadGeom;
         this.setReady(outputState.value);
         this.compileBom()
           .then((bom) => {
@@ -904,9 +941,14 @@ export default class Molecule extends Atom {
             console.warn("Error loading README:", err);
           });
       } else {
+        // Enable child atoms in dependency order to ensure atoms can subscribe to variable equations.
+        // Do this on EVERY upstream change, not just when all inputs are ready.
+        // This is critical for deep nesting where variables depend on inputs that become ready at different times.
+        this.enableAllChildrenInOrder();
+
         if (this.inputs.every((input) => input.status == Status.READY)) {
-          // All inputs are ready but our output isn't yet. check for an internal error
-          // else we're in progress.
+          // All inputs are ready but our output isn't yet.
+          // Check for an internal error, else we're in progress.
           if (
             outputAtom.status == Status.UPSTREAM_ERROR ||
             outputAtom.status == Status.ERROR
@@ -928,6 +970,47 @@ export default class Molecule extends Atom {
       console.trace("Undefined output atom in onUpstreamChange");
       this.setError("got callback with undefined output atom");
     }
+  }
+
+  /**
+   * Handle input value changes at the molecule level.
+   * Called when a molecule's input atom changes value.
+   * Propagates changes to child atoms that depend on that input (e.g., Equation, Code atoms).
+   * This handles atoms whose variables include molecule-level inputs — whether they have zero
+   * atom-level inputs OR a mix of atom-level and molecule-level inputs.
+   * Also recursively propagates into nested child molecules so equations inside them receive updates.
+   * @param {string} inputName - The name of the input that changed
+   */
+  propagateInputChange(inputName) {
+    this.nodesOnTheScreen.forEach((atom) => {
+      // Recursively propagate to child molecules so nested equations using ancestor inputs are also triggered
+      if (
+        (atom.atomType === "Molecule" || atom.atomType === "GitHubMolecule") &&
+        typeof atom.propagateInputChange === "function"
+      ) {
+        atom.propagateInputChange(inputName);
+      }
+
+      // For Equation atoms: trigger if the equation uses the changed molecule-level input
+      // AND that input is not already provided via an atom-level connector (which handles its own propagation).
+      if (atom.atomType === "Equation") {
+        const equationVariables = atom._extractVariablesFromEquation();
+        if (
+          equationVariables.includes(inputName) &&
+          !atom.inputs.some((input) => input.name === inputName) &&
+          atom.isEnabled()
+        ) {
+          atom.onUpstreamChange();
+        }
+      }
+      // For Code atoms, we can't easily parse which variables they use, so trigger recomputation
+      // whenever a molecule input changes, unless that input is already wired as an atom-level input.
+      else if (atom.atomType === "Code" && atom.isEnabled()) {
+        if (!atom.inputs.some((input) => input.name === inputName)) {
+          atom.onUpstreamChange();
+        }
+      }
+    });
   }
 
   propagateChange() {
@@ -1166,6 +1249,18 @@ export default class Molecule extends Atom {
     //Find the target molecule in the list
     let promiseArray = [];
 
+    // Capture topLevel NOW before setValues() below can change it.
+    // When a GitHub repo's project.abundance (which has topLevel:true) is loaded as a
+    // non-top-level atom, valuesToOverwriteInLoadedVersion overrides topLevel:false via
+    // setValues(values). Without this capture, the .finally() below would check the
+    // post-setValues value of this.topLevel (false) and never clear the flag.
+    const wasTopLevel = this.topLevel;
+
+    // Set loading flag to block saves during deserialization of the top-level molecule
+    if (wasTopLevel) {
+      GlobalVariables.projectIsLoading = true;
+    }
+
     //Try to place molecule's output
     this.placeAtom(
       {
@@ -1189,80 +1284,88 @@ export default class Molecule extends Atom {
         promiseArray.push(promise);
       });
     }
-    return Promise.all(promiseArray).then(() => {
-      //Once all the atoms are placed we can finish
-      this.setValues([]); //Call set values again with an empty list to trigger loading of IO values from memory
+    return Promise.all(promiseArray)
+      .then(() => {
+        //Once all the atoms are placed we can finish
+        this.setValues([]); //Call set values again with an empty list to trigger loading of IO values from memory
 
-      if (this.topLevel) {
-        GlobalVariables.totalAtomCount = GlobalVariables.numberOfAtomsToLoad;
-      }
+        if (this.topLevel) {
+          GlobalVariables.totalAtomCount = GlobalVariables.numberOfAtomsToLoad;
+        }
 
-      //Place the connectors, skipping null/undefined
-      if (json.allConnectors) {
-        json.allConnectors.forEach((connector) => {
-          if (connector) {
-            this.placeConnector(connector);
+        //Place the connectors, skipping null/undefined
+        if (json.allConnectors) {
+          json.allConnectors.forEach((connector) => {
+            if (connector) {
+              this.placeConnector(connector);
+            }
+          });
+        }
+
+        // Reset variable name subscriptions now that all atoms are placed.
+        this.nodesOnTheScreen.forEach((atom) => {
+          atom.inputs.forEach((ap) => {
+            ap.subscribeToVariablesInEquation(ap.currentEquation);
+          });
+        });
+
+        const outputAtom = this.getOutputAtom();
+        outputAtom.subscribe(
+          () => {
+            this.onUpstreamChange();
+          },
+          this.uniqueID,
+          false,
+        );
+
+        // Subscribe molecule to README atom changes for automatic README recompilation
+        // Issue: README atoms were not part of molecule's propagation chain
+        // Solution: When a README atom's text changes (via setReady()), propagate that change
+        // to trigger the molecule's requestReadme() and update compiledReadme.
+        // This ensures that the README content in the molecule's input panel and saved README
+        // files stays in sync with the actual README atom values.
+        this.nodesOnTheScreen.forEach((atom) => {
+          if (atom.atomType === "Readme") {
+            atom.subscribe(
+              () => {
+                // Recompile README content when any README atom changes
+                this.requestReadme()
+                  .then((readme) => {
+                    this.compiledReadme = readme;
+                    // Note: setInputChanged is not called here as it's only used for BOM updates
+                    // README changes are reflected automatically in the properties panel
+                    // through the compiledReadme property
+                  })
+                  .catch((err) => {
+                    console.warn(
+                      `Error updating README after atom change in molecule ${this.uniqueID}, README atom ${atom.uniqueID}:`,
+                      err,
+                    );
+                  });
+              },
+              `readme-subscription-${this.uniqueID}-${atom.uniqueID}`,
+              false,
+            );
           }
         });
-      }
 
-      // Reset variable name subscriptions now that all atoms are placed.
-      this.nodesOnTheScreen.forEach((atom) => {
-        atom.inputs.forEach((ap) => {
-          ap.subscribeToVariablesInEquation(ap.currentEquation);
-        });
-      });
+        if (GlobalVariables.currentMolecule === this || forceEnable) {
+          this.enable(); // Enable self and all child nodes upstream of output.
+        }
+        if (GlobalVariables.currentMolecule === this) {
+          this.enableAllChildren(); // For the currently rendered molecule, also
+          // enable all children visible on the screen
+        }
 
-      const outputAtom = this.getOutputAtom();
-      outputAtom.subscribe(
-        () => {
-          this.onUpstreamChange();
-        },
-        this.uniqueID,
-        false,
-      );
-
-      // Subscribe molecule to README atom changes for automatic README recompilation
-      // Issue: README atoms were not part of molecule's propagation chain
-      // Solution: When a README atom's text changes (via setReady()), propagate that change
-      // to trigger the molecule's requestReadme() and update compiledReadme.
-      // This ensures that the README content in the molecule's input panel and saved README
-      // files stays in sync with the actual README atom values.
-      this.nodesOnTheScreen.forEach((atom) => {
-        if (atom.atomType === "Readme") {
-          atom.subscribe(
-            () => {
-              // Recompile README content when any README atom changes
-              this.requestReadme()
-                .then((readme) => {
-                  this.compiledReadme = readme;
-                  // Note: setInputChanged is not called here as it's only used for BOM updates
-                  // README changes are reflected automatically in the properties panel
-                  // through the compiledReadme property
-                })
-                .catch((err) => {
-                  console.warn(
-                    `Error updating README after atom change in molecule ${this.uniqueID}, README atom ${atom.uniqueID}:`,
-                    err,
-                  );
-                });
-            },
-            `readme-subscription-${this.uniqueID}-${atom.uniqueID}`,
-            false,
-          );
+        return this;
+      })
+      .finally(() => {
+        // Always clear loading flag when deserialization completes or fails.
+        // Use wasTopLevel (captured at entry) because setValues() may have changed this.topLevel.
+        if (wasTopLevel) {
+          GlobalVariables.projectIsLoading = false;
         }
       });
-
-      if (GlobalVariables.currentMolecule === this || forceEnable) {
-        this.enable(); // Enable self and all child nodes upstream of output.
-      }
-      if (GlobalVariables.currentMolecule === this) {
-        this.enableAllChildren(); // For the currently rendered molecule, also
-        // enable all children visible on the screen
-      }
-
-      return this;
-    });
   }
 
   enable() {
@@ -1320,12 +1423,23 @@ export default class Molecule extends Atom {
   async recomputeAll(setRecomputeVisible, setRecomputeProgress) {
     // Serialize the current molecule state
     const snapshot = this.serialize({ x: 0, y: 0 }, setRecomputeProgress);
+    // Block saves during the clear+reload window to prevent saving an empty project.
+    // This must be set before deleteAllAtoms() because clearCache() below is async,
+    // creating a window where nodesOnTheScreen would be empty without the guard.
+    GlobalVariables.projectIsLoading = true;
     // Remove all atoms from the molecule
     this.deleteAllAtoms();
 
-    // Clear CAD cache
-    await GlobalVariables.cad.clearCache(this.getContext());
-    // Re-deserialize the molecule from the snapshot
+    try {
+      // Clear CAD cache
+      await GlobalVariables.cad.clearCache(this.getContext());
+    } catch (err) {
+      // If cache clear fails before deserialize runs, ensure the flag is cleared
+      GlobalVariables.projectIsLoading = false;
+      throw err;
+    }
+    // Re-deserialize the molecule from the snapshot.
+    // deserialize() sets and clears projectIsLoading itself via its own .finally() block.
     await this.deserialize(snapshot);
     setRecomputeProgress(100); // Update progress to indicate completion
     setRecomputeVisible(false); // Hide the progress bar after recompute is done
@@ -1337,14 +1451,31 @@ export default class Molecule extends Atom {
    * @param {object} gitObj - An object containing the GitHub repository information (owner, repoName, etc).
    * @param {object} oldObject - (Optional) The previous atom object to recover IO values from.
    * @param {object} oldParentObjectConnectors - (Optional) Connectors from the parent object to remap.
+   * @param {object} position - (Optional) The position to place the loaded molecule at. If not provided, it will use oldObject's position or default to (0.5, 0.6).
+   * @param {object} authorizedUser - (Optional) An authenticated Octokit instance for accessing private repositories.
    */
   async loadGithubMoleculeByName(
     gitObj,
     oldObject = {},
     oldParentObjectConnectors = [],
     position,
+    authorizedUser,
+    userScopes,
   ) {
-    let octokit = new Octokit();
+    let octokit;
+    if (authorizedUser) {
+      octokit = authorizedUser;
+    } else {
+      octokit = new Octokit();
+    }
+    if (
+      gitObj.privateRepo &&
+      (!authorizedUser || !userScopes.includes("repo"))
+    ) {
+      throw new Error(
+        "Authentication with 'repo' scope is required to access private repositories.",
+      );
+    }
     try {
       await octokit
         .request("GET /repos/{owner}/{repo}/contents/project.abundance", {
@@ -1401,8 +1532,16 @@ export default class Molecule extends Atom {
               ioValues: oldObject.ioValues,
             };
           } else {
-            let xPos = position ? position.x : 0.5;
-            let yPos = position ? position.y : 0.6;
+            let xPos = position
+              ? position.x
+              : oldObject.x !== undefined
+                ? oldObject.x
+                : 0.5;
+            let yPos = position
+              ? position.y
+              : oldObject.y !== undefined
+                ? oldObject.y
+                : 0.6;
 
             valuesToOverwriteInLoadedVersion = {
               uniqueID: newMoleculeUniqueID,
@@ -1579,7 +1718,7 @@ export default class Molecule extends Atom {
     }
 
     // Find first available geometry input on the new atom
-    const geometryInput = this.findFirstAvailableGeometryInput(newAtom);
+    let geometryInput = this.findFirstAvailableGeometryInput(newAtom);
 
     if (!geometryInput) {
       return; // New atom doesn't have an available geometry input

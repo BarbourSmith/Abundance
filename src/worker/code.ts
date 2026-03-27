@@ -77,7 +77,7 @@ function validateUserCode(code: string): boolean {
   for (const pattern of dangerousPatterns) {
     if (pattern.test(code)) {
       throw new Error(
-        `Code contains potentially dangerous pattern: ${pattern.source}`
+        `Code contains potentially dangerous pattern: ${pattern.source}`,
       );
     }
   }
@@ -93,7 +93,7 @@ async function toGeometry(
   input: UserGeometryObj,
   name = "geometry",
   userLib: { [key: string]: RealizedAssembly },
-  context: RequestContext
+  context: RequestContext,
 ): Promise<AbundanceObject> {
   if (input === undefined || input === null) {
     throw new Error(name + " value is undefined or null");
@@ -108,7 +108,7 @@ async function toGeometry(
     return addAssemblyPartsToCache(
       input as RealizedAssembly,
       context,
-      "code-transient"
+      "code-transient",
     );
   }
 
@@ -126,13 +126,13 @@ async function toGeometry(
         input as ReplicadObject,
         context,
         "code-transient-",
-        [context.nextId++]
+        [context.nextId++],
       ),
     };
   } else {
     // If it's something else, we throw an error
     throw new Error(
-      name + " value cannot be interpreted as geometry: " + input
+      name + " value cannot be interpreted as geometry: " + input,
     );
   }
 }
@@ -157,7 +157,7 @@ function isPrimitive(value: any): boolean {
 async function executeCode(
   code: string,
   argumentsArray: { [key: string]: any },
-  context: RequestContext
+  context: RequestContext,
 ): Promise<AbundanceObject | number | string | boolean | null | undefined> {
   try {
     // Validate input parameters
@@ -177,7 +177,7 @@ async function executeCode(
     for (const [key, value] of Object.entries(argumentsArray)) {
       // Convert NO_GEOMETRY sentinel back to null for user code
       const actualValue = isNoGeometry(value) ? null : value;
-      
+
       if (util.isAbundanceObject(actualValue)) {
         const newKey = `userlib_${i++}`;
         userLib[newKey] = await realizeAssembly(actualValue, context);
@@ -220,7 +220,7 @@ async function executeCode(
       geom: UserGeometryObj,
       x: number,
       y: number,
-      z: number
+      z: number,
     ) => {
       return realizeAssembly(
         await move(
@@ -228,9 +228,9 @@ async function executeCode(
           x,
           y,
           z,
-          context
+          context,
         ),
-        context
+        context,
       );
     };
 
@@ -238,7 +238,7 @@ async function executeCode(
       geom: string | RealizedAssembly,
       x: number,
       y: number,
-      z: number
+      z: number,
     ) => {
       return realizeAssembly(
         await rotate(
@@ -246,9 +246,9 @@ async function executeCode(
           x,
           y,
           z,
-          context
+          context,
         ),
-        context
+        context,
       );
     };
 
@@ -257,9 +257,9 @@ async function executeCode(
         await scale(
           await toGeometry(geom, "scale-geometry", userLib, context),
           scaleFactor,
-          context
+          context,
         ),
-        context
+        context,
       );
     };
 
@@ -268,9 +268,9 @@ async function executeCode(
         await fillet(
           await toGeometry(geom, "fillet-geometry", userLib, context),
           radius,
-          context
+          context,
         ),
-        context
+        context,
       );
     };
 
@@ -279,23 +279,23 @@ async function executeCode(
         await chamfer(
           await toGeometry(geom, "chamfer-geometry", userLib, context),
           size,
-          context
+          context,
         ),
-        context
+        context,
       );
     };
 
     const wrappedIntersect = async (
       input1: UserGeometryObj,
-      input2: UserGeometryObj
+      input2: UserGeometryObj,
     ) => {
       return realizeAssembly(
         await intersect(
           await toGeometry(input1, "intersect-geometry1", userLib, context),
           await toGeometry(input2, "intersect-geometry2", userLib, context),
-          context
+          context,
         ),
-        context
+        context,
       );
     };
 
@@ -303,8 +303,8 @@ async function executeCode(
       const ids = await Promise.all(
         inputIDs.map(
           async (id) =>
-            await toGeometry(id, "assembly-geometry", userLib, context)
-        )
+            await toGeometry(id, "assembly-geometry", userLib, context),
+        ),
       );
       const res = await assembly(ids, context);
       return realizeAssembly(res, context);
@@ -312,7 +312,7 @@ async function executeCode(
 
     const wrappedCutAssembly = async (
       input1: UserGeometryObj,
-      input2Array: UserGeometryObj[]
+      input2Array: UserGeometryObj[],
     ) => {
       return realizeAssembly(
         await cutAssembly(
@@ -320,19 +320,19 @@ async function executeCode(
           await Promise.all(
             input2Array.map(
               async (id) =>
-                await toGeometry(id, "cut-geometry", userLib, context)
-            )
+                await toGeometry(id, "cut-geometry", userLib, context),
+            ),
           ),
-          context
+          context,
         ),
-        context
+        context,
       );
     };
 
     const wrappedGetBounds = async (geom: UserGeometryObj) => {
       return util.getBounds(
         await toGeometry(geom, "bounds-geometry", userLib, context),
-        context
+        context,
       );
     };
 
@@ -374,11 +374,11 @@ async function executeCode(
       keys1.push(key);
       inputValues.push(value);
     }
-    
+
     // Use Function constructor instead of eval - still allows code execution but safer than eval
     const userFunction = new Function(
       ...keys1,
-      `return (async () => { ${code} })();`
+      `return (async () => { ${code} })();`,
     );
 
     // Execute with timeout protection
@@ -392,10 +392,10 @@ async function executeCode(
       timeoutPromise,
     ]);
 
-    // If the result is a primitive value, clean up batch and return directly (don't cache)
-    if (isPrimitive(rawResult)) {
+    // If the result is a primitive value or an array (e.g., point), clean up batch and return directly (don't cache)
+    if (isPrimitive(rawResult) || Array.isArray(rawResult)) {
       // Clean up the warm cache without caching the result
-      // Primitive results are not cached - only geometry results are cached
+      // Primitive and array (point) results are not cached - only geometry results are cached
       util.geometryProvider!.cleanupBatchWithoutCaching(context);
       return rawResult;
     }
@@ -405,7 +405,7 @@ async function executeCode(
     const abundanceObj = await addAssemblyPartsToCache(
       processedResult as RealizedAssembly,
       context,
-      cacheId
+      cacheId,
     );
     util.geometryProvider!.endBatchOperation(context, abundanceObj);
     return abundanceObj;
@@ -416,7 +416,7 @@ async function executeCode(
 }
 
 async function ensureDimension(
-  assembly: RealizedAssembly | Promise<RealizedAssembly>
+  assembly: RealizedAssembly | Promise<RealizedAssembly>,
 ): Promise<RealizedAssembly> {
   return Promise.resolve(assembly).then(async (resolvedAssembly) => {
     if (isRealizedLeaf(resolvedAssembly)) {
@@ -429,7 +429,7 @@ async function ensureDimension(
       }
     } else {
       resolvedAssembly.geometry = await Promise.all(
-        resolvedAssembly.geometry.map((child) => ensureDimension(child))
+        resolvedAssembly.geometry.map((child) => ensureDimension(child)),
       );
       resolvedAssembly.dimension = resolvedAssembly.geometry[0].dimension;
     }
@@ -454,14 +454,14 @@ async function assemblyMap(
   assembly: RealizedAssembly,
   callbackFn: (
     node: RealizedLeaf,
-    depth: number
-  ) => RealizedAssembly | Promise<RealizedAssembly>
+    depth: number,
+  ) => RealizedAssembly | Promise<RealizedAssembly>,
 ): Promise<RealizedAssembly | undefined> {
   try {
     // Helper function to process nodes recursively
     async function processNode(
       node: RealizedAssembly,
-      depth: number
+      depth: number,
     ): Promise<RealizedAssembly | undefined> {
       if (isRealizedLeaf(node)) {
         return ensureDimension(callbackFn(node, depth));
@@ -471,12 +471,12 @@ async function assemblyMap(
         const newGeometry = await Promise.all(
           node.geometry.map(async (child) => {
             return await processNode(child, depth + 1);
-          })
+          }),
         );
 
         // Filter out any undefined results (in case callbackFn filters some nodes)
         const filteredGeometry = newGeometry.filter(
-          (item) => item !== undefined
+          (item) => item !== undefined,
         );
 
         if (filteredGeometry.length === 0) {
@@ -543,7 +543,7 @@ function logError(error: Error, context: string) {
 
 async function realizeAssembly(
   assembly: AbundanceObject,
-  context: RequestContext
+  context: RequestContext,
 ): Promise<RealizedAssembly> {
   if (util.isLeaf(assembly)) {
     return {
@@ -555,7 +555,7 @@ async function realizeAssembly(
     const children = await Promise.all(
       (assembly.geometry as AbundanceObject[]).map(async (child) => {
         return await realizeAssembly(child, context);
-      })
+      }),
     );
     return {
       ...assembly,
@@ -580,10 +580,10 @@ function composeID(code: string, argsSignature: string[]): string {
 async function addAssemblyPartsToCache(
   assembly: RealizedAssembly,
   context: RequestContext,
-  cacheId: string
+  cacheId: string,
 ): Promise<AbundanceObject> {
   const helperFunc = async (
-    assembly: RealizedAssembly
+    assembly: RealizedAssembly,
   ): Promise<AbundanceObject> => {
     if (isRealizedLeaf(assembly)) {
       return {
@@ -592,7 +592,7 @@ async function addAssemblyPartsToCache(
           assembly.geometry[0],
           context,
           cacheId,
-          [context.nextId++] // Cache under the code atom's id + an offset within the result structure
+          [context.nextId++], // Cache under the code atom's id + an offset within the result structure
         ),
         plane: assembly.plane
           ? util.asSimplePlane(assembly.plane)
@@ -602,7 +602,7 @@ async function addAssemblyPartsToCache(
       const children = await Promise.all(
         (assembly.geometry as RealizedAssembly[]).map(async (child) => {
           return await helperFunc(child);
-        })
+        }),
       );
       return {
         ...assembly,

@@ -1,5 +1,6 @@
 import Molecule from "../molecules/molecule";
 import GlobalVariables from "../js/globalvariables.js";
+import { Octokit } from "octokit";
 
 import { Status } from "../prototypes/observableEntity.js";
 
@@ -114,7 +115,7 @@ export default class GitHubMolecule extends Molecule {
     this.setError("An unknown error occurred in a child atom.");
   }
 
-  createInputParams() {
+  createInputParams(setInputChanged, authorizedUserOcto, userScopes) {
     let inputParams = {};
     inputParams = super.createInputParams();
     inputParams["Reload From Github"] = {
@@ -122,7 +123,8 @@ export default class GitHubMolecule extends Molecule {
       label: "Reload From Github",
       title:
         "Reload this molecule from GitHub, which will update its contents to match the current state of the linked GitHub repository.",
-      onClick: () => this.reloadMoleculeFromGithub(),
+      onClick: () =>
+        this.reloadMoleculeFromGithub(authorizedUserOcto, userScopes),
     };
     return inputParams;
   }
@@ -130,7 +132,7 @@ export default class GitHubMolecule extends Molecule {
   /**
    * Reload this github molecule from github
    */
-  reloadMoleculeFromGithub() {
+  async reloadMoleculeFromGithub(authorizedUserOcto, userScopes) {
     var githubMoleculeObjectPreReload = this.serialize();
     var githubMoleculeParentObjectConnectorsPreReload =
       this.parent.serialize().allConnectors;
@@ -138,14 +140,44 @@ export default class GitHubMolecule extends Molecule {
     let gitObj = this.parentRepo;
     let parentMolecule = this.parent;
 
+    //Only delete and continue if you have permission to load
+    if (
+      gitObj.privateRepo &&
+      (!authorizedUserOcto || !userScopes.includes("repo"))
+    ) {
+      this.setError(
+        "Authentication with 'repo' scope is required to access private repositories.",
+      );
+      return;
+    }
+
+    // Verify the repository is accessible before deleting the existing node.
+    // If the repository has been deleted or is unreachable, keep the existing
+    // molecule and show an error rather than silently removing it.
+    const octokit = authorizedUserOcto || new Octokit();
+    try {
+      await octokit.request(
+        "GET /repos/{owner}/{repo}/contents/project.abundance",
+        {
+          owner: gitObj.owner,
+          repo: gitObj.repoName,
+        },
+      );
+    } catch (error) {
+      window.dispatchEvent(new CustomEvent('user-notification', { detail: { message: `Cannot reload: the repository "${gitObj.owner}/${gitObj.repoName}" could not be found or accessed.`, type: 'error' } }));
+      return;
+    }
+
     const copyOfNodeToBeDeleted = this;
     copyOfNodeToBeDeleted.deleteNode(false, false, true);
 
     this.loadGithubMoleculeByName(
-      /*old way > keeping until i fix reload -- this.gitHubUniqueID*/
       gitObj,
       githubMoleculeObjectPreReload,
       githubMoleculeParentObjectConnectorsPreReload,
+      null,
+      authorizedUserOcto,
+      userScopes,
     );
   }
 }

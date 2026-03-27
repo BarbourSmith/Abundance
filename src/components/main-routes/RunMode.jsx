@@ -59,7 +59,7 @@ function useWindowSize() {
 
 function runMode({ processing, setProcessing }) {
   // Get context values
-  const { isloggedIn, authorizedUserOcto, authRedirectHandler } = useAuth();
+  const { authorizedUserOcto, authRedirectHandler } = useAuth();
   const {
     activeAtom,
     redirectType,

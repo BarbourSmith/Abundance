@@ -103,6 +103,7 @@ const InitialLog = ({ setNoUserBrowsing }) => {
 // adds individual projects after API call
 const AddProject = ({ projectsLoaded, authorizedUserOcto, projectToShow }) => {
   const [svgCacheBuster, setSvgCacheBuster] = useState(Date.now());
+  const [failedImages, setFailedImages] = useState(new Set());
   const {
     browseType,
     updateBrowseType,
@@ -117,10 +118,10 @@ const AddProject = ({ projectsLoaded, authorizedUserOcto, projectToShow }) => {
     projectToShow == "featured"
       ? "byStars"
       : projectToShow == "all"
-      ? "byDateModified"
-      : projectToShow == "owned"
-      ? "byDateModified"
-      : "byName";
+        ? "byDateModified"
+        : projectToShow == "owned"
+          ? "byDateModified"
+          : "byName";
 
   // Use persistent settings from context
   //looking for highest ranking project and tool
@@ -135,7 +136,7 @@ const AddProject = ({ projectsLoaded, authorizedUserOcto, projectToShow }) => {
     highestRankingNode = sortedNodes[0];
 
     const toolNodes = nodes.filter((node) =>
-      node.topics.includes("abundance-tool")
+      node.topics.includes("abundance-tool"),
     );
     const sortedToolNodes = toolNodes.sort((a, b) => b.ranking - a.ranking);
     highestRankingToolNode = sortedToolNodes[0];
@@ -269,6 +270,8 @@ const AddProject = ({ projectsLoaded, authorizedUserOcto, projectToShow }) => {
                   orderType,
                   authorizedUserOcto,
                   svgCacheBuster,
+                  failedImages,
+                  setFailedImages,
                 }}
               />
             ) : (
@@ -359,6 +362,8 @@ const ProjectDiv = ({
   orderType,
   authorizedUserOcto,
   svgCacheBuster,
+  failedImages,
+  setFailedImages,
 }) => {
   const { renameProject } = useProject();
   const navigate = useNavigate();
@@ -461,7 +466,7 @@ const ProjectDiv = ({
     const updatedProject = await renameProject(
       authorizedUserOcto,
       newName,
-      setRenameProgress
+      setRenameProgress,
     );
 
     setRenamingProject(false);
@@ -471,6 +476,26 @@ const ProjectDiv = ({
       // Reload the page to show updated projects
       // window.location.reload();
     }
+  };
+
+  const handleImageError = (repoUrl) => {
+    if (repoUrl) {
+      setFailedImages((prev) => new Set(prev).add(repoUrl));
+    }
+  };
+
+  const getImageSrc = (node) => {
+    if (!node?.svgURL || failedImages.has(node.svgURL)) {
+      return (
+        import.meta.env.VITE_APP_PATH_FOR_PICS + "/imgs/defaultThumbnail.svg"
+      );
+    }
+    return (
+      node.svgURL +
+      (node.svgURL.includes("?") ? "&" : "?") +
+      "cb=" +
+      svgCacheBuster
+    );
   };
 
   const ThumbItem = React.memo(({ node, svgCacheBuster }) => {
@@ -503,7 +528,7 @@ const ProjectDiv = ({
         if (projectRef.current) {
           const rect = projectRef.current.getBoundingClientRect();
           const spaceOnRight = window.innerWidth - rect.right;
-          
+
           // If not enough space on the right, show panel on the left
           setPanelOnLeft(spaceOnRight < PANEL_WIDTH + PANEL_MARGIN);
         }
@@ -546,18 +571,8 @@ const ProjectDiv = ({
           <div style={{ display: "flex", flexDirection: "row" }}>
             <img
               className="project_image"
-              src={
-                node.svgURL +
-                (node.svgURL.includes("?") ? "&" : "?") +
-                "cb=" +
-                svgCacheBuster
-              }
-              onError={({ currentTarget }) => {
-                currentTarget.onerror = null;
-                currentTarget.src =
-                  import.meta.env.VITE_APP_PATH_FOR_PICS +
-                  "/imgs/defaultThumbnail.svg";
-              }}
+              src={getImageSrc(node)}
+              onError={() => handleImageError(node.svgURL)}
               alt={node.repoName}
             />
             <div
@@ -661,7 +676,7 @@ const ProjectDiv = ({
               {/* Quick view panel */}
               {showQuickView && (
                 <div
-                  className={`thumb-quick-view-panel ${panelOnLeft ? 'panel-on-left' : ''}`}
+                  className={`thumb-quick-view-panel ${panelOnLeft ? "panel-on-left" : ""}`}
                   onMouseEnter={() => {
                     // Keep panel open when hovering over it
                     if (hoverTimerRef.current) {
@@ -674,18 +689,8 @@ const ProjectDiv = ({
                 >
                   <div className="GitInfoLeft">
                     <img
-                      src={
-                        node.svgURL +
-                        (node.svgURL.includes("?") ? "&" : "?") +
-                        "cb=" +
-                        svgCacheBuster
-                      }
-                      onError={({ currentTarget }) => {
-                        currentTarget.onerror = null;
-                        currentTarget.src =
-                          import.meta.env.VITE_APP_PATH_FOR_PICS +
-                          "/imgs/defaultThumbnail.svg";
-                      }}
+                      src={getImageSrc(node)}
+                      onError={() => handleImageError(node.svgURL)}
                       alt={node.repoName}
                     />
                     <div style={{ display: "flex", alignItems: "center" }}>
@@ -850,15 +855,15 @@ const ProjectDiv = ({
       return new Date(a.dateCreated) > new Date(b.dateCreated)
         ? -1
         : new Date(a.dateCreated) < new Date(b.dateCreated)
-        ? 1
-        : 0;
+          ? 1
+          : 0;
     },
     byDateModified: function (a, b) {
       return a.dateModified > b.dateModified
         ? -1
         : a.dateModified < b.dateModified
-        ? 1
-        : 0;
+          ? 1
+          : 0;
     },
   };
   const dummyNode = {
@@ -1018,11 +1023,11 @@ const ShowProjects = ({
         "attribute=searchField" +
         "&query=" +
         debouncedSearchTerm +
+        "&mode=all" +
         "&yearShow=" +
         yearShow +
-        "&user" +
         lastKeyQuery,
-      { signal }
+      { signal },
     )
       .then((res) => res.json())
       .then((data) => {
@@ -1039,15 +1044,16 @@ const ShowProjects = ({
         "&yearShow=" +
         yearShow +
         "&user=" +
-        user +
+        GlobalVariables.currentUser +
+        "&mode=user" +
         lastKeyQuery,
-      { signal }
+      { signal },
     ).then((res) => res.json());
   };
   const fetchFeaturedRepos = async ({ signal }) => {
     return fetch(
       "https://hg5gsgv9te.execute-api.us-east-2.amazonaws.com/abundance-stage/queryFeaturedProjects",
-      { signal }
+      { signal },
     )
       .then((res) => res.json())
       .then((data) => {
@@ -1059,7 +1065,7 @@ const ShowProjects = ({
       "https://hg5gsgv9te.execute-api.us-east-2.amazonaws.com/abundance-stage/USER-TABLE?user=" +
         user +
         "&liked=true",
-      { signal }
+      { signal },
     )
       .then((res) => res.json())
       .then((data) => {
@@ -1107,74 +1113,6 @@ const ShowProjects = ({
     setProjectsToShow(user ? "owned" : "featured");
   }, [GlobalVariables.currentUser]);
 
-  const forkProject = async function (authorizedUserOcto, owner, repo) {
-    authorizedUserOcto
-      .request("GET /repos/{owner}/{repo}", {
-        owner: owner,
-        repo: repo,
-      })
-      .then((result) => {
-        authorizedUserOcto.rest.repos
-          .createFork({
-            owner: owner,
-            repo: repo,
-          })
-          .then(() => {
-            //push fork to aws
-            const apiUrl =
-              "https://hg5gsgv9te.execute-api.us-east-2.amazonaws.com/abundance-stage//post-new-project";
-            let searchField = (
-              result.data.name +
-              " " +
-              GlobalVariables.currentUser
-            ).toLowerCase();
-            let forkedNodeBody = {
-              owner: GlobalVariables.currentUser,
-              ranking: result.data.stargazers_count,
-              description: result.data.description,
-              searchField: searchField,
-              repoName: result.data.name,
-              forks: 0,
-              topMoleculeID: result.data.id,
-              topics: [],
-              readme:
-                "https://raw.githubusercontent.com/" +
-                GlobalVariables.currentUser +
-                "/" +
-                result.data.name +
-                "/master/README.md?sanitize=true",
-              contentURL:
-                "https://raw.githubusercontent.com/" +
-                GlobalVariables.currentUser +
-                "/" +
-                result.data.name +
-                "/master/project.abundance?sanitize=true",
-              githubMoleculesUsed: [],
-              parentRepo: owner + "/" + repo,
-              svgURL:
-                "https://raw.githubusercontent.com/" +
-                GlobalVariables.currentUser +
-                "/" +
-                result.data.name +
-                "/master/project.svg?sanitize=true",
-              dateCreated: result.data.created_at,
-              html_url:
-                "https://github.com/" +
-                GlobalVariables.currentUser +
-                "/" +
-                result.data.name,
-            };
-            fetch(apiUrl, {
-              method: "POST",
-              body: JSON.stringify(forkedNodeBody),
-              headers: {
-                "Content-type": "application/json; charset=UTF-8",
-              },
-            });
-          });
-      });
-  };
-
   const handleSearchChange = (e) => {
     setSearch(e.target.value.toLowerCase());
     setPageNumber(0);
@@ -1193,7 +1131,7 @@ const ShowProjects = ({
     // Try to fetch the user's tutorial-default project
     let project = await fetchProject(
       GlobalVariables.currentUser,
-      "tutorial-default"
+      "tutorial-default",
     );
     if (!project) {
       // If not found, create it
@@ -1208,7 +1146,7 @@ const ShowProjects = ({
         ],
         null, // No loaded molecule
         false, // not exporting
-        setLoadingTutorialBar
+        setLoadingTutorialBar,
       );
     }
     if (project) {
@@ -1223,7 +1161,7 @@ const ShowProjects = ({
   const fetchProject = async (owner, repoName) => {
     try {
       const response = await fetch(
-        `https://hg5gsgv9te.execute-api.us-east-2.amazonaws.com/abundance-stage/fetchSingleRepo?owner=${owner}&repoName=${repoName}`
+        `https://hg5gsgv9te.execute-api.us-east-2.amazonaws.com/abundance-stage/fetchSingleRepo?owner=${owner}&repoName=${repoName}`,
       );
       setLoadingTutorialBar(10);
       const data = await response.json();
@@ -1473,7 +1411,7 @@ const ShowProjects = ({
               onClick: () => {
                 window.open(
                   "https://forums.maslowcnc.com/c/abundance/25",
-                  "_blank"
+                  "_blank",
                 );
               },
             },
@@ -1573,8 +1511,6 @@ const ShowProjects = ({
 
 function LoginMode() {
   const {
-    isloggedIn,
-    setIsLoggedIn,
     isAuthorized,
     authorizedUserOcto,
     setAuthorizedUserOcto,

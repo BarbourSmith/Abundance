@@ -165,10 +165,38 @@ export default class CutLayout extends Atom {
   }
 
   deleteNode(backgroundClickAfter = true, deletePath = true, silent = false) {
+    // Ensure any running layout computation is terminated to free up workers
     if (this.cancelationHandle) {
       this.cancelationHandle();
       this.cancelationHandle = undefined;
     }
+
+    // Dispose of Three.js geometries and materials to free GPU memory
+    if (this.nonReplicadGeom) {
+      if (this.nonReplicadGeom["geometry"]) {
+        this.nonReplicadGeom["geometry"].forEach((geom) => {
+          if (geom && geom.dispose) {
+            geom.dispose();
+          }
+        });
+        this.nonReplicadGeom["geometry"] = null;
+      }
+      if (this.nonReplicadGeom["material"]) {
+        if (this.nonReplicadGeom["material"].dispose) {
+          this.nonReplicadGeom["material"].dispose();
+        }
+        this.nonReplicadGeom["material"] = null;
+      }
+    }
+
+    // Clear large data structures
+    this.placements = [];
+    this.placementsFor = null;
+
+    // Reset computing flag to free up UI resources
+    this.computing = false;
+    this.progress = 0;
+
     return super.deleteNode(backgroundClickAfter, deletePath, silent);
   }
 
@@ -216,6 +244,21 @@ export default class CutLayout extends Atom {
   displaySheet(sheetCount) {
     var sheetWidth = this.findIOValue("Sheet Width");
     var sheetHeight = this.findIOValue("Sheet Height");
+
+    // Dispose of old geometries and materials before creating new ones
+    if (this.nonReplicadGeom["geometry"]) {
+      this.nonReplicadGeom["geometry"].forEach((geom) => {
+        if (geom && geom.dispose) {
+          geom.dispose();
+        }
+      });
+    }
+    if (this.nonReplicadGeom["material"]) {
+      if (this.nonReplicadGeom["material"].dispose) {
+        this.nonReplicadGeom["material"].dispose();
+      }
+    }
+
     const geometryArray = [];
     const spacing = 10; // Spacing between sheets, this is arbitrary and only for visual clarity in the UI but it is also declared inside the worker for the actual layout so it should be consistent with that spacing.
     for (let i = 0; i < sheetCount; i++) {
@@ -331,6 +374,12 @@ export default class CutLayout extends Atom {
    * Create default placements for all parts at (0,0) with 0° rotation
    */
   createDefaultPlacements() {
+    // Cancel any in-progress layout computation
+    if (this.cancelationHandle) {
+      this.cancelationHandle();
+      this.cancelationHandle = undefined;
+    }
+
     if (!this.inputsAreReady()) {
       this.setWaiting();
       return;
@@ -365,6 +414,10 @@ export default class CutLayout extends Atom {
       .finally(() => {
         this.cancelationHandle = undefined;
         this.progress = 1.0;
+        // Clear the worker cache to free up memory
+        if (GlobalVariables.cad.clearRotateCache) {
+          GlobalVariables.cad.clearRotateCache();
+        }
       });
   }
 
@@ -381,50 +434,66 @@ export default class CutLayout extends Atom {
         // There's an in-progress nesting worker. Cancel it and start another nesting
         // computation with the new inputs.
         this.cancelationHandle();
-      }
-      this.setProcessing();
-      var inputGeom = this.findIOValue("geometry");
-
-      if (!inputGeom) {
-        this.setError('"geometry" input is missing');
+        this.cancelationHandle = undefined;
+        // Give the worker a moment to terminate before starting a new one
+        // This prevents accumulation of background workers
+        setTimeout(() => this.startLayout(setInputChanged), 100);
         return;
       }
-
-      GlobalVariables.cad
-        .layout(
-          inputGeom,
-          proxy((progress, cancelationHandle) => {
-            if (this.getState().status == Status.PROCESSING) {
-              this.progress = progress;
-              this.cancelationHandle = cancelationHandle;
-            }
-          }),
-          proxy((message) => {
-            this.setWarning(message);
-          }),
-          proxy((placements) => {
-            this.handleNewPlacements(placements, inputGeom);
-          }),
-          this.getLayoutConfig(),
-          this.getContext(),
-          this.placements,
-        )
-        .then((layoutAndPositions) => {
-          const [layout, positions] = layoutAndPositions;
-          this.handleNewPlacements(positions, inputGeom, true);
-        })
-        .catch((err) => {
-          this.alertingErrorHandler()(err);
-          this.selected = false; // Deselect self so that the atom renders in red with the warning attached.
-        })
-        .finally(() => {
-          this.cancelationHandle = undefined;
-          console.log(this.progress);
-          this.computing = false;
-          setInputChanged(this.progress);
-          this.progress = 1.0;
-        });
+      this.startLayout(setInputChanged);
     }
+  }
+
+  /**
+   * Helper method to start the layout computation
+   */
+  startLayout(setInputChanged) {
+    this.setProcessing();
+    var inputGeom = this.findIOValue("geometry");
+
+    if (!inputGeom) {
+      this.setError('"geometry" input is missing');
+      return;
+    }
+
+    GlobalVariables.cad
+      .layout(
+        inputGeom,
+        proxy((progress, cancelationHandle) => {
+          if (this.getState().status == Status.PROCESSING) {
+            this.progress = progress;
+            this.cancelationHandle = cancelationHandle;
+          }
+        }),
+        proxy((message) => {
+          this.setWarning(message);
+        }),
+        proxy((placements) => {
+          this.handleNewPlacements(placements, inputGeom);
+        }),
+        this.getLayoutConfig(),
+        this.getContext(),
+        this.placements,
+      )
+      .then((layoutAndPositions) => {
+        const [layout, positions] = layoutAndPositions;
+        this.handleNewPlacements(positions, inputGeom, true);
+      })
+      .catch((err) => {
+        this.alertingErrorHandler()(err);
+        this.selected = false; // Deselect self so that the atom renders in red with the warning attached.
+      })
+      .finally(() => {
+        this.cancelationHandle = undefined;
+        console.log(this.progress);
+        this.computing = false;
+        // Clear the worker cache to free up memory
+        if (GlobalVariables.cad.clearRotateCache) {
+          GlobalVariables.cad.clearRotateCache();
+        }
+        setInputChanged(this.progress);
+        this.progress = 1.0;
+      });
   }
 
   haltAndDisplay(setInputChanged) {
@@ -433,11 +502,11 @@ export default class CutLayout extends Atom {
       this.cancelationHandle = undefined;
     }
     this.progress = 1.0;
+    this.computing = false;
     this.setWaiting();
     if (this.placements != undefined) {
       this.displayLayout(true);
     }
-    this.computing = false;
     setInputChanged(this.progress);
   }
 

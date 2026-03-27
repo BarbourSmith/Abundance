@@ -277,4 +277,53 @@ describe("Equation Input Fix Integration Test", () => {
     const result = mockAtom.simulateInputChange("ParentVar*3");
     expect(result).toBe(30); // 10 * 3 = 30
   });
+
+  it("should correctly evaluate equation using two of several molecule-level inputs", () => {
+    // Simulate the reported bug: TableWidth / 2 - EdgeLip where both are molecule inputs.
+    // The parent has 6 inputs total, but only TableWidth and EdgeLip are used in the equation.
+    mockAtom.parent = {
+      inputs: [
+        { name: "WoodThick", value: 19.05, getValue: function() { return this.value; } },
+        { name: "TableLength", value: 10000, getValue: function() { return this.value; } },
+        { name: "TableWidth", value: 5000, getValue: function() { return this.value; } },
+        { name: "TopHeight", value: 3000, getValue: function() { return this.value; } },
+        { name: "EdgeLip", value: 40, getValue: function() { return this.value; } },
+        { name: "LegWidth", value: 10, getValue: function() { return this.value; } },
+      ]
+    };
+
+    // Result should correctly use both molecule input values: 5000/2 - 40 = 2460
+    const result = mockAtom.simulateInputChange("TableWidth / 2 - EdgeLip");
+
+    // Neither TableWidth nor EdgeLip should have been created as local atom inputs
+    expect(mockAtom.inputs.some(input => input.name === "TableWidth")).toBe(false);
+    expect(mockAtom.inputs.some(input => input.name === "EdgeLip")).toBe(false);
+    expect(result).toBe(2460);
+  });
+
+  it("should compute the correct result even after switching from default equation to molecule-input-only equation", () => {
+    // This tests the specific bug: default equation x+y gives result=2, then after
+    // switching to molecule inputs only, the result should update (not stay at 2).
+    mockAtom.parent = {
+      inputs: [
+        { name: "TableWidth", value: 5000, getValue: function() { return this.value; } },
+        { name: "EdgeLip", value: 40, getValue: function() { return this.value; } },
+      ]
+    };
+
+    // Simulate default state with atom inputs x=1, y=1 -> result=2
+    mockAtom.inputs = [
+      { name: "x", value: 1, getValue: function() { return this.value; } },
+      { name: "y", value: 1, getValue: function() { return this.value; } },
+    ];
+    const defaultResult = mockAtom.evaluateEquation("x + y");
+    expect(defaultResult).toBe(2);
+
+    // Now switch to equation using molecule inputs
+    const newResult = mockAtom.simulateInputChange("TableWidth / 2 - EdgeLip");
+
+    // Result should be 2460, not the stale value of 2
+    expect(newResult).toBe(2460);
+    expect(newResult).not.toBe(2);
+  });
 });

@@ -14,7 +14,8 @@ def lambda_handler(event: any, context: any):
     table_name = os.environ["TABLE_NAME"]
     table = dynamodb.Table(table_name)
 
-    print(event)
+    print("Received event:", event)
+    print("Using DynamoDB table:", table_name)
     newDate = str(datetime.now().toordinal())
 
     try:
@@ -55,13 +56,16 @@ def lambda_handler(event: any, context: any):
                      "html_url": html_url,
                      "dateModified": dateModified}
 
-        table.put_item(Item=itemToPut)
+        print("Item to put:", json.dumps(itemToPut))
+        response = table.put_item(Item=itemToPut)
+        print("DynamoDB put_item response:", response)
         returnObject['statusCode'] = 200
         message = "Success put item"
 
-    except:
+    except Exception as e:
+        print("Exception occurred:", str(e))
         returnObject['statusCode'] = 400
-        message = 'Something went wrong'
+        message = f'Something went wrong: {str(e)}'
 
     returnObject['headers'] = {}
     returnObject["body"] = json.dumps(message)

@@ -25,14 +25,20 @@ export default function NonReplicadMesh({}) {
 
   return (
     <group>
-      {object?.map((geom, index) => (
-        <mesh
-          key={index}
-          material={nonReplicadGeometry?.material || defaultMaterial}
-        >
-          <primitive object={geom} />
-        </mesh>
-      ))}
+      {object?.map((geom, index) =>
+        geom.isObject3D ? (
+          // Complete Three.js objects (Line, Sprite, Group, etc.) are rendered directly
+          <primitive key={index} object={geom} />
+        ) : (
+          // Raw BufferGeometry objects are wrapped in a mesh
+          <mesh
+            key={index}
+            material={nonReplicadGeometry?.material || defaultMaterial}
+          >
+            <primitive object={geom} />
+          </mesh>
+        )
+      )}
     </group>
   );
 }

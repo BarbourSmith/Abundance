@@ -4,6 +4,8 @@ import Molecule from "../molecules/molecule.js";
 import { licenses } from "../js/licenseOptions.js";
 import { re } from "mathjs";
 import { useAuth } from "./AuthContext.jsx";
+import { useAppState } from "./AppStateContext.jsx";
+import { useNavigate } from "react-router-dom";
 
 const ProjectContext = createContext();
 
@@ -14,9 +16,12 @@ const ProjectContext = createContext();
 export function ProjectProvider({ children, cad, loadProject }) {
   const [size, setSize] = useState(5);
   const { authorizedUserOcto, authRedirectHandler } = useAuth();
-  
+  const { setNotification } = useAppState();
+
   // Track last saved data to avoid unnecessary saves
   const lastSaveData = useRef({});
+
+  var navigate = useNavigate();
 
   /**
    * The text to display at the top of the bill of materials.
@@ -45,12 +50,12 @@ export function ProjectProvider({ children, cad, loadProject }) {
     [name, topics, description, license, units],
     molecule,
     exporting,
-    setNewProjectBar
+    setNewProjectBar,
   ) => {
     let githubMoleculeUsedList = [];
     if (molecule !== undefined && exporting) {
       githubMoleculeUsedList = await searchGithubMolecules(
-        GlobalVariables.topLevelMolecule
+        GlobalVariables.topLevelMolecule,
       );
       GlobalVariables.topLevelMolecule = molecule;
       GlobalVariables.topLevelMolecule.enableAllChildren();
@@ -83,7 +88,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
       });
     } catch (err) {
       window.alert(
-        "Error creating project. That name might be taken already. Please try again with a different name."
+        "Error creating project. That name might be taken already. Please try again with a different name.",
       );
       return null;
     }
@@ -94,7 +99,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
     // Check if the repo name was changed by GitHub
     if (currentRepoName !== name) {
       errors.push(
-        `Project name was changed from "${name}" to "${currentRepoName}" to comply with GitHub requirements.`
+        `Project name was changed from "${name}" to "${currentRepoName}" to comply with GitHub requirements.`,
       );
     }
 
@@ -106,7 +111,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
     var jsonRepOfProject = GlobalVariables.topLevelMolecule.serialize();
     jsonRepOfProject.filetypeVersion = 1;
     const projectContent = window.btoa(
-      GlobalVariables.toBinaryStr(JSON.stringify(jsonRepOfProject, null, 4))
+      GlobalVariables.toBinaryStr(JSON.stringify(jsonRepOfProject, null, 4)),
     );
     let topicString = topics.join(" ");
     let searchField = (
@@ -128,6 +133,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
       topMoleculeID: GlobalVariables.topLevelMolecule.uniqueID,
       topics: topics,
       html_url: result.data.html_url,
+      privateRepo: result.data.private,
       parentRepo: null,
       readme:
         "https://raw.githubusercontent.com/" +
@@ -248,14 +254,14 @@ export function ProjectProvider({ children, cad, loadProject }) {
     } catch (err) {
       console.error("Error setting topics:", err);
       errors.push(
-        "Some project tags could not be added. GitHub requires tags to be lowercase, contain only letters, numbers, and hyphens, and be 50 characters or less."
+        "Some project tags could not be added. GitHub requires tags to be lowercase, contain only letters, numbers, and hyphens, and be 50 characters or less.",
       );
     }
 
     // Display any errors or warnings to the user
     if (errors.length > 0) {
       window.alert(
-        "Project created successfully!\n\nNote:\n" + errors.join("\n")
+        "Project created successfully!\n\nNote:\n" + errors.join("\n"),
       );
     }
 
@@ -263,6 +269,137 @@ export function ProjectProvider({ children, cad, loadProject }) {
     console.log("Project created");
     console.log(GlobalVariables.currentAWSnode);
     return GlobalVariables.currentAWSnode;
+  };
+
+  /** forkProject takes care of making the octokit request for the authenticated user to make a copy of a not owned repo */
+  const forkProject = async function (
+    authorizedUserOcto,
+    setForkBarVisible,
+    setForkProgress,
+    setRedirectType,
+  ) {
+    var owner = GlobalVariables.currentAWSnode.owner;
+    var repo = GlobalVariables.currentAWSnode.repoName;
+    try {
+      if (owner === GlobalVariables.currentUser) {
+        // Prevent forking your own project
+        console.warn("You cannot fork your own project.");
+        navigate(
+          `/${GlobalVariables.currentAWSnode.owner}/${GlobalVariables.currentAWSnode.repoName}`,
+        );
+        return;
+      }
+
+      setForkBarVisible(true);
+      setForkProgress(0);
+
+      // Get original repo info
+      const result = await authorizedUserOcto.request(
+        "GET /repos/{owner}/{repo}",
+        {
+          owner: owner,
+          repo: repo,
+        },
+      );
+      setForkProgress(5);
+
+      // Create the fork
+      await authorizedUserOcto.rest.repos.createFork({
+        owner: owner,
+        repo: repo,
+      });
+      setForkProgress(50);
+
+      // Poll for the fork to be available under the new user
+      const forkOwner = GlobalVariables.currentUser;
+      const forkRepo = result.data.name;
+      let forkData = null;
+      let attempts = 0;
+      const maxAttempts = 10;
+      const delay = (ms) => new Promise((res) => setTimeout(res, ms));
+      while (attempts < maxAttempts) {
+        try {
+          const forkResult = await authorizedUserOcto.request(
+            "GET /repos/{owner}/{repo}",
+            {
+              owner: forkOwner,
+              repo: forkRepo,
+            },
+          );
+          forkData = forkResult.data;
+          break;
+        } catch (err) {
+          // Not ready yet
+          await delay(1500);
+          attempts++;
+        }
+      }
+      if (!forkData) {
+        throw new Error("Forked repository not found after waiting.");
+      }
+
+      // Prepare forkedNodeBody with fork's metadata
+      let searchField = (forkData.name + " " + forkOwner).toLowerCase();
+      let forkedNodeBody = {
+        owner: forkOwner,
+        ranking: forkData.stargazers_count,
+        description: forkData.description,
+        searchField: searchField,
+        repoName: forkData.name,
+        forks: forkData.forks_count,
+        topMoleculeID: GlobalVariables.topLevelMolecule.uniqueID,
+        topics: forkData.topics || [],
+        readme:
+          "https://raw.githubusercontent.com/" +
+          forkOwner +
+          "/" +
+          forkData.name +
+          "/master/README.md?sanitize=true",
+        contentURL:
+          "https://raw.githubusercontent.com/" +
+          forkOwner +
+          "/" +
+          forkData.name +
+          "/master/project.abundance?sanitize=true",
+        githubMoleculesUsed: [],
+        parentRepo: owner + "/" + repo,
+        svgURL:
+          "https://raw.githubusercontent.com/" +
+          forkOwner +
+          "/" +
+          forkData.name +
+          "/master/project.svg?sanitize=true",
+        dateCreated: forkData.created_at,
+        html_url: "https://github.com/" + forkOwner + "/" + forkData.name,
+      };
+
+      setForkProgress(75);
+      const apiUrl =
+        "https://hg5gsgv9te.execute-api.us-east-2.amazonaws.com/abundance-stage//post-new-project";
+      await fetch(apiUrl, {
+        method: "POST",
+        body: JSON.stringify(forkedNodeBody),
+        headers: {
+          "Content-type": "application/json; charset=UTF-8",
+        },
+      });
+
+      setForkProgress(100);
+      GlobalVariables.currentAWSnode = forkedNodeBody;
+      setRedirectType && setRedirectType(null);
+      setTimeout(() => {
+        setForkBarVisible && setForkBarVisible(false);
+      }, 1000);
+
+      navigate(`/${forkOwner}/${forkData.name}`);
+    } catch (error) {
+      console.error("Error during forking the repository:", error);
+      setNotification(
+        error?.message || "Error forking the repository. Please try again.",
+      );
+      setRedirectType && setRedirectType(null);
+      setForkBarVisible && setForkBarVisible(false);
+    }
   };
 
   const searchGithubMolecules = (molecule) => {
@@ -311,12 +448,13 @@ export function ProjectProvider({ children, cad, loadProject }) {
    * @param {object} authorizedUserOcto - Authenticated Octokit instance
    * @param {function} setDuplicateProjectBar - Progress bar callback
    * @param {string} customName - Custom name for the duplicated project (optional)
+   * @param {function} setErrorNotification - Callback to set error notification message
    * @returns {object} The new project AWS node or null on error
    */
   const duplicateProject = async (
     authorizedUserOcto,
     setDuplicateProjectBar,
-    customName = null
+    customName = null,
   ) => {
     console.log("Duplicating project...");
     console.log(GlobalVariables.currentRepo);
@@ -325,8 +463,8 @@ export function ProjectProvider({ children, cad, loadProject }) {
       const currentUser = GlobalVariables.currentUser;
 
       if (!currentRepo || !currentUser) {
-        window.alert(
-          "Cannot duplicate project: No active project or user not authenticated."
+        setNotification(
+          "Cannot duplicate project: No active project or user not authenticated.",
         );
         return null;
       }
@@ -371,7 +509,9 @@ export function ProjectProvider({ children, cad, loadProject }) {
           },
         });
       } catch (err) {
-        window.alert("Error creating duplicate project. Please try again.");
+        setNotification(
+          "Error creating duplicate project. The project name might be taken.",
+        );
         return null;
       }
 
@@ -401,7 +541,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
               owner: currentRepo.owner.login,
               repo: currentRepo.name,
               path: filePath,
-            }
+            },
           );
 
           let fileContent;
@@ -447,7 +587,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
             owner: currentUser,
             repo: newRepo.data.name,
             path: "project.abundance",
-          }
+          },
         );
 
         let projectFileContent;
@@ -457,13 +597,13 @@ export function ProjectProvider({ children, cad, loadProject }) {
         ) {
           // Handle large files using download_url
           const contentResponse = await fetch(
-            projectFileResponse.data.download_url
+            projectFileResponse.data.download_url,
           );
           projectFileContent = await contentResponse.text();
         } else {
           // Decode base64 content
           projectFileContent = GlobalVariables.fromBinaryStr(
-            atob(projectFileResponse.data.content)
+            atob(projectFileResponse.data.content),
           );
         }
 
@@ -477,7 +617,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
 
         // Convert back to base64
         const updatedContent = window.btoa(
-          GlobalVariables.toBinaryStr(JSON.stringify(projectData, null, 4))
+          GlobalVariables.toBinaryStr(JSON.stringify(projectData, null, 4)),
         );
 
         // Update the file in the new repo
@@ -491,7 +631,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
         });
 
         console.log(
-          `Updated top molecule name to ${newRepo.data.name} in duplicated project`
+          `Updated top molecule name to ${newRepo.data.name} in duplicated project`,
         );
       } catch (err) {
         console.error("Error updating top molecule name:", err);
@@ -514,6 +654,50 @@ export function ProjectProvider({ children, cad, loadProject }) {
       }
 
       setDuplicateProjectBar(93);
+
+      // Ensure GlobalVariables.topLevelMolecule is up to date by loading the duplicated project.abundance
+      try {
+        const projectFileResponse = await authorizedUserOcto.request(
+          "GET /repos/{owner}/{repo}/contents/{path}",
+          {
+            owner: currentUser,
+            repo: newRepo.data.name,
+            path: "project.abundance",
+          },
+        );
+        let projectFileContent;
+        if (
+          !projectFileResponse.data.content ||
+          projectFileResponse.data.content.length === 0
+        ) {
+          const contentResponse = await fetch(
+            projectFileResponse.data.download_url,
+          );
+          projectFileContent = await contentResponse.text();
+        } else {
+          projectFileContent = GlobalVariables.fromBinaryStr(
+            atob(projectFileResponse.data.content),
+          );
+        }
+        // Parse and update topLevelMolecule
+        const projectData = JSON.parse(projectFileContent);
+        GlobalVariables.topLevelMolecule = new Molecule(projectData);
+      } catch (err) {
+        console.error(
+          "Error updating GlobalVariables.topLevelMolecule for AWS node:",
+          err,
+        );
+      }
+
+      // Populate githubMoleculesUsed using searchGithubMolecules
+      let githubMoleculeUsedList = [];
+      try {
+        githubMoleculeUsedList = await searchGithubMolecules(
+          GlobalVariables.topLevelMolecule,
+        );
+      } catch (err) {
+        console.error("Error searching GitHub molecules for AWS node:", err);
+      }
 
       // Create AWS node for the new project
       const newProjectBody = {
@@ -541,7 +725,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
           "https://raw.githubusercontent.com/" +
           newRepo.data.full_name +
           "/master/project.abundance?sanitize=true",
-        githubMoleculesUsed: [],
+        githubMoleculesUsed: githubMoleculeUsedList,
         svgURL:
           "https://raw.githubusercontent.com/" +
           newRepo.data.full_name +
@@ -562,7 +746,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
       console.log("Posted new project to AWS:", postProjectResponse);
       if (postProjectResponse.status !== 200) {
         throw new Error(
-          `Failed to post new project: ${postProjectResponse.status}`
+          `Failed to post new project: ${postProjectResponse.status}`,
         );
       }
 
@@ -582,7 +766,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
       });
       if (!updateUserResponse.ok) {
         throw new Error(
-          `Failed to update user table: ${updateUserResponse.status}`
+          `Failed to update user table: ${updateUserResponse.status}`,
         );
       }
 
@@ -591,9 +775,8 @@ export function ProjectProvider({ children, cad, loadProject }) {
       return newProjectBody;
     } catch (err) {
       console.error("Error duplicating project:", err);
-      window.alert(
-        "An error occurred while duplicating the project. Please try again."
-      );
+      setNotification("Error duplicating project. Please try again.", "error");
+
       return null;
     }
   };
@@ -608,7 +791,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
   const renameProject = async (
     authorizedUserOcto,
     newName,
-    setRenameProgress = () => {}
+    setRenameProgress = () => {},
   ) => {
     console.log(GlobalVariables.currentRepo);
     try {
@@ -624,7 +807,10 @@ export function ProjectProvider({ children, cad, loadProject }) {
 
       // Check if new name is the same as current
       if (newName === oldRepoName) {
-        window.alert("New project name is the same as the current name.");
+        setNotification(
+          "New project name is the same as the current name.",
+          "warning",
+        );
         return null;
       }
 
@@ -639,8 +825,9 @@ export function ProjectProvider({ children, cad, loadProject }) {
         });
       } catch (err) {
         console.error("Error renaming GitHub repository:", err);
-        window.alert(
-          "Error renaming repository on GitHub. The name might already be taken or invalid. Please try a different name."
+        setNotification(
+          "Error renaming repository on GitHub. The name might already be taken or invalid. Please try a different name.",
+          "error",
         );
         return null;
       }
@@ -694,7 +881,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
             owner: currentUser,
             repo: newName,
             path: "project.abundance",
-          }
+          },
         );
 
         let projectFileContent;
@@ -704,13 +891,13 @@ export function ProjectProvider({ children, cad, loadProject }) {
         ) {
           // Handle large files using download_url
           const contentResponse = await fetch(
-            projectFileResponse.data.download_url
+            projectFileResponse.data.download_url,
           );
           projectFileContent = await contentResponse.text();
         } else {
           // Decode base64 content
           projectFileContent = GlobalVariables.fromBinaryStr(
-            atob(projectFileResponse.data.content)
+            atob(projectFileResponse.data.content),
           );
         }
 
@@ -724,7 +911,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
 
         // Convert back to base64
         const updatedContent = window.btoa(
-          GlobalVariables.toBinaryStr(JSON.stringify(projectData, null, 4))
+          GlobalVariables.toBinaryStr(JSON.stringify(projectData, null, 4)),
         );
 
         // Update the file in the repo
@@ -759,7 +946,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
     } catch (err) {
       console.error("Error renaming project:", err);
       window.alert(
-        "An error occurred while renaming the project. Please try again."
+        "An error occurred while renaming the project. Please try again.",
       );
       return null;
     }
@@ -781,13 +968,18 @@ export function ProjectProvider({ children, cad, loadProject }) {
   /**
    * Handles authentication errors by redirecting to re-authentication
    */
-  const handleAuthenticationError = (error, saveType, currentProjectRep, setErrorNotification) => {
+  const handleAuthenticationError = (
+    error,
+    saveType,
+    currentProjectRep,
+    setErrorNotification,
+  ) => {
     console.error("Authentication error during save:", error);
 
     // Show user-friendly error message
     if (setErrorNotification) {
       setErrorNotification(
-        `Save failed due to expired login. You will be redirected to re-authenticate.`
+        `Save failed due to expired login. You will be redirected to re-authenticate.`,
       );
       setTimeout(() => {
         setErrorNotification(null);
@@ -813,16 +1005,14 @@ export function ProjectProvider({ children, cad, loadProject }) {
     //Generate a thumbnail for the project
     if (GlobalVariables.topLevelMolecule.value == null) {
       console.warn(
-        "No top level molecule value found for thumbnail generation."
+        "No top level molecule value found for thumbnail generation.",
       );
       return null;
     }
 
     // Check if meshRef and meshRef.current are available
     if (!meshRef || !meshRef.current) {
-      console.warn(
-        "meshRef is not available for thumbnail generation."
-      );
+      console.warn("meshRef is not available for thumbnail generation.");
       return null;
     }
 
@@ -831,7 +1021,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
       .then((worker) => {
         return worker.generateDisplayMesh(
           GlobalVariables.topLevelMolecule.value,
-          GlobalVariables.topLevelMolecule.getContext()
+          GlobalVariables.topLevelMolecule.getContext(),
         );
       })
       .then(async (m) => {
@@ -849,7 +1039,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
     { owner, repo, base, changes },
     setSaveProgress,
     saveType = "Auto Save",
-    setErrorNotification
+    setErrorNotification,
   ) {
     try {
       setSaveProgress(35);
@@ -859,7 +1049,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
           {
             owner: owner,
             repo: repo,
-          }
+          },
         );
 
         let htmlURL = repoResponse.data.html_url;
@@ -925,7 +1115,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
         setSaveProgress(80);
 
         const githubMoleculeUsedList = await searchGithubMolecules(
-          GlobalVariables.topLevelMolecule
+          GlobalVariables.topLevelMolecule,
         );
 
         /*aws dynamo update-item lambda, also updates dateModified on aws side*/
@@ -974,7 +1164,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
         // Handle other errors
         if (setErrorNotification) {
           setErrorNotification(
-            `Save failed: ${error.message || "Unknown error occurred"}`
+            `Save failed: ${error.message || "Unknown error occurred"}`,
           );
           setTimeout(() => setErrorNotification(null), 5000);
         }
@@ -998,9 +1188,22 @@ export function ProjectProvider({ children, cad, loadProject }) {
     typeSave,
     forceSave = false,
     meshRef = null,
-    setErrorNotification = null
+    setErrorNotification = null,
   ) => {
     try {
+      // Block the save if the project is still loading/deserializing to prevent
+      // saving an incomplete project structure that would wipe out atoms on load
+      if (GlobalVariables.projectIsLoading) {
+        if (typeSave !== "Auto Save") {
+          setNotification(
+            "Save blocked: project is still loading. Please wait for the project to finish loading before saving.",
+            "error",
+          );
+          setTimeout(() => setNotification(null), 5000);
+        }
+        return;
+      }
+
       //We only want to save if something has actually changed since the last save
       var jsonRepOfProject = GlobalVariables.topLevelMolecule.serialize();
 
@@ -1020,7 +1223,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
             new Error("GitHub token has expired"),
             typeSave,
             JSON.stringify(jsonRepOfProject),
-            setErrorNotification
+            setErrorNotification,
           );
           return;
         }
@@ -1106,8 +1309,8 @@ export function ProjectProvider({ children, cad, loadProject }) {
         finalSVG && isValidSVG(finalSVG)
           ? finalSVG
           : backupProjectSVG && isValidSVG(backupProjectSVG)
-          ? backupProjectSVG
-          : null;
+            ? backupProjectSVG
+            : null;
       if (thumbnailToUse) {
         filesObject["project.svg"] = thumbnailToUse;
       }
@@ -1128,7 +1331,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
         },
         setSaveProgress,
         typeSave,
-        setErrorNotification
+        setErrorNotification,
       );
 
       if (typeSave !== "Auto Save") {
@@ -1148,16 +1351,14 @@ export function ProjectProvider({ children, cad, loadProject }) {
       setSaveProgress(100);
     } catch (error) {
       console.error("Error during project save:", error);
-
       // The createCommit function already handles authentication errors,
       // so we only need to handle other types of errors here
       if (!error.message.includes("Bad credentials") && error.status !== 401) {
-        if (setErrorNotification) {
-          setErrorNotification(
-            `Save failed: ${error.message || "Unknown error occurred"}`
-          );
-          setTimeout(() => setErrorNotification(null), 5000);
-        }
+        setNotification(
+          `Save failed: ${error.message || "Unknown error occurred"}`,
+          "error",
+        );
+        setTimeout(() => setNotification(null), 5000);
       }
 
       setSaveProgress(0); // Reset save progress
@@ -1171,6 +1372,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
     loadProject,
     createProject,
     duplicateProject,
+    forkProject,
     renameProject,
     searchGithubMolecules,
     saveProject,

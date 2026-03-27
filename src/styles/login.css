@@ -17,6 +17,9 @@
   width: 40px;
   border-radius: 50%;
 }
+.logo-private-scope {
+  filter: invert(1) hue-rotate(180deg);
+}
 #welcome-logo-lettering {
   display: none;
 }
