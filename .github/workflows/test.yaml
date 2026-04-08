@@ -6,6 +6,10 @@ on:
     branches: [main]
     types: [opened, synchronize, closed]
 
+  pull_request:
+    branches: [main, lazy-move]
+    types: [opened, synchronize, closed]
+
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
@@ -433,7 +437,7 @@ jobs:
                 markdown += diff(
                   (typeof baseM.projectFileRawJson === "string" ? baseM.projectFileRawJson : JSON.stringify(baseM.projectFileRawJson, null, 2)),
                   (typeof prM.projectFileRawJson === "string" ? prM.projectFileRawJson : JSON.stringify(prM.projectFileRawJson, null, 2)),
-                  { expand: false, aAnnotation: 'Base branch', bAnnotation: 'PR branch' }
+                  { expand: false, aAnnotation: 'Base branch', bAnnotation: 'PR branch', contextLines: 0 }
                 );
                 markdown += "```"
               }

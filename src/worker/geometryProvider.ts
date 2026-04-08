@@ -15,6 +15,7 @@ import {
   getAllProjectIds,
   StoredGeometryRecord,
   filter,
+  getAllShapesForProject,
 } from "./indexeddbUtils";
 
 type ReplicadObject = replicad.Shape3D | replicad.Drawing | replicad.Wire;
@@ -24,6 +25,21 @@ type RequestContext = {
   operationId?: string;
   persistIntermediates?: boolean;
   [key: string]: any; // Allows for additional props
+};
+
+type Move = {
+  type: "move";
+  offset: [number, number, number];
+};
+type Rotate = {
+  type: "rotate";
+  angles: [number, number, number];
+};
+type Transform = Move | Rotate;
+
+type IdStruct = {
+  target: string;
+  transforms: Transform[];
 };
 
 /**
@@ -129,6 +145,25 @@ class GeometryProvider {
     return id;
   }
 
+  private async lazyCreateIfAbsent(
+    id: IdStruct,
+    context: RequestContext,
+    builder: () => Promise<ReplicadObject>
+  ): Promise<string> {
+    this.updateLRU(context.project);
+    const idString = JSON.stringify(id);
+    if (context.operationId) {
+      const warmCached = this.getFromWarmCache(idString, context);
+      if (!warmCached) {
+        const geometry = await builder();
+        this.putInWarmCache(idString, context.operationId, geometry);
+      }
+    }
+
+    // This is a lazy object, so we never store it in the persistent cache.
+    return idString;
+  }
+
   private getFromWarmCache(
     id: string,
     context: RequestContext
@@ -174,8 +209,24 @@ class GeometryProvider {
       return Promise.resolve(warmCached);
     }
 
-    // else use disk cache.
+    // Special case for lazily computed shapes, this will call back into get with
+    // the target shape.
+    if (this._isLazyId(id)) {
+      let result = undefined;
+      if (context.operationId) {
+        result = await this.getFromWarmCache(id, context);
+      }
+      if (result === undefined) {
+        result = await this._realizeLazyId(JSON.parse(id), context);
+        if (context.operationId) {
+          // promote into warm cache so it's a hit next time.
+          this.putInWarmCache(id, context.operationId, result);
+        }
+      }
+      return result;
+    }
 
+    // else use disk cache.
     const shape = await getShape(context.project, id);
     if (shape == undefined) {
       console.trace("Cache miss for id:", id);
@@ -270,6 +321,7 @@ class GeometryProvider {
     console.log(
       `swept cache. removed ${deletedGeoms} geoms in ${geomTime}ms and ${deletedAssemblies} assemblies in ${assemblyTime}ms`
     );
+
     return deletedGeoms + deletedAssemblies;
   }
 
@@ -376,12 +428,15 @@ class GeometryProvider {
     dz: number,
     context: RequestContext
   ): Promise<string> {
-    const movedId = this._makeId("move", id, dx, dy, dz);
-    await this.createIfAbsent(movedId, context, async () => {
-      const geometry = await this.get(id, context);
-      return geometry.translate(dx, dy, dz);
+    const resultId = this._makeLazyId(id, [
+      {
+        type: "move",
+        offset: [dx, dy, dz],
+      },
+    ]);
+    return this.lazyCreateIfAbsent(resultId, context, async () => {
+      return this._realizeLazyId(resultId, context);
     });
-    return movedId;
   }
 
   async rotate(
@@ -395,7 +450,6 @@ class GeometryProvider {
     await this.createIfAbsent(rotateId, context, async () => {
       const geometry = await this.get(id, context);
       if (geometry instanceof replicad.Drawing) {
-        // TODO(tristan): should this rotate around center of bounding box?
         return geometry.rotate(z, [0, 0]);
       } else {
         return geometry
@@ -663,19 +717,26 @@ class GeometryProvider {
       // For all intermediate shapes which are part of the result assembly,
       // promote them to the serialized cache.
       for (const leaf of flattenAssembly(result)) {
-        const geom = this.getFromWarmCache(leaf.geometry, context);
+        let geomId = leaf.geometry;
+        const asLazy = this._asIdStruct(geomId);
+        if (asLazy) {
+          // lazy IDs don't need to be promoted since they can be re-realized
+          // but their target geometries do need to be promoted.
+          geomId = asLazy.target;
+        }
+        const geom = this.getFromWarmCache(geomId, context);
         if (geom) {
           putShape(
             context.project,
-            leaf.geometry,
-            this.getFromWarmCache(leaf.geometry, context)!.serialize()
+            geomId,
+            this.getFromWarmCache(geomId, context)!.serialize()
           );
         } else {
           // check that it's already in the serialized cache
-          const exists = await shapeExists(context.project, leaf.geometry);
+          const exists = await shapeExists(context.project, geomId);
           if (!exists) {
             throw new Error(
-              "Batch operation references unknown geometry: " + leaf.geometry
+              "Batch operation references unknown geometry: " + geomId
             );
           }
         }
@@ -794,6 +855,72 @@ class GeometryProvider {
     });
     const key = [type, ...args].flat(Infinity).join("-");
     return key;
+  }
+
+  _makeLazyId(target: string, transforms: Transform[]): IdStruct {
+    const id: IdStruct = {
+      target: target,
+      transforms: transforms,
+    };
+    return id;
+  }
+
+  _isLazyId(id: string): boolean {
+    try {
+      const parsed: IdStruct = JSON.parse(id);
+      return (
+        typeof parsed === "object" &&
+        parsed !== null &&
+        "target" in parsed &&
+        "transforms" in parsed
+      );
+    } catch (e) {
+      return false;
+    }
+  }
+
+  _asIdStruct(id: string): IdStruct | undefined {
+    try {
+      return JSON.parse(id) as IdStruct;
+    } catch (e) {
+      console.warn("Failed to parse IdStruct JSON:", e);
+      return undefined;
+    }
+  }
+
+  _realizeLazyId(
+    id: IdStruct,
+    context: RequestContext
+  ): Promise<ReplicadObject> {
+    console.trace("Realizing lazy ID", id.transforms);
+    return this.get(id.target, context).then((initialGeom) => {
+      let baseGeom = initialGeom.clone();
+      for (const transform of id.transforms) {
+        if (transform.type === "move") {
+          baseGeom = baseGeom.translate(
+            transform.offset[0],
+            transform.offset[1],
+            transform.offset[2]
+          );
+        } else if (transform.type === "rotate") {
+          throw new Error("Rotate transform not yet supported in lazy IDs");
+          /*
+          uncomment once we start using rotations lazily
+          if (baseGeom instanceof replicad.Drawing) {
+            // TODO(tristan): should this rotate around center of bounding box?
+            baseGeom = baseGeom.rotate(transform.angles[2], [0, 0]);
+          } else {
+            baseGeom = baseGeom
+              .rotate(transform.angles[0], [0, 0, 0], [1, 0, 0])
+              .rotate(transform.angles[1], [0, 0, 0], [0, 1, 0])
+              .rotate(transform.angles[2], [0, 0, 0], [0, 0, 1]);
+          }*/
+        } else {
+          throw new Error("Unknown transform type in lazy ID: " + transform);
+        }
+      }
+      return baseGeom;
+    });
   }
 }
 
