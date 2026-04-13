@@ -110,7 +110,6 @@ export class CadWorkerManager {
           cleanup();
           clearTimeout(timeoutId);
           this._pendingCalls = this._pendingCalls.filter((c) => c !== entry);
-          this._resetOtherTimeouts();
           resolve(result);
         },
         (err) => {
@@ -120,50 +119,6 @@ export class CadWorkerManager {
           reject(err);
         },
       );
-    });
-  }
-
-  /**
-   * Reset the timeout for all pending calls. Called when any call completes
-   * successfully, proving the worker is still alive. This prevents starvation
-   * when multiple calls are queued on the single-threaded worker — earlier
-   * calls may consume most of the timeout window before later calls even begin.
-   */
-  _resetOtherTimeouts() {
-    const now = Date.now();
-    this._pendingCalls.forEach((entry) => {
-      // Reset the timeout timer.
-      if (entry.timeoutId != null) {
-        clearTimeout(entry.timeoutId);
-        entry.timeoutId = setTimeout(() => {
-          clearInterval(entry.progressIntervalId);
-          entry.progressIntervalId = null;
-          console.log(
-            `[CadWorkerManager] ⏱ TIMEOUT fired — restarting worker`,
-          );
-          this._pendingCalls = this._pendingCalls.filter((c) => c !== entry);
-          entry.reject(
-            new Error(
-              `CAD worker timed out after ${this._timeoutMs}ms`,
-            ),
-          );
-          this._restartWorker();
-        }, this._timeoutMs);
-      }
-      // Reset the progress interval so elapsed/remaining are relative to now.
-      if (entry.progressIntervalId != null) {
-        clearInterval(entry.progressIntervalId);
-        const resetTime = now;
-        entry.progressIntervalId = setInterval(() => {
-          const elapsed = Math.round((Date.now() - resetTime) / 1000);
-          const remaining = Math.round(
-            (this._timeoutMs - (Date.now() - resetTime)) / 1000,
-          );
-          console.log(
-            `[CadWorkerManager] ⏳ call still running — ${elapsed}s elapsed, ${remaining}s until timeout`,
-          );
-        }, 5000);
-      }
     });
   }
 
