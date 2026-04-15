@@ -76,5 +76,34 @@ describe("code.js", () => {
       expect(result.geometry).toBeDefined();
       expect(result.geometry.length).toBe(3); // Should have 3 shapes in the assembly
     });
+
+    it("should allow AssemblyMap callbacks to filter leaves by returning undefined", async () => {
+      const codeString = `
+        let shape = library[inputShape]
+        const moved = await Move(shape, 20, 0, 0)
+        const assembled = await Assembly([shape, moved])
+
+        let counter = 0
+        const filtered = await AssemblyMap(assembled, async (leaf) => {
+          counter++
+          if (counter === 1) return undefined
+          return leaf
+        })
+
+        return filtered
+      `;
+
+      const library = {
+        input_shape_id: extrude(rectangle(10, 5), 6),
+      };
+      const args = {
+        inputShape: "input_shape_id",
+      };
+
+      const result = await executeCode(codeString, args, library);
+
+      expect(result).toBeDefined();
+      expect(result.geometry).toHaveLength(1);
+    });
   });
 });
