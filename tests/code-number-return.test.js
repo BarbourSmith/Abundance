@@ -23,6 +23,12 @@ function isPrimitive(value) {
   );
 }
 
+function getNonReplicadSerialized(value) {
+  return value && typeof value === "object"
+    ? value.nonReplicadSerialized
+    : undefined;
+}
+
 describe("Code atom primitive return value handling", () => {
   describe("isPrimitive function", () => {
     it("should return true for numbers", () => {
@@ -105,6 +111,13 @@ describe("Code atom primitive return value handling", () => {
       const result = "Hello" + " World";
       expect(isPrimitive(result)).toBe(true);
       expect(result).toBe("Hello World");
+    });
+
+    it("should safely handle undefined geometry-like values when reading nonReplicadSerialized", () => {
+      expect(getNonReplicadSerialized(undefined)).toBeUndefined();
+      expect(getNonReplicadSerialized(null)).toBeUndefined();
+      expect(getNonReplicadSerialized(42)).toBeUndefined();
+      expect(getNonReplicadSerialized({ nonReplicadSerialized: [] })).toEqual([]);
     });
   });
 });
