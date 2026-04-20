@@ -134,6 +134,29 @@ function buildCompletionItems(
 // console, Math, JSON, Object, etc. — no need to duplicate them here.)
 
 // ---------------------------------------------------------------------------
+// Ambient type declarations injected into Monaco's JS language service.
+// These enable type-aware completions (e.g. cyl.translate()) in JS mode
+// without any red squiggles (checkJs: false).
+// ---------------------------------------------------------------------------
+
+/** Abundance built-in async globals available inside every code atom. */
+const ABUNDANCE_AMBIENT_TYPES = `
+declare const replicad: typeof import("replicad");
+declare const library: Record<string, any>;
+declare function Move(shape: any, x?: number, y?: number, z?: number): Promise<any>;
+declare function Rotate(shape: any, x?: number, y?: number, z?: number): Promise<any>;
+declare function Scale(shape: any, factor: number): Promise<any>;
+declare function Assembly(shapes: any[]): Promise<any>;
+declare function Intersect(a: any, b: any): Promise<any>;
+declare function CutAssembly(shape: any, cutters: any[]): Promise<any>;
+declare function Fillet(shape: any, radius: number): Promise<any>;
+declare function Chamfer(shape: any, size: number): Promise<any>;
+declare function AssemblyMap(assembly: any, fn: (s: any) => Promise<any>): Promise<any>;
+declare function AssemblyAsIterable(assembly: any): Promise<any[]>;
+declare function GetBounds(shape: any): any;
+`;
+
+// ---------------------------------------------------------------------------
 // Variable type inference (lightweight – mirrors the old CodeMirror version)
 // ---------------------------------------------------------------------------
 function inferVariableType(
@@ -199,6 +222,43 @@ export default function ReactCodeEditorWithApiAutocomplete(props: {
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
       activeAtomRef.current?.saveCode();
     });
+
+    // ---------------------------------------------------------------------------
+    // Inject type definitions into Monaco's JS language service so it can infer
+    // variable types (e.g. cyl → Shape3D → shows only valid .translate() etc.)
+    // checkJs: false means completions work but no red squiggles in JS mode.
+    // ---------------------------------------------------------------------------
+    monaco.languages.typescript.javascriptDefaults.setCompilerOptions({
+      target: monaco.languages.typescript.ScriptTarget.ES2020,
+      allowNonTsExtensions: true,
+      checkJs: false,
+      noEmit: true,
+    });
+
+    // Inject Abundance globals (Move, Assembly, library, replicad namespace, etc.)
+    monaco.languages.typescript.javascriptDefaults.addExtraLib(
+      ABUNDANCE_AMBIENT_TYPES,
+      "ts:abundance-ambient.d.ts",
+    );
+
+    // Inject replicad's shipped .d.ts (copied to public/ at build time).
+    // This gives Monaco full type info for Shape3D, Drawing, Sketch, etc.,
+    // enabling correct per-type member completions on user-defined variables.
+    fetch("/replicad.d.ts")
+      .then((r) => (r.ok ? r.text() : Promise.reject()))
+      .then((dts) => {
+        monaco.languages.typescript.javascriptDefaults.addExtraLib(
+          dts,
+          "ts:replicad.d.ts",
+        );
+      })
+      .catch(() => {
+        // If the file isn't available (e.g. first run before copy-types), the
+        // custom completion providers below still work as a fallback.
+        console.warn(
+          "replicad.d.ts not found in /public — run `npm run copy-types` to enable full type inference",
+        );
+      });
 
     // ---------------------------------------------------------------------------
     // Provider 1: replicad.XXX  — fires ONLY after the literal token "replicad."
@@ -301,8 +361,7 @@ export default function ReactCodeEditorWithApiAutocomplete(props: {
           ? ["Shape", "Shape3D", "Sketch", "Sketches", "Wire", "Face", "Solid"]
           : varType.split("|").map((t) => t.trim());
 
-        const suggestions: import("monaco-editor").languages.CompletionItem[] =
-          [];
+        const suggestions: any[] = [];
         for (const t of typeList) {
           for (const [key, def] of Object.entries(api)) {
             if (!key.startsWith(t + ".")) continue;
@@ -332,7 +391,7 @@ export default function ReactCodeEditorWithApiAutocomplete(props: {
     // ---------------------------------------------------------------------------
     monaco.languages.registerCompletionItemProvider("javascript", {
       // No triggerCharacters: fires on word characters only (the default)
-      provideCompletionItems(model, position) {
+      provideCompletionItems(model: any, position: any) {
         const linePrefix = model
           .getLineContent(position.lineNumber)
           .substring(0, position.column - 1);
