@@ -32,7 +32,12 @@ function buildDocString(key: string, def: ApiDef): string {
 // Build Monaco completion items from an API JSON blob
 // ---------------------------------------------------------------------------
 // Minimal local alias so we don't need a direct monaco-editor package import.
-type IRange = { startLineNumber: number; startColumn: number; endLineNumber: number; endColumn: number };
+type IRange = {
+  startLineNumber: number;
+  startColumn: number;
+  endLineNumber: number;
+  endColumn: number;
+};
 
 // ---------------------------------------------------------------------------
 // Build Monaco completion items from an API JSON blob
@@ -47,7 +52,10 @@ function buildCompletionItems(
   const items: any[] = [];
 
   for (const [key, def] of Object.entries(apiJson)) {
-    const params = [...(def.requiredParams ?? []), ...(def.optionalParams ?? [])];
+    const params = [
+      ...(def.requiredParams ?? []),
+      ...(def.optionalParams ?? []),
+    ];
     const paramsStr = params.join(", ");
     const isInstanceMethod = key.includes(".");
     const methodName = isInstanceMethod ? key.split(".")[1] : key;
@@ -61,15 +69,23 @@ function buildCompletionItems(
       const propLines = (def.properties as string[]).map((prop) => {
         const [propName, propType] = prop.split(":").map((s) => s.trim());
         const example =
-          propName === "geometry" ? "[createdShape]"
-          : propName === "dimension" ? '"3D"'
-          : propName === "tags" ? '["createdShape"]'
-          : propName === "color" ? "'#A3CE5B'"
-          : propName === "plane" ? "newPlane"
-          : propName === "bom" ? "[]"
-          : propType === "String" ? '""'
-          : propType === "Array" ? "[]"
-          : "null";
+          propName === "geometry"
+            ? "[createdShape]"
+            : propName === "dimension"
+              ? '"3D"'
+              : propName === "tags"
+                ? '["createdShape"]'
+                : propName === "color"
+                  ? "'#A3CE5B'"
+                  : propName === "plane"
+                    ? "newPlane"
+                    : propName === "bom"
+                      ? "[]"
+                      : propType === "String"
+                        ? '""'
+                        : propType === "Array"
+                          ? "[]"
+                          : "null";
         return `  ${propName}: ${example},`;
       });
       items.push({
@@ -116,6 +132,29 @@ function buildCompletionItems(
 
 // (Monaco's built-in JS language service already provides completions for
 // console, Math, JSON, Object, etc. — no need to duplicate them here.)
+
+// ---------------------------------------------------------------------------
+// Ambient type declarations injected into Monaco's JS language service.
+// These enable type-aware completions (e.g. cyl.translate()) in JS mode
+// without any red squiggles (checkJs: false).
+// ---------------------------------------------------------------------------
+
+/** Abundance built-in async globals available inside every code atom. */
+const ABUNDANCE_AMBIENT_TYPES = `
+declare const replicad: typeof import("replicad");
+declare const library: Record<string, any>;
+declare function Move(shape: any, x?: number, y?: number, z?: number): Promise<any>;
+declare function Rotate(shape: any, x?: number, y?: number, z?: number): Promise<any>;
+declare function Scale(shape: any, factor: number): Promise<any>;
+declare function Assembly(shapes: any[]): Promise<any>;
+declare function Intersect(a: any, b: any): Promise<any>;
+declare function CutAssembly(shape: any, cutters: any[]): Promise<any>;
+declare function Fillet(shape: any, radius: number): Promise<any>;
+declare function Chamfer(shape: any, size: number): Promise<any>;
+declare function AssemblyMap(assembly: any, fn: (s: any) => Promise<any>): Promise<any>;
+declare function AssemblyAsIterable(assembly: any): Promise<any[]>;
+declare function GetBounds(shape: any): any;
+`;
 
 // ---------------------------------------------------------------------------
 // Variable type inference (lightweight – mirrors the old CodeMirror version)
@@ -168,15 +207,58 @@ export default function ReactCodeEditorWithApiAutocomplete(props: {
   const apiJsonRef = useRef(apiJson);
   const abundanceJsonRef = useRef(abundanceJson);
 
-  useEffect(() => { activeAtomRef.current = activeAtom; }, [activeAtom]);
-  useEffect(() => { apiJsonRef.current = apiJson; }, [apiJson]);
-  useEffect(() => { abundanceJsonRef.current = abundanceJson; }, [abundanceJson]);
+  useEffect(() => {
+    activeAtomRef.current = activeAtom;
+  }, [activeAtom]);
+  useEffect(() => {
+    apiJsonRef.current = apiJson;
+  }, [apiJson]);
+  useEffect(() => {
+    abundanceJsonRef.current = abundanceJson;
+  }, [abundanceJson]);
 
   const handleMount: OnMount = (editor, monaco) => {
     // Ctrl/Cmd + S  →  save code
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
       activeAtomRef.current?.saveCode();
     });
+
+    // ---------------------------------------------------------------------------
+    // Inject type definitions into Monaco's JS language service so it can infer
+    // variable types (e.g. cyl → Shape3D → shows only valid .translate() etc.)
+    // checkJs: false means completions work but no red squiggles in JS mode.
+    // ---------------------------------------------------------------------------
+    monaco.languages.typescript.javascriptDefaults.setCompilerOptions({
+      target: monaco.languages.typescript.ScriptTarget.ES2020,
+      allowNonTsExtensions: true,
+      checkJs: false,
+      noEmit: true,
+    });
+
+    // Inject Abundance globals (Move, Assembly, library, replicad namespace, etc.)
+    monaco.languages.typescript.javascriptDefaults.addExtraLib(
+      ABUNDANCE_AMBIENT_TYPES,
+      "ts:abundance-ambient.d.ts",
+    );
+
+    // Inject replicad's shipped .d.ts (copied to public/ at build time).
+    // This gives Monaco full type info for Shape3D, Drawing, Sketch, etc.,
+    // enabling correct per-type member completions on user-defined variables.
+    fetch("/replicad.d.ts")
+      .then((r) => (r.ok ? r.text() : Promise.reject()))
+      .then((dts) => {
+        monaco.languages.typescript.javascriptDefaults.addExtraLib(
+          dts,
+          "ts:replicad.d.ts",
+        );
+      })
+      .catch(() => {
+        // If the file isn't available (e.g. first run before copy-types), the
+        // custom completion providers below still work as a fallback.
+        console.warn(
+          "replicad.d.ts not found in /public — run `npm run copy-types` to enable full type inference",
+        );
+      });
 
     // ---------------------------------------------------------------------------
     // Provider 1: replicad.XXX  — fires ONLY after the literal token "replicad."
@@ -203,14 +285,22 @@ export default function ReactCodeEditorWithApiAutocomplete(props: {
         // Only top-level (non-instance) replicad entries — strip the "replicad." prefix
         // from the label/insertText because we're already after "replicad."
         return {
-          suggestions: buildCompletionItems(monaco, apiJsonRef.current, true, range)
+          suggestions: buildCompletionItems(
+            monaco,
+            apiJsonRef.current,
+            true,
+            range,
+          )
             .filter((item) => !(item.label as string).includes("."))
             .map((item) => ({
               ...item,
               // label was "replicad.foo" → show just "foo"
               label: (item.label as string).replace(/^replicad\./, ""),
               // insertText was "replicad.foo(...)" → strip the namespace prefix
-              insertText: (item.insertText as string).replace(/^replicad\./, ""),
+              insertText: (item.insertText as string).replace(
+                /^replicad\./,
+                "",
+              ),
             })),
         };
       },
@@ -221,7 +311,16 @@ export default function ReactCodeEditorWithApiAutocomplete(props: {
     // variable's type can be inferred from the code (e.g. let s = replicad.makeBox(...))
     // Skips "replicad." (handled above) and known JS globals like "console.", "Math."
     // ---------------------------------------------------------------------------
-    const JS_GLOBALS = new Set(["console", "Math", "JSON", "Object", "Array", "String", "Number", "Promise"]);
+    const JS_GLOBALS = new Set([
+      "console",
+      "Math",
+      "JSON",
+      "Object",
+      "Array",
+      "String",
+      "Number",
+      "Promise",
+    ]);
 
     monaco.languages.registerCompletionItemProvider("javascript", {
       triggerCharacters: ["."],
@@ -233,11 +332,15 @@ export default function ReactCodeEditorWithApiAutocomplete(props: {
         // Only fire when there's a dot at the end
         if (!linePrefix.endsWith(".")) return { suggestions: [] };
 
-        const varName = linePrefix.slice(0, -1).trim().match(/([a-zA-Z_$][\w$]*)$/)?.[1];
+        const varName = linePrefix
+          .slice(0, -1)
+          .trim()
+          .match(/([a-zA-Z_$][\w$]*)$/)?.[1];
         if (!varName) return { suggestions: [] };
 
         // Let the other provider (or Monaco's built-in service) handle these
-        if (varName === "replicad" || JS_GLOBALS.has(varName)) return { suggestions: [] };
+        if (varName === "replicad" || JS_GLOBALS.has(varName))
+          return { suggestions: [] };
 
         const api = apiJsonRef.current;
         if (!api) return { suggestions: [] };
@@ -258,7 +361,7 @@ export default function ReactCodeEditorWithApiAutocomplete(props: {
           ? ["Shape", "Shape3D", "Sketch", "Sketches", "Wire", "Face", "Solid"]
           : varType.split("|").map((t) => t.trim());
 
-        const suggestions: import("monaco-editor").languages.CompletionItem[] = [];
+        const suggestions: any[] = [];
         for (const t of typeList) {
           for (const [key, def] of Object.entries(api)) {
             if (!key.startsWith(t + ".")) continue;
@@ -288,7 +391,7 @@ export default function ReactCodeEditorWithApiAutocomplete(props: {
     // ---------------------------------------------------------------------------
     monaco.languages.registerCompletionItemProvider("javascript", {
       // No triggerCharacters: fires on word characters only (the default)
-      provideCompletionItems(model, position) {
+      provideCompletionItems(model: any, position: any) {
         const linePrefix = model
           .getLineContent(position.lineNumber)
           .substring(0, position.column - 1);
@@ -306,8 +409,12 @@ export default function ReactCodeEditorWithApiAutocomplete(props: {
 
         // Only top-level (non-instance) abundance entries
         return {
-          suggestions: buildCompletionItems(monaco, abundanceJsonRef.current, false, range)
-            .filter((item) => !(item.label as string).includes(".")),
+          suggestions: buildCompletionItems(
+            monaco,
+            abundanceJsonRef.current,
+            false,
+            range,
+          ).filter((item) => !(item.label as string).includes(".")),
         };
       },
     });
