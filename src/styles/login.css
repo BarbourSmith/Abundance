@@ -321,6 +321,46 @@
   position: relative;
 }
 
+.code-editor-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: #1e1e1e;
+  border-bottom: 1px solid #333;
+  flex-shrink: 0;
+}
+
+.code-editor-toolbar-label {
+  color: #888;
+  font-size: 0.75rem;
+  font-family: "Roboto", sans-serif;
+  margin-right: 2px;
+}
+
+.code-version-btn {
+  padding: 2px 10px;
+  border-radius: 3px;
+  border: 1px solid #555;
+  background: #2d2d2d;
+  color: #ccc;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.code-version-btn:hover {
+  background: #3a3a3a;
+  border-color: #888;
+  color: #fff;
+}
+
+.code-version-btn.active {
+  background: #0e639c;
+  border-color: #1177bb;
+  color: #fff;
+}
+
 .info-panels-section {
   display: flex;
   flex-direction: row;

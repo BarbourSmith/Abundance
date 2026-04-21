@@ -198,8 +198,22 @@ export default function ReactCodeEditorWithApiAutocomplete(props: {
   apiJson?: ApiJson;
   abundanceJson?: ApiJson;
   activeAtom?: { saveCode: () => void } | null;
+  /** 0 = JavaScript (default, backwards-compatible). 1 = TypeScript (strict). */
+  interpreterVersion?: number;
+  /** Called once the Monaco editor has mounted, so callers can use the
+   *  TypeScript worker (e.g. to transpile TS → JS at save time). */
+  onEditorReady?: (editor: any, monaco: Monaco) => void;
 }) {
-  const { value, onChange, apiJson, abundanceJson, activeAtom } = props;
+  const {
+    value,
+    onChange,
+    apiJson,
+    abundanceJson,
+    activeAtom,
+    interpreterVersion = 0,
+    onEditorReady,
+  } = props;
+  const language = interpreterVersion >= 1 ? "typescript" : "javascript";
 
   // Use refs so the completion provider closure always sees latest values
   // without needing to be re-registered.
@@ -223,38 +237,47 @@ export default function ReactCodeEditorWithApiAutocomplete(props: {
       activeAtomRef.current?.saveCode();
     });
 
+    // Expose editor + monaco to the parent so it can, for example,
+    // invoke the TypeScript worker to transpile the current model.
+    onEditorReady?.(editor, monaco);
+
     // ---------------------------------------------------------------------------
-    // Inject type definitions into Monaco's JS language service so it can infer
-    // variable types (e.g. cyl → Shape3D → shows only valid .translate() etc.)
-    // checkJs: false means completions work but no red squiggles in JS mode.
+    // Configure the TS/JS language service based on interpreter version.
+    // v0 (JS): completions only, no squiggles.
+    // v1 (TS): full strict type checking with red squiggles.
+    // We configure both javascriptDefaults and typescriptDefaults so the
+    // settings are ready whichever language the editor switches to.
     // ---------------------------------------------------------------------------
-    monaco.languages.typescript.javascriptDefaults.setCompilerOptions({
+    const jsOpts = {
       target: monaco.languages.typescript.ScriptTarget.ES2020,
       allowNonTsExtensions: true,
-      checkJs: false,
+      checkJs: false, // v0: no squiggles in JS mode
       noEmit: true,
-    });
+    };
+    const tsOpts = {
+      target: monaco.languages.typescript.ScriptTarget.ES2020,
+      allowNonTsExtensions: true,
+      strict: true,
+      noEmit: true,
+    };
+    monaco.languages.typescript.javascriptDefaults.setCompilerOptions(jsOpts);
+    monaco.languages.typescript.typescriptDefaults.setCompilerOptions(tsOpts);
 
-    // Inject Abundance globals (Move, Assembly, library, replicad namespace, etc.)
-    monaco.languages.typescript.javascriptDefaults.addExtraLib(
-      ABUNDANCE_AMBIENT_TYPES,
-      "ts:abundance-ambient.d.ts",
-    );
+    // Inject Abundance globals into both language services
+    const injectLib = (dts: string, filename: string) => {
+      monaco.languages.typescript.javascriptDefaults.addExtraLib(dts, filename);
+      monaco.languages.typescript.typescriptDefaults.addExtraLib(dts, filename);
+    };
+
+    injectLib(ABUNDANCE_AMBIENT_TYPES, "ts:abundance-ambient.d.ts");
 
     // Inject replicad's shipped .d.ts (copied to public/ at build time).
-    // This gives Monaco full type info for Shape3D, Drawing, Sketch, etc.,
-    // enabling correct per-type member completions on user-defined variables.
     fetch("/replicad.d.ts")
       .then((r) => (r.ok ? r.text() : Promise.reject()))
       .then((dts) => {
-        monaco.languages.typescript.javascriptDefaults.addExtraLib(
-          dts,
-          "ts:replicad.d.ts",
-        );
+        injectLib(dts, "ts:replicad.d.ts");
       })
       .catch(() => {
-        // If the file isn't available (e.g. first run before copy-types), the
-        // custom completion providers below still work as a fallback.
         console.warn(
           "replicad.d.ts not found in /public — run `npm run copy-types` to enable full type inference",
         );
@@ -262,168 +285,169 @@ export default function ReactCodeEditorWithApiAutocomplete(props: {
 
     // ---------------------------------------------------------------------------
     // Provider 1: replicad.XXX  — fires ONLY after the literal token "replicad."
-    // Offers every top-level replicad function as a member of the replicad namespace.
+    // Registered for both "javascript" and "typescript" so it works in either mode.
     // ---------------------------------------------------------------------------
-    monaco.languages.registerCompletionItemProvider("javascript", {
-      triggerCharacters: ["."],
-      provideCompletionItems(model: any, position: any) {
-        const linePrefix = model
-          .getLineContent(position.lineNumber)
-          .substring(0, position.column - 1);
+    for (const lang of ["javascript", "typescript"] as const) {
+      monaco.languages.registerCompletionItemProvider(lang, {
+        triggerCharacters: ["."],
+        provideCompletionItems(model: any, position: any) {
+          const linePrefix = model
+            .getLineContent(position.lineNumber)
+            .substring(0, position.column - 1);
 
-        // Bail out unless the text immediately before the cursor is "replicad."
-        if (!/\breplicad\.$/.test(linePrefix)) return { suggestions: [] };
+          if (!/\breplicad\.$/.test(linePrefix)) return { suggestions: [] };
 
-        const word = model.getWordUntilPosition(position);
-        const range = {
-          startLineNumber: position.lineNumber,
-          endLineNumber: position.lineNumber,
-          startColumn: word.startColumn,
-          endColumn: word.endColumn,
-        };
+          const word = model.getWordUntilPosition(position);
+          const range = {
+            startLineNumber: position.lineNumber,
+            endLineNumber: position.lineNumber,
+            startColumn: word.startColumn,
+            endColumn: word.endColumn,
+          };
 
-        // Only top-level (non-instance) replicad entries — strip the "replicad." prefix
-        // from the label/insertText because we're already after "replicad."
-        return {
-          suggestions: buildCompletionItems(
-            monaco,
-            apiJsonRef.current,
-            true,
-            range,
-          )
-            .filter((item) => !(item.label as string).includes("."))
-            .map((item) => ({
-              ...item,
-              // label was "replicad.foo" → show just "foo"
-              label: (item.label as string).replace(/^replicad\./, ""),
-              // insertText was "replicad.foo(...)" → strip the namespace prefix
-              insertText: (item.insertText as string).replace(
-                /^replicad\./,
-                "",
-              ),
-            })),
-        };
-      },
-    });
-
-    // ---------------------------------------------------------------------------
-    // Provider 2: variable instance methods — fires after "someVar." when the
-    // variable's type can be inferred from the code (e.g. let s = replicad.makeBox(...))
-    // Skips "replicad." (handled above) and known JS globals like "console.", "Math."
-    // ---------------------------------------------------------------------------
-    const JS_GLOBALS = new Set([
-      "console",
-      "Math",
-      "JSON",
-      "Object",
-      "Array",
-      "String",
-      "Number",
-      "Promise",
-    ]);
-
-    monaco.languages.registerCompletionItemProvider("javascript", {
-      triggerCharacters: ["."],
-      provideCompletionItems(model: any, position: any) {
-        const linePrefix = model
-          .getLineContent(position.lineNumber)
-          .substring(0, position.column - 1);
-
-        // Only fire when there's a dot at the end
-        if (!linePrefix.endsWith(".")) return { suggestions: [] };
-
-        const varName = linePrefix
-          .slice(0, -1)
-          .trim()
-          .match(/([a-zA-Z_$][\w$]*)$/)?.[1];
-        if (!varName) return { suggestions: [] };
-
-        // Let the other provider (or Monaco's built-in service) handle these
-        if (varName === "replicad" || JS_GLOBALS.has(varName))
-          return { suggestions: [] };
-
-        const api = apiJsonRef.current;
-        if (!api) return { suggestions: [] };
-
-        const allCode = model.getValue();
-        const varType = inferVariableType(varName, allCode, api);
-        if (!varType) return { suggestions: [] };
-
-        const word = model.getWordUntilPosition(position);
-        const range = {
-          startLineNumber: position.lineNumber,
-          endLineNumber: position.lineNumber,
-          startColumn: word.startColumn,
-          endColumn: word.endColumn,
-        };
-
-        const typeList = varType.includes("AnyShape")
-          ? ["Shape", "Shape3D", "Sketch", "Sketches", "Wire", "Face", "Solid"]
-          : varType.split("|").map((t) => t.trim());
-
-        const suggestions: any[] = [];
-        for (const t of typeList) {
-          for (const [key, def] of Object.entries(api)) {
-            if (!key.startsWith(t + ".")) continue;
-            const mName = key.split(".")[1];
-            const params = [
-              ...(def.requiredParams ?? []),
-              ...(def.optionalParams ?? []),
-            ];
-            suggestions.push({
-              label: mName,
-              kind: monaco.languages.CompletionItemKind.Method,
-              detail: `(${params.join(", ")}) → ${def.returns ?? ""}`,
-              documentation: { value: buildDocString(key, def) },
-              insertText: `${mName}(${params.join(", ")})`,
+          return {
+            suggestions: buildCompletionItems(
+              monaco,
+              apiJsonRef.current,
+              true,
               range,
-            });
+            )
+              .filter((item) => !(item.label as string).includes("."))
+              .map((item) => ({
+                ...item,
+                label: (item.label as string).replace(/^replicad\./, ""),
+                insertText: (item.insertText as string).replace(
+                  /^replicad\./,
+                  "",
+                ),
+              })),
+          };
+        },
+      });
+
+      // ---------------------------------------------------------------------------
+      // Provider 2: variable instance methods — fires after "someVar." when the
+      // variable's type can be inferred from the code (e.g. let s = replicad.makeBox(...))
+      // Skips "replicad." (handled above) and known JS/TS globals.
+      // In TS mode, Monaco's own service handles this better; we still register as
+      // a fallback for variables whose types come from our custom API JSON.
+      // ---------------------------------------------------------------------------
+      const JS_GLOBALS = new Set([
+        "console",
+        "Math",
+        "JSON",
+        "Object",
+        "Array",
+        "String",
+        "Number",
+        "Promise",
+      ]);
+
+      monaco.languages.registerCompletionItemProvider(lang, {
+        triggerCharacters: ["."],
+        provideCompletionItems(model: any, position: any) {
+          const linePrefix = model
+            .getLineContent(position.lineNumber)
+            .substring(0, position.column - 1);
+
+          if (!linePrefix.endsWith(".")) return { suggestions: [] };
+
+          const varName = linePrefix
+            .slice(0, -1)
+            .trim()
+            .match(/([a-zA-Z_$][\w$]*)$/)?.[1];
+          if (!varName) return { suggestions: [] };
+          if (varName === "replicad" || JS_GLOBALS.has(varName))
+            return { suggestions: [] };
+
+          const api = apiJsonRef.current;
+          if (!api) return { suggestions: [] };
+
+          const allCode = model.getValue();
+          const varType = inferVariableType(varName, allCode, api);
+          if (!varType) return { suggestions: [] };
+
+          const word = model.getWordUntilPosition(position);
+          const range = {
+            startLineNumber: position.lineNumber,
+            endLineNumber: position.lineNumber,
+            startColumn: word.startColumn,
+            endColumn: word.endColumn,
+          };
+
+          const typeList = varType.includes("AnyShape")
+            ? [
+                "Shape",
+                "Shape3D",
+                "Sketch",
+                "Sketches",
+                "Wire",
+                "Face",
+                "Solid",
+              ]
+            : varType.split("|").map((t) => t.trim());
+
+          const suggestions: any[] = [];
+          for (const t of typeList) {
+            for (const [key, def] of Object.entries(api)) {
+              if (!key.startsWith(t + ".")) continue;
+              const mName = key.split(".")[1];
+              const params = [
+                ...(def.requiredParams ?? []),
+                ...(def.optionalParams ?? []),
+              ];
+              suggestions.push({
+                label: mName,
+                kind: monaco.languages.CompletionItemKind.Method,
+                detail: `(${params.join(", ")}) → ${def.returns ?? ""}`,
+                documentation: { value: buildDocString(key, def) },
+                insertText: `${mName}(${params.join(", ")})`,
+                range,
+              });
+            }
           }
-        }
-        return { suggestions };
-      },
-    });
+          return { suggestions };
+        },
+      });
 
-    // ---------------------------------------------------------------------------
-    // Provider 3: Abundance top-level functions (Move, Assembly, Rotate, etc.)
-    // These are bare async calls — NOT member access — so we suppress this provider
-    // whenever the cursor is after a "." to avoid polluting member completions.
-    // ---------------------------------------------------------------------------
-    monaco.languages.registerCompletionItemProvider("javascript", {
-      // No triggerCharacters: fires on word characters only (the default)
-      provideCompletionItems(model: any, position: any) {
-        const linePrefix = model
-          .getLineContent(position.lineNumber)
-          .substring(0, position.column - 1);
+      // ---------------------------------------------------------------------------
+      // Provider 3: Abundance top-level functions (Move, Assembly, Rotate, etc.)
+      // These are bare async calls — NOT member access — so we suppress this provider
+      // whenever the cursor is after a "." to avoid polluting member completions.
+      // ---------------------------------------------------------------------------
+      monaco.languages.registerCompletionItemProvider(lang, {
+        provideCompletionItems(model: any, position: any) {
+          const linePrefix = model
+            .getLineContent(position.lineNumber)
+            .substring(0, position.column - 1);
 
-        // Suppress inside any member-access expression (anything.__)
-        if (/\w+\.$/.test(linePrefix)) return { suggestions: [] };
+          if (/\w+\.$/.test(linePrefix)) return { suggestions: [] };
 
-        const word = model.getWordUntilPosition(position);
-        const range = {
-          startLineNumber: position.lineNumber,
-          endLineNumber: position.lineNumber,
-          startColumn: word.startColumn,
-          endColumn: word.endColumn,
-        };
+          const word = model.getWordUntilPosition(position);
+          const range = {
+            startLineNumber: position.lineNumber,
+            endLineNumber: position.lineNumber,
+            startColumn: word.startColumn,
+            endColumn: word.endColumn,
+          };
 
-        // Only top-level (non-instance) abundance entries
-        return {
-          suggestions: buildCompletionItems(
-            monaco,
-            abundanceJsonRef.current,
-            false,
-            range,
-          ).filter((item) => !(item.label as string).includes(".")),
-        };
-      },
-    });
+          return {
+            suggestions: buildCompletionItems(
+              monaco,
+              abundanceJsonRef.current,
+              false,
+              range,
+            ).filter((item) => !(item.label as string).includes(".")),
+          };
+        },
+      });
+    }
   };
 
   return (
     <MonacoEditor
       height="100%"
-      language="javascript"
+      language={language}
       theme="vs-dark"
       value={value}
       onChange={(v) => onChange(v ?? "")}

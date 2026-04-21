@@ -1,5 +1,5 @@
 import React from "react";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 
 import apiJson from "./methodsreplicad.json"; // static import of the JSON file
 import abundanceJson from "./abundanceApiJson.json";
@@ -46,10 +46,17 @@ export default function CodeWindow(props) {
   const [docvalue, setdocValue] = useState("");
   const [expandedPanel, setExpandedPanel] = useState(null); // null, 'replicad', 'abundance', 'common', or 'console'
   const [consoleErrors, setConsoleErrors] = useState([]);
+  const [interpreterVersion, setInterpreterVersion] = useState(0);
+  // Refs to the Monaco editor + monaco namespace, set once the editor mounts.
+  // Used at save time to transpile TypeScript -> JavaScript via Monaco's
+  // already-bundled TS language worker (zero extra bundle cost).
+  const editorRef = useRef(null);
+  const monacoRef = useRef(null);
 
   useEffect(() => {
     if (props.activeAtom != null) {
       setdocValue(props.activeAtom.code);
+      setInterpreterVersion(props.activeAtom.interpreterVersion ?? 0);
     }
   }, [props.activeAtom]);
 
@@ -84,6 +91,51 @@ export default function CodeWindow(props) {
   function closeEditor() {
     const codeWindow = document.getElementById("code-window");
     codeWindow.classList.add("code-off");
+  }
+
+  /**
+   * Switches the interpreter version and persists it on the atom immediately.
+   * @param {number} version - 0 = JavaScript, 1 = TypeScript
+   */
+  function handleVersionChange(version) {
+    setInterpreterVersion(version);
+    if (props.activeAtom) {
+      props.activeAtom.updateInterpreterVersion(version);
+    }
+  }
+
+  /**
+   * Save handler invoked by the hidden save button (which in turn is clicked
+   * via atom.saveCode() or Ctrl/Cmd+S).
+   *
+   * In TypeScript mode this transpiles the current editor content to JS via
+   * Monaco's TS worker and stores the result on the atom as `compiledCode`
+   * BEFORE calling updateCode(). In JavaScript mode it clears any stale
+   * compiledCode and saves as usual.
+   */
+  async function handleSave() {
+    if (!props.activeAtom) return;
+    const atom = props.activeAtom;
+    if (interpreterVersion >= 1 && editorRef.current && monacoRef.current) {
+      try {
+        const monaco = monacoRef.current;
+        const model = editorRef.current.getModel();
+        const getWorker =
+          await monaco.languages.typescript.getTypeScriptWorker();
+        const worker = await getWorker(model.uri);
+        const output = await worker.getEmitOutput(model.uri.toString());
+        const jsFile = output.outputFiles.find((f) =>
+          f.name.endsWith(".js"),
+        );
+        atom.compiledCode = jsFile ? jsFile.text : "";
+      } catch (err) {
+        console.error("TypeScript transpilation failed:", err);
+        atom.compiledCode = "";
+      }
+    } else {
+      atom.compiledCode = "";
+    }
+    atom.updateCode(docvalue);
   }
 
   /**
@@ -165,12 +217,34 @@ export default function CodeWindow(props) {
     <div id="code-window" className="code-off login-page code-window-div">
       <div className="code-window-container">
         <div className="code-editor-section">
+          <div className="code-editor-toolbar">
+            <span className="code-editor-toolbar-label">Interpreter:</span>
+            <button
+              className={`code-version-btn${interpreterVersion === 0 ? " active" : ""}`}
+              onClick={() => handleVersionChange(0)}
+              title="JavaScript mode – relaxed, no type errors"
+            >
+              JavaScript
+            </button>
+            <button
+              className={`code-version-btn${interpreterVersion === 1 ? " active" : ""}`}
+              onClick={() => handleVersionChange(1)}
+              title="TypeScript mode – strict type checking with error highlighting"
+            >
+              TypeScript
+            </button>
+          </div>
           <ReactCodeEditorWithApiAutocomplete
             value={docvalue}
             onChange={setdocValue}
             apiJson={apiJson}
             abundanceJson={abundanceJson}
             activeAtom={props.activeAtom}
+            interpreterVersion={interpreterVersion}
+            onEditorReady={(editor, monaco) => {
+              editorRef.current = editor;
+              monacoRef.current = monaco;
+            }}
           />
         </div>
         <div className="info-panels-section">
@@ -366,7 +440,7 @@ Tips:
       </div>
       <button
         type="button"
-        onClick={() => props.activeAtom.updateCode(docvalue)}
+        onClick={handleSave}
         style={{ display: "none" }}
         id="save-code-button"
       >

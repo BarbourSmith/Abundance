@@ -83,6 +83,23 @@ return assembly;
     this.setValues([]);
     this.code = values.code || this.code;
 
+    /**
+     * The interpreter version for this code atom.
+     * 0 = JavaScript (default, backwards-compatible)
+     * 1 = TypeScript (strict type checking)
+     * Atoms saved before this field existed will have no value, which defaults to 0.
+     * @type {number}
+     */
+    this.interpreterVersion = values.interpreterVersion ?? 0;
+
+    /**
+     * For TypeScript atoms, the transpiled JavaScript output produced by the
+     * Monaco TS worker at save time. Used by the worker to execute the code.
+     * Not tracked in undo history — regenerated on every save.
+     * @type {string}
+     */
+    this.compiledCode = values.compiledCode || "";
+
     this.parseInputs();
     this._subscribeToInputs();
   }
@@ -202,6 +219,8 @@ return assembly;
       this.code,
       argumentsArray,
       this.getContext(),
+      this.interpreterVersion ?? 0,
+      this.compiledCode || "",
     );
   }
 
@@ -209,6 +228,10 @@ return assembly;
    * This function reads the string of inputs the user specifies and adds them to the atom.
    */
   parseInputs() {
+    if ((this.interpreterVersion ?? 0) >= 1) {
+      this.parseTsRunSignature();
+      return;
+    }
     // Match Inputs = [{inputName: ..., type: ..., defaultValue: ...}, ...]
     // Try to extract a const Inputs = [...] block
     // Only parse the first Inputs declaration (const Inputs = [...] or Inputs = [...])
@@ -366,6 +389,159 @@ return assembly;
   }
 
   /**
+   * Parse the parameters of the TypeScript `run(...)` function and register
+   * them as atom inputs. Walks the signature with a bracket-depth counter so
+   * that generics, union types, array types, and nested object/default values
+   * are handled correctly.
+   *
+   * Type mapping: `number` -> number, `string` -> string, `boolean` -> boolean,
+   * anything else -> "geometry" (includes RealizedAssembly, any, etc.).
+   */
+  parseTsRunSignature() {
+    const src = this.code;
+    const startIdx = src.search(/\bfunction\s+run\s*\(/);
+    if (startIdx === -1) {
+      // No run() found — remove all existing inputs and bail
+      [...this.inputs].forEach((input) => {
+        if (input.type === "input") this.removeIO(input.type, input.name, this);
+      });
+      return;
+    }
+    const openParen = src.indexOf("(", startIdx);
+    // Walk forward tracking bracket depth to find the matching ")"
+    let depth = 0;
+    let closeParen = -1;
+    for (let i = openParen; i < src.length; i++) {
+      const c = src[i];
+      if (c === "(" || c === "[" || c === "{" || c === "<") depth++;
+      else if (c === ")" || c === "]" || c === "}" || c === ">") {
+        depth--;
+        if (depth === 0 && c === ")") {
+          closeParen = i;
+          break;
+        }
+      }
+    }
+    if (closeParen === -1) return;
+
+    const sig = src.substring(openParen + 1, closeParen);
+
+    // Split on top-level commas (respecting bracket depth)
+    const params = [];
+    {
+      let d = 0;
+      let start = 0;
+      for (let i = 0; i < sig.length; i++) {
+        const c = sig[i];
+        if (c === "(" || c === "[" || c === "{" || c === "<") d++;
+        else if (c === ")" || c === "]" || c === "}" || c === ">") d--;
+        else if (c === "," && d === 0) {
+          const piece = sig.substring(start, i).trim();
+          if (piece) params.push(piece);
+          start = i + 1;
+        }
+      }
+      const last = sig.substring(start).trim();
+      if (last) params.push(last);
+    }
+
+    const typeMap = (tsType) => {
+      const first = (tsType || "").trim().split(/[\s|&]/)[0];
+      if (first === "number") return "number";
+      if (first === "string") return "string";
+      if (first === "boolean") return "boolean";
+      return "geometry";
+    };
+
+    const parseDefault = (raw, valueType) => {
+      if (raw === undefined) return valueType === "geometry" ? null : undefined;
+      const trimmed = raw.trim();
+      if (valueType === "number") {
+        const n = Number(trimmed);
+        return Number.isFinite(n) ? n : 0;
+      }
+      if (valueType === "boolean") return trimmed === "true";
+      if (valueType === "string") {
+        // Strip surrounding quotes if present
+        if (
+          (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+          (trimmed.startsWith("'") && trimmed.endsWith("'"))
+        ) {
+          return trimmed.slice(1, -1);
+        }
+        return trimmed;
+      }
+      return null;
+    };
+
+    const variableNames = [];
+    for (const p of params) {
+      // Separate default: split on first top-level '='
+      let eqIdx = -1;
+      {
+        let d = 0;
+        for (let i = 0; i < p.length; i++) {
+          const c = p[i];
+          if (c === "(" || c === "[" || c === "{" || c === "<") d++;
+          else if (c === ")" || c === "]" || c === "}" || c === ">") d--;
+          else if (
+            c === "=" &&
+            d === 0 &&
+            p[i + 1] !== "=" &&
+            p[i - 1] !== "="
+          ) {
+            eqIdx = i;
+            break;
+          }
+        }
+      }
+      const beforeEq = eqIdx === -1 ? p : p.substring(0, eqIdx);
+      const defaultRaw = eqIdx === -1 ? undefined : p.substring(eqIdx + 1);
+
+      // Separate name : type on the FIRST top-level ':'
+      let colonIdx = -1;
+      {
+        let d = 0;
+        for (let i = 0; i < beforeEq.length; i++) {
+          const c = beforeEq[i];
+          if (c === "(" || c === "[" || c === "{" || c === "<") d++;
+          else if (c === ")" || c === "]" || c === "}" || c === ">") d--;
+          else if (c === ":" && d === 0) {
+            colonIdx = i;
+            break;
+          }
+        }
+      }
+      const nameRaw =
+        colonIdx === -1 ? beforeEq : beforeEq.substring(0, colonIdx);
+      const typeRaw = colonIdx === -1 ? "" : beforeEq.substring(colonIdx + 1);
+
+      // Strip `?` (optional marker) and whitespace from name
+      const name = nameRaw.trim().replace(/\?$/, "");
+      if (!name || !/^[a-zA-Z_$][\w$]*$/.test(name)) continue;
+
+      const valueType = typeMap(typeRaw);
+      const defaultValue = parseDefault(defaultRaw, valueType);
+
+      variableNames.push(name);
+      const existingInput = this.inputs.find((input) => input.name === name);
+      if (!existingInput) {
+        this._addIOWithoutSubscribing(name, valueType, defaultValue, "input");
+      } else {
+        existingInput.valueType = valueType;
+        existingInput.defaultValue = defaultValue;
+      }
+    }
+
+    // Remove inputs no longer declared in the run() signature
+    [...this.inputs].forEach((input) => {
+      if (input.type === "input" && !variableNames.includes(input.name)) {
+        this.removeIO(input.type, input.name, this);
+      }
+    });
+  }
+
+  /**
    * Edit the atom's code when it is double clicked
    * @param {number} x - The X coordinate of the click
    * @param {number} y - The Y coordinate of the click
@@ -389,6 +565,17 @@ return assembly;
     }
 
     return clickProcessed;
+  }
+
+  /**
+   * Updates the interpreter version for this code atom and re-serializes.
+   * @param {number} version - 0 for JavaScript, 1 for TypeScript
+   */
+  updateInterpreterVersion(version) {
+    this.interpreterVersion = version;
+    // Persist immediately so the next save/serialize picks it up.
+    // No recompute needed — only the editor mode changes.
+    this.sendToRender();
   }
 
   /**
@@ -422,9 +609,17 @@ return assembly;
     //Save the readme text to the serial stream
     var valuesObj = super.serialize(values);
 
-    valuesObj.codeVersion = 1;
+    valuesObj.interpreterVersion = this.interpreterVersion ?? 0;
     // Use safe serialization to prevent large code from bloating the save file
     Atom.safeSerializeValue(valuesObj, "code", this.code, this.name || "Code");
+    if (this.compiledCode) {
+      Atom.safeSerializeValue(
+        valuesObj,
+        "compiledCode",
+        this.compiledCode,
+        this.name || "Code",
+      );
+    }
 
     return valuesObj;
   }

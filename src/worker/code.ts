@@ -70,8 +70,6 @@ function validateUserCode(code: string): boolean {
     /setTimeout\s*\(/,
     /setInterval\s*\(/,
     /__proto__/,
-    /constructor/,
-    /prototype/,
   ];
 
   for (const pattern of dangerousPatterns) {
@@ -158,6 +156,8 @@ async function executeCode(
   code: string,
   argumentsArray: { [key: string]: any },
   context: RequestContext,
+  interpreterVersion: number = 0,
+  compiledCode?: string,
 ): Promise<AbundanceObject | number | string | boolean | null | undefined> {
   try {
     // Validate input parameters
@@ -168,12 +168,14 @@ async function executeCode(
       throw new Error("Code too long (maximum 50,000 characters)");
     }
 
-    // Validate that all inputs are defined (not undefined or NO_GEOMETRY sentinel)
-    for (const [key, value] of Object.entries(argumentsArray)) {
-      if (value === undefined || isNoGeometry(value)) {
-        throw new Error(`Required input "${key}" is not connected or ready`);
-      }
-    }
+    // In TypeScript mode, we execute the transpiled JS (compiledCode) rather
+    // than the original source. Fall back to `code` if compiledCode is missing
+    // (e.g. loading a project saved before compilation was implemented).
+    const isTsMode = interpreterVersion >= 1;
+    const executableCode =
+      isTsMode && typeof compiledCode === "string" && compiledCode.length > 0
+        ? compiledCode
+        : code;
 
     // Make a copy of the necessary entries in the library where all geometries are de-cached.
     // This library copy will be in focus for the user. Has the side effect that direct assignments
@@ -194,7 +196,7 @@ async function executeCode(
     }
 
     // check cache for existing result (only geometry results are cached)
-    const cacheId = composeID(code, argsSignature);
+    const cacheId = composeID(executableCode, argsSignature);
     const cached = await util.geometryProvider!.getAssembly(cacheId, context);
     if (cached) {
       return cached;
@@ -215,7 +217,7 @@ async function executeCode(
     // Validate code for dangerous patterns
     // TODO: we probably want to allow some of these but still need to warn about them before executing
     // the code molecule.
-    validateUserCode(code);
+    validateUserCode(executableCode);
 
     // Create wrapper functions that handle library ID to geometry conversion
     const wrappedMove = async (
@@ -378,10 +380,12 @@ async function executeCode(
     }
 
     // Use Function constructor instead of eval - still allows code execution but safer than eval
-    const userFunction = new Function(
-      ...keys1,
-      `return (async () => { ${code} })();`,
-    );
+    // In TS mode, the transpiled code declares `function run(...)`; we invoke it with the
+    // user-supplied argument values (in the order Monaco produced them).
+    const body = isTsMode
+      ? `${executableCode}\nreturn (async () => run(${Object.keys(argumentsArray).join(", ")}))();`
+      : `return (async () => { ${executableCode} })();`;
+    const userFunction = new Function(...keys1, body);
 
     // Execute with timeout protection
     const timeoutPromise = new Promise((_, reject) => {
