@@ -6,6 +6,7 @@ import { init } from "../src/worker/util.ts";
 
 describe("assembly bounding-box metadata", () => {
   const context = { project: "test" };
+  const BOUNDS_PRECISION = 4;
 
   beforeAll(async () => {
     await init();
@@ -43,11 +44,27 @@ describe("assembly bounding-box metadata", () => {
     expect(shifted.boundingBox).toBeDefined();
     expect(shifted.boundingBox.min[0]).toBeCloseTo(
       grouped.boundingBox.min[0] + 15,
-      4,
+      BOUNDS_PRECISION,
     );
     expect(shifted.boundingBox.max[0]).toBeCloseTo(
       grouped.boundingBox.max[0] + 15,
-      4,
+      BOUNDS_PRECISION,
+    );
+    expect(shifted.boundingBox.min[1]).toBeCloseTo(
+      grouped.boundingBox.min[1],
+      BOUNDS_PRECISION,
+    );
+    expect(shifted.boundingBox.max[1]).toBeCloseTo(
+      grouped.boundingBox.max[1],
+      BOUNDS_PRECISION,
+    );
+    expect(shifted.boundingBox.min[2]).toBeCloseTo(
+      grouped.boundingBox.min[2],
+      BOUNDS_PRECISION,
+    );
+    expect(shifted.boundingBox.max[2]).toBeCloseTo(
+      grouped.boundingBox.max[2],
+      BOUNDS_PRECISION,
     );
   });
 });

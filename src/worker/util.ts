@@ -34,6 +34,11 @@ interface AbundanceBounds {
   max: [number, number, number];
 }
 
+const EMPTY_BOUNDS: AbundanceBounds = {
+  min: [Infinity, Infinity, Infinity],
+  max: [-Infinity, -Infinity, -Infinity],
+};
+
 type AbundanceObject = AbundanceLeaf | AbundanceBranch;
 
 interface AbundanceBranch {
@@ -74,10 +79,6 @@ async function getBounds(
   context: RequestContext,
 ): Promise<AbundanceBounds> {
   try {
-    if (isAssembly(geometry) && geometry.boundingBox) {
-      return geometry.boundingBox;
-    }
-
     let minX = Infinity,
       minY = Infinity,
       minZ = Infinity;
@@ -169,18 +170,18 @@ async function withAssemblyBoundingBoxes(
     return {
       ...geometry,
       geometry: [],
-      boundingBox: {
-        min: [0, 0, 0],
-        max: [0, 0, 0],
-      },
+      boundingBox: EMPTY_BOUNDS,
     };
   }
+  const childBounds = childWithBounds
+    .map((child) => child.boundingBox)
+    .filter((bounds): bounds is AbundanceBounds => bounds !== undefined);
+
   return {
     ...geometry,
     geometry: childWithBounds,
-    boundingBox: mergeBounds(
-      childWithBounds.map((child) => child.boundingBox as AbundanceBounds),
-    ),
+    boundingBox:
+      childBounds.length > 0 ? mergeBounds(childBounds) : EMPTY_BOUNDS,
   };
 }
 

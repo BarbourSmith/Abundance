@@ -466,12 +466,13 @@ async function recursiveCut(
   }
 
   if (util.isAssembly(cuttingParts)) {
-    const partBounds = await util.getBounds(partToCut, context);
-    const cutterBounds = await util.getBounds(cuttingParts, context);
+    const partBounds = partToCut.boundingBox || (await util.getBounds(partToCut, context));
+    const cutterBounds =
+      cuttingParts.boundingBox || (await util.getBounds(cuttingParts, context));
     if (!util.boundsOverlap(partBounds, cutterBounds)) {
       return {
         ...partToCut,
-        boundingBox: partBounds,
+        boundingBox: partToCut.boundingBox || partBounds,
       };
     }
 
@@ -495,7 +496,7 @@ async function recursiveCut(
   if (toCutGeom.boundingBox.isOut(cuttingPartGeom.boundingBox)) {
     return {
       ...partToCut,
-      boundingBox: await util.getBounds(partToCut, context),
+      boundingBox: partToCut.boundingBox || (await util.getBounds(partToCut, context)),
     };
   }
 
