@@ -64,9 +64,10 @@ async function difference(
     (!util.is3D(target) && !util.is3D(cutter))
   ) {
     // Process each leaf of target independently
-    return util.actOnLeafs(target, async (leaf: AbundanceLeaf) => {
+    const result = await util.actOnLeafs(target, async (leaf: AbundanceLeaf) => {
       return await recursiveCut(leaf, cutter, context);
     });
+    return util.withAssemblyBoundingBoxes(result, context);
   } else {
     throw new Error("Both inputs must be either 3D or 2D");
   }
@@ -132,7 +133,7 @@ async function intersect(
   context: RequestContext,
 ): Promise<AbundanceObject> {
   await util.init();
-  return util.actOnLeafs(shape1, async (leaf: AbundanceLeaf) => {
+  const result = await util.actOnLeafs(shape1, async (leaf: AbundanceLeaf) => {
     const shapeToIntersectWith = await fuseAssembly(shape2, context);
     const resultGeom = await util.geometryProvider!.intersect(
       leaf.geometry,
@@ -151,6 +152,7 @@ async function intersect(
       dimension: leaf.dimension,
     };
   });
+  return util.withAssemblyBoundingBoxes(result, context);
 }
 
 /**
@@ -250,6 +252,7 @@ async function assembly(
 
     // Full assembly cache hit. No work to do, but update nonReplicadSerialized if needed.
     if (util.isAbundanceObject(batch)) {
+      const batchWithBounds = await util.withAssemblyBoundingBoxes(batch, context);
       // Gather all nonReplicadSerialized and bom from input geometries
       let nonReplicadGeoms: any[] = [];
       let bomAssembly: any[] = [];
@@ -265,9 +268,9 @@ async function assembly(
         }
       }
       // Always update to reflect current state, even if empty
-      batch.nonReplicadSerialized = nonReplicadGeoms;
-      batch.bom = bomAssembly;
-      return batch;
+      batchWithBounds.nonReplicadSerialized = nonReplicadGeoms;
+      batchWithBounds.bom = bomAssembly;
+      return batchWithBounds;
     }
 
     context = batch;
@@ -330,15 +333,18 @@ async function assembly(
       }
     }
   }
-  const result = {
-    geometry: await Promise.all(assembly),
-    plane: util.XYPlane,
-    tags: [],
-    color: util.defaultColor,
-    bom: bomAssembly,
-    dimension: all3D ? "3D" : "2D",
-    nonReplicadSerialized: nonReplicadGeoms,
-  };
+  const result = await util.withAssemblyBoundingBoxes(
+    {
+      geometry: await Promise.all(assembly),
+      plane: util.XYPlane,
+      tags: [],
+      color: util.defaultColor,
+      bom: bomAssembly,
+      dimension: all3D ? "3D" : "2D",
+      nonReplicadSerialized: nonReplicadGeoms,
+    },
+    context,
+  );
   if (startedBatch) {
     await util.geometryProvider!.endBatchOperation(context, result);
   }
@@ -413,7 +419,7 @@ async function cutAssembly(
       plane: partToCut.plane,
       color: partToCut.color,
     };
-    return newAssembly;
+    return util.withAssemblyBoundingBoxes(newAssembly, context);
   } else {
     // if part to cut is wire geometry, return it unchanged (wires should pass through assemblies)
     if (util.isWireGeometry(partToCut)) {
@@ -428,7 +434,8 @@ async function cutAssembly(
     }
     // return new cut part, expand compound solid if it was cut into disconnected
     // parts
-    return splitCompSolid(partCutCopy, context);
+    const result = await splitCompSolid(partCutCopy, context);
+    return util.withAssemblyBoundingBoxes(result, context);
   }
 }
 
@@ -458,70 +465,89 @@ async function recursiveCut(
     return partToCut;
   }
 
-  let resultGeomId: string = partToCut.geometry;
-  for (const cuttingPart of util.flattenAssembly(cuttingParts)) {
-    let toCutGeom = await util.geometryProvider!.get(resultGeomId, context);
-    if (partToCut.dimension != cuttingPart.dimension) {
-      continue;
-      // skip this leaf. can't cut 2D with 3D or vice versa
+  if (util.isAssembly(cuttingParts)) {
+    const partBounds = await util.getBounds(partToCut, context);
+    const cutterBounds = await util.getBounds(cuttingParts, context);
+    if (!util.boundsOverlap(partBounds, cutterBounds)) {
+      return {
+        ...partToCut,
+        boundingBox: partBounds,
+      };
     }
-    const cuttingPartGeom = await util.geometryProvider!.get(
-      cuttingPart.geometry,
-      context,
-    );
-    // @ts-ignore
-    if (toCutGeom.boundingBox.isOut(cuttingPartGeom.boundingBox)) {
-      continue;
-      // skip this leaf. bounding boxes don't intersect
+
+    let cutPart = partToCut;
+    for (const childPart of cuttingParts.geometry) {
+      cutPart = await recursiveCut(cutPart, childPart, context);
     }
-    // --- Coplanarity check for 2D shapes ---
-    if (
-      partToCut.dimension === "2D" &&
-      cuttingPart.dimension === "2D" &&
-      partToCut.plane &&
-      cuttingPart.plane
-    ) {
-      // Compare normals (should be parallel) and origins (should be on the same plane)
-      const p1 = partToCut.plane;
-      const p2 = cuttingPart.plane;
-      const normalsAreParallel =
-        Math.abs(p1.normal[0] * p2.normal[1] - p1.normal[1] * p2.normal[0]) <
-          1e-6 &&
-        Math.abs(p1.normal[0] * p2.normal[2] - p1.normal[2] * p2.normal[0]) <
-          1e-6 &&
-        Math.abs(p1.normal[1] * p2.normal[2] - p1.normal[2] * p2.normal[1]) <
-          1e-6;
-
-      // Check if origins are on the same plane (dot product of normal and vector between origins is zero)
-      const originDelta = [
-        p2.origin[0] - p1.origin[0],
-        p2.origin[1] - p1.origin[1],
-        p2.origin[2] - p1.origin[2],
-      ];
-      const originOnPlane =
-        Math.abs(
-          p1.normal[0] * originDelta[0] +
-            p1.normal[1] * originDelta[1] +
-            p1.normal[2] * originDelta[2],
-        ) < 1e-6;
-
-      if (!normalsAreParallel || !originOnPlane) {
-        continue; // skip: not coplanar
-      }
-    }
-    // --- end coplanarity check ---
-
-    resultGeomId = await util.geometryProvider!.cut(
-      resultGeomId,
-      cuttingPart.geometry,
-      context,
-    );
+    return cutPart;
   }
+
+  if (partToCut.dimension != cuttingParts.dimension) {
+    return partToCut;
+  }
+
+  const toCutGeom = await util.geometryProvider!.get(partToCut.geometry, context);
+  const cuttingPartGeom = await util.geometryProvider!.get(
+    cuttingParts.geometry,
+    context,
+  );
+  // @ts-ignore
+  if (toCutGeom.boundingBox.isOut(cuttingPartGeom.boundingBox)) {
+    return {
+      ...partToCut,
+      boundingBox: await util.getBounds(partToCut, context),
+    };
+  }
+
+  // --- Coplanarity check for 2D shapes ---
+  if (
+    partToCut.dimension === "2D" &&
+    cuttingParts.dimension === "2D" &&
+    partToCut.plane &&
+    cuttingParts.plane
+  ) {
+    // Compare normals (should be parallel) and origins (should be on the same plane)
+    const p1 = partToCut.plane;
+    const p2 = cuttingParts.plane;
+    const normalsAreParallel =
+      Math.abs(p1.normal[0] * p2.normal[1] - p1.normal[1] * p2.normal[0]) <
+        1e-6 &&
+      Math.abs(p1.normal[0] * p2.normal[2] - p1.normal[2] * p2.normal[0]) <
+        1e-6 &&
+      Math.abs(p1.normal[1] * p2.normal[2] - p1.normal[2] * p2.normal[1]) <
+        1e-6;
+
+    // Check if origins are on the same plane (dot product of normal and vector between origins is zero)
+    const originDelta = [
+      p2.origin[0] - p1.origin[0],
+      p2.origin[1] - p1.origin[1],
+      p2.origin[2] - p1.origin[2],
+    ];
+    const originOnPlane =
+      Math.abs(
+        p1.normal[0] * originDelta[0] +
+          p1.normal[1] * originDelta[1] +
+          p1.normal[2] * originDelta[2],
+      ) < 1e-6;
+
+    if (!normalsAreParallel || !originOnPlane) {
+      return partToCut; // skip: not coplanar
+    }
+  }
+  // --- end coplanarity check ---
+
   const result = {
     ...partToCut,
-    geometry: resultGeomId,
+    geometry: await util.geometryProvider!.cut(
+      partToCut.geometry,
+      cuttingParts.geometry,
+      context,
+    ),
   };
-  return result;
+  return {
+    ...result,
+    boundingBox: await util.getBounds(result, context),
+  };
 }
 
 async function splitCompSolid(

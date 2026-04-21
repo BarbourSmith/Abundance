@@ -29,6 +29,11 @@ interface SimplePlane {
   normal: [number, number, number];
 }
 
+interface AbundanceBounds {
+  min: [number, number, number];
+  max: [number, number, number];
+}
+
 type AbundanceObject = AbundanceLeaf | AbundanceBranch;
 
 interface AbundanceBranch {
@@ -38,6 +43,7 @@ interface AbundanceBranch {
   tags: string[];
   bom: string[];
   nonReplicadSerialized?: any;
+  boundingBox?: AbundanceBounds;
 }
 
 interface AbundanceLeaf {
@@ -48,6 +54,7 @@ interface AbundanceLeaf {
   tags: string[];
   bom: string[];
   nonReplicadSerialized?: any;
+  boundingBox?: AbundanceBounds;
 }
 
 function is3D(part: AbundanceObject): boolean {
@@ -65,8 +72,12 @@ function is3D(part: AbundanceObject): boolean {
 async function getBounds(
   geometry: AbundanceObject,
   context: RequestContext,
-): Promise<{ min: number[]; max: number[] }> {
+): Promise<AbundanceBounds> {
   try {
+    if (isAssembly(geometry) && geometry.boundingBox) {
+      return geometry.boundingBox;
+    }
+
     let minX = Infinity,
       minY = Infinity,
       minZ = Infinity;
@@ -104,6 +115,73 @@ async function getBounds(
     console.error("GetBounds error:", error);
     throw new Error(`GetBounds failed: ${error.message}`);
   }
+}
+
+function boundsOverlap(a: AbundanceBounds, b: AbundanceBounds): boolean {
+  return !(
+    a.max[0] < b.min[0] ||
+    a.min[0] > b.max[0] ||
+    a.max[1] < b.min[1] ||
+    a.min[1] > b.max[1] ||
+    a.max[2] < b.min[2] ||
+    a.min[2] > b.max[2]
+  );
+}
+
+function mergeBounds(boundsList: AbundanceBounds[]): AbundanceBounds {
+  let minX = Infinity;
+  let minY = Infinity;
+  let minZ = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  let maxZ = -Infinity;
+
+  boundsList.forEach((bounds) => {
+    minX = Math.min(minX, bounds.min[0]);
+    minY = Math.min(minY, bounds.min[1]);
+    minZ = Math.min(minZ, bounds.min[2]);
+    maxX = Math.max(maxX, bounds.max[0]);
+    maxY = Math.max(maxY, bounds.max[1]);
+    maxZ = Math.max(maxZ, bounds.max[2]);
+  });
+
+  return {
+    min: [minX, minY, minZ],
+    max: [maxX, maxY, maxZ],
+  };
+}
+
+async function withAssemblyBoundingBoxes(
+  geometry: AbundanceObject,
+  context: RequestContext,
+): Promise<AbundanceObject> {
+  if (isLeaf(geometry)) {
+    return {
+      ...geometry,
+      boundingBox: await getBounds(geometry, context),
+    };
+  }
+
+  const childWithBounds = await Promise.all(
+    geometry.geometry.map((child) => withAssemblyBoundingBoxes(child, context)),
+  );
+  if (childWithBounds.length === 0) {
+    return {
+      ...geometry,
+      geometry: [],
+      boundingBox: {
+        min: [0, 0, 0],
+        max: [0, 0, 0],
+      },
+    };
+  }
+  return {
+    ...geometry,
+    geometry: childWithBounds,
+    boundingBox: mergeBounds(
+      childWithBounds.map((child) => child.boundingBox as AbundanceBounds),
+    ),
+  };
 }
 
 function isAbundanceObject(obj: any): obj is AbundanceObject {
@@ -309,12 +387,14 @@ function hashString(str: string): string {
 }
 
 export {
+  AbundanceBounds,
   AbundanceLeaf,
   AbundanceObject,
   actOnLeafs,
   actOnLeafsSync,
   asReplicadPlane,
   asSimplePlane,
+  boundsOverlap,
   defaultColor,
   flattenAssembly,
   generateUniqueID,
@@ -331,5 +411,6 @@ export {
   replicad,
   SimplePlane,
   NonReplicadGeom,
+  withAssemblyBoundingBoxes,
   XYPlane,
 };

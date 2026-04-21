@@ -111,13 +111,16 @@ async function textGeom(
 
   // Handle empty string - return empty assembly
   if (!text || text.length === 0) {
-    return {
-      geometry: [],
-      tags: [],
-      plane: util.XYPlane,
-      color: util.defaultColor,
-      bom: [],
-    } as AbundanceBranch;
+    return (await util.withAssemblyBoundingBoxes(
+      {
+        geometry: [],
+        tags: [],
+        plane: util.XYPlane,
+        color: util.defaultColor,
+        bom: [],
+      } as AbundanceBranch,
+      context,
+    )) as AbundanceBranch;
   }
 
   const textOptions = {
@@ -196,13 +199,16 @@ async function textGeom(
   }
 
   // Return as assembly (branch) with each letter as a separate leaf
-  return {
-    geometry: letterGeometries,
-    tags: [],
-    plane: util.XYPlane,
-    color: util.defaultColor,
-    bom: [],
-  } as AbundanceBranch;
+  return (await util.withAssemblyBoundingBoxes(
+    {
+      geometry: letterGeometries,
+      tags: [],
+      plane: util.XYPlane,
+      color: util.defaultColor,
+      bom: [],
+    } as AbundanceBranch,
+    context,
+  )) as AbundanceBranch;
 }
 
 export { circle, rectangle, regularPolygon, textGeom as text };
