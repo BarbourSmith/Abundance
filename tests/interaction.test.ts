@@ -59,6 +59,7 @@ describe("interaction.ts", () => {
 
       expect(result).toBeDefined();
       expect(result.geometry).toHaveLength(1);
+      expect(getBoundsSpy).toHaveBeenCalled();
       getBoundsSpy.mockRestore();
     });
   });

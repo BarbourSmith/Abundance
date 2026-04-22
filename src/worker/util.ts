@@ -167,7 +167,9 @@ async function withAssemblyBoundingBoxes(
     let bounds: AbundanceBounds | undefined = undefined;
     try {
       bounds = await getBounds(geometry, context);
-    } catch (_) {}
+    } catch (_) {
+      // Bounds metadata is an optimization; keep geometry operation non-fatal.
+    }
     return {
       ...geometry,
       ...(bounds ? { boundingBox: bounds } : {}),

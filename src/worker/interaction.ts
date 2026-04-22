@@ -478,15 +478,16 @@ async function recursiveCut(
       try {
         partBounds = partBounds || (await util.getBounds(partToCut, context));
         cutterBounds = cutterBounds || (await util.getBounds(cuttingParts, context));
-      } catch (_) {}
+      } catch (_) {
+        // Bounds checks are an optimization only; continue with full recursion.
+      }
     }
 
     if (partBounds && cutterBounds && !util.boundsOverlap(partBounds, cutterBounds)) {
+      const retainedBounds = partToCut.boundingBox || partBounds;
       return {
         ...partToCut,
-        ...(partToCut.boundingBox || partBounds
-          ? { boundingBox: partToCut.boundingBox || partBounds }
-          : {}),
+        ...(retainedBounds ? { boundingBox: retainedBounds } : {}),
       };
     }
 
@@ -562,7 +563,9 @@ async function recursiveCut(
   let resultBounds: util.AbundanceBounds | undefined = undefined;
   try {
     resultBounds = await util.getBounds(result, context);
-  } catch (_) {}
+  } catch (_) {
+    // Bounds metadata is best-effort and should not fail difference().
+  }
   return {
     ...result,
     ...(resultBounds ? { boundingBox: resultBounds } : {}),
