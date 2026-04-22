@@ -243,20 +243,26 @@ async function assembly(
     throw new Error("inputIDs must be a non-empty array");
   }
   await util.init();
+  const geometriesWithBounds = await Promise.all(
+    geometries.map((geometry) => util.withAssemblyBoundingBoxes(geometry, context)),
+  );
 
   let startedBatch = false;
   if (!context.operationId) {
-    const batchId = "assembly-" + util.hashString(JSON.stringify(geometries));
+    const batchId =
+      "assembly-" + util.hashString(JSON.stringify(geometriesWithBounds));
     const batch: RequestContext | AbundanceObject =
       await util.geometryProvider!.startBatchOperation(context, batchId);
 
     // Full assembly cache hit. No work to do, but update nonReplicadSerialized if needed.
     if (util.isAbundanceObject(batch)) {
-      const batchWithBounds = await util.withAssemblyBoundingBoxes(batch, context);
+      const batchWithBounds = batch.boundingBox
+        ? batch
+        : await util.withAssemblyBoundingBoxes(batch, context);
       // Gather all nonReplicadSerialized and bom from input geometries
       let nonReplicadGeoms: any[] = [];
       let bomAssembly: any[] = [];
-      for (const geometry of geometries) {
+      for (const geometry of geometriesWithBounds) {
         if (
           Array.isArray(geometry.nonReplicadSerialized) &&
           geometry.nonReplicadSerialized.length > 0
@@ -283,22 +289,22 @@ async function assembly(
 
   let all3D = false;
   let all2D = false;
-  if (geometries.length > 1) {
-    all3D = geometries.every((geom) => util.is3D(geom));
-    all2D = geometries.every((geom) => !util.is3D(geom));
+  if (geometriesWithBounds.length > 1) {
+    all3D = geometriesWithBounds.every((geom) => util.is3D(geom));
+    all2D = geometriesWithBounds.every((geom) => !util.is3D(geom));
 
     if (all3D || all2D) {
       // Always clear arrays before populating
       bomAssembly.length = 0;
       nonReplicadGeoms.length = 0;
-      for (let i = 0; i < geometries.length; i++) {
-        const geometry = geometries[i];
+      for (let i = 0; i < geometriesWithBounds.length; i++) {
+        const geometry = geometriesWithBounds[i];
         assembly.push(
-          await cutAssembly(geometry, geometries.slice(i + 1), context),
+          await cutAssembly(geometry, geometriesWithBounds.slice(i + 1), context),
         );
       }
       // Gather all nonReplicadSerialized and bom from input geometries
-      for (const geometry of geometries) {
+      for (const geometry of geometriesWithBounds) {
         if (
           Array.isArray(geometry.nonReplicadSerialized) &&
           geometry.nonReplicadSerialized.length > 0
@@ -318,10 +324,10 @@ async function assembly(
     // Always clear arrays before populating
     bomAssembly.length = 0;
     nonReplicadGeoms.length = 0;
-    const geometry = geometries[0];
+    const geometry = geometriesWithBounds[0];
     assembly.push(geometry);
     // Gather all nonReplicadSerialized and bom from input geometries
-    for (const geometry of geometries) {
+    for (const geometry of geometriesWithBounds) {
       if (
         Array.isArray(geometry.nonReplicadSerialized) &&
         geometry.nonReplicadSerialized.length > 0

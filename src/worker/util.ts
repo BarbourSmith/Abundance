@@ -79,6 +79,10 @@ async function getBounds(
   context: RequestContext,
 ): Promise<AbundanceBounds> {
   try {
+    if (isAssembly(geometry) && geometry.boundingBox) {
+      return geometry.boundingBox;
+    }
+
     let minX = Infinity,
       minY = Infinity,
       minZ = Infinity;
@@ -112,9 +116,9 @@ async function getBounds(
       min: [minX, minY, minZ],
       max: [maxX, maxY, maxZ],
     };
-  } catch (error: any) {
-    console.error("GetBounds error:", error);
-    throw new Error(`GetBounds failed: ${error.message}`);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`GetBounds failed: ${message}`);
   }
 }
 
