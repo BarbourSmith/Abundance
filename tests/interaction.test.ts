@@ -10,7 +10,8 @@ import {
 import { circle, rectangle } from "../src/worker/shapes";
 import { extrude, move } from "../src/worker/actions";
 import { init, is3D } from "../src/worker/util";
-import { describe, it, expect, beforeEach } from "vitest";
+import * as util from "../src/worker/util";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { RequestContext } from "../src/worker/geometryProvider";
 
 describe("interaction.ts", () => {
@@ -43,6 +44,22 @@ describe("interaction.ts", () => {
 
       expect(result).toBeDefined();
       expect(result.geometry).toHaveLength(1);
+    });
+
+    it("should still return a result when bounds metadata lookup fails", async () => {
+      const rect1 = await rectangle(10, 10, context);
+      const rect2 = await rectangle(6, 6, context);
+      const box1 = await extrude(rect1, 5, context);
+      const box2 = await extrude(rect2, 5, context);
+      const getBoundsSpy = vi
+        .spyOn(util, "getBounds")
+        .mockRejectedValueOnce(new Error("bounds unavailable"));
+
+      const result = await difference(box1, box2, context);
+
+      expect(result).toBeDefined();
+      expect(result.geometry).toHaveLength(1);
+      getBoundsSpy.mockRestore();
     });
   });
   /*

@@ -472,13 +472,21 @@ async function recursiveCut(
   }
 
   if (util.isAssembly(cuttingParts)) {
-    const partBounds = partToCut.boundingBox || (await util.getBounds(partToCut, context));
-    const cutterBounds =
-      cuttingParts.boundingBox || (await util.getBounds(cuttingParts, context));
-    if (!util.boundsOverlap(partBounds, cutterBounds)) {
+    let partBounds = partToCut.boundingBox;
+    let cutterBounds = cuttingParts.boundingBox;
+    if (!partBounds || !cutterBounds) {
+      try {
+        partBounds = partBounds || (await util.getBounds(partToCut, context));
+        cutterBounds = cutterBounds || (await util.getBounds(cuttingParts, context));
+      } catch (_) {}
+    }
+
+    if (partBounds && cutterBounds && !util.boundsOverlap(partBounds, cutterBounds)) {
       return {
         ...partToCut,
-        boundingBox: partToCut.boundingBox || partBounds,
+        ...(partToCut.boundingBox || partBounds
+          ? { boundingBox: partToCut.boundingBox || partBounds }
+          : {}),
       };
     }
 
@@ -502,7 +510,7 @@ async function recursiveCut(
   if (toCutGeom.boundingBox.isOut(cuttingPartGeom.boundingBox)) {
     return {
       ...partToCut,
-      boundingBox: partToCut.boundingBox || (await util.getBounds(partToCut, context)),
+      ...(partToCut.boundingBox ? { boundingBox: partToCut.boundingBox } : {}),
     };
   }
 
@@ -551,9 +559,13 @@ async function recursiveCut(
       context,
     ),
   };
+  let resultBounds: util.AbundanceBounds | undefined = undefined;
+  try {
+    resultBounds = await util.getBounds(result, context);
+  } catch (_) {}
   return {
     ...result,
-    boundingBox: await util.getBounds(result, context),
+    ...(resultBounds ? { boundingBox: resultBounds } : {}),
   };
 }
 

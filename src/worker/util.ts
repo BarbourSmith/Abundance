@@ -79,7 +79,7 @@ async function getBounds(
   context: RequestContext,
 ): Promise<AbundanceBounds> {
   try {
-    if (isAssembly(geometry) && geometry.boundingBox) {
+    if (geometry.boundingBox) {
       return geometry.boundingBox;
     }
 
@@ -161,9 +161,16 @@ async function withAssemblyBoundingBoxes(
   context: RequestContext,
 ): Promise<AbundanceObject> {
   if (isLeaf(geometry)) {
+    if (geometry.boundingBox) {
+      return geometry;
+    }
+    let bounds: AbundanceBounds | undefined = undefined;
+    try {
+      bounds = await getBounds(geometry, context);
+    } catch (_) {}
     return {
       ...geometry,
-      boundingBox: await getBounds(geometry, context),
+      ...(bounds ? { boundingBox: bounds } : {}),
     };
   }
 
