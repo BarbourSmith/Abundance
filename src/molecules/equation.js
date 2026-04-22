@@ -287,10 +287,43 @@ export default class Equation extends Atom {
   }
 
   inputsAreReady() {
-    return (
-      this.currentEquation &&
-      this.inputs.every((input) => input.getState().status == Status.READY)
+    if (!this.currentEquation) {
+      return false;
+    }
+    if (!this.inputs.every((input) => input.getState().status == Status.READY)) {
+      return false;
+    }
+
+    // Also ensure every variable referenced in the equation resolves to a
+    // READY value. Variables may be satisfied by an ancestor molecule's input
+    // whose own propagation hasn't yet reached us during load; if so, stay
+    // WAITING until the ancestor is ready rather than computing with an
+    // undefined value.
+    const variables = this._extractVariablesFromEquation();
+    if (variables.length === 0) {
+      return true;
+    }
+    const ancestorInputs = this.getInputsFromAncestors();
+    const localInputsByName = new Map(
+      this.inputs.map((input) => [input.name, input]),
     );
+    for (const variable of variables) {
+      if (Equation.BUILTIN_CONSTS.has(variable)) {
+        continue;
+      }
+      const ancestor = ancestorInputs.find((input) => input.name === variable);
+      if (ancestor) {
+        if (ancestor.getState && ancestor.getState().status !== Status.READY) {
+          return false;
+        }
+        continue;
+      }
+      const local = localInputsByName.get(variable);
+      if (local && local.getState().status !== Status.READY) {
+        return false;
+      }
+    }
+    return true;
   }
 
   compute(_) {

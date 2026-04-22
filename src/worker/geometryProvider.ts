@@ -761,12 +761,21 @@ class GeometryProvider {
     id: string,
     context: RequestContext
   ): Promise<AbundanceObject | undefined> {
-    return await getShape(context.project, id).then((shape) => {
-      if (shape && shape.type == "AbundanceObject") {
-        return JSON.parse(shape.serialized) as AbundanceObject;
-      }
+    const shape = await getShape(context.project, id);
+    if (!shape || shape.type != "AbundanceObject") {
       return undefined;
-    });
+    }
+    const assembly = JSON.parse(shape.serialized) as AbundanceObject;
+
+    // Verify all referenced leaf geometries still exist in the cache.
+    // If any are missing (e.g. after a partial cache clear or eviction),
+    // treat this as a miss so callers re-execute and repopulate the cache.
+    for (const leaf of flattenAssembly(assembly)) {
+      if (!(await shapeExists(context.project, leaf.geometry))) {
+        return undefined;
+      }
+    }
+    return assembly;
   }
 
   _makeId(type: string, ...args: any[]) {
