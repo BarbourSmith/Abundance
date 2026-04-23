@@ -1,10 +1,11 @@
 import React from "react";
-import { useEffect, useState, useMemo, useRef } from "react";
+import { useEffect, useState, useMemo } from "react";
 
 import apiJson from "./methodsreplicad.json"; // static import of the JSON file
 import abundanceJson from "./abundanceApiJson.json";
 import ReactCodeEditorWithApiAutocomplete from "./ReactCodeEditorWithApiAutocomplete";
 import InfoPanel from "./InfoPanel";
+import { setMonacoInstance } from "../../molecules/code.js";
 
 /**
  * Common JavaScript methods for reference panel
@@ -47,11 +48,6 @@ export default function CodeWindow(props) {
   const [expandedPanel, setExpandedPanel] = useState(null); // null, 'replicad', 'abundance', 'common', or 'console'
   const [consoleErrors, setConsoleErrors] = useState([]);
   const [interpreterVersion, setInterpreterVersion] = useState(0);
-  // Refs to the Monaco editor + monaco namespace, set once the editor mounts.
-  // Used at save time to transpile TypeScript -> JavaScript via Monaco's
-  // already-bundled TS language worker (zero extra bundle cost).
-  const editorRef = useRef(null);
-  const monacoRef = useRef(null);
 
   useEffect(() => {
     if (props.activeAtom != null) {
@@ -106,36 +102,12 @@ export default function CodeWindow(props) {
 
   /**
    * Save handler invoked by the hidden save button (which in turn is clicked
-   * via atom.saveCode() or Ctrl/Cmd+S).
-   *
-   * In TypeScript mode this transpiles the current editor content to JS via
-   * Monaco's TS worker and stores the result on the atom as `compiledCode`
-   * BEFORE calling updateCode(). In JavaScript mode it clears any stale
-   * compiledCode and saves as usual.
+   * via atom.saveCode() or Ctrl/Cmd+S). Transpilation (TS -> JS) lives on
+   * the atom itself now — see Code#updateCode in molecules/code.js.
    */
   async function handleSave() {
     if (!props.activeAtom) return;
-    const atom = props.activeAtom;
-    if (interpreterVersion >= 1 && editorRef.current && monacoRef.current) {
-      try {
-        const monaco = monacoRef.current;
-        const model = editorRef.current.getModel();
-        const getWorker =
-          await monaco.languages.typescript.getTypeScriptWorker();
-        const worker = await getWorker(model.uri);
-        const output = await worker.getEmitOutput(model.uri.toString());
-        const jsFile = output.outputFiles.find((f) =>
-          f.name.endsWith(".js"),
-        );
-        atom.compiledCode = jsFile ? jsFile.text : "";
-      } catch (err) {
-        console.error("TypeScript transpilation failed:", err);
-        atom.compiledCode = "";
-      }
-    } else {
-      atom.compiledCode = "";
-    }
-    atom.updateCode(docvalue);
+    await props.activeAtom.updateCode(docvalue);
   }
 
   /**
@@ -242,8 +214,7 @@ export default function CodeWindow(props) {
             activeAtom={props.activeAtom}
             interpreterVersion={interpreterVersion}
             onEditorReady={(editor, monaco) => {
-              editorRef.current = editor;
-              monacoRef.current = monaco;
+              setMonacoInstance(monaco);
             }}
           />
         </div>

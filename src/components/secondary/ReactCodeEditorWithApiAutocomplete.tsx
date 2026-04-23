@@ -139,8 +139,8 @@ function buildCompletionItems(
 // without any red squiggles (checkJs: false).
 // ---------------------------------------------------------------------------
 
-/** Abundance built-in async globals available inside every code atom. */
-const ABUNDANCE_AMBIENT_TYPES = `
+/** Abundance built-in async globals available inside every JS code atom. */
+const ABUNDANCE_JS_AMBIENT_TYPES = `
 declare const replicad: typeof import("replicad");
 declare const library: Record<string, any>;
 declare function Move(shape: any, x?: number, y?: number, z?: number): Promise<any>;
@@ -154,6 +154,60 @@ declare function Chamfer(shape: any, size: number): Promise<any>;
 declare function AssemblyMap(assembly: any, fn: (s: any) => Promise<any>): Promise<any>;
 declare function AssemblyAsIterable(assembly: any): Promise<any[]>;
 declare function GetBounds(shape: any): any;
+`;
+
+/**
+ * Ambient types for the TypeScript code atom environment.
+ *
+ * This intentionally omits the JS helper functions (Move, Chamfer, etc.) —
+ * users should call methods directly on geometry (e.g. `geometry.chamfer(...)`)
+ * and use `AbundanceObj` / `AbundanceProps` to wrap results with metadata.
+ */
+const ABUNDANCE_TS_AMBIENT_TYPES = `
+import * as _replicad from "replicad";
+
+declare global {
+  const replicad: typeof _replicad;
+  // Declaration-merge a namespace of the same name so that \`replicad.Shape3D\`
+  // can be used as a TYPE (e.g. \`AbundanceObj<replicad.Shape3D>\`) in addition
+  // to a value (e.g. \`replicad.makePlane()\`).
+  namespace replicad {
+    export type AnyShape = _replicad.AnyShape;
+    export type Shape3D = _replicad.Shape3D;
+    export type Drawing = _replicad.Drawing;
+    export type Plane = _replicad.Plane;
+    export type Sketch = _replicad.Sketch;
+    export type Sketches = _replicad.Sketches;
+    export type Wire = _replicad.Wire;
+    export type Face = _replicad.Face;
+    export type Solid = _replicad.Solid;
+    export type Shape<T> = _replicad.Shape<T>;
+    export type Vector = _replicad.Vector;
+    export type Point = _replicad.Point;
+  }
+
+  type AbundanceProps = {
+    color: string;
+    tags: string[];
+    bom: string[];
+    plane: _replicad.Plane;
+    merge(other: AbundanceProps): AbundanceProps;
+  }
+
+  
+
+  class AbundanceObj<
+    T extends _replicad.AnyShape | _replicad.Drawing =
+      _replicad.AnyShape | _replicad.Drawing,
+  > extends AbundanceProps {
+    geometry: T;
+    constructor(geometry: T, abundanceProps?: AbundanceProps);
+    is2D(): this is AbundanceObj<_replicad.Drawing>;
+    is3D(): this is AbundanceObj<_replicad.AnyShape>;
+  }
+}
+
+export {};
 `;
 
 // ---------------------------------------------------------------------------
@@ -252,24 +306,37 @@ export default function ReactCodeEditorWithApiAutocomplete(props: {
       target: monaco.languages.typescript.ScriptTarget.ES2020,
       allowNonTsExtensions: true,
       checkJs: false, // v0: no squiggles in JS mode
-      noEmit: true,
+      // noEmit intentionally false: Code atoms call getEmitOutput() at save
+      // time to transpile TS -> JS. Setting noEmit: true makes the TS worker
+      // return { emitSkipped: true, outputFiles: [] }.
+      noEmit: false,
     };
     const tsOpts = {
       target: monaco.languages.typescript.ScriptTarget.ES2020,
       allowNonTsExtensions: true,
       strict: true,
-      noEmit: true,
+      noEmit: false,
     };
     monaco.languages.typescript.javascriptDefaults.setCompilerOptions(jsOpts);
     monaco.languages.typescript.typescriptDefaults.setCompilerOptions(tsOpts);
 
-    // Inject Abundance globals into both language services
+    // Inject per-language Abundance globals. Both language services have
+    // their own ambient type set so that switching modes swaps the visible
+    // API surface (TS drops the JS helper functions like Chamfer/Move).
+    monaco.languages.typescript.javascriptDefaults.addExtraLib(
+      ABUNDANCE_JS_AMBIENT_TYPES,
+      "ts:abundance-ambient-js.d.ts",
+    );
+    monaco.languages.typescript.typescriptDefaults.addExtraLib(
+      ABUNDANCE_TS_AMBIENT_TYPES,
+      "ts:abundance-ambient-ts.d.ts",
+    );
+
+    // Replicad .d.ts applies to both (user may import types in TS mode).
     const injectLib = (dts: string, filename: string) => {
       monaco.languages.typescript.javascriptDefaults.addExtraLib(dts, filename);
       monaco.languages.typescript.typescriptDefaults.addExtraLib(dts, filename);
     };
-
-    injectLib(ABUNDANCE_AMBIENT_TYPES, "ts:abundance-ambient.d.ts");
 
     // Inject replicad's shipped .d.ts (copied to public/ at build time).
     fetch("/replicad.d.ts")
@@ -414,33 +481,37 @@ export default function ReactCodeEditorWithApiAutocomplete(props: {
       // Provider 3: Abundance top-level functions (Move, Assembly, Rotate, etc.)
       // These are bare async calls — NOT member access — so we suppress this provider
       // whenever the cursor is after a "." to avoid polluting member completions.
+      // Only registered for JavaScript; TypeScript users are pushed toward
+      // `geometry.chamfer(...)` style method calls instead.
       // ---------------------------------------------------------------------------
-      monaco.languages.registerCompletionItemProvider(lang, {
-        provideCompletionItems(model: any, position: any) {
-          const linePrefix = model
-            .getLineContent(position.lineNumber)
-            .substring(0, position.column - 1);
+      if (lang === "javascript") {
+        monaco.languages.registerCompletionItemProvider(lang, {
+          provideCompletionItems(model: any, position: any) {
+            const linePrefix = model
+              .getLineContent(position.lineNumber)
+              .substring(0, position.column - 1);
 
-          if (/\w+\.$/.test(linePrefix)) return { suggestions: [] };
+            if (/\w+\.$/.test(linePrefix)) return { suggestions: [] };
 
-          const word = model.getWordUntilPosition(position);
-          const range = {
-            startLineNumber: position.lineNumber,
-            endLineNumber: position.lineNumber,
-            startColumn: word.startColumn,
-            endColumn: word.endColumn,
-          };
+            const word = model.getWordUntilPosition(position);
+            const range = {
+              startLineNumber: position.lineNumber,
+              endLineNumber: position.lineNumber,
+              startColumn: word.startColumn,
+              endColumn: word.endColumn,
+            };
 
-          return {
-            suggestions: buildCompletionItems(
-              monaco,
-              abundanceJsonRef.current,
-              false,
-              range,
-            ).filter((item) => !(item.label as string).includes(".")),
-          };
-        },
-      });
+            return {
+              suggestions: buildCompletionItems(
+                monaco,
+                abundanceJsonRef.current,
+                false,
+                range,
+              ).filter((item) => !(item.label as string).includes(".")),
+            };
+          },
+        });
+      }
     }
   };
 

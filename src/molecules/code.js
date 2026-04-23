@@ -3,6 +3,79 @@ import GlobalVariables from "../js/globalvariables.js";
 import { ValueChangeCommand } from "../js/undoCommands.js";
 
 /**
+ * Monaco instance captured by the code editor component once it mounts.
+ * Used by `Code#updateCode()` to transpile TypeScript atom source to
+ * JavaScript so the worker never has to deal with type annotations.
+ */
+let _monaco = null;
+
+/**
+ * Called by the code editor React component once Monaco has mounted so
+ * that Code atoms can reach the TypeScript language worker.
+ */
+export function setMonacoInstance(monaco) {
+  _monaco = monaco;
+}
+
+/**
+ * Transpile a TypeScript source string to JavaScript using Monaco's
+ * bundled TS language worker. Throws a descriptive Error on failure so the
+ * caller can surface the problem to the user; callers should catch and
+ * route to `setError()`.
+ */
+async function transpileTypeScript(tsSource) {
+  if (!tsSource) return "";
+  if (!_monaco) {
+    throw new Error(
+      "TypeScript transpiler not ready: open the code editor at least once before running.",
+    );
+  }
+  const uri = _monaco.Uri.parse(`file:///abundance-code-${Date.now()}.ts`);
+  const model = _monaco.editor.createModel(tsSource, "typescript", uri);
+  try {
+    const getWorker = await _monaco.languages.typescript.getTypeScriptWorker();
+    const worker = await getWorker(uri);
+    const output = await worker.getEmitOutput(uri.toString());
+    const jsFile = output.outputFiles.find((f) => f.name.endsWith(".js"));
+    if (jsFile && jsFile.text) return jsFile.text;
+
+    // Emit was skipped or produced no .js — gather diagnostics to tell the user why.
+    let details = "";
+    if (output.emitSkipped) {
+      details += " emitSkipped=true.";
+      // noEmit is the usual culprit; include the current compiler options to
+      // make misconfiguration obvious in the console.
+      try {
+        const opts =
+          _monaco.languages.typescript.typescriptDefaults.getCompilerOptions();
+        details += ` compilerOptions=${JSON.stringify(opts)}.`;
+      } catch {}
+    }
+    try {
+      const [syntactic, semantic] = await Promise.all([
+        worker.getSyntacticDiagnostics(uri.toString()),
+        worker.getSemanticDiagnostics(uri.toString()),
+      ]);
+      const msgs = [...syntactic, ...semantic]
+        .map((d) => {
+          const text =
+            typeof d.messageText === "string"
+              ? d.messageText
+              : d.messageText?.messageText || "";
+          return `TS${d.code}: ${text}`;
+        })
+        .filter(Boolean);
+      if (msgs.length) details += ` diagnostics: ${msgs.join("; ")}`;
+    } catch {}
+    throw new Error(
+      `TypeScript transpilation produced no JavaScript output.${details}`,
+    );
+  } finally {
+    model.dispose();
+  }
+}
+
+/**
  * The Code molecule type adds support for executing arbitrary jsxcad code.
  */
 export default class Code extends Atom {
@@ -29,10 +102,23 @@ export default class Code extends Atom {
      */
     this.description = "Defines a Replicad code block.";
     /**
-     * The code contained within the atom stored as a string.
+     * Default code for new TypeScript atoms. Inputs are declared as `run()`
+     * parameters; types map to `number`/`string`/`boolean`/`geometry`.
      * @type {string}
      */
-    this.code = `
+    const TS_DEFAULT_CODE = `// Chamfer the edges of an incoming shape.
+// Declare inputs as parameters of run(); their types map to Abundance input types.
+function run(shape: AbundanceObj<replicad.Shape3D>, size: number = 2) {
+  const chamfered = shape.geometry.chamfer(size);
+  return new AbundanceObj(chamfered, shape);
+}
+`;
+    /**
+     * Legacy default code for JavaScript atoms, kept so that projects loaded
+     * from before the interpreterVersion field existed continue to work.
+     * @type {string}
+     */
+    const JS_DEFAULT_CODE = `
 // Example Code
 const Inputs = [
   { inputName: "shape", type: "geometry", defaultValue: null },
@@ -81,16 +167,21 @@ return assembly;
     this._addIOWithoutSubscribing("output", "geometry", null, "output");
 
     this.setValues([]);
-    this.code = values.code || this.code;
 
     /**
      * The interpreter version for this code atom.
-     * 0 = JavaScript (default, backwards-compatible)
-     * 1 = TypeScript (strict type checking)
-     * Atoms saved before this field existed will have no value, which defaults to 0.
+     * 0 = JavaScript (legacy)
+     * 1 = TypeScript (default for new atoms)
+     * New atoms default to TypeScript. Atoms loaded from saves without this
+     * field are treated as JavaScript to preserve backwards compatibility.
      * @type {number}
      */
-    this.interpreterVersion = values.interpreterVersion ?? 0;
+    const isNewAtom =
+      values.code === undefined && values.interpreterVersion === undefined;
+    this.interpreterVersion = values.interpreterVersion ?? (isNewAtom ? 1 : 0);
+    this.code =
+      values.code ||
+      (this.interpreterVersion >= 1 ? TS_DEFAULT_CODE : JS_DEFAULT_CODE);
 
     /**
      * For TypeScript atoms, the transpiled JavaScript output produced by the
@@ -163,8 +254,10 @@ return assembly;
 
   /**
    * Called when code editor save button is clicked. Updates the code and value of the atom.
+   * In TypeScript mode this also transpiles the source to JavaScript and
+   * stores it on `this.compiledCode` so the worker never sees TS syntax.
    */
-  updateCode(code) {
+  async updateCode(code) {
     if (!GlobalVariables.isUndoing) {
       const oldCode = this.code;
       GlobalVariables.pushUndoCommand(
@@ -181,6 +274,18 @@ return assembly;
       );
     }
     this.code = code;
+
+    if ((this.interpreterVersion ?? 0) >= 1) {
+      try {
+        this.compiledCode = await transpileTypeScript(code);
+      } catch (err) {
+        this.compiledCode = "";
+        this.setError(err);
+        console.error("TypeScript transpilation failed:", err);
+      }
+    } else {
+      this.compiledCode = "";
+    }
 
     this.parseInputs();
     this._subscribeToInputs();
@@ -212,15 +317,17 @@ return assembly;
   }
 
   /**
-   * Grab the code as a text string and execute it.
+   * Grab the code as a text string and execute it. In TS mode we pass the
+   * pre-transpiled JavaScript so the worker never has to handle type syntax.
    */
   compute(argumentsArray) {
+    const isTs = (this.interpreterVersion ?? 0) >= 1;
+    const codeToRun = isTs ? this.compiledCode || "" : this.code;
     return GlobalVariables.cad.code(
-      this.code,
+      codeToRun,
       argumentsArray,
       this.getContext(),
       this.interpreterVersion ?? 0,
-      this.compiledCode || "",
     );
   }
 
@@ -610,15 +717,11 @@ return assembly;
     var valuesObj = super.serialize(values);
 
     valuesObj.interpreterVersion = this.interpreterVersion ?? 0;
-    // Use safe serialization to prevent large code from bloating the save file
-    Atom.safeSerializeValue(valuesObj, "code", this.code, this.name || "Code");
+    valuesObj.code = this.code;
+    //    Atom.safeSerializeValue(valuesObj, "code", this.code, this.name || "Code");
+
     if (this.compiledCode) {
-      Atom.safeSerializeValue(
-        valuesObj,
-        "compiledCode",
-        this.compiledCode,
-        this.name || "Code",
-      );
+      valuesObj.compiledCode = this.compiledCode;
     }
 
     return valuesObj;
