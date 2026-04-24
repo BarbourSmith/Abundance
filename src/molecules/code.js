@@ -67,7 +67,9 @@ return assembly;
     // Special behavior for code atoms requires that ap's are explicitly set to ready
     values.ioValues?.forEach((ioValue) => {
       const ap = this._addIOWithoutSubscribing(ioValue.name, ioValue.valueType);
-      ap.setReady(ioValue.ioValue);
+      if (ioValue.ioValue !== "__GEOMETRY_INPUT__") {
+        ap.setReady(ioValue.ioValue);
+      }
     });
     this._addIOWithoutSubscribing("output", "geometry", null, "output");
 
@@ -94,6 +96,16 @@ return assembly;
       GlobalVariables.widthToPixels(this.x - this.radius / 1.5),
       GlobalVariables.heightToPixels(this.y + this.radius * 1.5),
     );
+  }
+
+  inputsAreReady() {
+    const result = super.inputsAreReady();
+    if (result) {
+      /*    console.log("code atom is ready to compute with inputs...");
+      console.log(this.code);
+      console.log(this.inputs);*/
+    }
+    return result;
   }
 
   createInputParams(setInputChanged) {
