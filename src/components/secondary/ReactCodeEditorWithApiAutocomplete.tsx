@@ -1,6 +1,8 @@
 import React, { useEffect, useRef } from "react";
 import MonacoEditor, { OnMount } from "@monaco-editor/react";
 import type { Monaco } from "@monaco-editor/react";
+// Generated from src/worker/ts-framework.ts — run `npm run build:ts-framework` to regenerate.
+import ABUNDANCE_TS_AMBIENT_TYPES from "../../worker/generated/ts-framework.generated.d.ts?raw";
 
 type ApiDef = {
   type?: string;
@@ -156,59 +158,9 @@ declare function AssemblyAsIterable(assembly: any): Promise<any[]>;
 declare function GetBounds(shape: any): any;
 `;
 
-/**
- * Ambient types for the TypeScript code atom environment.
- *
- * This intentionally omits the JS helper functions (Move, Chamfer, etc.) —
- * users should call methods directly on geometry (e.g. `geometry.chamfer(...)`)
- * and use `AbundanceObj` / `AbundanceProps` to wrap results with metadata.
- */
-const ABUNDANCE_TS_AMBIENT_TYPES = `
-import * as _replicad from "replicad";
-
-declare global {
-  const replicad: typeof _replicad;
-  // Declaration-merge a namespace of the same name so that \`replicad.Shape3D\`
-  // can be used as a TYPE (e.g. \`AbundanceObj<replicad.Shape3D>\`) in addition
-  // to a value (e.g. \`replicad.makePlane()\`).
-  namespace replicad {
-    export type AnyShape = _replicad.AnyShape;
-    export type Shape3D = _replicad.Shape3D;
-    export type Drawing = _replicad.Drawing;
-    export type Plane = _replicad.Plane;
-    export type Sketch = _replicad.Sketch;
-    export type Sketches = _replicad.Sketches;
-    export type Wire = _replicad.Wire;
-    export type Face = _replicad.Face;
-    export type Solid = _replicad.Solid;
-    export type Shape<T> = _replicad.Shape<T>;
-    export type Vector = _replicad.Vector;
-    export type Point = _replicad.Point;
-  }
-
-  type AbundanceProps = {
-    color: string;
-    tags: string[];
-    bom: string[];
-    plane: _replicad.Plane;
-    merge(other: AbundanceProps): AbundanceProps;
-  }
-
-  
-
-  class AbundanceObj<
-    T extends _replicad.AnyShape | _replicad.Drawing =
-      _replicad.AnyShape | _replicad.Drawing,
-  > extends AbundanceProps {
-    geometry: T;
-    constructor(geometry: T, abundanceProps?: AbundanceProps);
-    is2D(): this is AbundanceObj<_replicad.Drawing>;
-    is3D(): this is AbundanceObj<_replicad.AnyShape>;
-  }
-}
-
-export {};
-`;
+// ABUNDANCE_TS_AMBIENT_TYPES is imported at the top of this file from
+// src/worker/generated/ts-framework.generated.d.ts (generated from
+// src/worker/ts-framework.ts). Do not maintain types inline here.
 
 // ---------------------------------------------------------------------------
 // Variable type inference (lightweight – mirrors the old CodeMirror version)
@@ -313,6 +265,11 @@ export default function ReactCodeEditorWithApiAutocomplete(props: {
     };
     const tsOpts = {
       target: monaco.languages.typescript.ScriptTarget.ES2020,
+      // Emit ESNext module syntax (`import`/`export`) rather than CommonJS
+      // so that user `import` statements survive transpilation. Code atoms
+      // run as real ES modules via Blob URL in the worker — see
+      // `src/worker/code.ts#executeTsCode`.
+      module: monaco.languages.typescript.ModuleKind.ESNext,
       allowNonTsExtensions: true,
       strict: true,
       noEmit: false,
@@ -349,6 +306,52 @@ export default function ReactCodeEditorWithApiAutocomplete(props: {
           "replicad.d.ts not found in /public — run `npm run copy-types` to enable full type inference",
         );
       });
+
+    // ---------------------------------------------------------------------------
+    // Auto-fetch types for external `import ... from 'https://esm.sh/...'`
+    // statements. The types live at the URL esm.sh returns in the
+    // `X-TypeScript-Types` response header. Fetched .d.ts strings are added
+    // as extra libs so Monaco resolves the bare module specifier seen by its
+    // TS worker when `moduleResolution` walks the HTTPS import spec.
+    //
+    // Silent on failure — user falls back to `any` typing, which is still
+    // usable. Cached per-URL to avoid re-fetching on every keystroke.
+    // ---------------------------------------------------------------------------
+    const fetchedExternalTypes = new Set<string>();
+    const EXTERNAL_IMPORT_RE =
+      /\bimport\s+(?:(?:[\w*{}\s,]+?)\s+from\s+)?["'](https:\/\/esm\.sh\/[^"']+)["']/g;
+
+    const syncExternalTypes = (source: string) => {
+      for (const match of source.matchAll(EXTERNAL_IMPORT_RE)) {
+        const url = match[1];
+        if (fetchedExternalTypes.has(url)) continue;
+        fetchedExternalTypes.add(url);
+        // HEAD request first to read the X-TypeScript-Types header without
+        // pulling the JS bundle.
+        fetch(url, { method: "HEAD" })
+          .then((r) => {
+            const typesUrl = r.headers.get("X-TypeScript-Types");
+            if (!typesUrl) return Promise.reject("no types header");
+            return fetch(typesUrl).then((tr) =>
+              tr.ok ? tr.text() : Promise.reject("types fetch failed"),
+            );
+          })
+          .then((dts) => {
+            // Register the types under the exact import URL so Monaco's TS
+            // worker matches them to the user's `from 'https://esm.sh/...'`.
+            injectLib(dts, `ts:external-${url}.d.ts`);
+          })
+          .catch(() => {
+            // Silent — user code still works, just with `any` types.
+          });
+      }
+    };
+
+    editor.onDidChangeModelContent(() => {
+      syncExternalTypes(editor.getValue());
+    });
+    // Also scan the initial content on mount.
+    syncExternalTypes(editor.getValue());
 
     // ---------------------------------------------------------------------------
     // Provider 1: replicad.XXX  — fires ONLY after the literal token "replicad."

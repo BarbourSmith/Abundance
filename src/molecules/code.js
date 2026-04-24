@@ -320,14 +320,15 @@ return assembly;
    * Grab the code as a text string and execute it. In TS mode we pass the
    * pre-transpiled JavaScript so the worker never has to handle type syntax.
    */
-  compute(argumentsArray) {
+  compute(argsDict) {
     const isTs = (this.interpreterVersion ?? 0) >= 1;
     const codeToRun = isTs ? this.compiledCode || "" : this.code;
     return GlobalVariables.cad.code(
       codeToRun,
-      argumentsArray,
+      argsDict,
       this.getContext(),
       this.interpreterVersion ?? 0,
+      this.uniqueID,
     );
   }
 

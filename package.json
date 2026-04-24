@@ -7,10 +7,11 @@
   "type": "module",
   "scripts": {
     "copy-types": "cp node_modules/replicad/dist/replicad.d.ts public/replicad.d.ts",
+    "build:ts-framework": "node scripts/build-ts-framework.mjs",
     "start": "npm run copy-types && vite",
     "predeploy": "npm run build",
     "deploy": "gh-pages -d dist",
-    "build": "npm run copy-types && vite build && cp ./dist/index.html ./dist/404.html",
+    "build": "npm run copy-types && npm run build:ts-framework && vite build && cp ./dist/index.html ./dist/404.html",
     "serve": "vite preview",
     "test": "node Puppet/index.js",
     "test:metrics": "node Puppet/metrics.js",
