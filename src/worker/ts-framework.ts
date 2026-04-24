@@ -45,20 +45,30 @@ export class Assembly implements Iterable<Assembly> {
   // processor rewrites both occurrences of `geometry: any` back to the
   // proper `replicad.AnyShape | replicad.Drawing | Assembly[]` union so
   // users see real IntelliSense in Monaco. See scripts/build-ts-framework.mjs.
-  geometry: any;
+  geometry: any = [];
   color: string = "#ffffff";
   tags: string[] = [];
   bom: string[] = [];
   plane: any = replicad.makePlane();
 
-  constructor(geometry: any, other?: Partial<Assembly>) {
+  constructor(other?: Partial<Assembly>) {
     if (other) {
       this.color = other.color ?? this.color;
-      this.tags = other.tags ?? this.tags;
-      this.bom = other.bom ?? this.bom;
-      this.plane = other.plane ?? this.plane;
+      this.tags = other.tags?.slice() ?? this.tags;
+      this.bom = other.bom?.slice() ?? this.bom;
+      this.plane = other.plane?.clone() ?? this.plane;
+      // Deep clone
+      if (Array.isArray(other.geometry)) {
+        this.geometry = other.geometry.map((child) => {
+          return new Assembly(child);
+        });
+      } else if (
+        other.geometry instanceof replicad.Shape ||
+        other.geometry instanceof replicad.Drawing
+      ) {
+        this.geometry = other.geometry.clone();
+      }
     }
-    this.geometry = geometry;
   }
 
   // Iterates over leaf nodes of the assembly tree. A node is a leaf when its
@@ -70,6 +80,28 @@ export class Assembly implements Iterable<Assembly> {
       for (const child of this.geometry) yield* child;
     } else {
       yield this;
+    }
+  }
+
+  // Apply function to all leafs in this assembly. Modifies this Assembly
+  // in place. If fn returns null that leaf is dropped from the assembly.
+  // Empty branches are recursively dropped as well.
+  onLeafs(fn: (leaf: Assembly) => Assembly | null): Assembly | null {
+    if (Array.isArray(this.geometry)) {
+      this.geometry = this.geometry
+        .map((child: any) => {
+          child.onLeafs(fn);
+          return child;
+        })
+        .filter((child: any) => {
+          return child !== null;
+        });
+      if (this.geometry.length === 0) {
+        return null;
+      }
+      return this;
+    } else {
+      return fn(this);
     }
   }
 
@@ -115,7 +147,7 @@ Assembly.prototype.__abundance = "Assembly";
 export function __promoteInput(value: any): any {
   if (!value || value.__isRawAbundanceObj !== true) return value;
 
-  const result = new Assembly(value.geometry, value);
+  const result = new Assembly(value);
   if (Array.isArray(result.geometry)) {
     result.geometry = result.geometry.map(__promoteInput);
   }

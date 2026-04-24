@@ -284,9 +284,17 @@ export default function ReactCodeEditorWithApiAutocomplete(props: {
       ABUNDANCE_JS_AMBIENT_TYPES,
       "ts:abundance-ambient-js.d.ts",
     );
+    // Register the TS ambient lib under a `file:///` URI (rather than the
+    // `ts:` scheme) so that the `import * as _replicad from "replicad"`
+    // statement at the top of the generated ts-framework .d.ts can be
+    // resolved by Monaco's node-style module resolver — it walks up from
+    // this file looking for `node_modules/replicad/index.d.ts`, which we
+    // inject below at exactly that path. Without a `file:///` URI here,
+    // resolution fails and `_replicad.AnyShape` collapses to `any`,
+    // making `AbundanceObj.geometry` show up as `any` in Monaco.
     monaco.languages.typescript.typescriptDefaults.addExtraLib(
       ABUNDANCE_TS_AMBIENT_TYPES,
-      "ts:abundance-ambient-ts.d.ts",
+      "file:///abundance-ts-framework.d.ts",
     );
 
     // Replicad .d.ts applies to both (user may import types in TS mode).
