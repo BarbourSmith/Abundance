@@ -184,9 +184,9 @@ class GeometryProvider {
     if (shape == undefined) {
       console.trace("Cache miss for id:", id);
       throw new Error(
-        `Geometry with ID ${id} not found in cache, context: ${JSON.stringify(
+        `Geometry missing from disk cache, context: ${JSON.stringify(
           context,
-        )}`,
+        )}, GEOMETRY ID : ${id}`,
       );
     }
     let result = undefined;

@@ -427,7 +427,9 @@ export default class Atom extends ObservableEntity {
    */
   alertingErrorHandler() {
     return (err) => {
-      console.error("Error in atom: " + this.name);
+      console.error(
+        "Error in atom: " + this.name + " (ID: " + this.uniqueID + ")",
+      );
       console.error(err);
       this.setError(err || "Unknown error occurred");
     };
