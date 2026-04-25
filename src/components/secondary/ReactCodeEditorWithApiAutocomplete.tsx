@@ -307,7 +307,7 @@ export default function ReactCodeEditorWithApiAutocomplete(props: {
     fetch("/replicad.d.ts")
       .then((r) => (r.ok ? r.text() : Promise.reject()))
       .then((dts) => {
-        injectLib(dts, "ts:replicad.d.ts");
+        injectLib(dts, "file:///replicad.d.ts");
       })
       .catch(() => {
         console.warn(
