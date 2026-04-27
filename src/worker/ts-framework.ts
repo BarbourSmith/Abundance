@@ -123,6 +123,20 @@ export class Assembly implements Iterable<Assembly> {
   is3D(): boolean {
     return !this.is2D();
   }
+
+  toJSON() {
+    let geomString = "unknown";
+    if (Array.isArray(this.geometry)) {
+      geomString = JSON.stringify(this.geometry);
+    } else if (
+      this.geometry instanceof replicad.Shape ||
+      this.geometry instanceof replicad.Drawing
+    ) {
+      geomString = this.geometry.constructor.name;
+    }
+    let planeString = this.plane ? "replicad.plane" : "null";
+    return `{__isRawAbundanceObj: true, color: ${this.color}, tags: ${JSON.stringify(this.tags)}, bom: ${JSON.stringify(this.bom)}, plane: ${planeString}, geometry: ${geomString}}`;
+  }
 }
 
 // Structural marker (set as non-enumerable on the prototype) used by the

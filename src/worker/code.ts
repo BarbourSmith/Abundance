@@ -177,11 +177,66 @@ function convertCodeAtomResult(value: any): any {
  * `replicad` and user arguments are handed off via a per-atom slot on
  * `globalThis` (see `CTX_KEY` below).
  */
+/**
+ * Levels of `console.*` calls captured from inside user code.
+ */
+export type CodeAtomLogLevel =
+  | "log"
+  | "info"
+  | "warn"
+  | "error"
+  | "debug"
+  | "trace";
+
+/**
+ * Callback invoked once per `console.*` call inside the user's code atom.
+ * Arguments are pre-formatted to plain strings on the worker side so they
+ * survive the comlink/postMessage boundary safely (replicad shapes etc.
+ * are not structured-cloneable). When provided to `executeCode`, this is
+ * expected to be a `Comlink.proxy(...)` wrapped function.
+ */
+export type CodeAtomLogCallback = (
+  level: CodeAtomLogLevel,
+  message: string,
+  stack: string | null,
+) => void;
+
+/**
+ * Format `console.*` arguments into a single string. Tries JSON for objects
+ * (with cycle handling), falls back to `String(value)` when serialisation
+ * fails (e.g. replicad shape instances backed by WASM).
+ */
+function formatLogArg(value: any): string {
+  if (value === null) return "null";
+  if (value === undefined) return "undefined";
+  const t = typeof value;
+  if (t === "string") return value;
+  if (t === "number" || t === "boolean" || t === "bigint") return String(value);
+  if (t === "function") return value.toString();
+  if (value instanceof Error) {
+    return value.stack || `${value.name}: ${value.message}`;
+  }
+  try {
+    return JSON.stringify(value, (key, val) => {
+      if (key === "oc") {
+        return "<oc wasm ref>";
+      } else {
+        return val;
+      }
+    });
+  } catch (e) {
+    console.warn(e);
+    console.log(value);
+    return "cyclic value";
+  }
+}
+
 async function executeTsCode(
   code: string,
   argumentsArray: { [key: string]: any },
   context: RequestContext,
   atomUniqueId: string | number,
+  onLog?: CodeAtomLogCallback,
 ): Promise<AbundanceObject | number | string | boolean | null | undefined> {
   try {
     if (typeof code !== "string") {
@@ -242,6 +297,39 @@ async function executeTsCode(
       }
     }
 
+    // Build a sandbox-side `console` shim. We forward each call to the
+    // main-thread `onLog` callback (if any) AFTER formatting args to a
+    // string here in the worker — replicad shapes / WASM objects are not
+    // structured-cloneable, so we can't pass raw args across the boundary.
+    // Fall back to the worker's native console when no callback was given.
+    const sandboxConsole: any = onLog
+      ? (() => {
+          const make =
+            (level: CodeAtomLogLevel) =>
+            (...args: any[]) => {
+              // Mirror to the worker's real console too, so devs running
+              // with DevTools open still see output in the worker context.
+              (console as any)[level === "trace" ? "log" : level](...args);
+
+              // Process for UI console and onLog callback
+              const message = args.map(formatLogArg).join(" ");
+              const stack =
+                level === "trace"
+                  ? (new Error().stack || "").split("\n").slice(2).join("\n")
+                  : null;
+              onLog(level, message, stack);
+            };
+          return {
+            log: make("log"),
+            info: make("info"),
+            warn: make("warn"),
+            error: make("error"),
+            debug: make("debug"),
+            trace: make("trace"),
+          };
+        })()
+      : console;
+
     // Cache lookup on the (transpiled) code + args signature.
     const cacheId = composeID(code, argsSignature);
     const cached = await util.geometryProvider!.getAssembly(cacheId, context);
@@ -250,7 +338,10 @@ async function executeTsCode(
     const batchId = "code-atom-" + cacheId;
     const batch: RequestContext | AbundanceObject =
       await util.geometryProvider!.startBatchOperation(context, batchId);
-    if (util.isAbundanceObject(batch)) return batch;
+    if (util.isAbundanceObject(batch)) {
+      sandboxConsole.info("Cache hit. Execution skipped.");
+      return batch;
+    }
 
     context = batch;
     context.nextId = 0;
@@ -279,6 +370,7 @@ async function executeTsCode(
     (globalThis as any)[CTX_KEY] = {
       replicad: util.replicad,
       args: { ...argumentsArray },
+      console: sandboxConsole,
     };
 
     // Build the blob body. Order matters:
@@ -292,8 +384,11 @@ async function executeTsCode(
       .map((n) => `const ${n} = __promoteInput(__abundanceArgs.${n});`)
       .join("\n");
     const runArgs = runParamNames.join(", ");
+    // `console` is shadowed at the top of the module scope so user code's
+    // `console.log(...)` calls hit our shim (which forwards to the UI)
+    // rather than the worker's native console.
     const body =
-      `const { replicad, args: __abundanceArgs } = globalThis[${JSON.stringify(CTX_KEY)}];\n` +
+      `const { replicad, args: __abundanceArgs, console } = globalThis[${JSON.stringify(CTX_KEY)}];\n` +
       `delete globalThis[${JSON.stringify(CTX_KEY)}];\n` +
       `${ABUNDANCE_TS_FRAMEWORK_JS}\n` +
       `${argDecls}\n` +
@@ -329,7 +424,7 @@ async function executeTsCode(
       return rawResult;
     }
 
-    // TODO. 
+    // TODO.
     const processedResult = await ensureDimension(rawResult);
     const abundanceObj = await addAssemblyPartsToCache(
       processedResult as RealizedAssembly,
@@ -353,9 +448,10 @@ export async function executeCode(
   context: RequestContext,
   interpreterVersion: number = 0,
   atomUniqueId: string | number = "anon",
+  onLog?: CodeAtomLogCallback,
 ): Promise<AbundanceObject | number | string | boolean | null | undefined> {
   if (interpreterVersion < 1) {
     return executeLegacy(code, argumentsArray, context);
   }
-  return executeTsCode(code, argumentsArray, context, atomUniqueId);
+  return executeTsCode(code, argumentsArray, context, atomUniqueId, onLog);
 }

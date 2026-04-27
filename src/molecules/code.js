@@ -1,6 +1,11 @@
 import Atom from "../prototypes/atom.js";
 import GlobalVariables from "../js/globalvariables.js";
 import { ValueChangeCommand } from "../js/undoCommands.js";
+import { proxy } from "comlink";
+
+/** Maximum number of console entries retained on a Code atom. Older
+ *  entries are dropped from the head of the list when the cap is hit. */
+const MAX_CONSOLE_ENTRIES = 500;
 
 /**
  * Monaco instance captured by the code editor component once it mounts.
@@ -327,13 +332,93 @@ return assembly;
   compute(argsDict) {
     const isTs = (this.interpreterVersion ?? 0) >= 1;
     const codeToRun = isTs ? this.compiledCode || "" : this.code;
-    return GlobalVariables.cad.code(
+    // Comlink proxy the worker can use to send log messages from the user's
+    // code.
+    const onLog = isTs
+      ? proxy((level, message, stack) => {
+          this.appendConsoleEntry({ level, message, stack });
+        })
+      : undefined;
+    const promise = GlobalVariables.cad.code(
       codeToRun,
       argsDict,
       this.getContext(),
       this.interpreterVersion ?? 0,
       this.uniqueID,
+      onLog,
     );
+    if (isTs) {
+      // Mark end of an execution of this code atom in the console UI
+      const finalize = (status) => {
+        this.appendConsoleEntry({
+          level: "divider",
+          message: status === "ok" ? "run finished" : "run errored",
+          stack: null,
+        });
+      };
+      promise.then(
+        () => finalize("ok"),
+        () => finalize("error"),
+      );
+    }
+    return promise;
+  }
+
+  /**
+   * Append a console entry captured from this atom's worker-side execution.
+   * Trims the buffer to `MAX_CONSOLE_ENTRIES` and notifies registered log
+   * subscribers (NOT general atom subscribers — logs must not trigger
+   * downstream recomputation).
+   */
+  appendConsoleEntry(entry) {
+    if (!Array.isArray(this.consoleEntries)) this.consoleEntries = [];
+    const nextId =
+      this.consoleEntries.length > 0
+        ? parseInt(this.consoleEntries[this.consoleEntries.length - 1].id) + 1
+        : "0";
+    this.consoleEntries.push({
+      ...entry,
+      timestamp: Date.now(),
+      id: `${nextId}`,
+    });
+    if (this.consoleEntries.length > MAX_CONSOLE_ENTRIES) {
+      this.consoleEntries.splice(
+        0,
+        this.consoleEntries.length - MAX_CONSOLE_ENTRIES,
+      );
+    }
+    this._notifyLogSubscribers();
+  }
+
+  /** Clear all captured console entries on this atom. */
+  clearConsoleEntries() {
+    this.consoleEntries = [];
+    this._notifyLogSubscribers();
+  }
+
+  /**
+   * Subscribe to console-log changes on this atom. This is intentionally
+   * separate from the regular atom subscription channel so that log
+   * activity does NOT trigger DAG recomputation in downstream atoms.
+   * @returns an unsubscribe function.
+   */
+  subscribeToLogs(callback) {
+    if (!this._logSubscribers) this._logSubscribers = new Set();
+    this._logSubscribers.add(callback);
+    return () => {
+      this._logSubscribers?.delete(callback);
+    };
+  }
+
+  _notifyLogSubscribers() {
+    if (!this._logSubscribers) return;
+    for (const cb of this._logSubscribers) {
+      try {
+        cb();
+      } catch (e) {
+        console.error("Log subscriber threw:", e);
+      }
+    }
   }
 
   /**

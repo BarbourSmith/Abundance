@@ -1,5 +1,5 @@
 import React from "react";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 
 import apiJson from "./methodsreplicad.json"; // static import of the JSON file
 import abundanceJson from "./abundanceApiJson.json";
@@ -46,8 +46,18 @@ const CODE_WINDOW_GUIDE = [
 export default function CodeWindow(props) {
   const [docvalue, setdocValue] = useState("");
   const [expandedPanel, setExpandedPanel] = useState(null); // null, 'replicad', 'abundance', 'common', or 'console'
-  const [consoleErrors, setConsoleErrors] = useState([]);
+  // Console panel entries. Each entry: { id, timestamp (Date), level, message, stack? }.
+  // `level === 'error'` is rendered in red and counts toward the unread badge.
+  // `level === 'divider'` is rendered as a horizontal separator marking the
+  // end of a run.
+  const [consoleEntries, setConsoleEntries] = useState([]);
   const [interpreterVersion, setInterpreterVersion] = useState(0);
+
+  // Ref to the scrollable console body so we can pin to the bottom on each
+  // new entry. We keep a `pinnedToBottom` flag so manual scroll-up by the
+  // user pauses auto-scroll until they return to the bottom.
+  const consoleBodyRef = useRef(null);
+  const pinnedToBottomRef = useRef(true);
 
   useEffect(() => {
     if (props.activeAtom != null) {
@@ -56,31 +66,97 @@ export default function CodeWindow(props) {
     }
   }, [props.activeAtom]);
 
-  // Subscribe to activeAtom changes to capture code execution errors
+  // Subscribe to activeAtom changes to capture code execution errors and
+  // console.* output forwarded from the worker (see molecules/code.js).
+  // We use TWO separate channels:
+  //   - subscribe()           → general atom state changes (for error alerts)
+  //   - subscribeToLogs()     → log-only channel that does NOT trigger DAG
+  //                              recomputation when entries are appended.
   useEffect(() => {
     if (props.activeAtom == null) return;
 
-    const subscriberId = "codeWindowConsole";
-    const handleAtomChange = () => {
+    // Track which worker-side log ids we've already pulled into local
+    // state so re-runs don't double-add entries.
+    const seenLogIds = new Set();
+
+    const pullEntries = () => {
+      // Errors: surfaced via atom.alert when status flips to 'error'.
       if (
         props.activeAtom.status === "error" &&
         props.activeAtom.alert &&
         props.activeAtom.alert.message
       ) {
-        setConsoleErrors((prev) => [
-          { message: props.activeAtom.alert.message, timestamp: new Date(), id: Date.now() + Math.random() },
+        const errId = `err-${props.activeAtom.alert.message}`;
+        if (!seenLogIds.has(errId)) {
+          seenLogIds.add(errId);
+          setConsoleEntries((prev) => [
+            ...prev,
+            {
+              level: "error",
+              message: props.activeAtom.alert.message,
+              stack: null,
+              timestamp: new Date(),
+              id: `${Date.now()}-${Math.random()}`,
+            },
+          ]);
+        }
+      }
+      // Logs: appended by molecules/code.js#appendConsoleEntries as the
+      // worker forwards batches of console.* calls from user code.
+      const entries = props.activeAtom.consoleEntries || [];
+      // Detect a clear: previously seen ids that are no longer present
+      // means the buffer was cleared. Reset local view + seen set.
+      if (entries.length === 0 && seenLogIds.size > 0) {
+        seenLogIds.clear();
+        setConsoleEntries([]);
+        return;
+      }
+      const fresh = entries.filter((e) => !seenLogIds.has(e.id));
+      if (fresh.length) {
+        for (const e of fresh) seenLogIds.add(e.id);
+        setConsoleEntries((prev) => [
           ...prev,
+          ...fresh.map((e) => ({
+            level: e.level,
+            message: e.message,
+            stack: e.stack,
+            timestamp: new Date(e.timestamp),
+            id: e.id,
+          })),
         ]);
       }
     };
 
-    props.activeAtom.subscribe(handleAtomChange, subscriberId, false);
+    const subscriberId = "codeWindowConsole";
+    props.activeAtom.subscribe(pullEntries, subscriberId, false);
+    const unsubLogs = props.activeAtom.subscribeToLogs?.(pullEntries);
+    // Pull whatever is already buffered from prior runs.
+    pullEntries();
 
     return () => {
       props.activeAtom.unsubscribe(subscriberId);
+      unsubLogs?.();
     };
   }, [props.activeAtom]);
 
+  // Auto-scroll the console body to the bottom whenever new entries arrive,
+  // but only if the user is already pinned to the bottom. This lets users
+  // scroll up to inspect older output without being yanked back.
+  useEffect(() => {
+    const el = consoleBodyRef.current;
+    if (!el) return;
+    if (pinnedToBottomRef.current) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [consoleEntries, expandedPanel]);
+
+  // Track whether the user has scrolled away from the bottom so we know
+  // whether to keep auto-pinning. Tolerance of a few px to absorb rounding.
+  const handleConsoleScroll = (e) => {
+    const el = e.currentTarget;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    pinnedToBottomRef.current = distanceFromBottom < 4;
+  };
   /**
    * Closes the code editor window.
    */
@@ -360,7 +436,12 @@ Tips:
                   <div className="console-header-actions">
                     <button
                       className="console-clear-btn"
-                      onClick={() => setConsoleErrors([])}
+                      onClick={() => {
+                        setConsoleEntries([]);
+                        if (props.activeAtom?.clearConsoleEntries) {
+                          props.activeAtom.clearConsoleEntries();
+                        }
+                      }}
                       title="Clear console"
                     >
                       Clear
@@ -373,21 +454,80 @@ Tips:
                     </button>
                   </div>
                 </div>
-                <div className="info-panel-body console-body">
-                  {consoleErrors.length === 0 ? (
-                    <div className="no-methods">No errors</div>
+                <div
+                  className="info-panel-body console-body"
+                  ref={consoleBodyRef}
+                  onScroll={handleConsoleScroll}
+                >
+                  {consoleEntries.length === 0 ? (
+                    <div className="no-methods">No console output</div>
                   ) : (
                     <div className="console-error-list">
-                      {consoleErrors.map((entry) => (
-                        <div key={entry.id} className="console-error-item">
-                          <span className="console-error-time">
-                            {entry.timestamp.toLocaleTimeString()}
-                          </span>
-                          <span className="console-error-message">
-                            {entry.message}
-                          </span>
-                        </div>
-                      ))}
+                      {consoleEntries.map((entry) => {
+                        // Run-end divider: distinct visual separator. No
+                        // level glyph or timestamp clutter — just a thin
+                        // labelled rule.
+                        if (entry.level === "divider") {
+                          const t = entry.timestamp;
+                          const hh = String(t.getHours()).padStart(2, "0");
+                          const mm = String(t.getMinutes()).padStart(2, "0");
+                          const ss = String(t.getSeconds()).padStart(2, "0");
+                          return (
+                            <div
+                              key={entry.id}
+                              className="console-divider"
+                              role="separator"
+                            >
+                              <span className="console-divider-label">
+                                {entry.message} · {hh}:{mm}:{ss}
+                              </span>
+                            </div>
+                          );
+                        }
+                        // Compact HH:MM:SS time format (drop the AM/PM and
+                        // any locale fluff that toLocaleTimeString may add).
+                        const t = entry.timestamp;
+                        const hh = String(t.getHours()).padStart(2, "0");
+                        const mm = String(t.getMinutes()).padStart(2, "0");
+                        const ss = String(t.getSeconds()).padStart(2, "0");
+                        const time = `${hh}:${mm}:${ss}`;
+                        // Short single-character level glyph (L/I/W/E/D/T)
+                        // keeps each row visually tight while still encoding
+                        // severity. Full level is exposed via title for a11y.
+                        const glyph =
+                          {
+                            log: "L",
+                            info: "I",
+                            warn: "W",
+                            error: "E",
+                            debug: "D",
+                            trace: "T",
+                          }[entry.level] || "?";
+                        return (
+                          <div
+                            key={entry.id}
+                            className={`console-error-item console-level-${entry.level}`}
+                          >
+                            <span className="console-error-meta">
+                              <span className="console-error-time">{time}</span>
+                              <span
+                                className="console-error-level"
+                                title={entry.level}
+                              >
+                                {glyph}
+                              </span>
+                            </span>
+                            <span className="console-error-message">
+                              {entry.message}
+                              {entry.stack ? (
+                                <pre className="console-error-stack">
+                                  {entry.stack}
+                                </pre>
+                              ) : null}
+                            </span>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -400,9 +540,16 @@ Tips:
                 <span className="tab-arrow">◀</span>
                 <span
                   className="tab-label"
-                  style={consoleErrors.length > 0 ? { color: "#e05b5b" } : {}}
+                  style={
+                    consoleEntries.some((e) => e.level === "error")
+                      ? { color: "#e05b5b" }
+                      : {}
+                  }
                 >
-                  Console{consoleErrors.length > 0 ? ` (${consoleErrors.length})` : ""}
+                  Console
+                  {consoleEntries.length > 0
+                    ? ` (${consoleEntries.length})`
+                    : ""}
                 </span>
               </div>
             )}
