@@ -106,5 +106,6 @@ describe("Code atom primitive return value handling", () => {
       expect(isPrimitive(result)).toBe(true);
       expect(result).toBe("Hello World");
     });
+
   });
 });

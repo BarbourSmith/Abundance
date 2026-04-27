@@ -1106,7 +1106,10 @@ export default class Atom extends ObservableEntity {
     // Dispose old label geometries first
     this.disposeLabelGeometry();
 
-    const nrs = atomValue.nonReplicadSerialized;
+    const nrs =
+      atomValue && typeof atomValue === "object"
+        ? atomValue.nonReplicadSerialized
+        : undefined;
     if (
       nrs &&
       ((Array.isArray(nrs) && nrs.length > 0 && nrs[0].type === "Label") ||

@@ -455,16 +455,27 @@ async function assemblyMap(
   callbackFn: (
     node: RealizedLeaf,
     depth: number,
-  ) => RealizedAssembly | Promise<RealizedAssembly>,
+  ) =>
+    | RealizedAssembly
+    | undefined
+    | Promise<RealizedAssembly | undefined>,
 ): Promise<RealizedAssembly | undefined> {
   try {
     // Helper function to process nodes recursively
     async function processNode(
-      node: RealizedAssembly,
+      node: RealizedAssembly | undefined,
       depth: number,
     ): Promise<RealizedAssembly | undefined> {
+      if (!node) {
+        return undefined;
+      }
+
       if (isRealizedLeaf(node)) {
-        return ensureDimension(callbackFn(node, depth));
+        const transformedNode = await callbackFn(node, depth);
+        if (!transformedNode) {
+          return undefined;
+        }
+        return ensureDimension(transformedNode);
       }
       // This is a branch node
       else {
@@ -568,8 +579,11 @@ async function realizeAssembly(
 
 function isRealizedLeaf(node: RealizedAssembly): node is RealizedLeaf {
   return (
+    !!node &&
     Array.isArray(node.geometry) &&
-    node.geometry.every((item) => "geometry" in item === false)
+    node.geometry.every(
+      (item) => !!item && typeof item === "object" && "geometry" in item === false,
+    )
   );
 }
 
