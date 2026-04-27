@@ -320,6 +320,12 @@ export default class Atom extends ObservableEntity {
     }
   }
 
+  /**
+   * Register this.onUpstreamChange as a subscriber to all inputs. If there are
+   * more than zero inputs call back onUpstreamChange once after all inputs
+   * are added and return True. Returns False if there were no inputs, and
+   * therefore onUpstreamChange wasn't called.
+   */
   _subscribeToInputs() {
     this.inputs.forEach((input) => {
       input.subscribe(
@@ -332,7 +338,9 @@ export default class Atom extends ObservableEntity {
     });
     if (this.inputs.length > 0) {
       this.onUpstreamChange();
+      return true;
     }
+    return false;
   }
 
   _addIOWithoutSubscribing(

@@ -288,8 +288,12 @@ return assembly;
     }
 
     this.parseInputs();
-    this._subscribeToInputs();
-    this.onUpstreamChange();
+    const alreadyCalledBack = this._subscribeToInputs();
+    if (!alreadyCalledBack) {
+      // Force a call back even if we don't have inputs. Some code atoms
+      // Generate a useful output even with no inputs.
+      this.onUpstreamChange();
+    }
     this.sendToRender();
   }
 
