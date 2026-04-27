@@ -38,8 +38,8 @@ export default class Difference extends Atom {
       values,
       // old names
       {
-        retain: "geometry1",
-        remove: "geometry2",
+        retain: ["geometry1"],
+        remove: ["geometry2"],
       },
     );
   }
