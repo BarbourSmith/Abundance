@@ -1891,7 +1891,10 @@ export default class Molecule extends Atom {
         //When we have found the input atom
         atom.inputs.forEach((input) => {
           //Check each of its inputs
-          if (input.name == connectorObj.ap2Name) {
+          if (
+            input.name == connectorObj.ap2Name ||
+            input.oldNames?.includes(connectorObj.ap2Name)
+          ) {
             inputAttachmentPoint = input; //Until we find the one with the right name
           }
         });

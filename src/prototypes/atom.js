@@ -173,8 +173,9 @@ export default class Atom extends ObservableEntity {
   /**
    * Applies each of the passed values to this as this.x
    * @param {object} values - A list of values to set
+   * @param {object} backCompatInputNames - A mapping of current input names to old input names for backwards compatibility when loading old saves. Format is {currentName: [oldName1, oldName2, ...]}
    */
-  setValues(values) {
+  setValues(values, backCompatInputNames = {}) {
     //Assign the object to have the passed in values
 
     for (var key in values) {
@@ -182,21 +183,29 @@ export default class Atom extends ObservableEntity {
     }
 
     if (typeof this.ioValues !== "undefined") {
-      this.ioValues.forEach((ioValue) => {
-        //for each saved value
-        this.inputs.forEach((ap) => {
-          //Find the matching IO and set it to be the saved value
-          if (ioValue.name == ap.name && ap.type == "input") {
-            ap.value = ioValue.ioValue;
-            if (
-              "currentEquation" in ioValue &&
-              !Number.isFinite(Number(ioValue.currentEquation))
-            ) {
-              // only load currentEquation if it exists and isn't a numeric literal
-              ap.currentEquation = ioValue.currentEquation;
-            }
+      // this.inputs is set by current version of this atom's code.
+
+      this.inputs.forEach((ap) => {
+        if (ap.name in backCompatInputNames) {
+          ap.oldNames = backCompatInputNames[ap.name];
+        }
+
+        //Find the matching IO and set it to be the saved value
+        const matchingSavedVal = this.ioValues?.find(
+          (savedVal) =>
+            savedVal.name === ap.name || ap.oldNames?.includes(savedVal.name)
+        );
+
+        if (matchingSavedVal && ap.type == "input") {
+          ap.value = matchingSavedVal.ioValue;
+          if (
+            "currentEquation" in matchingSavedVal &&
+            !Number.isFinite(Number(matchingSavedVal.currentEquation))
+          ) {
+            // only load currentEquation if it exists and isn't a numeric literal
+            ap.currentEquation = matchingSavedVal.currentEquation;
           }
-        });
+        }
       });
     }
   }
