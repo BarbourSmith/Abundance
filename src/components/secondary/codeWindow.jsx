@@ -279,7 +279,7 @@ export default function CodeWindow(props) {
               onClick={() => handleVersionChange(1)}
               title="TypeScript mode – strict type checking with error highlighting"
             >
-              TypeScript
+              TypeScript - <b>BETA</b>
             </button>
           </div>
           <ReactCodeEditorWithApiAutocomplete
