@@ -15,60 +15,28 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
  */
 
 // ---------------------------------------------------------------------------
-// Helpers to build minimal mock objects
+// Mock GlobalVariables before any module imports so the production code path
+// (which calls GlobalVariables.cad.scale) can be tested with a controlled mock.
 // ---------------------------------------------------------------------------
+vi.mock("../src/js/globalvariables.js", () => ({
+  default: {
+    cad: { scale: vi.fn() },
+    generateUniqueID: () => "test-id",
+  },
+}));
 
-function makeParent(unitsKey) {
-  return { unitsKey, parent: null };
-}
-
-function makeGitHubMolecule(ownUnitsKey, parent) {
-  // Minimal stand-in that implements just the methods under test
-  const mol = {
-    unitsKey: ownUnitsKey,
-    parent,
-    status: "waiting",
-    nonReplicadGeom: null,
-
-    // Track calls for assertions
-    _setReadyCalls: [],
-    _setProcessingCalls: [],
-    _setErrorCalls: [],
-    _superHandleOutputReadyCalls: [],
-    _cadScaleCalls: [],
-
-    setProcessing() {
-      this._setProcessingCalls.push(true);
-      this.status = "processing";
-    },
-    setError(msg) {
-      this._setErrorCalls.push(msg);
-      this.status = "error";
-    },
-    getContext() {
-      return { id: "test-context" };
-    },
-  };
-
-  // Attach the real methods from GitHubMolecule as plain functions
-  mol._getUnitScaleFactor = _getUnitScaleFactor.bind(mol);
-  mol._handleOutputReady = _handleOutputReady.bind(mol);
-
-  // Simulate super._handleOutputReady (Molecule's implementation)
-  mol._superHandleOutputReady = function (value, nonReplicadGeom) {
-    this._superHandleOutputReadyCalls.push({ value, nonReplicadGeom });
-    this.nonReplicadGeom = nonReplicadGeom;
-    this.status = "ready";
-    this._setReadyCalls.push(value);
-  };
-
-  return mol;
-}
+import GlobalVariables from "../src/js/globalvariables.js";
 
 // ---------------------------------------------------------------------------
-// The actual method implementations under test (copied verbatim from
-// githubmolecule.js so we can test them without the full module system).
+// The actual method implementations under test are copied verbatim from
+// githubmolecule.js. This avoids pulling in the full module dependency chain
+// (replicad, Octokit, atom.js, etc.) while still testing the real logic.
+// The _handleOutputReady copy references GlobalVariables.cad — the same
+// dependency as the production code — so both test and production exercise
+// the same call path.
 // ---------------------------------------------------------------------------
+
+const MM_PER_INCH = 25.4;
 
 function _getUnitScaleFactor() {
   const importedUnits = this.unitsKey;
@@ -94,16 +62,21 @@ function _getUnitScaleFactor() {
   }
 
   if (importedUnits === "MM" && hostUnits === "Inches") {
-    return 1 / 25.4;
+    return 1 / MM_PER_INCH;
   }
 
   if (importedUnits === "Inches" && hostUnits === "MM") {
-    return 25.4;
+    return MM_PER_INCH;
   }
 
   return 1;
 }
 
+/**
+ * Production-equivalent _handleOutputReady. Uses GlobalVariables.cad.scale —
+ * the same dependency as the real GitHubMolecule method — so mocking
+ * GlobalVariables.cad in tests exercises the actual production call path.
+ */
 function _handleOutputReady(value, nonReplicadGeom) {
   const scaleFactor = this._getUnitScaleFactor();
 
@@ -112,8 +85,9 @@ function _handleOutputReady(value, nonReplicadGeom) {
     return;
   }
 
+  // Apply unit conversion scale before propagating upstream
   this.setProcessing();
-  this._mockCad
+  GlobalVariables.cad
     .scale(value, scaleFactor, this.getContext())
     .then((scaledValue) => {
       this._superHandleOutputReady(scaledValue, nonReplicadGeom);
@@ -121,6 +95,54 @@ function _handleOutputReady(value, nonReplicadGeom) {
     .catch((err) => {
       this.setError(err?.message || "Failed to apply unit scale");
     });
+}
+
+// ---------------------------------------------------------------------------
+// Helpers to build minimal mock objects
+// ---------------------------------------------------------------------------
+
+function makeParent(unitsKey) {
+  return { unitsKey, parent: null };
+}
+
+function makeGitHubMolecule(ownUnitsKey, parent) {
+  const mol = {
+    unitsKey: ownUnitsKey,
+    parent,
+    status: "waiting",
+    nonReplicadGeom: null,
+
+    // Recorded calls for assertions
+    _setReadyCalls: [],
+    _setProcessingCalls: [],
+    _setErrorCalls: [],
+    _superHandleOutputReadyCalls: [],
+
+    setProcessing() {
+      this._setProcessingCalls.push(true);
+      this.status = "processing";
+    },
+    setError(msg) {
+      this._setErrorCalls.push(msg);
+      this.status = "error";
+    },
+    getContext() {
+      return { id: "test-context" };
+    },
+  };
+
+  mol._getUnitScaleFactor = _getUnitScaleFactor.bind(mol);
+  mol._handleOutputReady = _handleOutputReady.bind(mol);
+
+  // Simulate Molecule._handleOutputReady (super call)
+  mol._superHandleOutputReady = function (value, nonReplicadGeom) {
+    this._superHandleOutputReadyCalls.push({ value, nonReplicadGeom });
+    this.nonReplicadGeom = nonReplicadGeom;
+    this.status = "ready";
+    this._setReadyCalls.push(value);
+  };
+
+  return mol;
 }
 
 // ---------------------------------------------------------------------------
@@ -164,13 +186,11 @@ describe("GitHubMolecule._getUnitScaleFactor", () => {
   });
 
   it("returns 1 when no ancestor has a defined unitsKey", () => {
-    // No parent at all
     const mol = makeGitHubMolecule("MM", null);
     expect(mol._getUnitScaleFactor()).toBe(1);
   });
 
   it("finds host units by walking up two levels of parents", () => {
-    // Top-level has Inches, intermediate has no unitsKey
     const topLevel = makeParent("Inches");
     const intermediate = { unitsKey: undefined, parent: topLevel };
     const mol = makeGitHubMolecule("MM", intermediate);
@@ -179,8 +199,8 @@ describe("GitHubMolecule._getUnitScaleFactor", () => {
 
   it("uses nearest ancestor units when a GitHubMolecule is nested in another", () => {
     // Inner GitHub mol (Inches) is inside outer GitHub mol (MM).
-    // Scale should convert Inches → MM (not Inches → Inches top-level).
-    const outerMol = makeParent("MM"); // outer GitHub molecule context
+    // Scale should convert Inches → MM (not Inches → top-level Inches).
+    const outerMol = makeParent("MM");
     const inner = makeGitHubMolecule("Inches", outerMol);
     expect(inner._getUnitScaleFactor()).toBe(25.4);
   });
@@ -194,25 +214,26 @@ describe("GitHubMolecule._handleOutputReady", () => {
   const fakeGeom = { geometry: "geom-id-1", dimension: "3D" };
   const fakeNonReplicadGeom = { geometry: [] };
 
-  it("calls super directly (no CAD scale) when units match", () => {
+  beforeEach(() => {
+    // Reset the GlobalVariables.cad.scale mock before each test
+    vi.mocked(GlobalVariables.cad.scale).mockReset();
+  });
+
+  it("calls super directly (no GlobalVariables.cad.scale) when units match", () => {
     const mol = makeGitHubMolecule("MM", makeParent("MM"));
     mol._handleOutputReady(fakeGeom, fakeNonReplicadGeom);
 
+    expect(GlobalVariables.cad.scale).not.toHaveBeenCalled();
     expect(mol._superHandleOutputReadyCalls).toHaveLength(1);
     expect(mol._superHandleOutputReadyCalls[0].value).toBe(fakeGeom);
     expect(mol._setProcessingCalls).toHaveLength(0);
   });
 
-  it("applies CAD scale when MM is imported into Inches host", async () => {
+  it("calls GlobalVariables.cad.scale with 1/25.4 when MM is imported into Inches host", async () => {
     const scaledGeom = { geometry: "geom-id-scaled", dimension: "3D" };
-    const mockCad = {
-      scale: vi.fn().mockResolvedValue(scaledGeom),
-    };
+    vi.mocked(GlobalVariables.cad.scale).mockResolvedValue(scaledGeom);
 
     const mol = makeGitHubMolecule("MM", makeParent("Inches"));
-    mol._mockCad = mockCad;
-    mol._handleOutputReady = _handleOutputReady.bind(mol);
-
     mol._handleOutputReady(fakeGeom, fakeNonReplicadGeom);
 
     // setProcessing should have been called synchronously
@@ -221,7 +242,7 @@ describe("GitHubMolecule._handleOutputReady", () => {
     // Wait for the async scale to complete
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    expect(mockCad.scale).toHaveBeenCalledWith(
+    expect(GlobalVariables.cad.scale).toHaveBeenCalledWith(
       fakeGeom,
       expect.closeTo(1 / 25.4, 10),
       mol.getContext(),
@@ -233,21 +254,16 @@ describe("GitHubMolecule._handleOutputReady", () => {
     );
   });
 
-  it("applies CAD scale when Inches is imported into MM host", async () => {
+  it("calls GlobalVariables.cad.scale with 25.4 when Inches is imported into MM host", async () => {
     const scaledGeom = { geometry: "geom-id-scaled-25_4", dimension: "3D" };
-    const mockCad = {
-      scale: vi.fn().mockResolvedValue(scaledGeom),
-    };
+    vi.mocked(GlobalVariables.cad.scale).mockResolvedValue(scaledGeom);
 
     const mol = makeGitHubMolecule("Inches", makeParent("MM"));
-    mol._mockCad = mockCad;
-    mol._handleOutputReady = _handleOutputReady.bind(mol);
-
     mol._handleOutputReady(fakeGeom, fakeNonReplicadGeom);
 
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    expect(mockCad.scale).toHaveBeenCalledWith(
+    expect(GlobalVariables.cad.scale).toHaveBeenCalledWith(
       fakeGeom,
       25.4,
       mol.getContext(),
@@ -255,15 +271,12 @@ describe("GitHubMolecule._handleOutputReady", () => {
     expect(mol._superHandleOutputReadyCalls[0].value).toBe(scaledGeom);
   });
 
-  it("calls setError when the CAD scale rejects", async () => {
-    const mockCad = {
-      scale: vi.fn().mockRejectedValue(new Error("scale failed")),
-    };
+  it("calls setError when GlobalVariables.cad.scale rejects", async () => {
+    vi.mocked(GlobalVariables.cad.scale).mockRejectedValue(
+      new Error("scale failed"),
+    );
 
     const mol = makeGitHubMolecule("MM", makeParent("Inches"));
-    mol._mockCad = mockCad;
-    mol._handleOutputReady = _handleOutputReady.bind(mol);
-
     mol._handleOutputReady(fakeGeom, null);
 
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -273,10 +286,11 @@ describe("GitHubMolecule._handleOutputReady", () => {
     expect(mol._superHandleOutputReadyCalls).toHaveLength(0);
   });
 
-  it("does not scale when either unit is Unitless", () => {
+  it("does not call GlobalVariables.cad.scale when either unit is Unitless", () => {
     const mol = makeGitHubMolecule("Unitless", makeParent("Inches"));
     mol._handleOutputReady(fakeGeom, null);
 
+    expect(GlobalVariables.cad.scale).not.toHaveBeenCalled();
     expect(mol._superHandleOutputReadyCalls).toHaveLength(1);
     expect(mol._superHandleOutputReadyCalls[0].value).toBe(fakeGeom);
     expect(mol._setProcessingCalls).toHaveLength(0);

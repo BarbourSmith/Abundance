@@ -5,6 +5,9 @@ import { Octokit } from "octokit";
 import { Status } from "../prototypes/observableEntity.js";
 import { formatOrdinalDate } from "../js/projectNameUtils.js";
 
+/** Number of millimetres in one inch, used for unit-conversion scaling. */
+const MM_PER_INCH = 25.4;
+
 /**
  * This class creates the GitHubMolecule atom.
  */
@@ -219,11 +222,11 @@ export default class GitHubMolecule extends Molecule {
     }
 
     if (importedUnits === "MM" && hostUnits === "Inches") {
-      return 1 / 25.4;
+      return 1 / MM_PER_INCH;
     }
 
     if (importedUnits === "Inches" && hostUnits === "MM") {
-      return 25.4;
+      return MM_PER_INCH;
     }
 
     return 1;
