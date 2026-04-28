@@ -111,7 +111,10 @@ export default class Color extends Atom {
     return GlobalVariables.cad.color(inputs.geometry, color);
   }
 
-  createInputParams() {
+  createInputParams(setInputChanged) {
+    // Forward to super so it can register `setInputChanged`. We discard
+    // its returned controls because Color builds a fully custom panel.
+    super.createInputParams(setInputChanged);
     let inputParams = {};
     /** Runs through active atom inputs and adds IO parameters to default param*/
 

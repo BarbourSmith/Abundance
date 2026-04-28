@@ -524,10 +524,9 @@ export default class CutLayout extends Atom {
   }
 
   createInputParams(setInputChanged) {
-    this.setInputChanged = setInputChanged;
     const placements = this.getPlacements();
 
-    let inputParams = super.createInputParams();
+    let inputParams = super.createInputParams(setInputChanged);
 
     // If computing, disable all input params
     if (this.computing) {

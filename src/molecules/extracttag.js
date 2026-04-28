@@ -95,7 +95,9 @@ export default class ExtractTag extends Atom {
   }
 
   createInputParams(setInputChanged) {
-    this.setInputChanged = setInputChanged;
+    // Forward to super so it can register `setInputChanged`. We discard
+    // its returned controls because ExtractTag builds a fully custom panel.
+    super.createInputParams(setInputChanged);
     let tagList = this.tagList.tags || [];
     let inputParams = {};
 

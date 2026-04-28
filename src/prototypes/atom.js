@@ -1287,7 +1287,16 @@ export default class Atom extends ObservableEntity {
     return predictedParams;
   }
 
-  createInputParams() {
+  createInputParams(setInputChanged) {
+    // Stash the React-side state setter so other code on this atom (e.g.
+    // `Code#updateCode` after re-parsing its `Inputs = [...]` block, or
+    // `Import#loadFile` after a file load completes) can ask the input
+    // panel to re-derive its controls. Subclasses no longer need to
+    // duplicate this assignment.
+    if (typeof setInputChanged === "function") {
+      this.setInputChanged = setInputChanged;
+    }
+
     let inputParams = {};
 
     /** Runs through active atom inputs and adds IO parameters to default param*/

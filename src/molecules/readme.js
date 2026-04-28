@@ -80,7 +80,7 @@ export default class Readme extends Atom {
     GlobalVariables.c.fillText(
       "\u2263",
       GlobalVariables.widthToPixels(this.x - this.radius / 1.5),
-      GlobalVariables.heightToPixels(this.y) + this.height / 1.5
+      GlobalVariables.heightToPixels(this.y) + this.height / 1.5,
     );
     GlobalVariables.c.fill();
     GlobalVariables.c.closePath();
@@ -91,8 +91,8 @@ export default class Readme extends Atom {
     super.setReady(newText);
   }
 
-  createInputParams() {
-    let inputParams = super.createInputParams();
+  createInputParams(setInputChanged) {
+    let inputParams = super.createInputParams(setInputChanged);
 
     inputParams[this.name + this.uniqueID] = {
       type: "string",
@@ -113,43 +113,52 @@ export default class Readme extends Atom {
   async generateProjectThumbnail() {
     try {
       const value = this.findIOValue("value");
-      
+
       // Generate a thumbnail only if value is geometry (object but not null or array)
-      if (value != null && typeof value === 'object' && !Array.isArray(value)) {
+      if (value != null && typeof value === "object" && !Array.isArray(value)) {
         // Check if pool is available (same as global thumbnail generation)
         if (!GlobalVariables.pool) {
-          console.error("[README THUMBNAIL] GlobalVariables.pool is not available");
+          console.error(
+            "[README THUMBNAIL] GlobalVariables.pool is not available",
+          );
           return null;
         }
-        
+
         // Check if meshRef is available
         if (!GlobalVariables.meshRef || !GlobalVariables.meshRef.current) {
-          console.warn("[README THUMBNAIL] meshRef is not available for thumbnail generation");
+          console.warn(
+            "[README THUMBNAIL] meshRef is not available for thumbnail generation",
+          );
           return null;
         }
-        
+
         // Use the same approach as global thumbnail generation in ProjectContext.jsx
         return GlobalVariables.pool
           .proxy()
           .then((worker) => {
-            return worker.generateDisplayMesh(
-              value,
-              this.getContext()
-            );
+            return worker.generateDisplayMesh(value, this.getContext());
           })
           .then(async (m) => {
-            const svg = await GlobalVariables.meshRef.current.buildThumbnail(m.mesh);
+            const svg = await GlobalVariables.meshRef.current.buildThumbnail(
+              m.mesh,
+            );
             return svg;
           })
           .catch((error) => {
-            console.error("[README THUMBNAIL] Error in worker/mesh generation:", error);
+            console.error(
+              "[README THUMBNAIL] Error in worker/mesh generation:",
+              error,
+            );
             return null;
           });
       }
-      
+
       return null;
     } catch (error) {
-      console.error("[README THUMBNAIL] Error generating readme thumbnail:", error);
+      console.error(
+        "[README THUMBNAIL] Error generating readme thumbnail:",
+        error,
+      );
       return null;
     }
   }
@@ -162,14 +171,17 @@ export default class Readme extends Atom {
       // Get the input value (could be geometry, number, or string)
       const inputValue = this.findIOValue("value");
       let readMeTextWithValue = this.readMeText;
-      
+
       // If there's a non-geometry input value, append it to the readme text
       // Geometry is an object but not an array; primitives (numbers, strings, booleans) should be displayed as text
-      if (inputValue != null && (typeof inputValue !== 'object' || Array.isArray(inputValue))) {
+      if (
+        inputValue != null &&
+        (typeof inputValue !== "object" || Array.isArray(inputValue))
+      ) {
         const valueStr = String(inputValue);
-        readMeTextWithValue = this.readMeText + '\n\n**Value:** ' + valueStr;
+        readMeTextWithValue = this.readMeText + "\n\n**Value:** " + valueStr;
       }
-      
+
       return this.generateProjectThumbnail()
         .then((res) => {
           if (res !== null) {
@@ -225,7 +237,7 @@ export default class Readme extends Atom {
 
     if (inputsReadyOrWaiting) {
       const argsDict = Object.fromEntries(
-        this.inputs.map((input) => [input.name, input.getState().value])
+        this.inputs.map((input) => [input.name, input.getState().value]),
       );
 
       this.setProcessing();

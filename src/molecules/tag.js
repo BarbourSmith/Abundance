@@ -62,7 +62,7 @@ export default class Tag extends Atom {
     GlobalVariables.c.fillText(
       "@",
       GlobalVariables.widthToPixels(this.x - this.radius / 1.5),
-      GlobalVariables.heightToPixels(this.y) + this.height / 1.5
+      GlobalVariables.heightToPixels(this.y) + this.height / 1.5,
     );
     GlobalVariables.c.fill();
     GlobalVariables.c.closePath();
@@ -75,13 +75,16 @@ export default class Tag extends Atom {
   addTagsToAvailableTags() {
     let newProjectTags = Array.from(
       new Set(
-        GlobalVariables.topLevelMolecule.projectAvailableTags.concat(this.tags)
-      )
+        GlobalVariables.topLevelMolecule.projectAvailableTags.concat(this.tags),
+      ),
     );
     GlobalVariables.topLevelMolecule.projectAvailableTags = newProjectTags;
   }
 
-  createInputParams() {
+  createInputParams(setInputChanged) {
+    // Forward to super so it can register `setInputChanged`. We discard
+    // its returned controls because Tag builds a fully custom panel.
+    super.createInputParams(setInputChanged);
     let inputParams = {};
 
     inputParams[this.uniqueID + "custom_string"] = {
@@ -143,7 +146,12 @@ export default class Tag extends Atom {
   serialize(offset = { x: 0, y: 0 }) {
     var superSerialObject = super.serialize(offset);
     // Use safe serialization to prevent large tag arrays from bloating the save file
-    Atom.safeSerializeValue(superSerialObject, 'tags', this.tags, this.name || 'Tag');
+    Atom.safeSerializeValue(
+      superSerialObject,
+      "tags",
+      this.tags,
+      this.name || "Tag",
+    );
 
     return superSerialObject;
   }

@@ -1010,7 +1010,9 @@ export default class Input extends Atom {
   }
 
   createInputParams(setInputChanged) {
-    this.setInputChanged = setInputChanged;
+    // Forward to super so it can register `setInputChanged`. We discard
+    // its returned controls because Input builds a fully custom panel.
+    super.createInputParams(setInputChanged);
     let inputParams = {};
     inputParams[this.uniqueID] = {
       type: "string",

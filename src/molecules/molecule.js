@@ -184,7 +184,7 @@ export default class Molecule extends Atom {
   }
 
   createInputParams(setInputChanged) {
-    let inputParams = { ...super.createInputParams() };
+    let inputParams = { ...super.createInputParams(setInputChanged) };
 
     inputParams["molecule name" + this.uniqueID] = {
       type: "string",

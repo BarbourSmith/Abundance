@@ -378,8 +378,8 @@ export default class Label extends Atom {
     return GlobalVariables.cad.addNonReplicadGeom(geom, this.serializedLabel);
   }
 
-  createInputParams() {
-    let inputParams = super.createInputParams();
+  createInputParams(setInputChanged) {
+    let inputParams = super.createInputParams(setInputChanged);
 
     if (this.inputs) {
       this.inputs.forEach((input) => {

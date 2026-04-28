@@ -235,15 +235,11 @@ return assembly;
       label: "Save Code",
       order: 8,
       onClick: () => {
+        // The InputPanel will be re-derived automatically once
+        // `updateCode` finishes parsing the new `Inputs = [...]` block
+        // and calls `this.setInputChanged(...)` (registered by
+        // Atom#createInputParams). No need to fire a stale signature here.
         this.saveCode();
-        setInputChanged(
-          this.inputs
-            .map(
-              (input) =>
-                `${input.name}:${input.defaultValue}:${input.valueType}`,
-            )
-            .join("|"),
-        );
       },
     };
     inputParams["Close Editor"] = {
@@ -298,6 +294,17 @@ return assembly;
       // Force a call back even if we don't have inputs. Some code atoms
       // Generate a useful output even with no inputs.
       this.onUpstreamChange();
+    }
+    // Notify the InputPanel that the input list may have changed (added,
+    // removed, renamed, retyped). The base recompute path also calls this
+    // on success, but parse-only changes (no upstream change, or zero
+    // inputs) wouldn't otherwise trigger a re-derive of the controls.
+    if (typeof this.setInputChanged === "function") {
+      this.setInputChanged(
+        this.inputs
+          .map((i) => `${i.name}:${i.defaultValue}:${i.valueType}`)
+          .join("|"),
+      );
     }
     this.sendToRender();
   }

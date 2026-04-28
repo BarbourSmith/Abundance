@@ -62,8 +62,7 @@ export default class Text extends Atom {
   }
 
   createInputParams(setInputChanged) {
-    this.setInputChanged = setInputChanged;
-    let inputParams = super.createInputParams();
+    let inputParams = super.createInputParams(setInputChanged);
     if (this.inputs) {
       this.inputs.forEach((input) => {
         const checkConnector = () => input.connectors.length > 0;

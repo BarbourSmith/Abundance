@@ -204,8 +204,7 @@ export default class Import extends Atom {
 
   createInputParams(setInputChanged) {
     //REVISE FOR NEW MENU
-    this.setInputChanged = setInputChanged;
-    let inputParams = super.createInputParams();
+    let inputParams = super.createInputParams(setInputChanged);
     if (this.fileName == null) {
       inputParams[this.uniqueID + "file_ops"] = {
         type: "select",
