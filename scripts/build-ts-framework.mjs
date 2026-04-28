@@ -117,23 +117,33 @@ let dts = emittedDts
 
 // Replace the `any` types that come from our `declare const replicad: any`
 // shortcut with proper replicad types so Monaco shows real completions.
+//
+// `Assembly` is generic over the type of its `geometry` field. In source
+// the bound is `any`; here we widen the parameter to a real bound using
+// the `LeafGeom` / `AnyGeom` aliases injected into the global block below.
 dts = dts
   // plane: any → plane: _replicad.Plane
   .replace(/\bplane: any\b/g, "plane: _replicad.Plane")
-  // geometry: any → real union (Assembly leaf or branch).
-  // Matches both the field declaration and the constructor parameter.
+  // Field declaration: `geometry: any` → `geometry: G` so callers see the
+  // generic parameter rather than a useless `any`.
+  .replace(/\bgeometry: any\b/g, "geometry: G")
+  // Class header: add a real bound + default to the generic parameter.
   .replace(
-    /\bgeometry: any\b/g,
-    "geometry: _replicad.AnyShape | _replicad.Drawing | Assembly[]",
+    /class Assembly<G = any>/g,
+    "class Assembly<G extends AnyGeom = AnyGeom>",
   )
-  // is2D return (boolean → narrowed type)
+  // Replace every `Assembly<any>` (iterator return, isLeaf guard, onLeafs
+  // callback param/return) with `Assembly<LeafGeom>` so `leaf.geometry`
+  // narrows to the proper replicad union without any user-side checks.
+  .replace(/\bAssembly<any>/g, "Assembly<LeafGeom>")
+  // is2D / is3D: turn boolean returns into proper type-narrowing guards.
   .replace(
     /is2D\(\): boolean;/g,
-    "is2D(): this is AbundanceObj<_replicad.Drawing>;",
+    "is2D(): this is Assembly<_replicad.Drawing>;",
   )
   .replace(
     /is3D\(\): boolean;/g,
-    "is3D(): this is AbundanceObj<_replicad.AnyShape>;",
+    "is3D(): this is Assembly<_replicad.AnyShape>;",
   );
 
 // Build the final .d.ts: import + declare global wrapper
@@ -156,7 +166,16 @@ const finalDts =
   `    type Shape<T> = _replicad.Shape<T>;\n` +
   `    type Vector = _replicad.Vector;\n` +
   `    type Point = _replicad.Point;\n` +
+  `    type BoundingBox = _replicad.BoundingBox;\n` +
+  `    type BoundingBox2d = _replicad.BoundingBox2d;\n` +
+  `    type Finder = _replicad.Finder;\n` +
   `  }\n` +
+  `\n` +
+  `  /** Geometry type for a *leaf* Assembly (no children). */\n` +
+  `  type LeafGeom = _replicad.AnyShape | _replicad.Drawing;\n` +
+  `\n` +
+  `  /** Geometry type for any Assembly node \u2014 either a leaf or a branch. */\n` +
+  `  type AnyGeom = LeafGeom | Assembly[];\n` +
   `\n` +
   // Indent the tsc-emitted class/function declarations inside the global block
   dts

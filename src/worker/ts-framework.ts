@@ -31,8 +31,23 @@ declare const replicad: any;
 
 /*
  * Representation of Abundance Assemblies for use in code atoms.
+ *
+ * Generic over `G` — the type of the `geometry` field. The build-script
+ * post-processor rewrites this in the emitted `.d.ts` so that users see
+ * the proper replicad-typed bounds:
+ *
+ *   - `LeafGeom` = `replicad.AnyShape | replicad.Drawing`
+ *   - `AnyGeom`  = `LeafGeom | Assembly[]`
+ *   - `class Assembly<G extends AnyGeom = AnyGeom>`
+ *   - `geometry: any` → `geometry: G`
+ *   - `Assembly<any>` (in iterator, isLeaf, onLeafs callback) → `Assembly<LeafGeom>`
+ *
+ * Inside this source file we leave everything loose (`any`) because
+ * `replicad` is only available as a runtime value, not a type namespace,
+ * and because deep-cloning a generic `G` would otherwise be unsound.
+ * See scripts/build-ts-framework.mjs for the full set of rewrites.
  */
-export class Assembly implements Iterable<Assembly> {
+export class Assembly<G = any> implements Iterable<Assembly<any>> {
   // Structural marker set on the prototype below — used by the worker to
   // recognise AbundanceObj return values across the sandbox boundary without
   // relying on `instanceof` (which would fail because the class is defined
@@ -40,11 +55,9 @@ export class Assembly implements Iterable<Assembly> {
   declare __abundance: string;
 
   // `geometry` is intentionally typed `any` here so this file compiles
-  // standalone (the `replicad` global is only available as a value, not as
-  // a namespace, in this build context). The generated `.d.ts` post-
-  // processor rewrites both occurrences of `geometry: any` back to the
-  // proper `replicad.AnyShape | replicad.Drawing | Assembly[]` union so
-  // users see real IntelliSense in Monaco. See scripts/build-ts-framework.mjs.
+  // standalone. The generated `.d.ts` post-processor rewrites
+  // `geometry: any` to `geometry: G` so callers see the generic parameter
+  // narrowed to the proper replicad union. See scripts/build-ts-framework.mjs.
   geometry: any = [];
   color: string = "#ffffff";
   tags: string[] = [];
@@ -58,8 +71,10 @@ export class Assembly implements Iterable<Assembly> {
       this.bom = other.bom?.slice() ?? this.bom;
       this.plane = other.plane?.clone() ?? this.plane;
       // Deep clone
-      if (Array.isArray(other.geometry)) {
-        this.geometry = other.geometry.map((child) => {
+      if (other && other.isLeaf && other.isLeaf()) {
+        this.geometry = other.geometry.clone();
+      } else if (other && Array.isArray(other.geometry)) {
+        this.geometry = other.geometry.map((child: any) => {
           return new Assembly(child);
         });
       } else if (
@@ -75,7 +90,7 @@ export class Assembly implements Iterable<Assembly> {
   // `geometry` is a replicad shape or drawing (i.e. not an `Assembly[]`).
   // Branch nodes are traversed depth-first, left-to-right, and are NOT
   // themselves yielded — callers only ever see leaves.
-  *[Symbol.iterator](): Iterator<Assembly> {
+  *[Symbol.iterator](): Iterator<Assembly<any>> {
     if (Array.isArray(this.geometry)) {
       for (const child of this.geometry) yield* child;
     } else {
@@ -83,10 +98,23 @@ export class Assembly implements Iterable<Assembly> {
     }
   }
 
+  /**
+   * User-defined type guard. Lets callers narrow an `Assembly` to a leaf
+   * (where `geometry` is a single replicad shape/drawing rather than an
+   * `Assembly[]` branch) without manually checking `Array.isArray(...)`.
+   */
+  isLeaf(): this is Assembly<any> {
+    return !Array.isArray(this.geometry);
+  }
+
   // Apply function to all leafs in this assembly. Modifies this Assembly
   // in place. If fn returns null that leaf is dropped from the assembly.
   // Empty branches are recursively dropped as well.
-  onLeafs(fn: (leaf: Assembly) => Assembly | null): Assembly | null {
+  //
+  // The callback's `leaf` parameter is typed `Assembly<LeafGeom>` in the
+  // generated .d.ts, so users can read `leaf.geometry` as the proper
+  // replicad union without having to handle the array branch.
+  onLeafs(fn: (leaf: Assembly<any>) => Assembly<any> | null): Assembly | null {
     if (Array.isArray(this.geometry)) {
       this.geometry = this.geometry
         .map((child: any) => {
