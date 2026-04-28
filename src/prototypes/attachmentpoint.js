@@ -988,18 +988,23 @@ export default class AttachmentPoint extends ObservableEntity {
     if (this.type == "input") {
       this.valueType = type; // TODO: do we need to force a propagation if this changed?
       if (this.valueType == "geometry") {
-        // For geometries, if the value is explicitly null (e.g., from defaultValue: null),
-        // use NO_GEOMETRY sentinel and set status to READY so code atoms can execute with optional inputs.
-        // Otherwise, set status to WAITING until a geometry connection is made.
+        // No name-based subscription for geometry types
+        this.unsubscribeAllNameSubscriptions();
+        // For geometries, if the value is explicitly null (e.g., from
+        // defaultValue: null, or a connector being deleted), use the
+        // NO_GEOMETRY sentinel so code atoms can still execute with
+        // optional inputs. We hand the new value straight to setStatus()
+        // rather than pre-writing `this.value` ourselves — otherwise
+        // ObservableEntity#setStatus's change detection
+        // (`this.status != status || this.value !== value`) sees no
+        // change and skips propagation, which would leave downstream
+        // atoms stuck on the previously-connected geometry.
         if (newValue === null) {
-          this.value = NO_GEOMETRY;
           this.setStatus(Status.READY, NO_GEOMETRY);
         } else {
           this.value = newValue;
           this.setWaiting();
         }
-        // No name-based subscription for geometry types
-        this.unsubscribeAllNameSubscriptions();
       } else {
         // Check if newValue is a string that might contain variable references
         if (typeof newValue === "string") {
