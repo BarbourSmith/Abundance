@@ -894,25 +894,7 @@ export default class Molecule extends Atom {
     if (outputAtom) {
       const outputState = outputAtom.getState();
       if (outputState.status == Status.READY) {
-        this.nonReplicadGeom = outputAtom.nonReplicadGeom;
-        this.setReady(outputState.value);
-        this.compileBom()
-          .then((bom) => {
-            this.compiledBom = bom;
-            if (this.setInputChanged) {
-              this.setInputChanged(bom);
-            }
-          })
-          .catch(this.alertingErrorHandler);
-        // Compile README as well
-        this.requestReadme()
-          .then((readme) => {
-            this.compiledReadme = readme;
-            // Note: setInputChanged is not called for README as it's only used for BOM updates
-          })
-          .catch((err) => {
-            console.warn("Error loading README:", err);
-          });
+        this._handleOutputReady(outputState.value, outputAtom.nonReplicadGeom);
       } else {
         // Enable child atoms in dependency order to ensure atoms can subscribe to variable equations.
         // Do this on EVERY upstream change, not just when all inputs are ready.
@@ -943,6 +925,36 @@ export default class Molecule extends Atom {
       console.trace("Undefined output atom in onUpstreamChange");
       this.setError("got callback with undefined output atom");
     }
+  }
+
+  /**
+   * Called when the output atom's value is ready. Sets the molecule's value and
+   * kicks off BOM / README compilation. Extracted into its own method so
+   * subclasses (e.g. GitHubMolecule) can intercept and transform the value
+   * (e.g. apply unit-conversion scaling) before propagating it upstream.
+   * @param {AbundanceObject} value - The geometry value from the output atom
+   * @param {object} nonReplicadGeom - Non-replicad ThreeJS geometry (if any)
+   */
+  _handleOutputReady(value, nonReplicadGeom) {
+    this.nonReplicadGeom = nonReplicadGeom;
+    this.setReady(value);
+    this.compileBom()
+      .then((bom) => {
+        this.compiledBom = bom;
+        if (this.setInputChanged) {
+          this.setInputChanged(bom);
+        }
+      })
+      .catch(this.alertingErrorHandler);
+    // Compile README as well
+    this.requestReadme()
+      .then((readme) => {
+        this.compiledReadme = readme;
+        // Note: setInputChanged is not called for README as it's only used for BOM updates
+      })
+      .catch((err) => {
+        console.warn("Error loading README:", err);
+      });
   }
 
   /**
