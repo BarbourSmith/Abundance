@@ -75,9 +75,19 @@ export default function CodeWindow(props) {
   useEffect(() => {
     if (props.activeAtom == null) return;
 
-    // Track which worker-side log ids we've already pulled into local
-    // state so re-runs don't double-add entries.
-    const seenLogIds = new Set();
+    // The atom's `consoleEntries` buffer is the source of truth for log
+    // entries forwarded from the worker. We mirror it into local state on
+    // every pull rather than maintaining a parallel "seen ids" set, because
+    // (a) the effect re-runs whenever `props.activeAtom` changes — losing
+    // such a set would re-append everything as "new", producing duplicate
+    // React keys — and (b) the buffer is bounded (MAX_CONSOLE_ENTRIES) so
+    // copying the array each time is cheap.
+    //
+    // Errors raised via `atom.alert` are NOT stored on `consoleEntries`, so
+    // we synthesize a local entry for them. `seenAlertKey` prevents the
+    // same alert from being inserted multiple times across pulls.
+    let seenAlertKey = null;
+    let alertEntry = null;
 
     const pullEntries = () => {
       // Errors: surfaced via atom.alert when status flips to 'error'.
@@ -86,45 +96,38 @@ export default function CodeWindow(props) {
         props.activeAtom.alert &&
         props.activeAtom.alert.message
       ) {
-        const errId = `err-${props.activeAtom.alert.message}`;
-        if (!seenLogIds.has(errId)) {
-          seenLogIds.add(errId);
-          setConsoleEntries((prev) => [
-            ...prev,
-            {
-              level: "error",
-              message: props.activeAtom.alert.message,
-              stack: null,
-              timestamp: new Date(),
-              id: `${Date.now()}-${Math.random()}`,
-            },
-          ]);
+        const key = `err-${props.activeAtom.alert.message}`;
+        if (key !== seenAlertKey) {
+          seenAlertKey = key;
+          alertEntry = {
+            level: "error",
+            message: props.activeAtom.alert.message,
+            stack: null,
+            timestamp: new Date(),
+            id: `alert-${Date.now()}-${Math.random()}`,
+          };
         }
+      } else {
+        // Status is no longer error — drop any stale alert entry so the
+        // next error produces a fresh one.
+        seenAlertKey = null;
+        alertEntry = null;
       }
+
       // Logs: appended by molecules/code.js#appendConsoleEntries as the
       // worker forwards batches of console.* calls from user code.
       const entries = props.activeAtom.consoleEntries || [];
-      // Detect a clear: previously seen ids that are no longer present
-      // means the buffer was cleared. Reset local view + seen set.
-      if (entries.length === 0 && seenLogIds.size > 0) {
-        seenLogIds.clear();
-        setConsoleEntries([]);
-        return;
-      }
-      const fresh = entries.filter((e) => !seenLogIds.has(e.id));
-      if (fresh.length) {
-        for (const e of fresh) seenLogIds.add(e.id);
-        setConsoleEntries((prev) => [
-          ...prev,
-          ...fresh.map((e) => ({
-            level: e.level,
-            message: e.message,
-            stack: e.stack,
-            timestamp: new Date(e.timestamp),
-            id: e.id,
-          })),
-        ]);
-      }
+      const next = entries.map((e) => ({
+        level: e.level,
+        message: e.message,
+        stack: e.stack,
+        timestamp: new Date(e.timestamp),
+        // Namespace ids so worker-side ids can never collide with the
+        // synthesized alert id above.
+        id: `log-${e.id}`,
+      }));
+      if (alertEntry) next.push(alertEntry);
+      setConsoleEntries(next);
     };
 
     const subscriberId = "codeWindowConsole";

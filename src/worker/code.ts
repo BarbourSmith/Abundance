@@ -435,6 +435,9 @@ async function executeTsCode(
     return abundanceObj;
   } catch (error) {
     console.error("Code execution error:", error);
+    if (Number.isInteger(error)) {
+      throw new Error(`OpenCascade kernel error code: ${error}`);
+    }
     throw new Error(`Code execution failed: ${(error as Error).message}`);
   }
 }

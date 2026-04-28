@@ -238,6 +238,7 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 12px;
   line-height: 1.35;
+  color: var(--control-text, #e0e0e0);
 }
 
 .console-error-item.console-level-error {
@@ -302,15 +303,18 @@
 }
 
 .console-level-error .console-error-message {
-  color: #e05b5b;
+  color: #ff8a8a;
+}
+.console-level-warn .console-error-message {
+  color: #f0c14b;
 }
 
 .console-error-stack {
   margin: 4px 0 0;
   font-size: 11px;
-  color: var(--control-text-muted, #888);
+  color: var(--control-text-muted, #b0b0b0);
   white-space: pre-wrap;
-  background: rgba(0, 0, 0, 0.04);
+  background: rgba(255, 255, 255, 0.04);
   padding: 4px 6px;
   border-radius: 2px;
 }
