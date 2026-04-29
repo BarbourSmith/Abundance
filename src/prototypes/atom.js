@@ -979,7 +979,7 @@ export default class Atom extends ObservableEntity {
    */
   inputsAreReady() {
     return this.inputs.every((input) => {
-      return input.getState().status == Status.READY;
+      return input.getState().status == Status.READY || input.isOptional;
     });
   }
 

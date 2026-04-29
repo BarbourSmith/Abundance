@@ -1,6 +1,7 @@
 import Atom from "../prototypes/atom.js";
 import GlobalVariables from "../js/globalvariables.js";
 import { ValueChangeCommand } from "../js/undoCommands.js";
+import { parseCodeHeader } from "./utils/code-header-parser.js";
 import { proxy } from "comlink";
 
 /** Maximum number of console entries retained on a Code atom. Older
@@ -155,24 +156,6 @@ return assembly;
     this.parent = values.parent || null;
     this.uniqueID = values.uniqueID || GlobalVariables.generateUniqueID();
 
-    // Only mark inputs as ready if they have defined values and are not sentinel objects
-    values.ioValues?.forEach((ioValue) => {
-      const ap = this._addIOWithoutSubscribing(ioValue.name, ioValue.valueType);
-      // Check if value is defined and not the NO_GEOMETRY sentinel
-      const isNoGeometry =
-        ioValue.ioValue && ioValue.ioValue == "__GEOMETRY_INPUT__";
-      if (
-        ioValue.ioValue !== undefined &&
-        ioValue.ioValue !== null &&
-        !isNoGeometry
-      ) {
-        ap.setReady(ioValue.ioValue);
-      }
-    });
-    this._addIOWithoutSubscribing("output", "geometry", null, "output");
-
-    this.setValues([]);
-
     /**
      * The interpreter version for this code atom.
      * 0 = JavaScript (legacy)
@@ -196,7 +179,18 @@ return assembly;
      */
     this.compiledCode = values.compiledCode || "";
 
-    this.parseInputs();
+    // Manually construct the output AP with an "any" value type.
+    this._addIOWithoutSubscribing("output", "any", null, "output");
+    // Parse inputs from the saved code to get their structure.
+    // Then set their .value based on the values.ioValues state (ie the deserialized AP state).
+    try {
+      this.parseInputs();
+    } catch (err) {
+      this.setError(err);
+      console.error("Failed to parse code header for inputs:", err);
+      return; // Don't subscribe since our input set is stale.
+    }
+    this.setValues(values);
     this._subscribeToInputs();
   }
 
@@ -288,7 +282,13 @@ return assembly;
       this.compiledCode = "";
     }
 
-    this.parseInputs();
+    try {
+      this.parseInputs();
+    } catch (err) {
+      this.setError(err);
+      console.error("Failed to parse code header for inputs:", err);
+      return; // Don't subscribe since our input set is stale.
+    }
     const alreadyCalledBack = this._subscribeToInputs();
     if (!alreadyCalledBack) {
       // Force a call back even if we don't have inputs. Some code atoms
@@ -346,6 +346,8 @@ return assembly;
           this.appendConsoleEntry({ level, message, stack });
         })
       : undefined;
+    console.trace(`Executing code ${this.uniqueID} with inputs:`, argsDict);
+    console.log(this.inputs.map((i) => `${i.name}=${i.status}`).join(", "));
     const promise = GlobalVariables.cad.code(
       codeToRun,
       argsDict,
@@ -594,152 +596,36 @@ return assembly;
 
   /**
    * Parse the parameters of the TypeScript `run(...)` function and register
-   * them as atom inputs. Walks the signature with a bracket-depth counter so
-   * that generics, union types, array types, and nested object/default values
-   * are handled correctly.
+   * them as atom inputs.
    *
-   * Type mapping: `number` -> number, `string` -> string, `boolean` -> boolean,
-   * anything else -> "geometry" (includes RealizedAssembly, any, etc.).
+   * String parsing is delegated to `parseCodeHeader`. Throws an error if
+   * parsing fails.
    */
   parseTsRunSignature() {
-    const src = this.code;
-    const startIdx = src.search(/\bfunction\s+run\s*\(/);
-    if (startIdx === -1) {
-      // No run() found — remove all existing inputs and bail
-      [...this.inputs].forEach((input) => {
-        if (input.type === "input") this.removeIO(input.type, input.name, this);
-      });
-      return;
-    }
-    const openParen = src.indexOf("(", startIdx);
-    // Walk forward tracking bracket depth to find the matching ")"
-    let depth = 0;
-    let closeParen = -1;
-    for (let i = openParen; i < src.length; i++) {
-      const c = src[i];
-      if (c === "(" || c === "[" || c === "{" || c === "<") depth++;
-      else if (c === ")" || c === "]" || c === "}" || c === ">") {
-        depth--;
-        if (depth === 0 && c === ")") {
-          closeParen = i;
-          break;
-        }
-      }
-    }
-    if (closeParen === -1) return;
+    let parsedArgs;
+    parsedArgs = parseCodeHeader(this.code);
 
-    const sig = src.substring(openParen + 1, closeParen);
-
-    // Split on top-level commas (respecting bracket depth)
-    const params = [];
-    {
-      let d = 0;
-      let start = 0;
-      for (let i = 0; i < sig.length; i++) {
-        const c = sig[i];
-        if (c === "(" || c === "[" || c === "{" || c === "<") d++;
-        else if (c === ")" || c === "]" || c === "}" || c === ">") d--;
-        else if (c === "," && d === 0) {
-          const piece = sig.substring(start, i).trim();
-          if (piece) params.push(piece);
-          start = i + 1;
-        }
+    const declaredNames = [];
+    for (const arg of parsedArgs) {
+      declaredNames.push(arg.name);
+      let existing = this.inputs.find((input) => input.name === arg.name);
+      if (!existing) {
+        existing = this._addIOWithoutSubscribing(
+          arg.name,
+          arg.type,
+          arg.defaultValue,
+          "input",
+        );
       }
-      const last = sig.substring(start).trim();
-      if (last) params.push(last);
+      // Overwrite existing inputs properties based on latest version of code.
+      existing.valueType = arg.type;
+      existing.defaultValue = arg.defaultValue;
+      existing.isOptional = arg.isOptional;
     }
 
-    const typeMap = (tsType) => {
-      const first = (tsType || "").trim().split(/[\s|&]/)[0];
-      if (first === "number") return "number";
-      if (first === "string") return "string";
-      if (first === "boolean") return "boolean";
-      return "geometry";
-    };
-
-    const parseDefault = (raw, valueType) => {
-      if (raw === undefined) return valueType === "geometry" ? null : undefined;
-      const trimmed = raw.trim();
-      if (valueType === "number") {
-        const n = Number(trimmed);
-        return Number.isFinite(n) ? n : 0;
-      }
-      if (valueType === "boolean") return trimmed === "true";
-      if (valueType === "string") {
-        // Strip surrounding quotes if present
-        if (
-          (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
-          (trimmed.startsWith("'") && trimmed.endsWith("'"))
-        ) {
-          return trimmed.slice(1, -1);
-        }
-        return trimmed;
-      }
-      return null;
-    };
-
-    const variableNames = [];
-    for (const p of params) {
-      // Separate default: split on first top-level '='
-      let eqIdx = -1;
-      {
-        let d = 0;
-        for (let i = 0; i < p.length; i++) {
-          const c = p[i];
-          if (c === "(" || c === "[" || c === "{" || c === "<") d++;
-          else if (c === ")" || c === "]" || c === "}" || c === ">") d--;
-          else if (
-            c === "=" &&
-            d === 0 &&
-            p[i + 1] !== "=" &&
-            p[i - 1] !== "="
-          ) {
-            eqIdx = i;
-            break;
-          }
-        }
-      }
-      const beforeEq = eqIdx === -1 ? p : p.substring(0, eqIdx);
-      const defaultRaw = eqIdx === -1 ? undefined : p.substring(eqIdx + 1);
-
-      // Separate name : type on the FIRST top-level ':'
-      let colonIdx = -1;
-      {
-        let d = 0;
-        for (let i = 0; i < beforeEq.length; i++) {
-          const c = beforeEq[i];
-          if (c === "(" || c === "[" || c === "{" || c === "<") d++;
-          else if (c === ")" || c === "]" || c === "}" || c === ">") d--;
-          else if (c === ":" && d === 0) {
-            colonIdx = i;
-            break;
-          }
-        }
-      }
-      const nameRaw =
-        colonIdx === -1 ? beforeEq : beforeEq.substring(0, colonIdx);
-      const typeRaw = colonIdx === -1 ? "" : beforeEq.substring(colonIdx + 1);
-
-      // Strip `?` (optional marker) and whitespace from name
-      const name = nameRaw.trim().replace(/\?$/, "");
-      if (!name || !/^[a-zA-Z_$][\w$]*$/.test(name)) continue;
-
-      const valueType = typeMap(typeRaw);
-      const defaultValue = parseDefault(defaultRaw, valueType);
-
-      variableNames.push(name);
-      const existingInput = this.inputs.find((input) => input.name === name);
-      if (!existingInput) {
-        this._addIOWithoutSubscribing(name, valueType, defaultValue, "input");
-      } else {
-        existingInput.valueType = valueType;
-        existingInput.defaultValue = defaultValue;
-      }
-    }
-
-    // Remove inputs no longer declared in the run() signature
+    // Remove inputs no longer declared in the run() signature.
     [...this.inputs].forEach((input) => {
-      if (input.type === "input" && !variableNames.includes(input.name)) {
+      if (input.type === "input" && !declaredNames.includes(input.name)) {
         this.removeIO(input.type, input.name, this);
       }
     });

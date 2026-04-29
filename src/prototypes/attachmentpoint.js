@@ -122,6 +122,12 @@ export default class AttachmentPoint extends ObservableEntity {
     this.defaultValue = this.valueType == "number" ? 10 : null;
 
     /**
+     * Whether this AP is optional. Optional APs don't block their parent molecule from computing
+     * even if their in a WAITING state.
+     */
+    this.isOptional = false;
+
+    /**
      * Internal storage for currentEquation
      * @type {string}
      * @private
@@ -990,21 +996,9 @@ export default class AttachmentPoint extends ObservableEntity {
       if (this.valueType == "geometry") {
         // No name-based subscription for geometry types
         this.unsubscribeAllNameSubscriptions();
-        // For geometries, if the value is explicitly null (e.g., from
-        // defaultValue: null, or a connector being deleted), use the
-        // NO_GEOMETRY sentinel so code atoms can still execute with
-        // optional inputs. We hand the new value straight to setStatus()
-        // rather than pre-writing `this.value` ourselves — otherwise
-        // ObservableEntity#setStatus's change detection
-        // (`this.status != status || this.value !== value`) sees no
-        // change and skips propagation, which would leave downstream
-        // atoms stuck on the previously-connected geometry.
-        if (newValue === null) {
-          this.setStatus(Status.READY, NO_GEOMETRY);
-        } else {
-          this.value = newValue;
-          this.setWaiting();
-        }
+
+        this.value = newValue;
+        this.setWaiting();
       } else {
         // Check if newValue is a string that might contain variable references
         if (typeof newValue === "string") {
