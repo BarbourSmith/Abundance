@@ -1014,6 +1014,36 @@ export default class Molecule extends Atom {
   }
 
   /**
+   * Returns the scale factor that should be applied to geometry values flowing
+   * INTO this molecule's Input atoms so that they are expressed in this molecule's
+   * own unit system. The default is 1 (no conversion). GitHubMolecule overrides
+   * this to return the inverse of its output scale factor.
+   * @returns {number} 1 by default
+   */
+  getGeometryInputScaleFactor() {
+    return 1;
+  }
+
+  /**
+   * Notify this molecule and all descendant GitHubMolecules that the host
+   * project units have changed so they can re-apply their output (and input)
+   * scaling. Call this on the top-level molecule whenever the user changes
+   * the project's unitsKey.
+   */
+  notifyUnitsChanged() {
+    this.nodesOnTheScreen.forEach((atom) => {
+      if (atom.atomType === "GitHubMolecule") {
+        atom.onHostUnitsChanged();
+      } else if (
+        (atom.atomType === "Molecule" || atom.atomType === "GitHubMolecule") &&
+        typeof atom.notifyUnitsChanged === "function"
+      ) {
+        atom.notifyUnitsChanged();
+      }
+    });
+  }
+
+  /**
    * Replace the currently displayed molecule with the parent of this molecule...moves the user up one level.
    */
   goToParentMolecule() {

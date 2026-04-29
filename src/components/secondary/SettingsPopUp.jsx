@@ -130,6 +130,7 @@ const SettingsPopUp = ({
       [event.target.name]: event.target.value,
     });
     Globalvariables.topLevelMolecule.unitsKey = event.target.value;
+    Globalvariables.topLevelMolecule.notifyUnitsChanged?.();
   };
 
   return (

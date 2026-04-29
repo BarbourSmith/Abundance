@@ -313,6 +313,41 @@ export default class Input extends Atom {
         return;
       }
 
+      // If the parent molecule needs geometry inputs to be unit-converted (e.g.
+      // inside a GitHubMolecule with different units than the host project),
+      // scale the incoming geometry before propagating it internally.
+      const inputScaleFactor =
+        this.parentAP.valueType === "geometry" &&
+        parentState.status === Status.READY &&
+        parentState.value &&
+        typeof parentState.value === "object"
+          ? (this.parent?.getGeometryInputScaleFactor?.() ?? 1)
+          : 1;
+
+      if (inputScaleFactor !== 1) {
+        this.setProcessing();
+        GlobalVariables.cad
+          .scale(parentState.value, inputScaleFactor, this.getContext())
+          .then((scaledValue) => {
+            this.value = scaledValue;
+            this.setReady(scaledValue);
+            if (
+              this.value !== previousValue &&
+              this.parent &&
+              typeof this.parent.propagateInputChange === "function"
+            ) {
+              this.parent.propagateInputChange(this.name);
+            }
+          })
+          .catch((err) => {
+            this.setError(
+              err?.message ||
+                `Failed to apply unit scale to geometry input "${this.name}"`,
+            );
+          });
+        return;
+      }
+
       this.setStatus(parentState.status, parentState.value);
 
       // Update our internal value if status is READY

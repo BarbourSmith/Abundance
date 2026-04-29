@@ -190,6 +190,46 @@ export default class GitHubMolecule extends Molecule {
   }
 
   /**
+   * Returns the scale factor that should be applied to geometry values flowing
+   * INTO this molecule's Input atoms. It is the inverse of the output scale
+   * factor, so that geometry from the host context is expressed in this
+   * molecule's own units before being processed internally.
+   * @returns {number} inverse of the output scale factor, or 1 if no scaling needed
+   */
+  getGeometryInputScaleFactor() {
+    const outputFactor = this._getUnitScaleFactor();
+    return outputFactor === 1 ? 1 : 1 / outputFactor;
+  }
+
+  /**
+   * Called when the host project's units change. Re-applies output scaling with
+   * the new unit relationship and re-triggers input scaling for all geometry
+   * Input atoms inside this molecule.
+   */
+  onHostUnitsChanged() {
+    // Re-apply output scaling: onUpstreamChange() checks the Output atom's
+    // current (unscaled) value and calls _handleOutputReady() which will
+    // re-scale using the updated unit factor.
+    this.onUpstreamChange();
+
+    // Re-trigger input scaling for every geometry Input atom inside this molecule.
+    // Input.onUpstreamChange() re-reads the parentAP value and applies the new
+    // getGeometryInputScaleFactor() to it.
+    this.nodesOnTheScreen.forEach((atom) => {
+      if (
+        atom.atomType === "Input" &&
+        atom.parentAP?.valueType === "geometry" &&
+        atom.parentAP.connectors.length > 0
+      ) {
+        atom.onUpstreamChange();
+      }
+    });
+
+    // Propagate to any nested GitHubMolecules inside this one
+    this.notifyUnitsChanged();
+  }
+
+  /**
    * Compute the scale factor to convert geometry from this molecule's own units
    * to the host project's units. Walks up the parent chain to find the nearest
    * ancestor with a defined unitsKey (which may be another GitHubMolecule or the

@@ -296,3 +296,135 @@ describe("GitHubMolecule._handleOutputReady", () => {
     expect(mol._setProcessingCalls).toHaveLength(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Tests for getGeometryInputScaleFactor (inverse of output scale)
+// ---------------------------------------------------------------------------
+
+describe("GitHubMolecule.getGeometryInputScaleFactor", () => {
+  // Local implementations matching the production code
+  function getGeometryInputScaleFactor() {
+    const outputFactor = this._getUnitScaleFactor();
+    return outputFactor === 1 ? 1 : 1 / outputFactor;
+  }
+
+  function makeGHMolWithInputFactor(ownUnitsKey, parent) {
+    const mol = makeGitHubMolecule(ownUnitsKey, parent);
+    mol.getGeometryInputScaleFactor = getGeometryInputScaleFactor.bind(mol);
+    return mol;
+  }
+
+  it("returns 25.4 for an MM molecule in an Inches host (inverse of 1/25.4)", () => {
+    const mol = makeGHMolWithInputFactor("MM", makeParent("Inches"));
+    expect(mol.getGeometryInputScaleFactor()).toBeCloseTo(25.4, 10);
+  });
+
+  it("returns 1/25.4 for an Inches molecule in a MM host (inverse of 25.4)", () => {
+    const mol = makeGHMolWithInputFactor("Inches", makeParent("MM"));
+    expect(mol.getGeometryInputScaleFactor()).toBeCloseTo(1 / 25.4, 10);
+  });
+
+  it("returns 1 when units match", () => {
+    const mol = makeGHMolWithInputFactor("MM", makeParent("MM"));
+    expect(mol.getGeometryInputScaleFactor()).toBe(1);
+  });
+
+  it("returns 1 when either unit is Unitless", () => {
+    const mol = makeGHMolWithInputFactor("Unitless", makeParent("MM"));
+    expect(mol.getGeometryInputScaleFactor()).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tests for notifyUnitsChanged and onHostUnitsChanged
+// ---------------------------------------------------------------------------
+
+describe("notifyUnitsChanged / onHostUnitsChanged", () => {
+  it("notifyUnitsChanged calls onHostUnitsChanged on each GitHubMolecule child", () => {
+    const ghChild1 = { atomType: "GitHubMolecule", onHostUnitsChanged: vi.fn() };
+    const ghChild2 = { atomType: "GitHubMolecule", onHostUnitsChanged: vi.fn() };
+    const regularAtom = { atomType: "Circle" };
+    const regularMol = {
+      atomType: "Molecule",
+      nodesOnTheScreen: [],
+      notifyUnitsChanged: vi.fn(),
+    };
+
+    // Build a minimal parent molecule using the real notifyUnitsChanged logic
+    const topLevel = {
+      nodesOnTheScreen: [ghChild1, ghChild2, regularAtom, regularMol],
+      notifyUnitsChanged() {
+        this.nodesOnTheScreen.forEach((atom) => {
+          if (atom.atomType === "GitHubMolecule") {
+            atom.onHostUnitsChanged();
+          } else if (
+            (atom.atomType === "Molecule" ||
+              atom.atomType === "GitHubMolecule") &&
+            typeof atom.notifyUnitsChanged === "function"
+          ) {
+            atom.notifyUnitsChanged();
+          }
+        });
+      },
+    };
+
+    topLevel.notifyUnitsChanged();
+
+    expect(ghChild1.onHostUnitsChanged).toHaveBeenCalledOnce();
+    expect(ghChild2.onHostUnitsChanged).toHaveBeenCalledOnce();
+    expect(regularMol.notifyUnitsChanged).toHaveBeenCalledOnce();
+  });
+
+  it("onHostUnitsChanged calls onUpstreamChange for output re-scaling", () => {
+    // Minimal implementation mirroring production GitHubMolecule.onHostUnitsChanged
+    function onHostUnitsChanged() {
+      this.onUpstreamChange();
+      this.nodesOnTheScreen.forEach((atom) => {
+        if (
+          atom.atomType === "Input" &&
+          atom.parentAP?.valueType === "geometry" &&
+          atom.parentAP.connectors.length > 0
+        ) {
+          atom.onUpstreamChange();
+        }
+      });
+      this.notifyUnitsChanged();
+    }
+
+    const mol = makeGitHubMolecule("MM", makeParent("Inches"));
+    mol.onUpstreamChange = vi.fn();
+    mol.notifyUnitsChanged = vi.fn();
+
+    // Geometry Input atom with a connected parentAP
+    const geomInput = {
+      atomType: "Input",
+      parentAP: { valueType: "geometry", connectors: [{}] },
+      onUpstreamChange: vi.fn(),
+    };
+    // Non-geometry Input atom
+    const numInput = {
+      atomType: "Input",
+      parentAP: { valueType: "number", connectors: [{}] },
+      onUpstreamChange: vi.fn(),
+    };
+    // Geometry Input atom with no connector
+    const disconnectedInput = {
+      atomType: "Input",
+      parentAP: { valueType: "geometry", connectors: [] },
+      onUpstreamChange: vi.fn(),
+    };
+    mol.nodesOnTheScreen = [geomInput, numInput, disconnectedInput];
+    mol.onHostUnitsChanged = onHostUnitsChanged.bind(mol);
+
+    mol.onHostUnitsChanged();
+
+    // Output re-scaling
+    expect(mol.onUpstreamChange).toHaveBeenCalledOnce();
+    // Only the connected geometry input should be re-triggered
+    expect(geomInput.onUpstreamChange).toHaveBeenCalledOnce();
+    expect(numInput.onUpstreamChange).not.toHaveBeenCalled();
+    expect(disconnectedInput.onUpstreamChange).not.toHaveBeenCalled();
+    // Nested propagation
+    expect(mol.notifyUnitsChanged).toHaveBeenCalledOnce();
+  });
+});
