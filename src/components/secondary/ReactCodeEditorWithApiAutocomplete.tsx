@@ -62,45 +62,6 @@ function buildCompletionItems(
     const isInstanceMethod = key.includes(".");
     const methodName = isInstanceMethod ? key.split(".")[1] : key;
 
-    // AbundanceObject structure template
-    if (
-      key === "AbundanceObject" &&
-      def.type === "object" &&
-      Array.isArray(def.properties)
-    ) {
-      const propLines = (def.properties as string[]).map((prop) => {
-        const [propName, propType] = prop.split(":").map((s) => s.trim());
-        const example =
-          propName === "geometry"
-            ? "[createdShape]"
-            : propName === "dimension"
-              ? '"3D"'
-              : propName === "tags"
-                ? '["createdShape"]'
-                : propName === "color"
-                  ? "'#A3CE5B'"
-                  : propName === "plane"
-                    ? "newPlane"
-                    : propName === "bom"
-                      ? "[]"
-                      : propType === "String"
-                        ? '""'
-                        : propType === "Array"
-                          ? "[]"
-                          : "null";
-        return `  ${propName}: ${example},`;
-      });
-      items.push({
-        label: "AbundanceObject",
-        kind: monaco.languages.CompletionItemKind.Struct,
-        detail: "AbundanceObject structure",
-        documentation: { value: buildDocString(key, def) },
-        insertText: "{\n" + propLines.join("\n") + "\n}",
-        range,
-      });
-      continue;
-    }
-
     let insertText: string;
     if (isReplicad) {
       insertText = isInstanceMethod

@@ -197,13 +197,15 @@ export default function CodeWindow(props) {
   }, []);
 
   /**
-   * Process Abundance API JSON to extract method information (Abundance style)
-   * Each entry: {
-   *   type: "function",
-   *   requiredParams: ["AbundanceObject", "x", "y", "z"],
+   * Process Abundance API JSON to extract method information.
+   * Entries describe the `Assembly` class surface — its constructor and
+   * instance methods (`.isLeaf`, `.onLeafs`, `.is2D`, etc.). Example:
+   * {
+   *   type: "method",
+   *   requiredParams: [],
    *   optionalParams: [],
-   *   usage: "await Move(AbundanceObject, x, y, z)",
-   *   returns: "AbundanceObject"
+   *   usage: "assembly.isLeaf()",
+   *   returns: "boolean"
    * }
    */
   const abundanceMethods = useMemo(() => {
