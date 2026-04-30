@@ -112,11 +112,42 @@ export default class Code extends Atom {
      * parameters; types map to `number`/`string`/`boolean`/`geometry`.
      * @type {string}
      */
-    const TS_DEFAULT_CODE = `// Chamfer the edges of an incoming shape.
-// Declare inputs as parameters of run(); their types map to Abundance input types.
-function run(shape: AbundanceObj<replicad.Shape3D>, size: number = 2) {
-  const chamfered = shape.geometry.chamfer(size);
-  return new AbundanceObj(chamfered, shape);
+    const TS_DEFAULT_CODE = `
+/**
+ * This code atom implements a simple linear layout funtion which repeats
+ * shape count times in the positive X direction with offset space
+ * between each. Works for either 2D or 3D shapes. Negative offset
+ * and negative counts invert the direction.
+ * 
+ * Notice that defaults are set for both count and offset.
+ */
+function run(shape: Assembly, count: number = 1, offset: number = 5) {
+  if (count == 0) {
+    return []
+  }
+  const isReversed = count < 0;
+  if (isReversed) {
+    offset = -1 * offset
+  }
+  count = Math.abs(count)
+
+  const result = [shape]
+  for (let i = 1; i < count; i++) {
+    const movedCopy = new Assembly(shape).onLeafs((leaf) => {
+      if (leaf.is2D()) {
+        leaf.geometry = leaf.geometry.translate(offset * i, 0)
+      } else if (leaf.geometry instanceof replicad._3DShape) {
+        leaf.geometry = leaf.geometry.translate(offset * i, 0, 0)
+      }
+      return leaf;
+    })
+
+    if (movedCopy) {
+      result.push(movedCopy)
+    }
+  }
+
+  return result;
 }
 `;
     /**

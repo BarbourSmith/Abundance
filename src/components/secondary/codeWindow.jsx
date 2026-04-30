@@ -7,39 +7,6 @@ import ReactCodeEditorWithApiAutocomplete from "./ReactCodeEditorWithApiAutocomp
 import InfoPanel from "./InfoPanel";
 import { setMonacoInstance } from "../../molecules/code.js";
 
-/**
- * Common JavaScript methods for reference panel
- */
-// User Quick Guide for the Code Window
-const CODE_WINDOW_GUIDE = [
-  {
-    name: "Code Window Quick Guide",
-    usage: null,
-    params: [],
-    returns: null,
-    detail:
-      `• Define your inputs at the top using the Inputs array.\n\n` +
-      `  Example:\n  const Inputs = [\n    { inputName: "shape", type: "geometry", defaultValue: null },\n    { inputName: "dist", type: "number", defaultValue: 5 },\n    { inputName: "height", type: "number", defaultValue: 10 }\n  ];\n\n` +
-      `• Access imported geometry using: library[shape]\n` +
-      `• Use built-in async functions (always with await):\n` +
-      `  let moved = await Move(importedShape, dist, 0, 0);\n  let rotated = await Rotate(importedShape, 0, 45, 0);\n  let scaled = await Scale(importedShape, 0.8);\n  let filleted = await Fillet(moved, 0.5);\n  let chamfered = await Chamfer(moved, 0.3);\n  let assembly = await Assembly([rotated, scaled, filleted, chamfered]);\n\n` +
-      `• Create new geometry with Replicad:\n` +
-      `  let rect = replicad.drawRectangle(5, 7);\n  let plane = new replicad.Plane().pivot(0, 'Y');\n  let shape = rect.sketchOnPlane(plane).extrude(height);\n\n` +
-      `• Wrap raw geometry as an Abundance Object:\n` +
-      `  let shapeObj = {\n    geometry: [shape],\n    dimension: "3D",\n    tags: ["createdShape"],\n    color: "#A3CE5B",\n    plane: plane,\n    bom: []\n  };\n\n` +
-      `• Use console.log for debugging:\n` +
-      `  console.log("Bounds:", GetBounds(moved));\n\n` +
-      `• Return your result at the end:\n` +
-      `  return assembly;\n\n` +
-      `• Built-in Functions:\n` +
-      `  Move, Rotate, Scale, Assembly, Intersect, GetBounds, Fillet, Chamfer\n\n` +
-      `• Tips:\n` +
-      `  - Use the Replicad and Abundance panels to browse all available methods.\n` +
-      `  - Hover over suggestions for parameter and return type info.\n` +
-      `  - Save and close your code using the buttons below the editor.\n`,
-  },
-];
-
 /*
  * CodeWindow component is a code editor window that allows the user to edit the code of the active code atom.
  */
@@ -242,20 +209,16 @@ export default function CodeWindow(props) {
   const abundanceMethods = useMemo(() => {
     if (!abundanceJson) return [];
     return Object.keys(abundanceJson)
-      .sort()
       .map((key) => {
         const def = abundanceJson[key];
         const params = (def.requiredParams || []).concat(
           def.optionalParams || []
         );
         // Always prepend 'await' for abundance methods
-        const usage = `await ${key}(${params.join(", ")})`;
         return {
           name: key,
-          usage: def.usage || usage,
           params,
-          returns: def.returns,
-          detail: def.type || "function",
+          ...def,
         };
       });
   }, []);
@@ -341,79 +304,26 @@ export default function CodeWindow(props) {
                   {`
 Welcome to the Code Window!
 
-How to Use:
+Code atoms allow you to define atoms which perform custom actions using
+Typescript, the Replicad API, and some Abundance utilities.
 
-• Define your inputs at the top using the Inputs array:`}
-                  <div className="method-item">
-                    {`
-  const Inputs = [
-    { inputName: "shape", type: "geometry", defaultValue: null },
-    { inputName: "dist", type: "number", defaultValue: 5 },
-    { inputName: "height", type: "number", defaultValue: 10 }
-  ]; `}{" "}
-                  </div>{" "}
-                  {`
+The "run" function is the entry point for the code atom. The arguments
+to this function will determine what inputs this atom takes, and it's
+returned value will be available to downstream atoms.
 
-• Access imported geometry using: library[shape] `}
-                  <div className="method-item">
-                    {`
- let importedShape = library[shape]; `}{" "}
-                  </div>
-                  {`
+Allowed input types are:
+• number
+• string
+• boolean
+• Assembly - a structured Abundance assembly (may contain a single or multiple geometries).
+  See Abundance Methods panel.
 
-• Use built-in async functions (always with await): `}
-                  <div className="method-item">
-                    {`
-  let moved = await Move(importedShape, dist, 0, 0);
-  let rotated = await Rotate(importedShape, 0, 45, 0);
-  let scaled = await Scale(importedShape, 0.8);
-  let filleted = await Fillet(moved, 0.5);
-  let chamfered = await Chamfer(moved, 0.3);
-  let assembly = await Assembly([rotated, scaled, filleted, chamfered]);
-`}{" "}
-                  </div>
-                  {`
-• Create new geometry with Replicad:  `}
-                  <div className="method-item">
-                    {`
-  let rect = replicad.drawRectangle(5, 7);
-  let plane = new replicad.Plane().pivot(0, 'Y');
-  let shape = rect.sketchOnPlane(plane).extrude(height);
+Allowed return types are same as input types.
 
-`}
-                  </div>
-                  {`
-• Wrap raw geometry as an Abundance Object: `}
-                  <div className="method-item">
-                    {`
-  let shapeObj = {
-    geometry: [shape],
-    dimension: "3D",
-    tags: ["createdShape"],
-    color: "#A3CE5B",
-    plane: plane,
-    bom: []
-  };  `}{" "}
-                  </div>
-                  {`
-• Use console.log for debugging: `}
-                  <div className="method-item">
-                    {`
-  console.log("Bounds:", GetBounds(moved)); `}{" "}
-                  </div>
-                  {`
-• Return your result at the end. If you intent to continue using the result in further steps as a geometry, make sure to return an Abundance Object.
-  `}{" "}
-                  <div className="method-item">
-                    {`
-  return assembly;
-`}{" "}
-                  </div>{" "}
-                  {`
-Tips:
-- Use the Replicad and Abundance panels to browse all available methods.
-- Hover over autocomplete suggestions for parameter and return type info.
-- Save and close your code using the buttons below the editor.
+console.log, console.warn, and console.error are available for debugging, and their output
+will appear in the Console panel.
+Errors thrown in this atom will be shown in the console and will also put the atom itself
+into an error state displaying the error message.
 `}
                 </div>
               </div>

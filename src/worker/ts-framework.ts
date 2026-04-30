@@ -47,7 +47,7 @@ declare const replicad: any;
  * and because deep-cloning a generic `G` would otherwise be unsound.
  * See scripts/build-ts-framework.mjs for the full set of rewrites.
  */
-export class Assembly<G = any> implements Iterable<Assembly<any>> {
+export class Assembly<G = any> {
   // Structural marker set on the prototype below — used by the worker to
   // recognise AbundanceObj return values across the sandbox boundary without
   // relying on `instanceof` (which would fail because the class is defined
@@ -83,18 +83,6 @@ export class Assembly<G = any> implements Iterable<Assembly<any>> {
       ) {
         this.geometry = other.geometry.clone();
       }
-    }
-  }
-
-  // Iterates over leaf nodes of the assembly tree. A node is a leaf when its
-  // `geometry` is a replicad shape or drawing (i.e. not an `Assembly[]`).
-  // Branch nodes are traversed depth-first, left-to-right, and are NOT
-  // themselves yielded — callers only ever see leaves.
-  *[Symbol.iterator](): Iterator<Assembly<any>> {
-    if (Array.isArray(this.geometry)) {
-      for (const child of this.geometry) yield* child;
-    } else {
-      yield this;
     }
   }
 
