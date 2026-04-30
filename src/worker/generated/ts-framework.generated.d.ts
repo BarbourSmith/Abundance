@@ -56,7 +56,7 @@ declare global {
    *  • After editing, always run `npm run build:ts-framework` then commit both
    *    this file and the updated files in src/worker/generated/.
    */
-  class Assembly<G extends AnyGeom = AnyGeom> implements Iterable<Assembly<LeafGeom>> {
+  class Assembly<G extends AnyGeom = AnyGeom> {
       __abundance: string;
       geometry: G;
       color: string;
@@ -64,7 +64,6 @@ declare global {
       bom: string[];
       plane: _replicad.Plane;
       constructor(other?: Partial<Assembly>);
-      [Symbol.iterator](): Iterator<Assembly<LeafGeom>>;
       /**
        * User-defined type guard. Lets callers narrow an `Assembly` to a leaf
        * (where `geometry` is a single replicad shape/drawing rather than an

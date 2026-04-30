@@ -31,17 +31,6 @@ class Assembly {
       }
     }
   }
-  // Iterates over leaf nodes of the assembly tree. A node is a leaf when its
-  // `geometry` is a replicad shape or drawing (i.e. not an `Assembly[]`).
-  // Branch nodes are traversed depth-first, left-to-right, and are NOT
-  // themselves yielded — callers only ever see leaves.
-  *[Symbol.iterator]() {
-    if (Array.isArray(this.geometry)) {
-      for (const child of this.geometry) yield* child;
-    } else {
-      yield this;
-    }
-  }
   /**
    * User-defined type guard. Lets callers narrow an `Assembly` to a leaf
    * (where `geometry` is a single replicad shape/drawing rather than an

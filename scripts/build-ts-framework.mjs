@@ -74,10 +74,11 @@ writeFileSync(
     compilerOptions: {
       target: "ES2020",
       module: "ESNext",
-      moduleResolution: "node",
+      moduleResolution: "bundler",
       declaration: true,
       emitDeclarationOnly: true,
       outDir: tmpOutDir,
+      rootDir: path.dirname(SRC),
       strict: true,
       skipLibCheck: true,
       // Treat `replicad` as an ambient global so tsc doesn't complain that
