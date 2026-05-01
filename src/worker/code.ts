@@ -23,21 +23,42 @@
  *     (e.g. `import * as math from 'https://esm.sh/mathjs'`) because each
  *     atom executes as a real ES module via a Blob URL.
  */
+import * as replicad from "replicad";
 import * as util from "./util";
 import { AbundanceObject } from "./util";
 import { RequestContext } from "./geometryProvider";
 import {
   executeCode as executeLegacy,
-  RealizedAssembly,
-  addAssemblyPartsToCache,
   composeID,
-  ensureDimension,
   validateUserCode,
 } from "./code-legacy";
-// Runtime JS for the AbundanceObj / AbundanceProps sandbox framework.
+import { assembly } from "./interaction";
+
+// Pre-compiled Runtime JS for the user's code sandbox. Built from ts-framework.ts
 // Generated from src/worker/ts-framework.ts — run `npm run build:ts-framework`
 // to regenerate after changes to the canonical source.
+//
+// We pull this in two ways:
+//   - As `?raw` text, so the sandbox preamble can inline the factory
+//     definition into each user code blob and call it there with the
+//     sandbox-scoped `replicad` reference.
+//   - As a real ES module, so worker-side code can construct Assembly
+//     instances bound to the worker's own replicad WASM module.
 import ABUNDANCE_TS_FRAMEWORK_JS from "./generated/ts-framework.generated.js?raw";
+import { makeAbundanceFramework } from "./generated/ts-framework.generated.js";
+
+// Worker-side framework instance bound to the worker's replicad namespace.
+// `util.replicad` is the same `import * as replicad from "replicad"` object
+// throughout module life — `init()` only swaps its internal OC reference —
+// so it's safe to bind these at module load time. The factory itself just
+// declares the class; replicad is only dereferenced when Assembly methods
+// are actually invoked, by which time `init()` has run.
+const { Assembly, __promoteInput } = makeAbundanceFramework(
+  util.replicad as any,
+);
+type Assembly<G = any> = InstanceType<typeof Assembly> & { geometry: G };
+
+type Primitive = number | string | boolean | null | undefined;
 
 /**
  * Helper function to check if a value is the NO_GEOMETRY sentinel.
@@ -49,7 +70,7 @@ function isNoGeometry(value: any): boolean {
 /**
  * Check if a value is a primitive type.
  */
-function isPrimitive(value: any): boolean {
+function isPrimitive(value: any): value is Primitive {
   return (
     value === null ||
     value === undefined ||
@@ -66,6 +87,16 @@ function isPrimitive(value: any): boolean {
  */
 function isAssembly(value: any): boolean {
   return !!value && value.__abundance === "Assembly";
+}
+
+function isReplicadAnyShape(value: any): value is replicad.AnyShape {
+  return (
+    replicad.isShape3D(value) ||
+    value instanceof replicad.Wire ||
+    value instanceof replicad.Face ||
+    value instanceof replicad.Edge ||
+    value instanceof replicad.Vertex
+  );
 }
 
 /**
@@ -131,39 +162,91 @@ function defaultProps() {
  * RealizedAssembly shape (`{ geometry, plane, color, tags, bom }`) that
  * `ensureDimension` + `addAssemblyPartsToCache` expect.
  */
-function convertCodeAtomResult(value: any): any {
+function convertCodeAtomResult(
+  value: any,
+): Primitive | Primitive[] | Assembly<AnyGeom> {
   if (value == null) return value;
   if (isPrimitive(value)) return value;
 
-  // Array → RealizedBranch. Children are recursively converted so that a
-  // mix of AbundanceObj / bare replicad shapes inside the same array all
-  // end up as proper RealizedAssembly nodes.
+  if (isReplicadAnyShape(value) || value instanceof replicad.Drawing) {
+    return new Assembly({ geometry: value, ...defaultProps() });
+  }
+
+  if (Array.isArray(value) && value.every(isPrimitive)) {
+    return value;
+  }
+
   if (Array.isArray(value)) {
-    const children = value.map(convertCodeAtomResult);
-    const first = children[0];
-    return {
-      geometry: children,
-      plane: first?.plane ?? util.replicad.makePlane(),
-      color: first?.color ?? "#ffffff",
-      tags: first?.tags ?? [],
-      bom: first?.bom ?? [],
-    };
+    const subassemblies = value.map((item) => convertCodeAtomResult(item));
+    if (!subassemblies.every((item) => isAssembly(item))) {
+      throw new Error(
+        "Invalid mix of types in result: " + JSON.stringify(value),
+      );
+    }
+    return new Assembly({
+      geometry: subassemblies as Assembly[],
+      ...defaultProps(),
+    });
   }
 
   // AbundanceObj wrapper → RealizedLeaf using its metadata.
   if (isAssembly(value)) {
-    const geom = value.geometry;
-    return {
-      geometry: Array.isArray(geom) ? geom : [geom],
-      plane: value.plane,
-      color: value.color,
-      tags: value.tags,
-      bom: value.bom,
-    };
+    return value;
   }
 
-  // Bare replicad shape (AnyShape or Drawing) → RealizedLeaf with defaults.
-  return { geometry: [value], ...defaultProps() };
+  throw new Error("Unsupported return type: " + JSON.stringify(value));
+}
+
+/**
+ * Similar to the code-legacy version of this method but takes the
+ * new Assembly structure instead of RealizedAssembly.
+ */
+async function addAssemblyPartsToCache(
+  assembly: Assembly<AnyGeom>,
+  context: RequestContext,
+  cacheId: string,
+): Promise<AbundanceObject> {
+  const helperFunc = async (
+    assembly: Assembly<AnyGeom>,
+  ): Promise<AbundanceObject> => {
+    if (assembly.isLeaf()) {
+      if (
+        !(assembly.geometry instanceof replicad.Drawing) &&
+        !replicad.isShape3D(assembly.geometry)
+      ) {
+        throw new Error(
+          "Leaf geometry must be a replicad Shape3D or Drawing. Got: " +
+            JSON.stringify(assembly.geometry),
+        );
+      }
+      return {
+        ...assembly,
+        geometry: await util.geometryProvider!.addSingularToCache(
+          assembly.geometry,
+          context,
+          cacheId,
+          [context.nextId++], // Cache under the code atom's id + an offset within the result structure
+        ),
+        plane: assembly.plane
+          ? util.asSimplePlane(assembly.plane)
+          : util.XYPlane,
+      };
+    } else {
+      const children = await Promise.all(
+        (assembly.geometry as Assembly<AnyGeom>[]).map(async (child) => {
+          return await helperFunc(child);
+        }),
+      );
+      return {
+        ...assembly,
+        geometry: children,
+        plane: assembly.plane
+          ? util.asSimplePlane(assembly.plane)
+          : util.XYPlane,
+      };
+    }
+  };
+  return helperFunc(assembly);
 }
 
 /**
@@ -237,7 +320,7 @@ async function executeTsCode(
   context: RequestContext,
   atomUniqueId: string | number,
   onLog?: CodeAtomLogCallback,
-): Promise<AbundanceObject | number | string | boolean | null | undefined> {
+): Promise<AbundanceObject | Primitive | Primitive[]> {
   try {
     if (typeof code !== "string") {
       throw new Error("Code must be a string");
@@ -387,10 +470,14 @@ async function executeTsCode(
     // `console` is shadowed at the top of the module scope so user code's
     // `console.log(...)` calls hit our shim (which forwards to the UI)
     // rather than the worker's native console.
+    // The framework module exports `makeAbundanceFramework(replicad)`; we
+    // inline that source and immediately call it here so the resulting
+    // `Assembly` / `__promoteInput` are bound to the sandbox's `replicad`.
     const body =
       `const { replicad, args: __abundanceArgs, console } = globalThis[${JSON.stringify(CTX_KEY)}];\n` +
       `delete globalThis[${JSON.stringify(CTX_KEY)}];\n` +
       `${ABUNDANCE_TS_FRAMEWORK_JS}\n` +
+      `const { Assembly, __promoteInput } = makeAbundanceFramework(replicad);\n` +
       `${argDecls}\n` +
       `${code}\n` +
       `export default await run(${runArgs});\n`;
@@ -424,21 +511,43 @@ async function executeTsCode(
       return rawResult;
     }
 
-    // TODO.
-    const processedResult = await ensureDimension(rawResult);
+    // Ensure not a mix of 2d and 3d parts.
+    const leafDims: boolean[] = [];
+    rawResult.onLeafs((leaf: Assembly<LeafGeom>) => {
+      leafDims.push(leaf.is2D());
+    });
+    if (leafDims.includes(true) && leafDims.includes(false)) {
+      throw new Error("Mix of 2D and 3D parts is not allowed.");
+    }
+
+    // Promote raw geometries into the cache as singletons.
     const abundanceObj = await addAssemblyPartsToCache(
-      processedResult as RealizedAssembly,
+      rawResult,
       context,
       cacheId,
     );
-    await util.geometryProvider!.endBatchOperation(context, abundanceObj);
-    return abundanceObj;
+    if (util.isAssembly(abundanceObj)) {
+      const disjointAssembly = await assembly(abundanceObj.geometry, context);
+
+      // Copy all properties from abundanceObj except geometry
+      Object.keys(abundanceObj).forEach((key) => {
+        if (key !== "geometry") {
+          (disjointAssembly as any)[key] = (abundanceObj as any)[key];
+        }
+      });
+
+      util.geometryProvider!.endBatchOperation(context, disjointAssembly);
+      return disjointAssembly;
+    } else {
+      util.geometryProvider!.endBatchOperation(context, abundanceObj);
+      return abundanceObj;
+    }
   } catch (error) {
     console.error("Code execution error:", error);
     if (Number.isInteger(error)) {
       throw new Error(`OpenCascade kernel error code: ${error}`);
     }
-    throw new Error(`Code execution failed: ${(error as Error).message}`);
+    throw error;
   }
 }
 
@@ -452,7 +561,7 @@ export async function executeCode(
   interpreterVersion: number = 0,
   atomUniqueId: string | number = "anon",
   onLog?: CodeAtomLogCallback,
-): Promise<AbundanceObject | number | string | boolean | null | undefined> {
+): Promise<AbundanceObject | Primitive | Primitive[]> {
   if (interpreterVersion < 1) {
     return executeLegacy(code, argumentsArray, context);
   }

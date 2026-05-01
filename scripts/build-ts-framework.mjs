@@ -42,19 +42,34 @@ const { code: jsCode } = await transform(tsSource, {
 });
 
 // esbuild emits `export class`/`export function` for each exported decl.
-// Strip the `export` keyword so we get bare top-level declarations that land
-// as plain bindings in the sandbox module scope (still accessible to user
-// code in the same module).
-const cleanedJs = jsCode
+// Strip the `export` keyword so we get bare top-level declarations that
+// reference `replicad` lexically. We then wrap the whole body in a factory
+// function so both consumers can supply their own `replicad`:
+//
+//   - Worker code imports `makeAbundanceFramework` and calls it with the
+//     worker's replicad module to obtain { Assembly, __promoteInput }.
+//   - The sandbox preamble inlines this file as raw text and immediately
+//     calls `makeAbundanceFramework(replicad)` to bind the same names in
+//     module scope (where `replicad` came from globalThis context).
+const cleanedBody = jsCode
   .replace(/^export\s+(class|function|const|let|var)\s/gm, "$1 ")
   .replace(/^export\s*\{[^}]*\};?\s*$/gm, "")
   .trimEnd();
+
+const factoryJs =
+  `export function makeAbundanceFramework(replicad) {\n` +
+  cleanedBody
+    .split("\n")
+    .map((line) => (line.length ? "  " + line : ""))
+    .join("\n") +
+  `\n  return { Assembly, __promoteInput };\n` +
+  `}\n`;
 
 if (!existsSync(OUT_DIR)) mkdirSync(OUT_DIR, { recursive: true });
 
 writeFileSync(
   path.join(OUT_DIR, "ts-framework.generated.js"),
-  GENERATED_HEADER("ts-framework.generated.js") + "\n" + cleanedJs + "\n",
+  GENERATED_HEADER("ts-framework.generated.js") + "\n" + factoryJs,
 );
 console.log("  ✓ ts-framework.generated.js");
 
@@ -125,8 +140,12 @@ let dts = emittedDts
 dts = dts
   // plane: any → plane: _replicad.Plane
   .replace(/\bplane: any\b/g, "plane: _replicad.Plane")
-  // Field declaration: `geometry: any` → `geometry: G` so callers see the
-  // generic parameter rather than a useless `any`.
+  // Accessor signatures: `get geometry(): any;` / `set geometry(value: any);`
+  // → use the generic parameter `G` so callers see a proper replicad union.
+  .replace(/\bget geometry\(\): any;/g, "get geometry(): G;")
+  .replace(/\bset geometry\(value: any\);/g, "set geometry(value: G);")
+  // Legacy field form `geometry: any` (kept for safety in case the source
+  // ever reverts to a plain field).
   .replace(/\bgeometry: any\b/g, "geometry: G")
   // Class header: add a real bound + default to the generic parameter.
   .replace(
@@ -147,7 +166,11 @@ dts = dts
     "is3D(): this is Assembly<_replicad.AnyShape>;",
   );
 
-// Build the final .d.ts: import + declare global wrapper
+// Build the final .d.ts: import + declare global wrapper, then a real
+// module-level export so worker-side code can `import { makeAbundanceFramework }`
+// with proper types. The factory is intentionally NOT inside the `declare
+// global` block — Monaco only exposes globals to user code, so users won't
+// see this internal symbol in their atom autocomplete.
 const finalDts =
   GENERATED_HEADER("ts-framework.generated.d.ts") +
   `\nimport * as _replicad from "replicad";\n` +
@@ -183,7 +206,19 @@ const finalDts =
     .split("\n")
     .map((line) => (line.trim() ? "  " + line : ""))
     .join("\n") +
-  `\n}\n`;
+  `\n}\n` +
+  `\n` +
+  `/**\n` +
+  ` * Build the Abundance TS-framework runtime (Assembly class + internal\n` +
+  ` * promotion helper) bound to a specific replicad instance. Used by the\n` +
+  ` * worker to obtain class references that share identity with the worker's\n` +
+  ` * replicad WASM module. The sandbox preamble calls the same factory with\n` +
+  ` * its own injected replicad reference.\n` +
+  ` */\n` +
+  `export function makeAbundanceFramework(replicad: typeof _replicad): {\n` +
+  `  Assembly: typeof globalThis.Assembly;\n` +
+  `  __promoteInput: (value: any) => any;\n` +
+  `};\n`;
 
 writeFileSync(path.join(OUT_DIR, "ts-framework.generated.d.ts"), finalDts);
 console.log("  ✓ ts-framework.generated.d.ts");

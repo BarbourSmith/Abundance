@@ -95,3 +95,15 @@ declare global {
    */
   function __promoteInput(value: any): any;
 }
+
+/**
+ * Build the Abundance TS-framework runtime (Assembly class + internal
+ * promotion helper) bound to a specific replicad instance. Used by the
+ * worker to obtain class references that share identity with the worker's
+ * replicad WASM module. The sandbox preamble calls the same factory with
+ * its own injected replicad reference.
+ */
+export function makeAbundanceFramework(replicad: typeof _replicad): {
+  Assembly: typeof globalThis.Assembly;
+  __promoteInput: (value: any) => any;
+};
