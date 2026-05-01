@@ -5,6 +5,9 @@ import { Octokit } from "octokit";
 import { Status } from "../prototypes/observableEntity.js";
 import { formatOrdinalDate } from "../js/projectNameUtils.js";
 
+/** Number of millimetres in one inch, used for unit-conversion scaling. */
+const MM_PER_INCH = 25.4;
+
 /**
  * This class creates the GitHubMolecule atom.
  */
@@ -188,6 +191,116 @@ export default class GitHubMolecule extends Molecule {
     }
 
     return serialized;
+  }
+
+  /**
+   * Returns the scale factor that should be applied to geometry values flowing
+   * INTO this molecule's Input atoms. It is the inverse of the output scale
+   * factor, so that geometry from the host context is expressed in this
+   * molecule's own units before being processed internally.
+   * @returns {number} inverse of the output scale factor, or 1 if no scaling needed
+   */
+  getGeometryInputScaleFactor() {
+    const outputFactor = this._getUnitScaleFactor();
+    return outputFactor === 1 ? 1 : 1 / outputFactor;
+  }
+
+  /**
+   * Called when the host project's units change. Re-applies output scaling with
+   * the new unit relationship and re-triggers input scaling for all geometry
+   * Input atoms inside this molecule.
+   */
+  onHostUnitsChanged() {
+    // Re-apply output scaling: onUpstreamChange() checks the Output atom's
+    // current (unscaled) value and calls _handleOutputReady() which will
+    // re-scale using the updated unit factor.
+    this.onUpstreamChange();
+
+    // Re-trigger input scaling for every geometry Input atom inside this molecule.
+    // Input.onUpstreamChange() re-reads the parentAP value and applies the new
+    // getGeometryInputScaleFactor() to it.
+    this.nodesOnTheScreen.forEach((atom) => {
+      if (
+        atom.atomType === "Input" &&
+        atom.parentAP?.valueType === "geometry" &&
+        atom.parentAP.connectors.length > 0
+      ) {
+        atom.onUpstreamChange();
+      }
+    });
+
+    // Propagate to any nested GitHubMolecules inside this one
+    this.notifyUnitsChanged();
+  }
+
+  /**
+   * Compute the scale factor to convert geometry from this molecule's own units
+   * to the host project's units. Walks up the parent chain to find the nearest
+   * ancestor with a defined unitsKey (which may be another GitHubMolecule or the
+   * top-level molecule).
+   * @returns {number} scale factor to apply to geometry, or 1 if no scaling needed
+   */
+  _getUnitScaleFactor() {
+    const importedUnits = this.unitsKey;
+
+    // Find host units: walk up the parent chain to the nearest ancestor with units
+    let hostUnits;
+    let curr = this.parent;
+    while (curr) {
+      if (curr.unitsKey !== undefined) {
+        hostUnits = curr.unitsKey;
+        break;
+      }
+      curr = curr.parent;
+    }
+
+    // No scaling if units are the same, or if either is Unitless or undefined
+    if (
+      !importedUnits ||
+      !hostUnits ||
+      importedUnits === hostUnits ||
+      importedUnits === "Unitless" ||
+      hostUnits === "Unitless"
+    ) {
+      return 1;
+    }
+
+    if (importedUnits === "MM" && hostUnits === "Inches") {
+      return 1 / MM_PER_INCH;
+    }
+
+    if (importedUnits === "Inches" && hostUnits === "MM") {
+      return MM_PER_INCH;
+    }
+
+    return 1;
+  }
+
+  /**
+   * Override _handleOutputReady to apply unit-conversion scaling when this
+   * imported molecule's units differ from the host project's units. For example,
+   * a 20mm screw imported into an inch-based project will be scaled to 0.787 in.
+   * @param {AbundanceObject} value - The geometry value from the output atom
+   * @param {object} nonReplicadGeom - Non-replicad ThreeJS geometry (if any)
+   */
+  _handleOutputReady(value, nonReplicadGeom) {
+    const scaleFactor = this._getUnitScaleFactor();
+
+    if (scaleFactor === 1) {
+      super._handleOutputReady(value, nonReplicadGeom);
+      return;
+    }
+
+    // Apply unit conversion scale before propagating upstream
+    this.setProcessing();
+    GlobalVariables.cad
+      .scale(value, scaleFactor, this.getContext())
+      .then((scaledValue) => {
+        super._handleOutputReady(scaledValue, nonReplicadGeom);
+      })
+      .catch((err) => {
+        this.setError(err?.message || "Failed to apply unit scale");
+      });
   }
 
   /**

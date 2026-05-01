@@ -83,6 +83,7 @@ export default function RunParams({
       disabled: false,
       onChange: (value) => {
         GlobalVariables.topLevelMolecule.unitsKey = value;
+        GlobalVariables.topLevelMolecule.notifyUnitsChanged?.();
       },
     };
 
