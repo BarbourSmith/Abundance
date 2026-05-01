@@ -16,7 +16,7 @@
     "test": "node Puppet/index.js",
     "test:metrics": "node Puppet/metrics.js",
     "coverage": "vitest run --coverage",
-    "unit": "vitest --config=vitest.browser.config.ts",
+    "unit": "vitest run --config=vitest.browser.config.ts",
     "lint": "eslint src/**/*.ts src/**/*.tsx"
   },
   "dependencies": {
