@@ -123,7 +123,7 @@ export default class AttachmentPoint extends ObservableEntity {
 
     /**
      * Whether this AP is optional. Optional APs don't block their parent molecule from computing
-     * even if their in a WAITING state.
+     * even if they're in a WAITING state.
      */
     this.isOptional = false;
 

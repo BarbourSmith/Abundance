@@ -137,9 +137,9 @@ function extractRunParamNames(code: string): string[] {
 }
 
 /**
- * Default metadata for a RealizedAssembly created from a bare replicad
- * shape (user returned `shape` / `drawing` directly with no AbundanceObj
- * wrapper). Matches the defaults set by `AbundanceProps` in ts-framework.ts.
+ * Default metadata for an Assembly created from a bare replicad
+ * shape (user returned `shape` / `drawing` directly with no wrapper).
+ * Matches the defaults set by `AbundanceProps` in ts-framework.ts.
  */
 function defaultProps() {
   return {
@@ -309,7 +309,6 @@ function formatLogArg(value: any): string {
     });
   } catch (e) {
     console.warn(e);
-    console.log(value);
     return "cyclic value";
   }
 }

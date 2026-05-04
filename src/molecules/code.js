@@ -222,10 +222,6 @@ return assembly;
       return; // Don't subscribe since our input set is stale.
     }
     this.setValues(values);
-    console.log(
-      `Initialized code atom ${this.uniqueID} with inputs:`,
-      this.inputs,
-    );
     this.inputs.forEach((input) => {
       if (input.value) {
         input.setReady(input.value); // mark ready if applicable now that values are loaded from save.
@@ -377,10 +373,6 @@ return assembly;
    * pre-transpiled JavaScript so the worker never has to handle type syntax.
    */
   compute(argsDict) {
-    console.log(
-      `Compute called code atom ${this.uniqueID} with inputs:`,
-      this.inputs,
-    );
     const isTs = (this.interpreterVersion ?? 0) >= 1;
     const codeToRun = isTs ? this.compiledCode || "" : this.code;
     // Comlink proxy the worker can use to send log messages from the user's
@@ -390,8 +382,6 @@ return assembly;
           this.appendConsoleEntry({ level, message, stack });
         })
       : undefined;
-    console.trace(`Executing code ${this.uniqueID} with inputs:`, argsDict);
-    console.log(this.inputs.map((i) => `${i.name}=${i.status}`).join(", "));
     const promise = GlobalVariables.cad.code(
       codeToRun,
       argsDict,
