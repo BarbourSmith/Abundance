@@ -62,12 +62,30 @@ type Primitive = number | string | boolean | null | undefined;
 
 /**
  * Monotonically-increasing counter used to give each `executeTsCode` call its
- * own unique `globalThis` context key. Without this, concurrent executions of
- * the same atom (same `atomUniqueId`) would overwrite each other's entry and
- * the earlier blob module would find the key already deleted when it finally
- * ran, producing "TypeError: globalThis['__abundanceCtx_…'] is undefined".
+ * own unique `globalThis` context key (the "timestamp" approach). Without this,
+ * concurrent executions of the same atom (same `atomUniqueId`) would overwrite
+ * each other's entry and the earlier blob module would find the key already
+ * deleted when it finally ran, producing
+ * "TypeError: globalThis['__abundanceCtx_…'] is undefined".
+ *
+ * The serial also feeds into `_atomLatestSerial` to detect when the result of
+ * a completed execution is already stale (a newer call for the same atom
+ * started while this one was running). Such calls log a warning so that the
+ * frequency and source of rapid re-execution can be investigated.
  */
 let _tsExecutionSerial = 0;
+
+/**
+ * Maps each `atomUniqueId` → the serial number of the most recent call that
+ * started executing for that atom. Used after `import()` returns to detect
+ * superseded (stale) executions and emit an observability warning.
+ *
+ * Memory note: this Map gains one entry per distinct atom ID that runs in the
+ * worker session. Atom IDs are stable strings/UUIDs bounded by the number of
+ * code atoms in the project, so the Map size is effectively bounded and does
+ * not need explicit cleanup.
+ */
+const _atomLatestSerial = new Map<string | number, number>();
 
 /**
  * Helper function to check if a value is the NO_GEOMETRY sentinel.
@@ -460,12 +478,21 @@ async function executeTsCode(
 
     // Per-execution context key on `globalThis`. The serial suffix ensures
     // that concurrent executions of the SAME atom (same `atomUniqueId` but
-    // different arguments) each have a distinct key. Without the suffix, a
-    // second call racing against the first would overwrite the first call's
-    // entry before the first blob module had a chance to read it — the blob
-    // module runs asynchronously after `import()` yields, so two overlapping
-    // calls produce two overlapping `import()` awaits against the same key.
-    const CTX_KEY = `__abundanceCtx_${atomUniqueId}_${++_tsExecutionSerial}`;
+    // different arguments) each have a distinct key, keeping the ctx
+    // read/write effectively atomic per call. Without the suffix, a second
+    // call racing against the first would overwrite the first call's entry
+    // before the first blob module had a chance to read it — the blob module
+    // runs asynchronously after `import()` yields, so two overlapping calls
+    // produce two overlapping `import()` awaits against the same key.
+    const callSerial = ++_tsExecutionSerial;
+    const CTX_KEY = `__abundanceCtx_${atomUniqueId}_${callSerial}`;
+
+    // Record this call as the latest for this atom. After import() returns
+    // we check this again: if a newer call has since started, this result
+    // is stale and we log a warning (result discarding is left to a later
+    // refactor — here we just surface the supersession so it can be debugged).
+    _atomLatestSerial.set(atomUniqueId, callSerial);
+
     (globalThis as any)[CTX_KEY] = {
       replicad: util.replicad,
       args: { ...argumentsArray },
@@ -516,6 +543,26 @@ async function executeTsCode(
       // Defensive: in case user code threw before reaching the delete line,
       // make sure we don't leak the ctx object on globalThis.
       delete (globalThis as any)[CTX_KEY];
+    }
+
+    // Stale-execution detection: if a newer call for the same atom has
+    // started while this one was running its import(), our result is already
+    // out of date. Log a warning for observability so rapid re-execution
+    // scenarios can be identified and debugged. The newer call will supply
+    // the up-to-date result, so we let this call finish normally — explicit
+    // result discarding is left to a future refactor.
+    //
+    // Defensive check: latestSerial should always be defined here because
+    // we called `_atomLatestSerial.set(atomUniqueId, callSerial)` synchronously
+    // before the `import()` above, but the undefined guard protects against
+    // unexpected code paths where the key might not have been set.
+    const latestSerial = _atomLatestSerial.get(atomUniqueId);
+    if (latestSerial !== undefined && latestSerial !== callSerial) {
+      console.warn(
+        `[Abundance] Code atom ${atomUniqueId}: execution #${callSerial} was superseded by ` +
+          `a newer call (#${latestSerial}) before it finished. ` +
+          `The result of this call is stale.`,
+      );
     }
 
     rawResult = convertCodeAtomResult(rawResult);

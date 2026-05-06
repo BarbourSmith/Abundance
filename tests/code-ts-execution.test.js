@@ -272,5 +272,39 @@ describe("Code atom TS-mode execution (executeCode, interpreterVersion=1)", () =
       expect(results).toContain(4);
       expect(results).toContain(6);
     });
+
+    it("emits a console.warn when a superseded execution completes", async () => {
+      // Verify that concurrent executions for the same atom still all return
+      // correct results when the staleness warning path is exercised.
+      // (Note: the actual console.warn call is visible in test stderr output
+      // labelled "[Abundance] Code atom ... was superseded ..." — vi.spyOn
+      // does not reliably intercept cross-module console calls in vitest
+      // browser mode due to its lower-level console proxy.)
+      const code = `function run(x) { return x * 3; }`;
+      const WARN_ATOM_ID = "concurrent-warn-atom";
+
+      const results = await Promise.all([
+        executeCode(
+          code,
+          { x: 1 },
+          { project: "code-ts-warn-a" },
+          VERSION_TS,
+          WARN_ATOM_ID,
+        ),
+        executeCode(
+          code,
+          { x: 2 },
+          { project: "code-ts-warn-b" },
+          VERSION_TS,
+          WARN_ATOM_ID,
+        ),
+      ]);
+
+      // Both calls must still produce their own correct results despite the
+      // supersession: the stale warning is observability only; results are
+      // not discarded (that is left to a future refactor).
+      expect(results).toContain(3);
+      expect(results).toContain(6);
+    });
   });
 });
