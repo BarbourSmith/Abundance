@@ -221,6 +221,9 @@ class GeometryProvider {
           e2,
         );
         deleteShape(context.project, id).catch((deleteErr) => {
+          // Non-fatal: the corrupt entry will remain in cache until it is
+          // evicted or cleared manually, but subsequent mesh requests may
+          // continue to fail for this geometry ID until the page is refreshed.
           console.error(
             `Failed to delete corrupt cache entry for ID ${id} in project ${context.project}:`,
             deleteErr,

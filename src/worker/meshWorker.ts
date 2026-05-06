@@ -23,6 +23,13 @@ type DisplayMesh = {
 let defaultMesh: any = undefined;
 const started: Promise<boolean> = util.init(false);
 
+// postMessage (used internally by workerpool to return results) is processed
+// as part of the current microtask queue before any scheduled macrotask fires.
+// This delay ensures the fallback response is fully delivered before the worker
+// shuts down. 100ms is deliberately conservative — in practice postMessage
+// dispatch completes within a few milliseconds on the same device.
+const WORKER_RESTART_DELAY_MS = 100;
+
 function getLargestBoundingBox(meshArray: ReplicadObject[]):
   | {
       width: number;
@@ -283,20 +290,17 @@ async function generateDisplayMesh(
     // unrecoverable state (e.g. "index out of bounds" RuntimeError). Schedule a
     // worker self-restart so workerpool spins up a fresh instance with a clean
     // WASM heap for the next request.
-    // A direct WASM RuntimeError (before it is wrapped) is also handled as a
-    // safety net for any future call sites that do not wrap the error.
+    // WebAssembly.RuntimeError is also checked directly as a safety net for any
+    // future call sites that do not wrap the error in WasmDeserializationError.
     const isWasmError =
       e instanceof WasmDeserializationError ||
-      (e instanceof Error && e.constructor.name === "RuntimeError");
+      (typeof WebAssembly !== "undefined" &&
+        e instanceof WebAssembly.RuntimeError);
     if (isWasmError) {
       console.warn(
         "WASM error detected in mesh worker; scheduling worker restart to recover clean WASM state",
       );
-      // postMessage (used internally by workerpool to return the result) is
-      // dispatched as a microtask before any scheduled macrotask fires. The 100ms
-      // delay gives the runtime ample time to flush all pending messages before
-      // this worker shuts down, ensuring the fallback response is delivered.
-      setTimeout(() => self.close(), 100);
+      setTimeout(() => self.close(), WORKER_RESTART_DELAY_MS);
     }
 
     // Fall back to default mesh while preserving the original id so callers can update UI state.
