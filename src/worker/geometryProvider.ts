@@ -28,6 +28,20 @@ type RequestContext = {
 };
 
 /**
+ * Thrown when a geometry stored in IndexedDB cannot be deserialized.
+ * This typically indicates that the WASM module has encountered an unrecoverable
+ * state (e.g. a RuntimeError), or that the cached data is corrupt.
+ * Callers (e.g. the mesh worker) can check for this error type with `instanceof`
+ * to decide whether to restart the WASM environment.
+ */
+export class WasmDeserializationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "WasmDeserializationError";
+  }
+}
+
+/**
  * Manages a cache of geometries. This class provides a list of basic operations
  * that produce new geometries. Calling for a geometry which has already been
  * produced (ie: same operation with same arguments) will result in a cache hit
@@ -208,11 +222,11 @@ class GeometryProvider {
         );
         deleteShape(context.project, id).catch((deleteErr) => {
           console.error(
-            `Failed to delete corrupt cache entry for ID ${id}:`,
+            `Failed to delete corrupt cache entry for ID ${id} in project ${context.project}:`,
             deleteErr,
           );
         });
-        throw new Error("Failed to deserialize geometry: " + e2);
+        throw new WasmDeserializationError("Failed to deserialize geometry: " + e2);
       }
     }
 

@@ -1,7 +1,7 @@
 import * as workerpool from "workerpool";
 import type { ShapeMesh } from "replicad";
 import * as replicad from "replicad";
-import { ReplicadObject, RequestContext } from "./geometryProvider";
+import { ReplicadObject, RequestContext, WasmDeserializationError } from "./geometryProvider";
 import { text } from "./shapes";
 import type { AbundanceObject } from "./util";
 import * as util from "./util";
@@ -279,20 +279,23 @@ async function generateDisplayMesh(
     const msg = e instanceof Error ? e.message : String(e);
     console.error("Error in generateDisplayMesh:", msg, e);
 
-    // A WASM RuntimeError (e.g. "index out of bounds") leaves the WASM module in
-    // an unrecoverable state. Schedule a worker self-restart so workerpool spins up
-    // a fresh instance with a clean WASM heap for the next request.
-    // We detect this via the wrapped error message produced by geometryProvider.get(),
-    // since the original RuntimeError is caught and re-thrown as a regular Error there.
-    const isWasmRuntimeError =
-      msg.includes("Failed to deserialize geometry: RuntimeError") ||
+    // A WasmDeserializationError means the WASM module has encountered an
+    // unrecoverable state (e.g. "index out of bounds" RuntimeError). Schedule a
+    // worker self-restart so workerpool spins up a fresh instance with a clean
+    // WASM heap for the next request.
+    // A direct WASM RuntimeError (before it is wrapped) is also handled as a
+    // safety net for any future call sites that do not wrap the error.
+    const isWasmError =
+      e instanceof WasmDeserializationError ||
       (e instanceof Error && e.constructor.name === "RuntimeError");
-    if (isWasmRuntimeError) {
+    if (isWasmError) {
       console.warn(
-        "WASM RuntimeError detected in mesh worker; scheduling worker restart to recover clean WASM state",
+        "WASM error detected in mesh worker; scheduling worker restart to recover clean WASM state",
       );
-      // Use a small delay to allow the current response to be fully transmitted
-      // before the worker shuts down.
+      // postMessage (used internally by workerpool to return the result) is
+      // dispatched as a microtask before any scheduled macrotask fires. The 100ms
+      // delay gives the runtime ample time to flush all pending messages before
+      // this worker shuts down, ensuring the fallback response is delivered.
       setTimeout(() => self.close(), 100);
     }
 
