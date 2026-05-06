@@ -61,6 +61,15 @@ type Assembly<G = any> = InstanceType<typeof Assembly> & { geometry: G };
 type Primitive = number | string | boolean | null | undefined;
 
 /**
+ * Monotonically-increasing counter used to give each `executeTsCode` call its
+ * own unique `globalThis` context key. Without this, concurrent executions of
+ * the same atom (same `atomUniqueId`) would overwrite each other's entry and
+ * the earlier blob module would find the key already deleted when it finally
+ * ran, producing "TypeError: globalThis['__abundanceCtx_…'] is undefined".
+ */
+let _tsExecutionSerial = 0;
+
+/**
  * Helper function to check if a value is the NO_GEOMETRY sentinel.
  */
 function isNoGeometry(value: any): boolean {
@@ -449,11 +458,14 @@ async function executeTsCode(
       }
     }
 
-    // Per-atom context key on `globalThis`. Uses the atom's uniqueID so
-    // concurrent executions of different atoms never collide; re-executing
-    // the same atom is safe because the key is read + deleted synchronously
-    // at the top of the blob's preamble before anything else runs.
-    const CTX_KEY = `__abundanceCtx_${atomUniqueId}`;
+    // Per-execution context key on `globalThis`. The serial suffix ensures
+    // that concurrent executions of the SAME atom (same `atomUniqueId` but
+    // different arguments) each have a distinct key. Without the suffix, a
+    // second call racing against the first would overwrite the first call's
+    // entry before the first blob module had a chance to read it — the blob
+    // module runs asynchronously after `import()` yields, so two overlapping
+    // calls produce two overlapping `import()` awaits against the same key.
+    const CTX_KEY = `__abundanceCtx_${atomUniqueId}_${++_tsExecutionSerial}`;
     (globalThis as any)[CTX_KEY] = {
       replicad: util.replicad,
       args: { ...argumentsArray },
