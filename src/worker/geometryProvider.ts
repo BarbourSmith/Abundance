@@ -206,7 +206,12 @@ class GeometryProvider {
           `Corrupt geometry cache entry for ID ${id} in project ${context.project}; removing it`,
           e2,
         );
-        void deleteShape(context.project, id);
+        deleteShape(context.project, id).catch((deleteErr) => {
+          console.error(
+            `Failed to delete corrupt cache entry for ID ${id}:`,
+            deleteErr,
+          );
+        });
         throw new Error("Failed to deserialize geometry: " + e2);
       }
     }

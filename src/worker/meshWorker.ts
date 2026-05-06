@@ -282,11 +282,18 @@ async function generateDisplayMesh(
     // A WASM RuntimeError (e.g. "index out of bounds") leaves the WASM module in
     // an unrecoverable state. Schedule a worker self-restart so workerpool spins up
     // a fresh instance with a clean WASM heap for the next request.
-    if (msg.includes("RuntimeError")) {
+    // We detect this via the wrapped error message produced by geometryProvider.get(),
+    // since the original RuntimeError is caught and re-thrown as a regular Error there.
+    const isWasmRuntimeError =
+      msg.includes("Failed to deserialize geometry: RuntimeError") ||
+      (e instanceof Error && e.constructor.name === "RuntimeError");
+    if (isWasmRuntimeError) {
       console.warn(
         "WASM RuntimeError detected in mesh worker; scheduling worker restart to recover clean WASM state",
       );
-      setTimeout(() => self.close(), 0);
+      // Use a small delay to allow the current response to be fully transmitted
+      // before the worker shuts down.
+      setTimeout(() => self.close(), 100);
     }
 
     // Fall back to default mesh while preserving the original id so callers can update UI state.
