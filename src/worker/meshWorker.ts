@@ -287,30 +287,30 @@ async function generateDisplayMesh(
     console.error("Error in generateDisplayMesh:", msg, e);
 
     // A WasmDeserializationError means the WASM module has encountered an
-    // unrecoverable state (e.g. "index out of bounds" RuntimeError). Schedule a
-    // worker self-restart so workerpool spins up a fresh instance with a clean
-    // WASM heap for the next request.
+    // unrecoverable state (e.g. "index out of bounds" RuntimeError).
     // WebAssembly.RuntimeError is also checked directly as a safety net for any
     // future call sites that do not wrap the error in WasmDeserializationError.
     const isWasmError =
       e instanceof WasmDeserializationError ||
-      (typeof WebAssembly !== "undefined" &&
-        e instanceof WebAssembly.RuntimeError);
-    if (isWasmError) {
-      console.warn(
-        "WASM error detected in mesh worker; scheduling worker restart to recover clean WASM state",
-      );
-      setTimeout(() => self.close(), WORKER_RESTART_DELAY_MS);
-    }
+      e instanceof WebAssembly.RuntimeError;
 
     // Fall back to default mesh while preserving the original id so callers can update UI state.
     // If the default mesh itself fails (e.g. WASM already corrupted and no cached default),
     // propagate the original error rather than swallowing it.
+    // Schedule the worker restart AFTER the fallback attempt so the response
+    // (or error) is queued for delivery before the worker shuts down.
     try {
       return { id, mesh: await generateDefaultMesh(context) };
     } catch (fallbackError) {
       console.error("Fallback mesh generation also failed:", fallbackError);
       throw e;
+    } finally {
+      if (isWasmError) {
+        console.warn(
+          "WASM error detected in mesh worker; scheduling worker restart to recover clean WASM state",
+        );
+        setTimeout(() => self.close(), WORKER_RESTART_DELAY_MS);
+      }
     }
   }
 }
