@@ -278,8 +278,26 @@ async function generateDisplayMesh(
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("Error in generateDisplayMesh:", msg, e);
-    // Fall back to default mesh while preserving the original id so callers can update UI state
-    return { id, mesh: await generateDefaultMesh(context) };
+
+    // A WASM RuntimeError (e.g. "index out of bounds") leaves the WASM module in
+    // an unrecoverable state. Schedule a worker self-restart so workerpool spins up
+    // a fresh instance with a clean WASM heap for the next request.
+    if (msg.includes("RuntimeError")) {
+      console.warn(
+        "WASM RuntimeError detected in mesh worker; scheduling worker restart to recover clean WASM state",
+      );
+      setTimeout(() => self.close(), 0);
+    }
+
+    // Fall back to default mesh while preserving the original id so callers can update UI state.
+    // If the default mesh itself fails (e.g. WASM already corrupted and no cached default),
+    // propagate the original error rather than swallowing it.
+    try {
+      return { id, mesh: await generateDefaultMesh(context) };
+    } catch (fallbackError) {
+      console.error("Fallback mesh generation also failed:", fallbackError);
+      throw e;
+    }
   }
 }
 

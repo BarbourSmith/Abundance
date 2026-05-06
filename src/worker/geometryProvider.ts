@@ -10,6 +10,7 @@ import {
 import {
   getShape,
   putShape,
+  deleteShape,
   deleteProjectCache,
   shapeExists,
   getAllProjectIds,
@@ -199,6 +200,13 @@ class GeometryProvider {
         result = replicad.deserializeShape(shape.serialized) as ReplicadObject;
         this.cacheMiss("deserialize");
       } catch (e2) {
+        // Both deserializers failed — the cached data is corrupt. Remove it so
+        // subsequent requests trigger a clean recompute instead of failing again.
+        console.warn(
+          `Corrupt geometry cache entry for ID ${id} in project ${context.project}; removing it`,
+          e2,
+        );
+        void deleteShape(context.project, id);
         throw new Error("Failed to deserialize geometry: " + e2);
       }
     }
