@@ -240,9 +240,16 @@ async function addAssemblyPartsToCache(
         !(assembly.geometry instanceof replicad.Drawing) &&
         !replicad.isShape3D(assembly.geometry)
       ) {
+        const typeName =
+          assembly.geometry && assembly.geometry.constructor
+            ? assembly.geometry.constructor.name
+            : typeof assembly.geometry;
         throw new Error(
-          "Leaf geometry must be a replicad Shape3D or Drawing. Got: " +
-            JSON.stringify(assembly.geometry),
+          "Leaf geometry must be Shape3D or Drawing. But received " +
+            typeName +
+            (typeName === "Edge"
+              ? " (note: makeCircle returns Edge, consider drawCircle instead)"
+              : ""),
         );
       }
       return {

@@ -150,7 +150,7 @@ export class Assembly<G = any> {
     ) {
       geomString = this.geometry.constructor.name;
     }
-    let planeString = this.plane ? "replicad.plane" : "null";
+    const planeString = this.plane ? "replicad.plane" : "null";
     return `{__isRawAbundanceObj: true, color: ${this.color}, tags: ${JSON.stringify(this.tags)}, bom: ${JSON.stringify(this.bom)}, plane: ${planeString}, geometry: ${geomString}}`;
   }
 }
