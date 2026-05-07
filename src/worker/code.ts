@@ -216,7 +216,6 @@ function convertCodeAtomResult(
     });
   }
 
-  // AbundanceObj wrapper → RealizedLeaf using its metadata.
   if (isAssembly(value)) {
     return value;
   }
@@ -599,10 +598,10 @@ async function executeTsCode(
         }
       });
 
-      util.geometryProvider!.endBatchOperation(context, disjointAssembly);
+      await util.geometryProvider!.endBatchOperation(context, disjointAssembly);
       return disjointAssembly;
     } else {
-      util.geometryProvider!.endBatchOperation(context, abundanceObj);
+      await util.geometryProvider!.endBatchOperation(context, abundanceObj);
       return abundanceObj;
     }
   } catch (error) {

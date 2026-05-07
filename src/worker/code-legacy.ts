@@ -414,7 +414,7 @@ async function executeCode(
       context,
       cacheId,
     );
-    util.geometryProvider!.endBatchOperation(context, abundanceObj);
+    await util.geometryProvider!.endBatchOperation(context, abundanceObj);
     return abundanceObj;
   } catch (error) {
     console.error("Code execution error:", error);
