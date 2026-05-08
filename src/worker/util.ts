@@ -7,6 +7,7 @@ import { GeometryProvider, RequestContext } from "./geometryProvider";
 let defaultColor: string = "#aad7f2";
 let loaded: boolean = false;
 let geometryProvider: GeometryProvider | undefined = undefined;
+let ocModule: any = undefined;
 
 const init = async (logMetrics: boolean = true): Promise<boolean> => {
   if (loaded) return Promise.resolve(true);
@@ -17,11 +18,48 @@ const init = async (logMetrics: boolean = true): Promise<boolean> => {
   });
 
   loaded = true;
+  ocModule = OC;
   replicad.setOC(OC);
   geometryProvider = new GeometryProvider(logMetrics);
 
   return true;
 };
+
+/**
+ * Periodically logs the size of the OpenCascade WASM linear-memory heap.
+ *
+ * Intended as a leak diagnostic: if the heap byte length climbs monotonically
+ * across operations and never drops, replicad/OCCT objects are being orphaned
+ * (typically because `.delete()` was not called on a Shape3D / Wire / Drawing
+ * before its JS wrapper was dropped). A monotonically growing WASM heap will
+ * eventually trigger Emscripten's `abort()` and put the worker into the
+ * sticky "RuntimeError: Aborted()" state.
+ *
+ * @param label identifier prepended to log lines so multiple workers can be
+ *     distinguished (e.g. "geometryProvider", "meshWorker").
+ * @param intervalMs how often to log, defaults to 10s.
+ * @returns a handle to the interval timer (so callers can clear it in tests).
+ */
+function startHeapMonitor(
+  label: string,
+  intervalMs: number = 10000,
+): ReturnType<typeof setInterval> {
+  let lastBytes: number | undefined = undefined;
+  let peakBytes: number = 0;
+  return setInterval(() => {
+    const heap = ocModule?.HEAPU8;
+    if (!heap) return; // OC not yet initialized
+    const bytes = heap.byteLength;
+    if (bytes > peakBytes) peakBytes = bytes;
+    const delta = lastBytes === undefined ? 0 : bytes - lastBytes;
+    lastBytes = bytes;
+    const mb = (n: number) => (n / (1024 * 1024)).toFixed(1);
+    console.warn(
+      `[wasm-heap:${label}] ${mb(bytes)} MB (peak ${mb(peakBytes)} MB, ` +
+        `delta ${delta >= 0 ? "+" : ""}${mb(delta)} MB)`,
+    );
+  }, intervalMs);
+}
 
 interface SimplePlane {
   origin: [number, number, number];
@@ -332,4 +370,5 @@ export {
   SimplePlane,
   NonReplicadGeom,
   XYPlane,
+  startHeapMonitor,
 };

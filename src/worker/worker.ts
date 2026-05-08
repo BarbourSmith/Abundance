@@ -36,6 +36,7 @@ import * as util from "./util";
 
 // --- Type Definitions ---
 const started: Promise<boolean> = util.init();
+void started.then(() => util.startHeapMonitor("geometryWorker"));
 
 /**
  * Deletes a geometry from the library.

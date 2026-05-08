@@ -22,6 +22,7 @@ type DisplayMesh = {
 
 let defaultMesh: any = undefined;
 const started: Promise<boolean> = util.init(false);
+void started.then(() => util.startHeapMonitor("meshWorker"));
 
 function getLargestBoundingBox(meshArray: ReplicadObject[]):
   | {
