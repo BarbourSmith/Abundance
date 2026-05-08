@@ -1,10 +1,4 @@
-import {
-  AbundanceLeaf,
-  AbundanceObject,
-  actOnLeafsSync,
-  isLeaf,
-  NonReplicadGeom,
-} from "./util";
+import { AbundanceLeaf, AbundanceObject, actOnLeafsSync, isLeaf } from "./util";
 
 /**
  * Methods in this file act on the metadata of a geometry or assembly,
@@ -51,21 +45,6 @@ function bom(geom: AbundanceObject, BOM: any): AbundanceObject {
       bom: [...(geom.bom || []), BOM],
     };
   } else {
-    // This is an assembly - find the first leaf and apply BOM to it
-    function findFirstLeaf(node: AbundanceObject): AbundanceObject | null {
-      if (isLeaf(node)) {
-        return node;
-      } else if (Array.isArray(node.geometry) && node.geometry.length > 0) {
-        for (const child of node.geometry) {
-          const firstLeaf = findFirstLeaf(child);
-          if (firstLeaf) {
-            return firstLeaf;
-          }
-        }
-      }
-      return null;
-    }
-
     function applyBomToFirstLeaf(node: AbundanceObject): AbundanceObject {
       if (isLeaf(node)) {
         // This is the first leaf we encounter - apply the BOM

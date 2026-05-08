@@ -111,18 +111,6 @@ function AppContent() {
   const [size, setSize] = useState(5);
 
   useEffect(() => {
-    cad
-      .createMesh(size)
-      .then((m) => {
-        setMesh(m);
-        setWireMesh(m);
-      })
-      .catch(() => {
-        // ignore — this call is cancelled on project switch via cancelAll()
-      });
-  }, [size, setMesh, setWireMesh]);
-
-  useEffect(() => {
     const element = document.querySelector("html");
     const storedClass = localStorage.getItem("displayTheme");
 

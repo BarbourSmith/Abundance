@@ -52,7 +52,6 @@ function clearRotateCache() {
     // No explicit disposal needed here as the objects will be garbage collected
   });
   rotateMemoCache.clear();
-
 }
 
 async function layout(
@@ -66,14 +65,14 @@ async function layout(
 ): Promise<[AbundanceObject, Placement[][]]> {
   checkConfig(layoutConfig);
 
-  var [rotatedAssembly, shapesForLayout] = await rotateForLayout(
+  const [rotatedAssembly, shapesForLayout] = await rotateForLayout(
     assembly,
     layoutConfig,
     warningCallback,
     context,
   );
 
-  let positionsPromise = computePositions(
+  const positionsPromise = computePositions(
     shapesForLayout,
     progressCallback,
     placementsCallback,
@@ -95,7 +94,7 @@ async function layout(
       console.warn("Unexpected: received empty positions array");
       return [rotatedAssembly, []];
     } else {
-      let unplacedParts = shapesForLayout.length - positions.flat().length;
+      const unplacedParts = shapesForLayout.length - positions.flat().length;
       if (unplacedParts > 0) {
         const warning =
           unplacedParts +
@@ -213,7 +212,7 @@ async function rotateForLayout(
   const cacheID = JSON.stringify([filteredAssembly, layoutConfig]);
   const cached = rotateMemoCache.get(cacheID);
   if (cached) {
-    let [rotatedAssembly, shapesForLayout, warning] = cached;
+    const [rotatedAssembly, shapesForLayout, warning] = cached;
     try {
       await util.geometryProvider!.get(
         util.flattenAssembly(rotatedAssembly)[0].geometry,
@@ -242,14 +241,14 @@ async function rotateForLayout(
     rotateMemoCache.delete(firstKey);
   }
   // Compute rotated positions for this layout.
-  var THICKNESS_TOLLERANCE = 0.001;
+  const THICKNESS_TOLLERANCE = 0.001;
 
   function equalThickness(a: number, b: number) {
     return Math.abs(a - b) < THICKNESS_TOLLERANCE;
   }
 
   let localId = 0;
-  let shapesForLayout: ShapeForLayout[] = [];
+  const shapesForLayout: ShapeForLayout[] = [];
   const layoutWarnList: string[] = [];
 
   // Algo overview:
@@ -341,7 +340,7 @@ async function rotateForLayout(
   const rotatedAssembly = await util.actOnLeafs(intermediate, async (leaf) => {
     // @ts-ignore - we just added ID but it's not officially part of the type signature
     const leafID: string = leaf.id;
-    let candidates = all_candidates[leafID];
+    const candidates = all_candidates[leafID];
     if (candidates == undefined || candidates.length == 0) {
       // This should be impossible.
       throw new Error("Failed to filter unplacable part. id: " + leafID);
@@ -425,7 +424,7 @@ async function rotateForLayout(
       .clone()
       .translate(-1 * boundingBoxCenter[0], -1 * boundingBoxCenter[1], 0);
 
-    let newLeaf = {
+    const newLeaf = {
       ...leaf,
       geometry: await util.geometryProvider!.addSingularToCache(
         newGeom,
@@ -483,8 +482,8 @@ async function applyLayout(
       let sheetNumber = 0;
       // @ts-ignore TODO: some fancy subtyping to define an id-ed AbundanceLeaf variant
       const leafID = leaf.id;
-      for (var sheet = 0; sheet < positions.length; sheet++) {
-        let candidates = positions[sheet].filter(
+      for (let sheet = 0; sheet < positions.length; sheet++) {
+        const candidates = positions[sheet].filter(
           (transform) => transform.id == leafID,
         );
         if (candidates.length == 1) {
@@ -615,7 +614,7 @@ function computePositions(
   // from the mesh format of [x1, y1, z1, x2, y2, z2, ...] to FloatPolygon friendly format of
   // [{x: x1, y: y1}, {x: x2, y: y2}...]
   const polygons = shapesForLayout.map((shape, index) => {
-    let face = shape.shape;
+    const face = shape.shape;
     const mesh = face
       .clone()
       .outerWire()
@@ -662,7 +661,7 @@ function computePositions(
     ) => {
       callbackCounter++;
       if (placedParts > 0) {
-        let placements = translatePlacements(
+        const placements = translatePlacements(
           placementsData,
           placedParts,
           partCount,
@@ -794,7 +793,7 @@ function preparePoints(mesh: any, tolerance: number): SimpleXY[] {
   while (edgeStarts.length > 0) {
     // add currentEdge to result. Remember, it could be reverse direction if we matched
     // an endpoint.
-    for (var i = 1; i < Math.abs(currentEdge.len); i++) {
+    for (let i = 1; i < Math.abs(currentEdge.len); i++) {
       // skip start point
       let offset = i * 3;
       if (currentEdge.len < 0) {
@@ -866,21 +865,21 @@ function moveFaceToCuttingPlane(geom: Shape3D, face: Face): Shape3D {
   // co-incident with the X or Y axis. Here use the center of the face to ensure the origin isn't aligned with
   // any perimeter edge of this face.
   // Try removing this once https://github.com/BarbourSmith/Abundance/issues/572 is resolved.
-  let center = {
+  const center = {
     x: (face.UVBounds.uMin + face.UVBounds.uMax) / 2,
     y: (face.UVBounds.vMin + face.UVBounds.vMax) / 2,
   };
 
-  let pointOnSurface = face.pointOnSurface(center.x, center.y);
-  let faceNormal = face.normalAt();
+  const pointOnSurface = face.pointOnSurface(center.x, center.y);
+  const faceNormal = face.normalAt();
 
   // Always use "XY" plane as the cutting surface. Attempt to reorient
   // the given face so it's normal vector points down the Z axis. Down because
   // the normal vector points out of the surface of our 3d shape, and the interior
   // of the 3D shape should be placed above the XY plane.
-  let targetOrientation = new util.replicad.Vector([0, 0, -1]);
+  const targetOrientation = new util.replicad.Vector([0, 0, -1]);
 
-  let rotationAxis = faceNormal.cross(targetOrientation);
+  const rotationAxis = faceNormal.cross(targetOrientation);
   if (rotationAxis.Length == 0) {
     if (faceNormal.dot(targetOrientation) < 0) {
       // Face points upward but is otherwise parallel to cut plane. flip 180 around x axis.
@@ -893,7 +892,7 @@ function moveFaceToCuttingPlane(geom: Shape3D, face: Face): Shape3D {
     return geom.clone().translate(0, 0, -1 * pointOnSurface.z);
   }
 
-  let rotationDegrees =
+  const rotationDegrees =
     (Math.acos(
       faceNormal.dot(targetOrientation) /
         (targetOrientation.Length * faceNormal.Length),

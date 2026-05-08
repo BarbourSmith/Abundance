@@ -1,8 +1,7 @@
-import { Drawing, Wire } from "replicad";
+import { Drawing } from "replicad";
 import * as util from "./util";
 import { AbundanceLeaf, AbundanceObject } from "./util";
-import { RequestContext, ReplicadObject } from "./geometryProvider";
-import { json } from "react-router-dom";
+import { RequestContext } from "./geometryProvider";
 /**
  * All methods in this file take multiple geometries and combine them in some way.
  *
@@ -19,7 +18,7 @@ async function loftShapes(
   context: RequestContext,
 ): Promise<AbundanceObject> {
   await util.init();
-  let sketchAndPlane = await Promise.all(
+  const sketchAndPlane = await Promise.all(
     sketches.map(async (sketch) => {
       if (util.is3D(sketch)) {
         throw new Error("Parts to be lofted must be sketches");
@@ -80,7 +79,7 @@ async function shrinkWrapSketches(
   context: RequestContext,
 ): Promise<AbundanceLeaf> {
   await util.init();
-  let BOM: any[] = [];
+  const BOM: any[] = [];
   if (sketches.some((sketch) => util.is3D(sketch))) {
     throw new Error("Parts to be shrink wrapped must be sketches");
   }
@@ -89,14 +88,14 @@ async function shrinkWrapSketches(
     throw new Error("No sketches provided for shrink wrap");
   }
 
-  let geometryToWrap = await fuseAssembly(sketches[0], context);
+  const geometryToWrap = await fuseAssembly(sketches[0], context);
   for (let i = 1; i < sketches.length; i++) {
-    let fusedInput = await fuseAssembly(sketches[i], context);
-    let fusedObj = (await util.geometryProvider!.get(
+    const fusedInput = await fuseAssembly(sketches[i], context);
+    const fusedObj = (await util.geometryProvider!.get(
       fusedInput.geometry,
       context,
     )) as Drawing;
-    //@ts-ignore - ignore access of private innerShape field
+    //@ts-expect-error - ignore access of private innerShape field
     if (fusedObj.innerShape && fusedObj.innerShape.blueprints) {
       throw new Error(
         "Sketches to be shrink wrapped can't have interior geometries",
@@ -174,7 +173,7 @@ async function fusion(
   }
   const fuseAssemblyd = await fuseAssembly(shapes[0], context);
   let fusedGeometry = fuseAssemblyd.geometry;
-  let bomAssembly = shapes[0].bom ? shapes[0].bom.slice() : [];
+  const bomAssembly = shapes[0].bom ? shapes[0].bom.slice() : [];
   for (let i = 1; i < shapes.length; i++) {
     fusedGeometry = await util.geometryProvider!.fuse(
       fusedGeometry,
@@ -251,8 +250,8 @@ async function assembly(
     // Full assembly cache hit. No work to do, but update nonReplicadSerialized if needed.
     if (util.isAbundanceObject(batch)) {
       // Gather all nonReplicadSerialized and bom from input geometries
-      let nonReplicadGeoms: any[] = [];
-      let bomAssembly: any[] = [];
+      const nonReplicadGeoms: any[] = [];
+      const bomAssembly: any[] = [];
       for (const geometry of geometries) {
         if (
           Array.isArray(geometry.nonReplicadSerialized) &&
@@ -274,9 +273,9 @@ async function assembly(
     startedBatch = true;
   }
 
-  let assembly: AbundanceObject[] = [];
-  let bomAssembly: any[] = [];
-  let nonReplicadGeoms: any[] = [];
+  const assembly: AbundanceObject[] = [];
+  const bomAssembly: any[] = [];
+  const nonReplicadGeoms: any[] = [];
 
   let all3D = false;
   let all2D = false;
@@ -398,8 +397,8 @@ async function cutAssembly(
 
   //If the partToCut is an assembly pass each part back into cutAssembly function to be cut separately
   if (util.isAssembly(partToCut)) {
-    let assemblyToCut = partToCut.geometry;
-    let assemblyCut: any[] = [];
+    const assemblyToCut = partToCut.geometry;
+    const assemblyCut: any[] = [];
     for (const part of assemblyToCut) {
       // make new assembly from cut parts
       assemblyCut.push(await cutAssembly(part, cuttingParts, context));
@@ -460,7 +459,7 @@ async function recursiveCut(
 
   let resultGeomId: string = partToCut.geometry;
   for (const cuttingPart of util.flattenAssembly(cuttingParts)) {
-    let toCutGeom = await util.geometryProvider!.get(resultGeomId, context);
+    const toCutGeom = await util.geometryProvider!.get(resultGeomId, context);
     if (partToCut.dimension != cuttingPart.dimension) {
       continue;
       // skip this leaf. can't cut 2D with 3D or vice versa
@@ -469,7 +468,7 @@ async function recursiveCut(
       cuttingPart.geometry,
       context,
     );
-    // @ts-ignore
+    //@ts-expect-error - typescript error about compound types that seems incorrect
     if (toCutGeom.boundingBox.isOut(cuttingPartGeom.boundingBox)) {
       continue;
       // skip this leaf. bounding boxes don't intersect

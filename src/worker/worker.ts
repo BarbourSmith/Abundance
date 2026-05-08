@@ -1,5 +1,5 @@
 import { expose } from "comlink";
-import type { AnyShape, Drawing, Edge, Shape3D, ShapeMesh } from "replicad";
+import type { AnyShape, Edge, Shape3D } from "replicad";
 import * as replicad from "replicad";
 import { drawSVG } from "replicad-decorate";
 import { chamfer, extrude, fillet, move, rotate, scale } from "./actions";
@@ -10,7 +10,7 @@ import {
   layout,
   clearRotateCache,
 } from "./cutlayout";
-import { ReplicadObject, RequestContext } from "./geometryProvider";
+import { RequestContext } from "./geometryProvider";
 import {
   assembly,
   difference,
@@ -38,25 +38,6 @@ import * as util from "./util";
 const started: Promise<boolean> = util.init();
 
 /**
- * Deletes a geometry from the library.
- * @param inputID - The library ID to delete.
- */
-function deleteFromLibrary(inputID: string): Promise<boolean> {
-  return started;
-}
-
-/**
- * Creates a mesh with the specified thickness.
- * @param thickness - The thickness value for the mesh.
- * @returns {Promise<any[]>}
- */
-function createMesh(thickness: number): Promise<any[]> {
-  return started.then(() => {
-    return [];
-  });
-}
-
-/**
  * Returns the z-values of flat faces in the geometry, which can be used for area operations in gcode generation.
  * @param {AbundanceObject} input - The geometry to export
  * @returns {Promise<number[]>} A promise that resolves to an array of z-values corresponding to flat faces in the geometry
@@ -67,7 +48,7 @@ function findFlatFaces(
 ): Promise<number[]> {
   return started.then(async () => {
     const zValues: number[] = [];
-    let geometryToFilter = extractKeepOut(input);
+    const geometryToFilter = extractKeepOut(input);
     if (!geometryToFilter) {
       throw new Error(
         "Geometry To Export has no geometry after keepout is applied",
@@ -91,28 +72,28 @@ function findFlatFaces(
       // In order to be considered, a face must be...
       //  1) a flat PLANE, not a cylinder, or sphere or other curved face type.
 
-      const isHorizontal = (normal) =>
+      const isHorizontal = (normal: replicad.Vector) =>
         Math.abs(normal.x) < threshold &&
         Math.abs(normal.y) < threshold &&
         Math.abs(Math.abs(normal.z) - 1) < threshold;
 
-      const horizontalFaces = geom.faces.filter((face, idx) => {
+      const horizontalFaces = geom.faces.filter((face) => {
         const normal = face.normalAt ? face.normalAt() : null;
         const result = normal && isHorizontal(normal);
 
         return result;
       });
 
-      horizontalFaces.forEach((face, idx) => {
+      horizontalFaces.forEach((face) => {
         const center = face.center;
-        const zVal = center[2] ?? center.z;
+        const zVal = center.z;
         zValues.push(zVal);
       });
     });
     // Remove duplicate z values
     const uniqueZValues = Array.from(new Set(zValues));
     //Exclude the smallest and the largest z values as those are likely the floor and ceiling, and return the rest as potential flat faces for area operations.
-    let filteredZValues = uniqueZValues.filter((z) => {
+    const filteredZValues = uniqueZValues.filter((z) => {
       return (
         z > Math.min(...uniqueZValues) + threshold &&
         z < Math.max(...uniqueZValues) - threshold
@@ -135,19 +116,13 @@ function visExport(
   context: RequestContext,
 ): Promise<AbundanceObject> {
   return started.then(async () => {
-    let geometryToExport = extractKeepOut(input);
+    const geometryToExport = extractKeepOut(input);
     if (!geometryToExport) {
       throw new Error(
         "Geometry To Export has no geometry after keepout is applied",
       );
     }
-    let fusedGeometry = await fuseAssembly(geometryToExport, context);
-    let displayColor =
-      fileType == "STL"
-        ? "#91C8D5"
-        : fileType == "STEP"
-          ? "#ACAFDD"
-          : "#5A5A5A";
+    const fusedGeometry = await fuseAssembly(geometryToExport, context);
     let finalGeometry = fusedGeometry;
     if (fileType == "SVG") {
       /** Fuses input geometry, draws a top view projection*/
@@ -197,19 +172,19 @@ async function downExport(
 ): Promise<Blob> {
   await started;
   // as with visexport, fuse the result before exporting.
-  let geometryToExport = extractKeepOut(input);
+  const geometryToExport = extractKeepOut(input);
   if (!geometryToExport) {
     throw new Error(
       "Geometry To Export has no geometry after keepout is applied",
     );
   }
-  let fusedGeometry = await fuseAssembly(geometryToExport, context);
+  const fusedGeometry = await fuseAssembly(geometryToExport, context);
   const geom = await util.geometryProvider!.get(
     fusedGeometry.geometry,
     context,
   );
-  let scaleUnit = units == "Inches" ? 1 : units == "MM" ? 25.4 : 1;
-  let scaling = svgResolution / scaleUnit;
+  const scaleUnit = units == "Inches" ? 1 : units == "MM" ? 25.4 : 1;
+  const scaling = svgResolution / scaleUnit;
   if (fileType == "SVG") {
     /** Fuses input geometry, draws a top view projection*/
     if (util.is3D(input)) {
@@ -226,8 +201,8 @@ async function downExport(
         throw new Error("SVG export requires 2D geometry");
       }
       // Flip the drawing to correct SVG orientation
-      let svg = drawingResult.scale(scaling).toSVG(scaling);
-      var blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
+      const svg = drawingResult.scale(scaling).toSVG(scaling);
+      const blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
 
       return blob;
     }
@@ -253,7 +228,7 @@ async function importingSTEP(
   context: RequestContext,
 ): Promise<AbundanceObject> {
   await started;
-  let STEPresult = await util.replicad.importSTEP(file);
+  const STEPresult = await util.replicad.importSTEP(file);
   if (!util.geometryProvider!.isShape3D(STEPresult)) {
     throw new Error(
       "Imported STEP file describes a " +
@@ -286,7 +261,7 @@ async function importingSTL(
   context: RequestContext,
 ): Promise<AbundanceObject> {
   await started;
-  let STLresult = await util.replicad.importSTL(file);
+  const STLresult = await util.replicad.importSTL(file);
   if (!util.geometryProvider!.isShape3D(STLresult)) {
     throw new Error(
       "Imported STL file describes a " +
@@ -321,23 +296,11 @@ async function importingSVG(
   width: number,
 ): Promise<AbundanceObject> {
   await started;
-  const baseWidth = width + width * 0.05;
-  const baseShape = util.replicad
-    .drawRectangle(baseWidth, baseWidth)
-    .sketchOnPlane()
-    .extrude(1);
   const svgString = svg;
 
-  /* Add svg to face, consider bringing back if we are ever able to choose faces or want to add pattern to face
-  addSVG(baseShape, {
-    faceIndex: 5,
-    depth: depth,
-    svgString: svgString,
-    width: width,
-  })*/
   try {
-    let drawnSVG = await drawSVG(svgString, { width: width });
-    let center = drawnSVG.boundingBox.center;
+    const drawnSVG = await drawSVG(svgString, { width: width });
+    const center = drawnSVG.boundingBox.center;
 
     return {
       geometry: await util.geometryProvider!.addSingularToCache(
@@ -384,9 +347,9 @@ function parseGcodeToEdges(
       const yMatch = cmd.match(/Y([\d.-]+)/);
       const zMatch = cmd.match(/Z([\d.-]+)/);
 
-      let x = xMatch ? Number(xMatch[1]) : currentPosition[0];
-      let y = yMatch ? Number(yMatch[1]) : currentPosition[1];
-      let z = zMatch ? Number(zMatch[1]) : currentPosition[2];
+      const x = xMatch ? Number(xMatch[1]) : currentPosition[0];
+      const y = yMatch ? Number(yMatch[1]) : currentPosition[1];
+      const z = zMatch ? Number(zMatch[1]) : currentPosition[2];
 
       const threshold = 0.001;
       if (
@@ -450,8 +413,6 @@ async function visualizeGcodeIncrementalInternal(
   // This ensures each unique set of gcode strings gets a unique generation ID
   const generationId = util.hashString(gcodeArray.join("|||"));
 
-  const overallStart = performance.now();
-
   // Maintain position across all parts to avoid phantom lines back to origin
   const currentPosition: [number, number, number] = [0, 0, 0];
 
@@ -459,7 +420,6 @@ async function visualizeGcodeIncrementalInternal(
   const edgesPerPart: Edge[][] = [];
 
   // Process each gcode part separately to create edges
-  const parseStart = performance.now();
   for (let i = 0; i < gcodeArray.length; i++) {
     const gcode = gcodeArray[i];
     const partEdges = parseGcodeToEdges(gcode, currentPosition);
@@ -468,7 +428,6 @@ async function visualizeGcodeIncrementalInternal(
       edgesPerPart.push(partEdges);
     }
   }
-  const parseTime = performance.now() - parseStart;
 
   // Check edge statistics to help diagnose issues
   if (edgesPerPart.length > 0) {
@@ -491,7 +450,6 @@ async function visualizeGcodeIncrementalInternal(
   }
 
   // Assemble individual wires and create separate AbundanceObjects
-  const assemblyStart = performance.now();
   const wireObjects: AbundanceObject[] = [];
 
   for (let i = 0; i < edgesPerPart.length; i++) {
@@ -513,7 +471,6 @@ async function visualizeGcodeIncrementalInternal(
         );
       }
 
-      const wireStart = performance.now();
       const wire = util.replicad.assembleWire(edges);
 
       // Create a unique hash for this part using generation ID, index, and gcode content
@@ -708,32 +665,6 @@ async function extractParts(
   return util.flattenAssembly(assembly);
 }
 
-let colorOptions = {
-  Default: util.defaultColor,
-  Red: "#FF9065",
-  Orange: "#FFB458",
-  Yellow: "#FFD600",
-  Olive: "#C7DF66",
-  Teal: "#71D1C2",
-  "Light Blue": "#75DBF2",
-  Green: "#A3CE5B",
-  "Lavender ": "#CCABED",
-  Brown: "#CFAB7C",
-  Pink: "#FFB09D",
-  Sand: "#E2C66C",
-  Clay: "#C4D3AC",
-  Blue: "#91C8D5",
-  "Light Green": "#96E1BB",
-  Purple: "#ACAFDD",
-  "Light Purple": "#DFB1E8",
-  Tan: "#F5D3B6",
-  "Mauve ": "#DBADA9",
-  Grey: "#BABABA",
-  Black: "#5A5A5A",
-  White: "#FFFCF7",
-  "Keep Out": "#E0E0E0",
-};
-
 /**
  * Resets the view by returning an empty array.
  * @returns {Promise<Array>} A promise that resolves to an empty array
@@ -756,9 +687,9 @@ async function sweepCache(
   await started;
 
   // Filter down to the set of distinct geometry ids from the given abundance objects
-  let idsToRetainSet = new Set<string>();
-  for (let abundanceObj of shapesToRetain) {
-    for (let leaf of await util.flattenAssembly(abundanceObj)) {
+  const idsToRetainSet = new Set<string>();
+  for (const abundanceObj of shapesToRetain) {
+    for (const leaf of await util.flattenAssembly(abundanceObj)) {
       idsToRetainSet.add(leaf.geometry);
     }
   }
@@ -786,13 +717,11 @@ if (
   process.env.NODE_ENV !== "test"
 ) {
   expose({
-    deleteFromLibrary,
     importingSTEP,
     importingSTL,
     importingSVG,
     clearCache,
     clearRotateCache,
-    createMesh,
     circle,
     color,
     code,
@@ -848,8 +777,6 @@ export {
   code,
   color,
   createAndDisplayDefaultLayout,
-  createMesh,
-  deleteFromLibrary,
   difference,
   displayLayout,
   downExport,

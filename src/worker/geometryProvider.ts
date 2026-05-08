@@ -1,7 +1,6 @@
 import * as replicad from "replicad";
 import shrinkWrap from "replicad-shrink-wrap";
 import {
-  AbundanceLeaf,
   AbundanceObject,
   asReplicadPlane,
   flattenAssembly,
@@ -91,9 +90,7 @@ class GeometryProvider {
       if (allIds.size <= this.MAX_PROJECTS) {
         return;
       }
-      const evictIds = Array.from(allIds).filter(
-        (id) => !this.projectLRU.includes(id),
-      );
+      const evictIds = Array.from(allIds).filter((id) => !projectIds.has(id));
       for (const evictId of evictIds) {
         await deleteProjectCache(evictId);
       }
@@ -146,7 +143,11 @@ class GeometryProvider {
       throw new Error("No warm cache for operation " + context.operationId);
     }
     const result = operationCache.get(id);
-    result ? this.batchMetrics[0]++ : this.batchMetrics[1]++;
+    if (result) {
+      this.batchMetrics[0]++;
+    } else {
+      this.batchMetrics[1]++;
+    }
     return result?.clone();
   }
 
@@ -193,6 +194,7 @@ class GeometryProvider {
     try {
       result = replicad.deserializeDrawing(shape.serialized);
       this.cacheMiss("deserialize");
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (e) {
       // Not a Drawing, try Shape3D
       try {
@@ -211,7 +213,6 @@ class GeometryProvider {
   }
 
   async clearCache(context: RequestContext): Promise<boolean> {
-    const caches = await getAllProjectIds();
     this.projectLRU = this.projectLRU.filter((id) => id !== context.project);
     await deleteProjectCache(context.project);
     return true;
@@ -227,7 +228,6 @@ class GeometryProvider {
   ): Promise<number> {
     // Step 1: filter geometries based on key since that's a much faster approach
     // and we don't need access to the geom values.
-    const s = performance.now();
     const deletedGeoms = await filter(
       context.project,
       "ReplicadObject",
@@ -235,7 +235,6 @@ class GeometryProvider {
         return idsToRetain.has(shapeKey);
       },
     );
-    const geomTime = performance.now() - s;
 
     // Step 2: filter AbundanceObjects based on whether all their geometries
     // are in the idsToRetain set, here we need access to their values.
@@ -266,7 +265,6 @@ class GeometryProvider {
       true,
     );
 
-    const assemblyTime = performance.now() - s - geomTime;
     return deletedGeoms + deletedAssemblies;
   }
 
@@ -594,7 +592,7 @@ class GeometryProvider {
       return toCut; // cutting with a wire is a no-op.
     }
 
-    let args = [toCutGeom, cutterGeom];
+    const args = [toCutGeom, cutterGeom];
     const resultId = this._makeId("cut", toCut, cutter);
     if (this.areAllDrawings(args) || this.areAll3DShapes(args)) {
       await this.createIfAbsent(resultId, context, async () => {
@@ -715,11 +713,11 @@ class GeometryProvider {
     await this.createIfAbsent(loftId, context, async () => {
       const sketches = [];
       for (let i = 0; i < sketchIds.length; i++) {
-        let partObj = (await this.get(
+        const partObj = (await this.get(
           sketchIds[i],
           context,
         )) as replicad.Drawing;
-        let sketchedpart = partObj.sketchOnPlane(asReplicadPlane(planes[i]));
+        const sketchedpart = partObj.sketchOnPlane(asReplicadPlane(planes[i]));
         if (!("sketches" in sketchedpart)) {
           sketches.push(sketchedpart);
         } else {

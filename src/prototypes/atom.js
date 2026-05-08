@@ -193,7 +193,7 @@ export default class Atom extends ObservableEntity {
         //Find the matching IO and set it to be the saved value
         const matchingSavedVal = this.ioValues?.find(
           (savedVal) =>
-            savedVal.name === ap.name || ap.oldNames?.includes(savedVal.name)
+            savedVal.name === ap.name || ap.oldNames?.includes(savedVal.name),
         );
 
         if (matchingSavedVal && ap.type == "input") {
@@ -698,8 +698,6 @@ export default class Atom extends ObservableEntity {
     if (this.output) {
       this.output.deleteSelf(silent);
     }
-    /* Remove from worker library */
-    GlobalVariables.cad.deleteFromLibrary(this.uniqueID).then(() => {});
 
     this.parent.nodesOnTheScreen.splice(
       this.parent.nodesOnTheScreen.indexOf(this),
@@ -1207,9 +1205,6 @@ export default class Atom extends ObservableEntity {
         .catch(this.alertingErrorHandler());
     } else {
       this.setWaiting();
-      GlobalVariables.cad
-        .deleteFromLibrary(this.uniqueID)
-        .catch(this.alertingErrorHandler());
     }
   }
 

@@ -248,9 +248,6 @@ export default class Readme extends Atom {
         .catch(this.alertingErrorHandler());
     } else {
       this.setWaiting();
-      GlobalVariables.cad
-        .deleteFromLibrary(this.uniqueID)
-        .catch(this.alertingErrorHandler());
     }
   }
 
