@@ -272,7 +272,6 @@ function ArrayInputControl({
   label,
   isDisabled,
   elementType,
-  onLocalChange,
   onCommit,
   inputStyle,
   inputDisabledStyle,
@@ -287,11 +286,6 @@ function ArrayInputControl({
   const [isFocused, setIsFocused] = useState(false);
   const textareaRef = useRef(null);
   const gutterRef = useRef(null);
-
-  // Reset draft if external value changes while not focused.
-  useEffect(() => {
-    if (!isFocused) setDraft(null);
-  }, [committedText, isFocused]);
 
   const text = draft !== null ? draft : committedText;
   const lines = text.length === 0 ? [""] : text.split("\n");
@@ -310,11 +304,7 @@ function ArrayInputControl({
   };
 
   const handleChange = (e) => {
-    const newText = e.target.value;
-    setDraft(newText);
-    // Keep local panel state in sync so other code reading currentValue sees
-    // it. Don't coerce here so the user sees exactly what they typed.
-    onLocalChange(newText.split("\n"));
+    setDraft(e.target.value);
   };
 
   const handleBlur = () => {
@@ -1880,41 +1870,21 @@ export const SimpleControlPanel = forwardRef(function SimpleControlPanel(
                         </select>
                       </div>
                     );
-                  case "array": {
-                    const arr = Array.isArray(currentValue)
-                      ? currentValue
-                      : Array.isArray(config.value)
-                        ? config.value
-                        : [];
-                    const commitArr = (newArr) => {
-                      setControlValue(key, newArr);
-                      setLocalValues((prev) => {
-                        const next = { ...prev };
-                        delete next[key];
-                        return next;
-                      });
-                      if (typeof config.onChange === "function") {
-                        config.onChange(newArr, key);
-                      }
-                    };
+                  case "array":
                     return (
                       <ArrayInputControl
                         key={key}
-                        value={arr}
+                        value={Array.isArray(currentValue) ? currentValue : []}
                         label={label}
                         isDisabled={isDisabled}
                         elementType={config.elementType}
-                        onLocalChange={(newArr) =>
-                          handleLocalChange(key, newArr)
-                        }
-                        onCommit={commitArr}
+                        onCommit={(newArr) => commitChange(key, newArr, config)}
                         inputStyle={inputStyle}
                         inputDisabledStyle={inputDisabledStyle}
                         inputFocusedStyle={inputFocusedStyle}
                         labelStyle={labelStyle}
                       />
                     );
-                  }
                   case "button":
                     return (
                       <div key={key} style={labelStyle}>
