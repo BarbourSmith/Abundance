@@ -22,6 +22,9 @@ export function ProjectProvider({ children, cad, loadProject }) {
   // Track last saved data to avoid unnecessary saves
   const lastSaveData = useRef({});
 
+  // Track current save progress to prevent regression
+  const currentSaveProgress = useRef(0);
+
   var navigate = useNavigate();
 
   /**
@@ -1013,12 +1016,12 @@ export function ProjectProvider({ children, cad, loadProject }) {
   const createCommit = async function (
     octokit,
     { owner, repo, base, changes },
-    setSaveProgress,
+    updateSaveProgress,
     saveType = "Auto Save",
     setErrorNotification,
   ) {
     try {
-      setSaveProgress(35);
+      updateSaveProgress(35);
       if (!base) {
         const repoResponse = await octokit.request(
           "GET /repos/{owner}/{repo}",
@@ -1030,7 +1033,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
 
         let htmlURL = repoResponse.data.html_url;
         const privateRepo = repoResponse.data.private;
-        setSaveProgress(40);
+        updateSaveProgress(40);
 
         base = repoResponse.data.default_branch;
 
@@ -1041,7 +1044,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
           per_page: 1,
         });
 
-        setSaveProgress(50);
+        updateSaveProgress(50);
         let latestCommitSha = commitsResponse.data[0].sha;
         const treeSha = commitsResponse.data[0].commit.tree.sha;
 
@@ -1066,7 +1069,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
           }),
         });
 
-        setSaveProgress(60);
+        updateSaveProgress(60);
         const newTreeSha = treeResponse.data.sha;
 
         const commitResponse = await octokit.rest.git.createCommit({
@@ -1077,7 +1080,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
           parents: [latestCommitSha],
         });
 
-        setSaveProgress(70);
+        updateSaveProgress(70);
         latestCommitSha = commitResponse.data.sha;
 
         await octokit.rest.git.updateRef({
@@ -1088,7 +1091,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
           force: true,
         });
 
-        setSaveProgress(80);
+        updateSaveProgress(80);
 
         const githubMoleculeUsedList = await searchGithubMolecules(
           GlobalVariables.topLevelMolecule,
@@ -1144,7 +1147,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
           );
           setTimeout(() => setErrorNotification(null), 5000);
         }
-        setSaveProgress(0); // Reset save progress
+        updateSaveProgress(0); // Reset save progress
       }
 
       throw error; // Re-throw to let calling function handle it
@@ -1168,7 +1171,26 @@ export function ProjectProvider({ children, cad, loadProject }) {
     setErrorNotification = null,
     onSaveStart = null,
   ) => {
+    // Create a wrapper for setSaveProgress that prevents regression
+    // This ensures the progress bar never goes backwards
+    // Exception: always allow resetting to 0 (intentional error/reset state)
+    const updateSaveProgress = (newProgress) => {
+      // Always allow explicit reset to 0
+      if (newProgress === 0) {
+        currentSaveProgress.current = 0;
+        setSaveProgress(0);
+        return;
+      }
+      // For normal updates, only allow progression forward
+      if (newProgress >= currentSaveProgress.current) {
+        currentSaveProgress.current = newProgress;
+        setSaveProgress(newProgress);
+      }
+    };
+
     try {
+      // Reset progress tracker for this save operation
+      currentSaveProgress.current = 0;
       // Block the save if the project is still loading/deserializing to prevent
       // saving an incomplete project structure that would wipe out atoms on load
       if (GlobalVariables.projectIsLoading) {
@@ -1218,7 +1240,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
 
       lastSaveData.current = jsonRepOfProject; //Save the data so we can compare it next time
 
-      setSaveProgress(5); //Set the state to 5% to show the progress bar
+      updateSaveProgress(5); //Set the state to 5% to show the progress bar
 
       let finalSVG;
       // Only generate thumbnail for user-triggered saves, not auto saves
@@ -1228,7 +1250,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
         });
       }
 
-      setSaveProgress(10);
+      updateSaveProgress(10);
       // Reuse the already serialized project data instead of serializing again
       const projectContent = JSON.stringify(jsonRepOfProject, null, 2);
       // format and compile the BOM
@@ -1256,7 +1278,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
         readmeContent += "\n\n";
       }
 
-      setSaveProgress(20);
+      updateSaveProgress(20);
 
       let readMeRequestResult =
         await GlobalVariables.topLevelMolecule.requestReadme();
@@ -1316,7 +1338,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
       // If no valid thumbnail was generated, don't include project.svg in the commit
       // This preserves the existing thumbnail in the repository
 
-      setSaveProgress(30);
+      updateSaveProgress(30);
 
       await createCommit(
         authorizedUserOcto,
@@ -1328,7 +1350,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
             commit: typeSave ? typeSave : "Auto Save",
           },
         },
-        setSaveProgress,
+        updateSaveProgress,
         typeSave,
         setErrorNotification,
       );
@@ -1345,7 +1367,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
           });
       }
 
-      setSaveProgress(100);
+      updateSaveProgress(100);
     } catch (error) {
       console.error("Error during project save:", error);
       // The createCommit function already handles authentication errors,
@@ -1358,7 +1380,8 @@ export function ProjectProvider({ children, cad, loadProject }) {
         setTimeout(() => setNotification(null), 5000);
       }
 
-      setSaveProgress(0); // Reset save progress
+      // Reset progress on error (guard allows 0 anytime as intentional reset)
+      updateSaveProgress(0);
     }
   };
 
