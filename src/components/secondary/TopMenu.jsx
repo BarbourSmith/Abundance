@@ -6,6 +6,7 @@ import DuplicateCompleteDialog from "./DuplicateCompleteDialog.jsx";
 import RenameProjectDialog from "./RenameProjectDialog.jsx";
 import { useNavigate } from "react-router-dom";
 import SettingsPopUp from "./SettingsPopUp.jsx";
+import GoUpLevelButton from "./GoUpLevelButton.jsx";
 import {
   useAuth,
   useAppState,
@@ -257,8 +258,9 @@ function TopMenu({
       {
         id: "Save Project",
         buttonFunc: () => {
-          setSavePopUp(true);
-          saveProject(setSaveState, "User Save");
+          saveProject(setSaveState, "User Save", false, () =>
+            setSavePopUp(true),
+          );
         },
       },
       {
@@ -365,30 +367,6 @@ function TopMenu({
       setExportPopUp,
     ],
   );
-
-  //{checks for top level variable and show go-up button if this is not top molecule
-  //i'm not so sure this useeffect is right. put on list to review
-  const TopLevel = () => {
-    return (
-      <>
-        <button
-          id="go-up-button"
-          className="nav-bar go-up-button menu-nav-button"
-          onClick={() => {
-            GlobalVariables.currentMolecule.goToParentMolecule();
-            setActiveAtom(GlobalVariables.currentMolecule);
-          }}
-        >
-          <img
-            className="nav-img thumnail-logo"
-            src={import.meta.env.VITE_APP_PATH_FOR_PICS + "/imgs/Go Up.svg"}
-            key=""
-            title=""
-          />
-        </button>
-      </>
-    );
-  };
 
   /*{nav bar toggle component}*/
   // Use a ref to persist navbar state across re-renders without triggering them
@@ -544,7 +522,7 @@ function TopMenu({
           newProjectRepoName={duplicatedProjectInfo.repoName}
         />
       ) : null}
-      {currentMoleculeTop ? <TopLevel /> : null}
+      {currentMoleculeTop ? <GoUpLevelButton /> : null}
       <Navbar {...{ currentMoleculeTop, renderTrigger: navbarRenderTrigger }} />
     </>
   );

@@ -2,7 +2,7 @@ import React, { useState, useEffect, use } from "react";
 import { useRendering } from "../../contexts/RenderingContext.jsx";
 import * as THREE from "three";
 import { useLayoutEffect } from "react";
-import { invalidate } from "react-three-fiber";
+import { invalidate } from "@react-three/fiber";
 
 export default function NonReplicadMesh({}) {
   const { nonReplicadGeometry } = useRendering();

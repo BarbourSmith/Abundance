@@ -73,17 +73,12 @@ export default function RunParams({
         ),
       ),
     };
-    exportParams = activeAtom?.createExportMenuInputs(setInputChanged);
+    exportParams = activeAtom.createExportMenuInputs(setInputChanged);
 
     inputParams["molecule name" + activeAtom.uniqueID + "units"] = {
-      type: "select",
+      type: "label",
       value: GlobalVariables.topLevelMolecule?.unitsKey || "MM",
       label: "Project Units",
-      options: activeAtom.units,
-      disabled: false,
-      onChange: (value) => {
-        GlobalVariables.topLevelMolecule.unitsKey = value;
-      },
     };
 
     // Add a button at the end to see the project readme

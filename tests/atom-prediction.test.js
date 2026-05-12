@@ -26,6 +26,11 @@ describe("Atom Predictions", () => {
     expect(predictions).toEqual([]);
   });
 
+  it("should return Extrude, Move, and Rotate for GitHubMolecule", () => {
+    const predictions = getPredictedAtoms("GitHubMolecule");
+    expect(predictions).toEqual(["Extrude", "Move", "Rotate"]);
+  });
+
   it("should handle Add-BOM-Tag predictions", () => {
     // Add-BOM-Tag should still have predictions
     const bomPredictions = getPredictedAtoms("Add-BOM-Tag");

@@ -27,7 +27,7 @@ const ATOM_PREDICTIONS = {
   Gcode: ["Export", "Tag"],
   Import: ["Gcode", "Move", "Tag"],
   //Export: ["Gcode", "Import"],
-  GitHubMolecule: ["Assembly", "Move", "Tag"],
+  GitHubMolecule: ["Extrude", "Move", "Rotate"],
   Output: [],
   // Add more as needed
 };

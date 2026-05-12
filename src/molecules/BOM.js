@@ -66,13 +66,16 @@ export default class AddBOMTag extends Atom {
 
   compute(inputs) {
     const input = inputs.geometry;
-    
+
     // Sync BOMitem with current input values before computing
     // This ensures values from upstream connections are properly used
     if (inputs["Item Name"] !== null && inputs["Item Name"] !== undefined) {
       this.BOMitem.BOMitemName = inputs["Item Name"];
     }
-    if (inputs["Number Needed"] !== null && inputs["Number Needed"] !== undefined) {
+    if (
+      inputs["Number Needed"] !== null &&
+      inputs["Number Needed"] !== undefined
+    ) {
       this.BOMitem.numberNeeded = inputs["Number Needed"];
     }
     if (inputs["Cost (USD)"] !== null && inputs["Cost (USD)"] !== undefined) {
@@ -81,7 +84,7 @@ export default class AddBOMTag extends Atom {
     if (inputs["Source Link"] !== null && inputs["Source Link"] !== undefined) {
       this.BOMitem.source = inputs["Source Link"];
     }
-    
+
     const bomItem = this.BOMitem;
     return GlobalVariables.cad.bom(input, bomItem);
   }
@@ -114,7 +117,10 @@ export default class AddBOMTag extends Atom {
     GlobalVariables.c.closePath();
   }
 
-  createInputParams() {
+  createInputParams(setInputChanged) {
+    // Forward to super so it can register `setInputChanged`. We discard
+    // its returned controls because BOM builds a fully custom panel.
+    super.createInputParams(setInputChanged);
     let inputParams = {};
 
     if (this.inputs) {
@@ -128,7 +134,9 @@ export default class AddBOMTag extends Atom {
             onChange: (value) => {
               this.BOMitem.BOMitemName = value;
               // Also update the attachment point value so findIOValue returns the correct value
-              const itemNameInput = this.inputs.find(input => input.name === "Item Name");
+              const itemNameInput = this.inputs.find(
+                (input) => input.name === "Item Name",
+              );
               if (itemNameInput) {
                 itemNameInput.setValue(value);
               }
@@ -147,7 +155,9 @@ export default class AddBOMTag extends Atom {
             onChange: (value) => {
               this.BOMitem.numberNeeded = value;
               // Also update the attachment point value so findIOValue returns the correct value
-              const numberNeededInput = this.inputs.find(input => input.name === "Number Needed");
+              const numberNeededInput = this.inputs.find(
+                (input) => input.name === "Number Needed",
+              );
               if (numberNeededInput) {
                 numberNeededInput.setValue(value);
               }
@@ -165,7 +175,9 @@ export default class AddBOMTag extends Atom {
             onChange: (value) => {
               this.BOMitem.costUSD = value;
               // Also update the attachment point value so findIOValue returns the correct value
-              const costInput = this.inputs.find(input => input.name === "Cost (USD)");
+              const costInput = this.inputs.find(
+                (input) => input.name === "Cost (USD)",
+              );
               if (costInput) {
                 costInput.setValue(value);
               }
@@ -181,7 +193,9 @@ export default class AddBOMTag extends Atom {
             onChange: (value) => {
               this.BOMitem.source = value;
               // Also update the attachment point value so findIOValue returns the correct value
-              const sourceInput = this.inputs.find(input => input.name === "Source Link");
+              const sourceInput = this.inputs.find(
+                (input) => input.name === "Source Link",
+              );
               if (sourceInput) {
                 sourceInput.setValue(value);
               }
@@ -228,7 +242,7 @@ export default class AddBOMTag extends Atom {
 
     // Use safe serialization to prevent large BOM items from bloating the save file
     const bomCopy = Object.assign({}, this.BOMitem); //Makes a shallow copy to prevent issues when copy pasting
-    Atom.safeSerializeValue(valuesObj, 'BOMitem', bomCopy, this.name || 'BOM');
+    Atom.safeSerializeValue(valuesObj, "BOMitem", bomCopy, this.name || "BOM");
 
     return valuesObj;
   }

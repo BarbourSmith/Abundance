@@ -1,95 +1,132 @@
 import React from "react";
-import { useEffect, useState, useMemo, useCallback } from "react";
-import ReactCodeEditor from "@uiw/react-codemirror";
-import { keymap } from "@codemirror/view";
-import { defaultKeymap } from "@codemirror/commands";
-import {
-  loadLanguage,
-  langNames,
-  langs,
-} from "@uiw/codemirror-extensions-langs";
-import { javascript, esLint } from "@codemirror/lang-javascript";
-import { linter, lintGutter } from "@codemirror/lint";
-//import { andromeda, andromedaInit } from "@uiw/codemirror-theme-andromeda";
+import { useEffect, useState, useMemo, useRef } from "react";
 
 import apiJson from "./methodsreplicad.json"; // static import of the JSON file
 import abundanceJson from "./abundanceApiJson.json";
 import ReactCodeEditorWithApiAutocomplete from "./ReactCodeEditorWithApiAutocomplete";
 import InfoPanel from "./InfoPanel";
-
-/**
- * Common JavaScript methods for reference panel
- */
-// User Quick Guide for the Code Window
-const CODE_WINDOW_GUIDE = [
-  {
-    name: "Code Window Quick Guide",
-    usage: null,
-    params: [],
-    returns: null,
-    detail:
-      `• Define your inputs at the top using the Inputs array.\n\n` +
-      `  Example:\n  const Inputs = [\n    { inputName: "shape", type: "geometry", defaultValue: null },\n    { inputName: "dist", type: "number", defaultValue: 5 },\n    { inputName: "height", type: "number", defaultValue: 10 }\n  ];\n\n` +
-      `• Access imported geometry using: library[shape]\n` +
-      `• Use built-in async functions (always with await):\n` +
-      `  let moved = await Move(importedShape, dist, 0, 0);\n  let rotated = await Rotate(importedShape, 0, 45, 0);\n  let scaled = await Scale(importedShape, 0.8);\n  let filleted = await Fillet(moved, 0.5);\n  let chamfered = await Chamfer(moved, 0.3);\n  let assembly = await Assembly([rotated, scaled, filleted, chamfered]);\n\n` +
-      `• Create new geometry with Replicad:\n` +
-      `  let rect = replicad.drawRectangle(5, 7);\n  let plane = new replicad.Plane().pivot(0, 'Y');\n  let shape = rect.sketchOnPlane(plane).extrude(height);\n\n` +
-      `• Wrap raw geometry as an Abundance Object:\n` +
-      `  let shapeObj = {\n    geometry: [shape],\n    dimension: "3D",\n    tags: ["createdShape"],\n    color: "#A3CE5B",\n    plane: plane,\n    bom: []\n  };\n\n` +
-      `• Use console.log for debugging:\n` +
-      `  console.log("Bounds:", GetBounds(moved));\n\n` +
-      `• Return your result at the end:\n` +
-      `  return assembly;\n\n` +
-      `• Built-in Functions:\n` +
-      `  Move, Rotate, Scale, Assembly, Intersect, GetBounds, Fillet, Chamfer\n\n` +
-      `• Tips:\n` +
-      `  - Use the Replicad and Abundance panels to browse all available methods.\n` +
-      `  - Hover over suggestions for parameter and return type info.\n` +
-      `  - Save and close your code using the buttons below the editor.\n`,
-  },
-];
+import { setMonacoInstance } from "../../molecules/code.js";
 
 /*
  * CodeWindow component is a code editor window that allows the user to edit the code of the active code atom.
  */
 export default function CodeWindow(props) {
   const [docvalue, setdocValue] = useState("");
-  const extensions = [keymap.of(defaultKeymap)];
   const [expandedPanel, setExpandedPanel] = useState(null); // null, 'replicad', 'abundance', 'common', or 'console'
-  const [consoleErrors, setConsoleErrors] = useState([]);
+  // Console panel entries. Each entry: { id, timestamp (Date), level, message, stack? }.
+  // `level === 'error'` is rendered in red and counts toward the unread badge.
+  // `level === 'divider'` is rendered as a horizontal separator marking the
+  // end of a run.
+  const [consoleEntries, setConsoleEntries] = useState([]);
+  const [interpreterVersion, setInterpreterVersion] = useState(0);
+
+  // Ref to the scrollable console body so we can pin to the bottom on each
+  // new entry. We keep a `pinnedToBottom` flag so manual scroll-up by the
+  // user pauses auto-scroll until they return to the bottom.
+  const consoleBodyRef = useRef(null);
+  const pinnedToBottomRef = useRef(true);
 
   useEffect(() => {
     if (props.activeAtom != null) {
       setdocValue(props.activeAtom.code);
+      setInterpreterVersion(props.activeAtom.interpreterVersion ?? 0);
     }
   }, [props.activeAtom]);
 
-  // Subscribe to activeAtom changes to capture code execution errors
+  // Subscribe to activeAtom changes to capture code execution errors and
+  // console.* output forwarded from the worker (see molecules/code.js).
+  // We use TWO separate channels:
+  //   - subscribe()           → general atom state changes (for error alerts)
+  //   - subscribeToLogs()     → log-only channel that does NOT trigger DAG
+  //                              recomputation when entries are appended.
   useEffect(() => {
     if (props.activeAtom == null) return;
 
-    const subscriberId = "codeWindowConsole";
-    const handleAtomChange = () => {
+    // The atom's `consoleEntries` buffer is the source of truth for log
+    // entries forwarded from the worker. We mirror it into local state on
+    // every pull rather than maintaining a parallel "seen ids" set, because
+    // (a) the effect re-runs whenever `props.activeAtom` changes — losing
+    // such a set would re-append everything as "new", producing duplicate
+    // React keys — and (b) the buffer is bounded (MAX_CONSOLE_ENTRIES) so
+    // copying the array each time is cheap.
+    //
+    // Errors raised via `atom.alert` are NOT stored on `consoleEntries`, so
+    // we synthesize a local entry for them. `seenAlertKey` prevents the
+    // same alert from being inserted multiple times across pulls.
+    let seenAlertKey = null;
+    let alertEntry = null;
+
+    const pullEntries = () => {
+      // Errors: surfaced via atom.alert when status flips to 'error'.
       if (
         props.activeAtom.status === "error" &&
         props.activeAtom.alert &&
         props.activeAtom.alert.message
       ) {
-        setConsoleErrors((prev) => [
-          { message: props.activeAtom.alert.message, timestamp: new Date(), id: Date.now() + Math.random() },
-          ...prev,
-        ]);
+        const key = `err-${props.activeAtom.alert.message}`;
+        if (key !== seenAlertKey) {
+          seenAlertKey = key;
+          alertEntry = {
+            level: "error",
+            message: props.activeAtom.alert.message,
+            stack: null,
+            timestamp: new Date(),
+            id: `alert-${Date.now()}-${Math.random()}`,
+          };
+        }
+      } else {
+        // Status is no longer error — drop any stale alert entry so the
+        // next error produces a fresh one.
+        seenAlertKey = null;
+        alertEntry = null;
       }
+
+      // Logs: appended by molecules/code.js#appendConsoleEntries as the
+      // worker forwards batches of console.* calls from user code.
+      const entries = props.activeAtom.consoleEntries || [];
+      const next = entries.map((e) => ({
+        level: e.level,
+        message: e.message,
+        stack: e.stack,
+        timestamp: new Date(e.timestamp),
+        // Namespace ids so worker-side ids can never collide with the
+        // synthesized alert id above.
+        id: `log-${e.id}`,
+      }));
+      if (alertEntry) next.push(alertEntry);
+      setConsoleEntries(next);
     };
 
-    props.activeAtom.subscribe(handleAtomChange, subscriberId, false);
+    const subscriberId = "codeWindowConsole";
+    props.activeAtom.subscribe(pullEntries, subscriberId, false);
+    const unsubLogs = props.activeAtom.subscribeToLogs?.(pullEntries);
+    // Pull whatever is already buffered from prior runs.
+    pullEntries();
 
     return () => {
       props.activeAtom.unsubscribe(subscriberId);
+      unsubLogs?.();
     };
   }, [props.activeAtom]);
 
+  // Auto-scroll the console body to the bottom whenever new entries arrive,
+  // but only if the user is already pinned to the bottom. This lets users
+  // scroll up to inspect older output without being yanked back.
+  useEffect(() => {
+    const el = consoleBodyRef.current;
+    if (!el) return;
+    if (pinnedToBottomRef.current) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [consoleEntries, expandedPanel]);
+
+  // Track whether the user has scrolled away from the bottom so we know
+  // whether to keep auto-pinning. Tolerance of a few px to absorb rounding.
+  const handleConsoleScroll = (e) => {
+    const el = e.currentTarget;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    pinnedToBottomRef.current = distanceFromBottom < 4;
+  };
   /**
    * Closes the code editor window.
    */
@@ -98,19 +135,26 @@ export default function CodeWindow(props) {
     codeWindow.classList.add("code-off");
   }
 
-  const config = {
-    parserOptions: {
-      ecmaVersion: 6,
-      ecmaFeatures: {
-        jsx: true,
-        globalReturn: true,
-      },
-    },
-    rules: {
-      semi: "error",
-      "callback-return": "off",
-    },
-  };
+  /**
+   * Switches the interpreter version and persists it on the atom immediately.
+   * @param {number} version - 0 = JavaScript, 1 = TypeScript
+   */
+  function handleVersionChange(version) {
+    setInterpreterVersion(version);
+    if (props.activeAtom) {
+      props.activeAtom.updateInterpreterVersion(version);
+    }
+  }
+
+  /**
+   * Save handler invoked by the hidden save button (which in turn is clicked
+   * via atom.saveCode() or Ctrl/Cmd+S). Transpilation (TS -> JS) lives on
+   * the atom itself now — see Code#updateCode in molecules/code.js.
+   */
+  async function handleSave() {
+    if (!props.activeAtom) return;
+    await props.activeAtom.updateCode(docvalue);
+  }
 
   /**
    * Process API JSON to extract method information
@@ -153,32 +197,30 @@ export default function CodeWindow(props) {
   }, []);
 
   /**
-   * Process Abundance API JSON to extract method information (Abundance style)
-   * Each entry: {
-   *   type: "function",
-   *   requiredParams: ["AbundanceObject", "x", "y", "z"],
+   * Process Abundance API JSON to extract method information.
+   * Entries describe the `Assembly` class surface — its constructor and
+   * instance methods (`.isLeaf`, `.onLeafs`, `.is2D`, etc.). Example:
+   * {
+   *   type: "method",
+   *   requiredParams: [],
    *   optionalParams: [],
-   *   usage: "await Move(AbundanceObject, x, y, z)",
-   *   returns: "AbundanceObject"
+   *   usage: "assembly.isLeaf()",
+   *   returns: "boolean"
    * }
    */
   const abundanceMethods = useMemo(() => {
     if (!abundanceJson) return [];
     return Object.keys(abundanceJson)
-      .sort()
       .map((key) => {
         const def = abundanceJson[key];
         const params = (def.requiredParams || []).concat(
           def.optionalParams || []
         );
         // Always prepend 'await' for abundance methods
-        const usage = `await ${key}(${params.join(", ")})`;
         return {
           name: key,
-          usage: def.usage || usage,
           params,
-          returns: def.returns,
-          detail: def.type || "function",
+          ...def,
         };
       });
   }, []);
@@ -191,12 +233,33 @@ export default function CodeWindow(props) {
     <div id="code-window" className="code-off login-page code-window-div">
       <div className="code-window-container">
         <div className="code-editor-section">
+          <div className="code-editor-toolbar">
+            <span className="code-editor-toolbar-label">Interpreter:</span>
+            <button
+              className={`code-version-btn${interpreterVersion === 0 ? " active" : ""}`}
+              onClick={() => handleVersionChange(0)}
+              title="JavaScript mode – relaxed, no type errors"
+            >
+              JavaScript
+            </button>
+            <button
+              className={`code-version-btn${interpreterVersion === 1 ? " active" : ""}`}
+              onClick={() => handleVersionChange(1)}
+              title="TypeScript mode – strict type checking with error highlighting"
+            >
+              TypeScript - <b>BETA</b>
+            </button>
+          </div>
           <ReactCodeEditorWithApiAutocomplete
             value={docvalue}
             onChange={setdocValue}
             apiJson={apiJson}
             abundanceJson={abundanceJson}
             activeAtom={props.activeAtom}
+            interpreterVersion={interpreterVersion}
+            onEditorReady={(editor, monaco) => {
+              setMonacoInstance(monaco);
+            }}
           />
         </div>
         <div className="info-panels-section">
@@ -243,79 +306,26 @@ export default function CodeWindow(props) {
                   {`
 Welcome to the Code Window!
 
-How to Use:
+Code atoms allow you to define atoms which perform custom actions using
+Typescript, the Replicad API, and some Abundance utilities.
 
-• Define your inputs at the top using the Inputs array:`}
-                  <div className="method-item">
-                    {`
-  const Inputs = [
-    { inputName: "shape", type: "geometry", defaultValue: null },
-    { inputName: "dist", type: "number", defaultValue: 5 },
-    { inputName: "height", type: "number", defaultValue: 10 }
-  ]; `}{" "}
-                  </div>{" "}
-                  {`
+The "run" function is the entry point for the code atom. The arguments
+to this function will determine what inputs this atom takes, and it's
+returned value will be available to downstream atoms.
 
-• Access imported geometry using: library[shape] `}
-                  <div className="method-item">
-                    {`
- let importedShape = library[shape]; `}{" "}
-                  </div>
-                  {`
+Allowed input types are:
+• number
+• string
+• boolean
+• Assembly - a structured Abundance assembly (may contain a single or multiple geometries).
+  See Abundance Methods panel.
 
-• Use built-in async functions (always with await): `}
-                  <div className="method-item">
-                    {`
-  let moved = await Move(importedShape, dist, 0, 0);
-  let rotated = await Rotate(importedShape, 0, 45, 0);
-  let scaled = await Scale(importedShape, 0.8);
-  let filleted = await Fillet(moved, 0.5);
-  let chamfered = await Chamfer(moved, 0.3);
-  let assembly = await Assembly([rotated, scaled, filleted, chamfered]);
-`}{" "}
-                  </div>
-                  {`
-• Create new geometry with Replicad:  `}
-                  <div className="method-item">
-                    {`
-  let rect = replicad.drawRectangle(5, 7);
-  let plane = new replicad.Plane().pivot(0, 'Y');
-  let shape = rect.sketchOnPlane(plane).extrude(height);
+Allowed return types are same as input types.
 
-`}
-                  </div>
-                  {`
-• Wrap raw geometry as an Abundance Object: `}
-                  <div className="method-item">
-                    {`
-  let shapeObj = {
-    geometry: [shape],
-    dimension: "3D",
-    tags: ["createdShape"],
-    color: "#A3CE5B",
-    plane: plane,
-    bom: []
-  };  `}{" "}
-                  </div>
-                  {`
-• Use console.log for debugging: `}
-                  <div className="method-item">
-                    {`
-  console.log("Bounds:", GetBounds(moved)); `}{" "}
-                  </div>
-                  {`
-• Return your result at the end. If you intent to continue using the result in further steps as a geometry, make sure to return an Abundance Object.
-  `}{" "}
-                  <div className="method-item">
-                    {`
-  return assembly;
-`}{" "}
-                  </div>{" "}
-                  {`
-Tips:
-- Use the Replicad and Abundance panels to browse all available methods.
-- Hover over autocomplete suggestions for parameter and return type info.
-- Save and close your code using the buttons below the editor.
+console.log, console.warn, and console.error are available for debugging, and their output
+will appear in the Console panel.
+Errors thrown in this atom will be shown in the console and will also put the atom itself
+into an error state displaying the error message.
 `}
                 </div>
               </div>
@@ -341,7 +351,12 @@ Tips:
                   <div className="console-header-actions">
                     <button
                       className="console-clear-btn"
-                      onClick={() => setConsoleErrors([])}
+                      onClick={() => {
+                        setConsoleEntries([]);
+                        if (props.activeAtom?.clearConsoleEntries) {
+                          props.activeAtom.clearConsoleEntries();
+                        }
+                      }}
                       title="Clear console"
                     >
                       Clear
@@ -354,21 +369,80 @@ Tips:
                     </button>
                   </div>
                 </div>
-                <div className="info-panel-body console-body">
-                  {consoleErrors.length === 0 ? (
-                    <div className="no-methods">No errors</div>
+                <div
+                  className="info-panel-body console-body"
+                  ref={consoleBodyRef}
+                  onScroll={handleConsoleScroll}
+                >
+                  {consoleEntries.length === 0 ? (
+                    <div className="no-methods">No console output</div>
                   ) : (
                     <div className="console-error-list">
-                      {consoleErrors.map((entry) => (
-                        <div key={entry.id} className="console-error-item">
-                          <span className="console-error-time">
-                            {entry.timestamp.toLocaleTimeString()}
-                          </span>
-                          <span className="console-error-message">
-                            {entry.message}
-                          </span>
-                        </div>
-                      ))}
+                      {consoleEntries.map((entry) => {
+                        // Run-end divider: distinct visual separator. No
+                        // level glyph or timestamp clutter — just a thin
+                        // labelled rule.
+                        if (entry.level === "divider") {
+                          const t = entry.timestamp;
+                          const hh = String(t.getHours()).padStart(2, "0");
+                          const mm = String(t.getMinutes()).padStart(2, "0");
+                          const ss = String(t.getSeconds()).padStart(2, "0");
+                          return (
+                            <div
+                              key={entry.id}
+                              className="console-divider"
+                              role="separator"
+                            >
+                              <span className="console-divider-label">
+                                {entry.message} · {hh}:{mm}:{ss}
+                              </span>
+                            </div>
+                          );
+                        }
+                        // Compact HH:MM:SS time format (drop the AM/PM and
+                        // any locale fluff that toLocaleTimeString may add).
+                        const t = entry.timestamp;
+                        const hh = String(t.getHours()).padStart(2, "0");
+                        const mm = String(t.getMinutes()).padStart(2, "0");
+                        const ss = String(t.getSeconds()).padStart(2, "0");
+                        const time = `${hh}:${mm}:${ss}`;
+                        // Short single-character level glyph (L/I/W/E/D/T)
+                        // keeps each row visually tight while still encoding
+                        // severity. Full level is exposed via title for a11y.
+                        const glyph =
+                          {
+                            log: "L",
+                            info: "I",
+                            warn: "W",
+                            error: "E",
+                            debug: "D",
+                            trace: "T",
+                          }[entry.level] || "?";
+                        return (
+                          <div
+                            key={entry.id}
+                            className={`console-error-item console-level-${entry.level}`}
+                          >
+                            <span className="console-error-meta">
+                              <span className="console-error-time">{time}</span>
+                              <span
+                                className="console-error-level"
+                                title={entry.level}
+                              >
+                                {glyph}
+                              </span>
+                            </span>
+                            <span className="console-error-message">
+                              {entry.message}
+                              {entry.stack ? (
+                                <pre className="console-error-stack">
+                                  {entry.stack}
+                                </pre>
+                              ) : null}
+                            </span>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -381,9 +455,16 @@ Tips:
                 <span className="tab-arrow">◀</span>
                 <span
                   className="tab-label"
-                  style={consoleErrors.length > 0 ? { color: "#e05b5b" } : {}}
+                  style={
+                    consoleEntries.some((e) => e.level === "error")
+                      ? { color: "#e05b5b" }
+                      : {}
+                  }
                 >
-                  Console{consoleErrors.length > 0 ? ` (${consoleErrors.length})` : ""}
+                  Console
+                  {consoleEntries.length > 0
+                    ? ` (${consoleEntries.length})`
+                    : ""}
                 </span>
               </div>
             )}
@@ -392,7 +473,7 @@ Tips:
       </div>
       <button
         type="button"
-        onClick={() => props.activeAtom.updateCode(docvalue)}
+        onClick={handleSave}
         style={{ display: "none" }}
         id="save-code-button"
       >

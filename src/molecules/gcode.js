@@ -210,7 +210,10 @@ export default class Gcode extends Atom {
         const resultWire = await this._generateSequentialGcode([inputGeometry]);
       }
     } catch (err) {
-      console.error("Error generating G-code:", err);
+      console.error(
+        "Error generating G-code in " + this.getAtomPath() + ":",
+        err,
+      );
       this.setError(err);
       this.progress = 1.0;
       this.processing = false;
@@ -218,6 +221,7 @@ export default class Gcode extends Atom {
     } finally {
       // Always reset the flag when generation completes
       this.isGenerating = false;
+      console.log("G-code generated successfully in " + this.getAtomPath());
       // If a pending run was queued, run again
       if (this.pendingGeneration) {
         this.pendingGeneration = false;
@@ -244,7 +248,10 @@ export default class Gcode extends Atom {
         await this._processSinglePart(inputID);
       }
     } catch (err) {
-      console.error("Error handling geometry input:", err);
+      console.error(
+        "Error handling geometry input in " + this.getAtomPath() + ":",
+        err,
+      );
       this.setError(err);
     }
   }
@@ -273,8 +280,7 @@ export default class Gcode extends Atom {
     /* Find flat faces for area operation */
     GlobalVariables.cad
       .findFlatFaces(scaledMesh, this.getContext())
-      .then((flatFaces) => {
-      });
+      .then((flatFaces) => {});
     // Export the geometry to STL and generate G-code
     GlobalVariables.cad
       .visExport(scaledMesh, "STL", this.getContext())
@@ -742,21 +748,22 @@ export default class Gcode extends Atom {
       return;
     }
 
-    // Check if geometry input is ready
-    const geometryValue = this.findIOValue("geometry");
-    if (geometryValue !== null) {
-      this.setWaiting();
-      // Always call _generateGcode so concurrency guard and pending logic are respected
-      this._generateGcode();
+    // Only generate gcode if all inputs are ready
+    if (this.inputsAreReady()) {
+      const geometryValue = this.findIOValue("geometry");
+      if (geometryValue !== null) {
+        this.setWaiting();
+        // Always call _generateGcode so concurrency guard and pending logic are respected
+        this._generateGcode();
+      }
     } else {
-      // If geometry is not available yet, set to waiting
+      // If not all inputs are ready, set to waiting
       this.setWaiting();
     }
   }
 
   createInputParams(setInputChanged) {
-    this.setInputChanged = setInputChanged;
-    let inputParams = super.createInputParams();
+    let inputParams = super.createInputParams(setInputChanged);
 
     //Temporarily disable the "Cut Through" input parameter
     //inputParams[this.uniqueID + "Cut Through"].disabled = true;

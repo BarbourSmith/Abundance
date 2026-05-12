@@ -827,7 +827,7 @@ Sidebar navigation
 
 .back_to_runmode {
   position: fixed;
-  top: 3vh;
+  top: 49%;
   right: 5vh;
   z-index: 2;
 }

@@ -29,12 +29,19 @@ export default class Difference extends Atom {
     this.description = "Subtracts shape two from shape one.";
 
     this.addAllIOs([
-      { name: "geometry1", valueType: "geometry" },
-      { name: "geometry2", valueType: "geometry" },
+      { name: "retain", valueType: "geometry" },
+      { name: "remove", valueType: "geometry" },
       { name: "geometry", valueType: "geometry", type: "output" },
     ]);
 
-    this.setValues(values);
+    this.setValues(
+      values,
+      // old names
+      {
+        retain: ["geometry1"],
+        remove: ["geometry2"],
+      },
+    );
   }
 
   /**
@@ -56,7 +63,7 @@ export default class Difference extends Atom {
       circleRadius,
       0,
       Math.PI * 2,
-      false
+      false,
     );
     GlobalVariables.c.fill();
     GlobalVariables.c.stroke();
@@ -79,8 +86,8 @@ export default class Difference extends Atom {
    * Compute the difference of two geometries.
    */
   compute(inputs) {
-    const input1 = inputs.geometry1;
-    const input2 = inputs.geometry2;
+    const input1 = inputs.retain;
+    const input2 = inputs.remove;
     return GlobalVariables.cad.difference(input1, input2, this.getContext());
   }
 }

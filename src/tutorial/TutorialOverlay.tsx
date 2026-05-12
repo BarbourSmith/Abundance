@@ -8,7 +8,7 @@ import rehypeRaw from "rehype-raw";
 export const TutorialOverlay: React.FC = () => {
   const { currentStep, isActive, next, back, complete } = useTutorial();
 
-  let abundanceSVG = (
+  const abundanceSVG = (
     <svg
       width="64"
       height="64"

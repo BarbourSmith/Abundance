@@ -64,7 +64,7 @@ export async function putShape(
   projectId: string,
   shapeKey: string,
   serializedShape: string,
-  isAbundanceObject: boolean = false
+  isAbundanceObject: boolean = false,
 ): Promise<void> {
   const db = await openDB();
   return new Promise((resolve, reject) => {
@@ -89,7 +89,7 @@ export async function putShape(
 
 export async function getShape(
   projectId: string,
-  shapeKey: string
+  shapeKey: string,
 ): Promise<StoredGeometryRecord | undefined> {
   const db = await openDB();
   return new Promise((resolve, reject) => {
@@ -114,7 +114,7 @@ export async function getShape(
  */
 export async function deleteShape(
   projectId: string,
-  shapeKey: string
+  shapeKey: string,
 ): Promise<void> {
   const db = await openDB();
   return new Promise((resolve, reject) => {
@@ -138,7 +138,7 @@ export async function deleteShape(
 
 export async function shapeExists(
   projectId: string,
-  shapeKey: string
+  shapeKey: string,
 ): Promise<boolean> {
   const db = await openDB();
   return new Promise((resolve, reject) => {
@@ -173,7 +173,7 @@ export async function filter(
   projectId: string,
   type: DataType,
   predicate: (shapeKey: string, value?: StoredGeometryRecord) => boolean,
-  includeValues: boolean = false
+  includeValues: boolean = false,
 ): Promise<number> {
   const startTime = performance.now();
   const db = await openDB();
@@ -202,9 +202,11 @@ export async function filter(
           ? predicate(entryKey[1], (cursor as IDBCursorWithValue).value)
           : predicate(entryKey[1]);
         if (!retain) {
-          includeValues
-            ? cursor.delete()
-            : store.delete(cursor.primaryKey as [string, string]);
+          if (includeValues) {
+            cursor.delete();
+          } else {
+            store.delete(cursor.primaryKey as [string, string]);
+          }
           deletedCount++;
         } else {
           retained++;
@@ -214,7 +216,7 @@ export async function filter(
         console.debug(
           `Deleted ${deletedCount} shapes from project ${projectId}. retained ${retained}. took ${
             performance.now() - startTime
-          } ms.`
+          } ms.`,
         );
         db.close();
         resolve(deletedCount);

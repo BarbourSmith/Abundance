@@ -62,6 +62,22 @@ function ToggleRunCreate({ run, isItOwned, isPreview, setActiveAtom }) {
     if (setActiveAtom && GlobalVariables.topLevelMolecule) {
       setActiveAtom(GlobalVariables.topLevelMolecule);
     }
+
+    // If coming from preview of a project, return to the original project in create mode
+    const originProject = sessionStorage.getItem("previewOriginProject");
+    if (isPreview && originProject) {
+      try {
+        const { owner, repoName } = JSON.parse(originProject);
+        GlobalVariables.currentAWSnode = { owner, repoName };
+        sessionStorage.removeItem("previewOriginProject");
+        navigate(`/${owner}/${repoName}`);
+        return;
+      } catch (e) {
+        console.error("Error parsing origin project:", e);
+      }
+    }
+
+    // Default: navigate to preview project's run mode or current repo's run mode
     if (GlobalVariables.currentRepo) {
       navigate(
         `/run/${GlobalVariables.currentRepo.owner.login}/${GlobalVariables.currentRepo.name}`,
@@ -71,8 +87,12 @@ function ToggleRunCreate({ run, isItOwned, isPreview, setActiveAtom }) {
   if (GlobalVariables.currentRepo) {
     if (!runModeon) {
       if (isPreview) {
+        const originProject = sessionStorage.getItem("previewOriginProject");
+        const backButtonTitle = originProject
+          ? "Back to Original Project"
+          : "Back to Run Mode";
         return (
-          <label title="Back to Run Mode" className="back_to_runmode">
+          <label title={backButtonTitle} className="back_to_runmode">
             <button id="back-to-run-mode-btn" onClick={handleBackToRunMode}>
               <svg
                 width="18"
@@ -103,7 +123,7 @@ function ToggleRunCreate({ run, isItOwned, isPreview, setActiveAtom }) {
                     "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
                 }}
               >
-                Back to Run Mode
+                {originProject ? "Back to Project" : "Back to Run Mode"}
               </p>
             </button>
           </label>

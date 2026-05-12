@@ -1,23 +1,8 @@
-import React, { useMemo } from "react";
-import {
-  Completion,
-  CompletionResult,
-  completeFromList,
-  autocompletion,
-} from "@codemirror/autocomplete";
-import { javascript } from "@codemirror/lang-javascript";
-import { keymap } from "@codemirror/view";
-import { linter } from "@codemirror/lint";
-import { lintGutter } from "@codemirror/lint";
-import type { EditorView } from "@codemirror/view";
-
-import { andromeda, andromedaInit } from "@uiw/codemirror-theme-andromeda";
-
-import ReactCodeEditor from "@uiw/react-codemirror";
-// Uses linter.mjs
-import * as esLint from "eslint-linter-browserify";
-import { is } from "@react-three/fiber/dist/declarations/src/core/utils";
-// NOTE: adjust imports to match your project structure & packages
+import React, { useEffect, useRef } from "react";
+import MonacoEditor, { OnMount } from "@monaco-editor/react";
+import type { Monaco } from "@monaco-editor/react";
+// Generated from src/worker/ts-framework.ts — run `npm run build:ts-framework` to regenerate.
+import ABUNDANCE_TS_AMBIENT_TYPES from "../../worker/generated/ts-framework.generated.d.ts?raw";
 
 type ApiDef = {
   type?: string;
@@ -31,886 +16,498 @@ type ApiDef = {
 
 type ApiJson = Record<string, ApiDef> | null | undefined;
 
-/** Helper: try to locate an ESLint Linter constructor in a safe way. */
-function findEslintLinterCtor(): any | null {
-  try {
-    if (typeof window !== "undefined") {
-      const w = window as any;
-      if (w && w.eslint && typeof w.eslint.Linter === "function") {
-        return w.eslint.Linter;
-      }
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Build a markdown documentation string for Monaco hover/completion tooltips. */
+function buildDocString(key: string, def: ApiDef): string {
+  const params = [...(def.requiredParams ?? []), ...(def.optionalParams ?? [])];
+  const sig = def.usage ?? `${key}(${params.join(", ")})`;
+  const lines: string[] = [`**${key}**`, "```\n" + sig + "\n```"];
+  if (params.length) lines.push(`*Parameters:* ${params.join(", ")}`);
+  if (def.returns) lines.push(`*Returns:* ${def.returns}`);
+  return lines.join("\n\n");
+}
+
+// ---------------------------------------------------------------------------
+// Build Monaco completion items from an API JSON blob
+// ---------------------------------------------------------------------------
+// Minimal local alias so we don't need a direct monaco-editor package import.
+type IRange = {
+  startLineNumber: number;
+  startColumn: number;
+  endLineNumber: number;
+  endColumn: number;
+};
+
+// ---------------------------------------------------------------------------
+// Build Monaco completion items from an API JSON blob
+// ---------------------------------------------------------------------------
+function buildCompletionItems(
+  monaco: Monaco,
+  apiJson: ApiJson,
+  isReplicad: boolean,
+  range: IRange,
+): any[] {
+  if (!apiJson) return [];
+  const items: any[] = [];
+
+  for (const [key, def] of Object.entries(apiJson)) {
+    const params = [
+      ...(def.requiredParams ?? []),
+      ...(def.optionalParams ?? []),
+    ];
+    const paramsStr = params.join(", ");
+    const isInstanceMethod = key.includes(".");
+    const methodName = isInstanceMethod ? key.split(".")[1] : key;
+
+    let insertText: string;
+    if (isReplicad) {
+      insertText = isInstanceMethod
+        ? `${methodName}(${paramsStr})`
+        : `replicad.${key}(${paramsStr})`;
+    } else {
+      // Abundance functions are always awaited
+      insertText = `await ${key}(${paramsStr})`;
     }
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const maybe = require("eslint");
-    if (maybe && typeof maybe.Linter === "function") return maybe.Linter;
-  } catch {
-    // not available; that's fine
+
+    const kind =
+      def.type === "class_constructor"
+        ? monaco.languages.CompletionItemKind.Constructor
+        : isInstanceMethod
+          ? monaco.languages.CompletionItemKind.Method
+          : monaco.languages.CompletionItemKind.Function;
+
+    items.push({
+      label: isReplicad && !isInstanceMethod ? `replicad.${key}` : methodName,
+      kind,
+      detail: def.usage ?? `(${paramsStr}) → ${def.returns ?? ""}`,
+      documentation: { value: buildDocString(key, def) },
+      insertText,
+      range,
+      sortText: isReplicad ? `0_${key}` : `1_${key}`,
+    });
   }
+
+  return items;
+}
+
+// (Monaco's built-in JS language service already provides completions for
+// console, Math, JSON, Object, etc. — no need to duplicate them here.)
+
+// ---------------------------------------------------------------------------
+// Ambient type declarations injected into Monaco's JS language service.
+// These enable type-aware completions (e.g. cyl.translate()) in JS mode
+// without any red squiggles (checkJs: false).
+// ---------------------------------------------------------------------------
+
+/** Abundance built-in async globals available inside every JS code atom. */
+const ABUNDANCE_JS_AMBIENT_TYPES = `
+declare const replicad: typeof import("replicad");
+declare const library: Record<string, any>;
+declare function Move(shape: any, x?: number, y?: number, z?: number): Promise<any>;
+declare function Rotate(shape: any, x?: number, y?: number, z?: number): Promise<any>;
+declare function Scale(shape: any, factor: number): Promise<any>;
+declare function Assembly(shapes: any[]): Promise<any>;
+declare function Intersect(a: any, b: any): Promise<any>;
+declare function CutAssembly(shape: any, cutters: any[]): Promise<any>;
+declare function Fillet(shape: any, radius: number): Promise<any>;
+declare function Chamfer(shape: any, size: number): Promise<any>;
+declare function AssemblyMap(assembly: any, fn: (s: any) => Promise<any>): Promise<any>;
+declare function AssemblyAsIterable(assembly: any): Promise<any[]>;
+declare function GetBounds(shape: any): any;
+`;
+
+// ABUNDANCE_TS_AMBIENT_TYPES is imported at the top of this file from
+// src/worker/generated/ts-framework.generated.d.ts (generated from
+// src/worker/ts-framework.ts). Do not maintain types inline here.
+
+// ---------------------------------------------------------------------------
+// Variable type inference (lightweight – mirrors the old CodeMirror version)
+// ---------------------------------------------------------------------------
+function inferVariableType(
+  varName: string,
+  code: string,
+  api: ApiJson,
+): string | null {
+  if (!api) return null;
+
+  // replicad top-level: let x = replicad.method(...)
+  const m1 = code.match(
+    new RegExp(
+      `\\b(?:let|const|var)\\s+${varName}\\s*=\\s*replicad\\.([a-zA-Z_$][\\w$]*)\\s*\\(`,
+    ),
+  );
+  if (m1) return api[m1[1]]?.returns ?? null;
+
+  // chained: let x = someVar.method(...)
+  const m2 = code.match(
+    new RegExp(
+      `\\b(?:let|const|var)\\s+${varName}\\s*=\\s*([a-zA-Z_$][\\w$]*)\\.([a-zA-Z_$][\\w$]*)\\s*\\(`,
+    ),
+  );
+  if (m2) {
+    const sourceType = inferVariableType(m2[1], code, api);
+    if (sourceType) return api[`${sourceType}.${m2[2]}`]?.returns ?? null;
+  }
+
   return null;
 }
 
-/**
- * Component that wires an API JSON into a CodeMirror completion source.
- * Fix: guards against null/undefined apiJson to avoid Object.keys(undefined) errors.
- */
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+
 export default function ReactCodeEditorWithApiAutocomplete(props: {
   value: string;
   onChange: (v: string) => void;
   apiJson?: ApiJson;
   abundanceJson?: ApiJson;
   activeAtom?: { saveCode: () => void } | null;
+  /** 0 = JavaScript (default, backwards-compatible). 1 = TypeScript (strict). */
+  interpreterVersion?: number;
+  /** Called once the Monaco editor has mounted, so callers can use the
+   *  TypeScript worker (e.g. to transpile TS → JS at save time). */
+  onEditorReady?: (editor: any, monaco: Monaco) => void;
 }) {
-  const { value, onChange, apiJson, abundanceJson, activeAtom } = props;
+  const {
+    value,
+    onChange,
+    apiJson,
+    abundanceJson,
+    activeAtom,
+    interpreterVersion = 0,
+    onEditorReady,
+  } = props;
+  const language = interpreterVersion >= 1 ? "typescript" : "javascript";
 
-  const commonJsCompletions = useMemo(
-    () => [
-      { label: "console.log", type: "function", detail: "Console log" },
-      // Math methods
-      { label: "Math.max", type: "function", detail: "Math.max(...values)" },
-      { label: "Math.min", type: "function", detail: "Math.min(...values)" },
-      { label: "Math.abs", type: "function", detail: "Math.abs(x)" },
-      { label: "Math.round", type: "function", detail: "Math.round(x)" },
-      { label: "Math.floor", type: "function", detail: "Math.floor(x)" },
-      { label: "Math.ceil", type: "function", detail: "Math.ceil(x)" },
-      { label: "Math.pow", type: "function", detail: "Math.pow(base, exp)" },
-      { label: "Math.sqrt", type: "function", detail: "Math.sqrt(x)" },
-      { label: "Math.random", type: "function", detail: "Math.random()" },
-      { label: "Math.PI", type: "constant", detail: "Math.PI (π)" },
-      { label: "Math.sin", type: "function", detail: "Math.sin(x)" },
-      { label: "Math.cos", type: "function", detail: "Math.cos(x)" },
-      { label: "Math.tan", type: "function", detail: "Math.tan(x)" },
-      // Array methods with custom apply for callback
-      {
-        label: "Array.prototype.map",
-        type: "method",
-        detail: "Array map",
-        apply(
-          view: EditorView,
-          completion: Completion,
-          from: number,
-          to: number
-        ) {
-          const insert = "map((item) => item)";
-          const anchor = from + insert.indexOf("item)");
-          view.dispatch({
-            changes: { from, to, insert },
-            selection: { anchor },
-          });
-          view.focus();
-        },
-      },
-      {
-        label: "Array.prototype.filter",
-        type: "method",
-        detail: "Array filter",
-        apply(
-          view: EditorView,
-          completion: Completion,
-          from: number,
-          to: number
-        ) {
-          const insert = "filter((item) => true)";
-          const anchor = from + insert.indexOf("true");
-          view.dispatch({
-            changes: { from, to, insert },
-            selection: { anchor },
-          });
-          view.focus();
-        },
-      },
-      {
-        label: "Array.prototype.reduce",
-        type: "method",
-        detail: "Array reduce",
-        apply(
-          view: EditorView,
-          completion: Completion,
-          from: number,
-          to: number
-        ) {
-          const insert = "reduce((acc, item) => acc, initialValue)";
-          const anchor = from + insert.indexOf("acc, initialValue");
-          view.dispatch({
-            changes: { from, to, insert },
-            selection: { anchor },
-          });
-          view.focus();
-        },
-      },
-      {
-        label: "Array.prototype.forEach",
-        type: "method",
-        detail: "Array forEach",
-        apply(
-          view: EditorView,
-          completion: Completion,
-          from: number,
-          to: number
-        ) {
-          const insert = "forEach((item) => {})";
-          const anchor = from + insert.indexOf("item");
-          view.dispatch({
-            changes: { from, to, insert },
-            selection: { anchor },
-          });
-          view.focus();
-        },
-      },
-      { label: "Array.prototype.find", type: "method", detail: "Array find" },
-      { label: "Array.prototype.some", type: "method", detail: "Array some" },
-      { label: "Array.prototype.every", type: "method", detail: "Array every" },
-      {
-        label: "Array.prototype.includes",
-        type: "method",
-        detail: "Array includes",
-      },
-      { label: "Array.prototype.slice", type: "method", detail: "Array slice" },
-      {
-        label: "Array.prototype.concat",
-        type: "method",
-        detail: "Array concat",
-      },
-      // Object/utility
-      { label: "Object.keys", type: "function", detail: "Object.keys(obj)" },
-      {
-        label: "Object.values",
-        type: "function",
-        detail: "Object.values(obj)",
-      },
-      {
-        label: "JSON.stringify",
-        type: "function",
-        detail: "JSON.stringify(obj)",
-      },
-      { label: "JSON.parse", type: "function", detail: "JSON.parse(str)" },
-    ],
-    []
-  );
+  // Use refs so the completion provider closure always sees latest values
+  // without needing to be re-registered.
+  const activeAtomRef = useRef(activeAtom);
+  const apiJsonRef = useRef(apiJson);
+  const abundanceJsonRef = useRef(abundanceJson);
 
-  function makeCompletion(
-    fullKey: string,
-    def: ApiDef,
-    isDottedContext = false
-  ): Completion {
-    const parts = fullKey.split(".");
-    const label = isDottedContext ? parts[parts.length - 1] : fullKey;
-    const params = (def.requiredParams || []).concat(def.optionalParams || []);
-    const paramsPreview = params.join(", ");
-    const detail = def.usage
-      ? `${def.usage} → ${def.returns || ""}`
-      : def.returns || "";
+  useEffect(() => {
+    activeAtomRef.current = activeAtom;
+  }, [activeAtom]);
+  useEffect(() => {
+    apiJsonRef.current = apiJson;
+  }, [apiJson]);
+  useEffect(() => {
+    abundanceJsonRef.current = abundanceJson;
+  }, [abundanceJson]);
 
-    const info = () => {
-      const el = document.createElement("div");
-      el.style.maxWidth = "40ch";
-      const title = document.createElement("div");
-      title.style.fontWeight = "600";
-      title.textContent = fullKey;
-      el.appendChild(title);
-      const sig = document.createElement("div");
-      sig.style.fontFamily = "monospace";
-      sig.style.margin = "4px 0";
-      sig.textContent = `${label}(${paramsPreview})`;
-      el.appendChild(sig);
-      if (def.usage) {
-        const u = document.createElement("div");
-        u.textContent = `Usage: ${def.usage}`;
-        el.appendChild(u);
-      }
-      if (params.length) {
-        const p = document.createElement("div");
-        p.textContent = `Parameters: ${params.join(", ")}`;
-        el.appendChild(p);
-      }
-      if (def.returns) {
-        const r = document.createElement("div");
-        r.textContent = `Returns: ${def.returns}`;
-        el.appendChild(r);
-      }
-      return el;
-    };
-
-    const insertText = `${label}(${paramsPreview ? paramsPreview : ""})`;
-
-    return {
-      label,
-      type: def.type === "class_constructor" ? "class" : def.type || "function",
-      detail,
-      info,
-      apply(view, completion, from, to) {
-        const insert = insertText;
-        const anchor = from + label.length + 1; // position inside parentheses
-        view.dispatch({
-          changes: { from, to, insert },
-          selection: { anchor },
-        });
-        view.focus();
-      },
-      boost: 80,
-    };
-  }
-
-  // Helper function to infer the type of a chained expression
-  // e.g., "replicad.drawCircle(5).sketchOnPlane()" -> infers type as "Sketches"
-  function inferChainType(
-    chain: string,
-    api: ApiJson,
-    variableTypes: Record<string, string>
-  ): string | null {
-    if (!api) return null;
-
-    // Remove any trailing dots
-    chain = chain.trim().replace(/\.$/, "");
-
-    // Split the chain into segments (e.g., ["replicad.drawCircle(5)", "sketchOnPlane()"])
-    // We need to handle nested parentheses carefully
-    const segments: string[] = [];
-    let currentSegment = "";
-    let parenDepth = 0;
-    let i = 0;
-
-    while (i < chain.length) {
-      const char = chain[i];
-      if (char === "(") {
-        parenDepth++;
-        currentSegment += char;
-      } else if (char === ")") {
-        parenDepth--;
-        currentSegment += char;
-      } else if (char === "." && parenDepth === 0) {
-        // This is a method chaining dot, not a dot inside parameters
-        if (currentSegment) {
-          segments.push(currentSegment);
-          currentSegment = "";
-        }
-      } else {
-        currentSegment += char;
-      }
-      i++;
-    }
-    if (currentSegment) {
-      segments.push(currentSegment);
-    }
-
-    // Now process each segment to infer the final type
-    let currentType: string | null = null;
-
-    for (const segment of segments) {
-      // Extract method name from segment (e.g., "drawCircle(5)" -> "drawCircle")
-      const methodMatch = segment.match(/^([a-zA-Z_$][\w$]*)\(/);
-      if (!methodMatch) {
-        // Check if it's a variable or property access
-        const varMatch = segment.match(/^([a-zA-Z_$][\w$]*)$/);
-        if (varMatch) {
-          const varName = varMatch[1];
-          if (varName === "replicad") {
-            currentType = "replicad";
-          } else if (variableTypes[varName]) {
-            currentType = variableTypes[varName];
-          } else {
-            return null;
-          }
-        } else {
-          return null;
-        }
-      } else {
-        const methodName = methodMatch[1];
-
-        // Determine the full API key
-        let apiKey: string;
-        if (currentType === null || currentType === "replicad") {
-          // Top-level method
-          apiKey = methodName;
-        } else {
-          // Instance method
-          apiKey = `${currentType}.${methodName}`;
-        }
-
-        // Look up the return type
-        if (api[apiKey] && api[apiKey].returns) {
-          currentType = api[apiKey].returns!;
-        } else {
-          // Method not found in API
-          return null;
-        }
-      }
-    }
-
-    return currentType;
-  }
-
-  // Enhanced variable type inference for method chains
-  function inferVariableTypes(
-    code: string,
-    api: ApiJson
-  ): Record<string, string> {
-    const variableTypes: Record<string, string> = {};
-    // Find direct replicad assignments
-    const replicadAssignRegex =
-      /\b(?:let|const|var)\s+([a-zA-Z_$][\w$]*)\s*=\s*replicad\.([a-zA-Z_$][\w$]*)\s*\(/g;
-    let match;
-    while ((match = replicadAssignRegex.exec(code))) {
-      const varName = match[1];
-      const method = match[2];
-      if (api && api[method] && api[method].returns) {
-        variableTypes[varName] = api[method].returns!;
-      }
-    }
-    // Find assignments from other variables and method calls
-    const methodAssignRegex =
-      /\b(?:let|const|var)\s+([a-zA-Z_$][\w$]*)\s*=\s*([a-zA-Z_$][\w$]*)\.([a-zA-Z_$][\w$]*)\s*\(/g;
-    while ((match = methodAssignRegex.exec(code))) {
-      const varName = match[1];
-      const sourceVar = match[2];
-      const method = match[3];
-      const sourceType = variableTypes[sourceVar];
-      if (
-        sourceType &&
-        api &&
-        api[`${sourceType}.${method}`] &&
-        api[`${sourceType}.${method}`].returns
-      ) {
-        variableTypes[varName] = api[`${sourceType}.${method}`].returns!;
-      }
-    }
-    // Infer arrays: let arr = [] or let arr = [1,2,3]
-    const arrayAssignRegex =
-      /\b(?:let|const|var)\s+([a-zA-Z_$][\w$]*)\s*=\s*\[.*?\]/g;
-    while ((match = arrayAssignRegex.exec(code))) {
-      const varName = match[1];
-      variableTypes[varName] = "Array";
-    }
-    // Infer objects: let obj = {}
-    const objectAssignRegex =
-      /\b(?:let|const|var)\s+([a-zA-Z_$][\w$]*)\s*=\s*\{.*?\}/g;
-    while ((match = objectAssignRegex.exec(code))) {
-      const varName = match[1];
-      variableTypes[varName] = "Object";
-    }
-    // Infer strings: let str = "..." or '...'
-    const stringAssignRegex =
-      /\b(?:let|const|var)\s+([a-zA-Z_$][\w$]*)\s*=\s*(["']).*?\2/g;
-    while ((match = stringAssignRegex.exec(code))) {
-      const varName = match[1];
-      variableTypes[varName] = "String";
-    }
-    const abundanceMethodNames = [
-      "Move",
-      "Rotate",
-      "Scale",
-      "Assembly",
-      "Intersect",
-      "GetBounds",
-      "Fillet",
-      "Chamfer",
-    ];
-    const abundanceAssignRegex = new RegExp(
-      `\\b(?:let|const|var)\\s+([a-zA-Z_$][\\w$]*)\\s*=\\s*(?:await\\s*)?(${abundanceMethodNames.join(
-        "|"
-      )})\\s*\\(`,
-      "g"
-    );
-    while ((match = abundanceAssignRegex.exec(code))) {
-      const varName = match[1];
-      variableTypes[varName] = "AbundanceObject";
-    }
-    return variableTypes;
-  }
-
-  /**
-   * Build a completion source. If api is null/undefined, return a no-op source that returns null.
-   * This prevents Object.keys(undefined) errors.
-   */
-  function apiCompletionSource(api?: ApiJson, opts?: { isReplicad?: boolean }) {
-    const isReplicad = opts?.isReplicad ?? true;
-    if (!api) {
-      return (_context: any): CompletionResult | null => null;
-    }
-    const keys = Object.keys(api);
-    const topLevelKeys = keys.filter((k) => !k.includes("."));
-    const instancePrefixes = Array.from(
-      new Set(keys.filter((k) => k.includes(".")).map((k) => k.split(".")[0]))
-    );
-
-    // Map replicad method to return type (from API JSON)
-    const methodToType: Record<string, string> = {};
-    for (const key of Object.keys(api)) {
-      if (api[key].returns) {
-        methodToType[key] = api[key].returns!;
-      }
-    }
-
-    return (context: any): CompletionResult | null => {
-      // Match a longer pattern that includes method calls with parentheses
-      const extendedWord = context.matchBefore(/[$\w.()\s,'"]*\.?[\w]*$/);
-      const word = context.matchBefore(/[$\w.]+/);
-      if (!word && !context.explicit) return null;
-
-      const text = word ? word.text : "";
-      let from = word ? word.from : context.pos;
-      let options: Completion[] = [];
-
-      // --- Local variable extraction and type inference ---
-      const code = context.state.doc.toString();
-      // Find all variable declarations and their assigned types (if replicad)
-      const variableTypes = inferVariableTypes(code, api);
-      // Collect all variable names for completion
-      const allVarRegex = /\b(?:let|const|var)\s+([a-zA-Z_$][\w$]*)/g;
-      const variableNames: string[] = [];
-      let allVarMatch;
-      while ((allVarMatch = allVarRegex.exec(code))) {
-        variableNames.push(allVarMatch[1]);
-      }
-
-      // --- Check for chained method calls (e.g., "replicad.drawCircle(5).") ---
-      // Match patterns like: replicad.method(...). or variable.method(...).method(...).
-      const extendedText = extendedWord ? extendedWord.text : text;
-      const chainPattern = /([a-zA-Z_$][\w$]*(?:\.[a-zA-Z_$][\w$]*\([^)]*\))+)\.([\w]*)$/;
-      const chainMatch = extendedText.match(chainPattern);
-      
-      if (chainMatch && isReplicad) {
-        // We have a chained method call
-        const chainExpression = chainMatch[1]; // e.g., "replicad.drawCircle(5)"
-        const partialMethod = chainMatch[2]; // partially typed method name after the last dot
-        
-        // Infer the type of the chain expression
-        const chainType = inferChainType(chainExpression, api, variableTypes);
-        
-        if (chainType) {
-          // Find all instance methods for this type
-          let typeList: string[];
-          if (chainType.includes("AnyShape")) {
-            // Collect all unique type prefixes for instance methods
-            const shapeTypes = Array.from(
-              new Set(
-                keys
-                  .filter(
-                    (k) =>
-                      k.includes(".") &&
-                      (k.startsWith("Shape.") ||
-                        k.startsWith("Shape3D.") ||
-                        k.startsWith("Sketch.") ||
-                        k.startsWith("Sketches.") ||
-                        k.startsWith("Wire.") ||
-                        k.startsWith("Face.") ||
-                        k.startsWith("Solid."))
-                  )
-                  .map((k) => k.split(".")[0])
-              )
-            );
-            typeList = shapeTypes;
-          } else {
-            typeList = chainType.split("|").map((t) => t.trim());
-          }
-          
-          const seen = new Set();
-          for (const t of typeList) {
-            const instanceMethods = keys.filter((k) => k.startsWith(t + "."));
-            for (const k of instanceMethods) {
-              if (seen.has(k)) continue;
-              seen.add(k);
-              const def = api[k];
-              if (def) {
-                const methodName = k.split(".")[1];
-                options.push({
-                  ...makeCompletion(k, def, true),
-                  label: methodName,
-                  apply: (view, completion, fromPos, toPos) => {
-                    const params = (def.requiredParams || []).concat(
-                      def.optionalParams || []
-                    );
-                    const paramsPreview = params.join(", ");
-                    const insertText = `${methodName}(${
-                      paramsPreview ? paramsPreview : ""
-                    })`;
-                    const anchor = fromPos + insertText.indexOf("(") + 1;
-                    view.dispatch({
-                      changes: { from: fromPos, to: toPos, insert: insertText },
-                      selection: { anchor },
-                    });
-                    view.focus();
-                  },
-                });
-              }
-            }
-          }
-          
-          // Adjust the 'from' position to be after the last dot
-          const matchIndex = extendedText.indexOf(chainMatch[0]);
-          const lastDotPos = extendedWord ? extendedWord.from + matchIndex + chainMatch[1].length + 1 : from;
-          from = lastDotPos;
-          
-          if (!options.length) return null;
-          
-          return {
-            from,
-            options,
-            validFor: /^[$\w]*$/,
-          };
-        }
-      }
-
-      // Replicad top-level completions
-      if (isReplicad && /^replicad\.?[\w]*$/.test(text)) {
-        for (const k of topLevelKeys) {
-          const def = api[k];
-          if (def) {
-            options.push({
-              ...makeCompletion(k, def, false),
-              label: k,
-              apply: (view, completion, fromPos, toPos) => {
-                const params = (def.requiredParams || []).concat(
-                  def.optionalParams || []
-                );
-                const paramsPreview = params.join(", ");
-                let insertText;
-                if (/^replicad\.$/.test(text)) {
-                  insertText = `${k}(${paramsPreview ? paramsPreview : ""})`;
-                } else {
-                  insertText = `replicad.${k}(${
-                    paramsPreview ? paramsPreview : ""
-                  })`;
-                }
-                const anchor = fromPos + insertText.indexOf("(") + 1;
-                view.dispatch({
-                  changes: { from: fromPos, to: toPos, insert: insertText },
-                  selection: { anchor },
-                });
-                view.focus();
-              },
-            });
-          }
-        }
-        const dotIdx = text.indexOf(".");
-        from =
-          dotIdx >= 0
-            ? (word ? word.from : context.pos) + dotIdx + 1
-            : word
-            ? word.from
-            : context.pos;
-      }
-      // Instance method completions for known prefixes
-      else if (
-        instancePrefixes.some((prefix) => text.startsWith(prefix + "."))
-      ) {
-        const prefix = instancePrefixes.find((p) => text.startsWith(p + "."));
-        if (prefix) {
-          const instanceMethods = keys.filter((k) =>
-            k.startsWith(prefix + ".")
-          );
-          for (const k of instanceMethods) {
-            const def = api[k];
-            if (def) {
-              options.push({
-                ...makeCompletion(k, def, true),
-                label: k.split(".")[1],
-                apply: (view, completion, fromPos, toPos) => {
-                  const params = (def.requiredParams || []).concat(
-                    def.optionalParams || []
-                  );
-                  const paramsPreview = params.join(", ");
-                  const insertText = `${k.split(".")[1]}(${
-                    paramsPreview ? paramsPreview : ""
-                  })`;
-                  const anchor = fromPos + insertText.indexOf("(") + 1;
-                  view.dispatch({
-                    changes: { from: fromPos, to: toPos, insert: insertText },
-                    selection: { anchor },
-                  });
-                  view.focus();
-                },
-              });
-            }
-          }
-          const dotIdx = text.indexOf(".");
-          from =
-            dotIdx >= 0
-              ? (word ? word.from : context.pos) + dotIdx + 1
-              : word
-              ? word.from
-              : context.pos;
-        }
-      }
-      // Instance method completions for inferred replicad variables
-      else if (/^[a-zA-Z_$][\w$]*\.$/.test(text)) {
-        const varName = text.slice(0, -1);
-        let type = variableTypes[varName];
-        if (type) {
-          // If type is AnyShape, treat as union of all shape types
-          let typeList: string[];
-          if (type.includes("AnyShape")) {
-            // Collect all unique type prefixes for instance methods
-            const shapeTypes = Array.from(
-              new Set(
-                keys
-                  .filter(
-                    (k) =>
-                      k.includes(".") &&
-                      (k.startsWith("Shape.") ||
-                        k.startsWith("Shape3D.") ||
-                        k.startsWith("Sketch.") ||
-                        k.startsWith("Sketches.") ||
-                        k.startsWith("Wire.") ||
-                        k.startsWith("Face.") ||
-                        k.startsWith("Solid."))
-                  )
-                  .map((k) => k.split(".")[0])
-              )
-            );
-            typeList = shapeTypes;
-          } else {
-            typeList = type.split("|").map((t) => t.trim());
-          }
-          const seen = new Set();
-          for (const t of typeList) {
-            const instanceMethods = keys.filter((k) => k.startsWith(t + "."));
-            for (const k of instanceMethods) {
-              if (seen.has(k)) continue;
-              seen.add(k);
-              const def = api[k];
-              if (def) {
-                options.push({
-                  ...makeCompletion(k, def, true),
-                  label: k.split(".")[1],
-                  apply: (view, completion, fromPos, toPos) => {
-                    const params = (def.requiredParams || []).concat(
-                      def.optionalParams || []
-                    );
-                    const paramsPreview = params.join(", ");
-                    const insertText = `${k.split(".")[1]}(${
-                      paramsPreview ? paramsPreview : ""
-                    })`;
-                    const anchor = fromPos + insertText.indexOf("(") + 1;
-                    view.dispatch({
-                      changes: { from: fromPos, to: toPos, insert: insertText },
-                      selection: { anchor },
-                    });
-                    view.focus();
-                  },
-                });
-              }
-            }
-          }
-          // Add JS built-in completions for Array, Object, String
-          if (typeList.includes("Array")) {
-            for (const c of commonJsCompletions) {
-              if (c.label.startsWith("Array.prototype.")) {
-                options.push({
-                  ...c,
-                  label: c.label.replace("Array.prototype.", ""),
-                });
-              }
-            }
-          }
-          if (typeList.includes("Object")) {
-            for (const c of commonJsCompletions) {
-              if (c.label.startsWith("Object.")) {
-                options.push({ ...c });
-              }
-            }
-          }
-          if (typeList.includes("String")) {
-            // You can add String.prototype methods to commonJsCompletions and handle here if desired
-          }
-          const dotIdx = text.indexOf(".");
-          from =
-            dotIdx >= 0
-              ? (word ? word.from : context.pos) + dotIdx + 1
-              : word
-              ? word.from
-              : context.pos;
-        }
-      }
-      // Fallback: top-level completions with replicad. prefix and variable name completions
-      else {
-        for (const k of topLevelKeys) {
-          const def = api[k];
-
-          if (def) {
-            if (
-              k === "AbundanceObject" &&
-              def.type === "object" &&
-              Array.isArray(def.properties)
-            ) {
-              options.push({
-                label: k,
-                type: "object",
-                detail: def.detail || "AbundanceObject structure",
-                info: () => {
-                  const el = document.createElement("div");
-                  el.textContent = def.detail || "AbundanceObject structure";
-                  return el;
-                },
-                apply: (view, completion, fromPos, toPos) => {
-                  // Build the object template
-                  const propLines = def.properties.map((prop: string) => {
-                    const [propName, propType] = prop
-                      .split(":")
-                      .map((s: string) => s.trim());
-                    let example = "";
-                    if (propName === "geometry") example = "[createdShape]";
-                    else if (propName === "dimension") example = '"3D"';
-                    else if (propName === "tags") example = '["createdShape"]';
-                    else if (propName === "color") example = "'#A3CE5B'";
-                    else if (propName === "plane") example = "newPlane";
-                    else if (propName === "bom") example = "[]";
-                    else
-                      example =
-                        propType === "String"
-                          ? '""'
-                          : propType === "Array"
-                          ? "[]"
-                          : "null";
-                    return `  ${propName}: ${example},`;
-                  });
-                  const objectText = `{\n${propLines.join("\n")}\n}`;
-                  view.dispatch({
-                    changes: { from: fromPos, to: toPos, insert: objectText },
-                    selection: { anchor: fromPos + objectText.length },
-                  });
-                  view.focus();
-                },
-                boost: 100,
-              });
-              continue;
-            }
-            options.push({
-              ...makeCompletion(k, def, false),
-              label: k,
-              apply: (view, completion, fromPos, toPos) => {
-                const params = (def.requiredParams || []).concat(
-                  def.optionalParams || []
-                );
-                const paramsPreview = params.join(", ");
-                let insertText;
-
-                if (isReplicad) {
-                  // add replicad. prefix
-                  insertText = `replicad.${k}(${
-                    paramsPreview ? paramsPreview : ""
-                  })`;
-                } else {
-                  // add await for abundance functions
-                  if (def.type === "function") {
-                    insertText = `await ${k}(${
-                      paramsPreview ? paramsPreview : ""
-                    })`;
-                  } else {
-                    insertText = `${k}(${paramsPreview ? paramsPreview : ""})`;
-                  }
-                }
-                const anchor = fromPos + insertText.indexOf("(") + 1;
-                view.dispatch({
-                  changes: { from: fromPos, to: toPos, insert: insertText },
-                  selection: { anchor },
-                });
-                view.focus();
-              },
-            });
-          }
-        }
-        // Add variable name completions if user is typing a variable
-        if (/^[a-zA-Z_$][\w$]*$/.test(text)) {
-          for (const v of variableNames) {
-            if (v.startsWith(text)) {
-              options.push({
-                label: v,
-                type: "variable",
-                detail: "Local variable",
-                apply: (view, completion, fromPos, toPos) => {
-                  view.dispatch({
-                    changes: { from: fromPos, to: toPos, insert: v },
-                    selection: { anchor: fromPos + v.length },
-                  });
-                  view.focus();
-                },
-                boost: 100,
-              });
-            }
-          }
-        }
-      }
-
-      if (!options.length) return null;
-
-      return {
-        from,
-        options,
-        validFor: /^[$\w]*$/,
-      };
-    };
-  }
-
-  const completionExtension = useMemo(() => {
-    const apiSource = apiCompletionSource(apiJson);
-    const abundanceSource = apiCompletionSource(abundanceJson);
-    return autocompletion({
-      override: [
-        apiCompletionSource(apiJson, { isReplicad: true }),
-        apiCompletionSource(abundanceJson, { isReplicad: false }),
-        completeFromList(commonJsCompletions),
-      ],
-      activateOnTyping: true,
+  const handleMount: OnMount = (editor, monaco) => {
+    // Ctrl/Cmd + S  →  save code
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
+      activeAtomRef.current?.saveCode();
     });
-  }, [apiJson, commonJsCompletions, abundanceJson]);
 
-  // Find an ESLint Linter constructor safely and only enable linting if we have it.
-  const lintCtor = useMemo(() => findEslintLinterCtor(), []);
-  const lintExtension = useMemo(() => {
-    if (!lintCtor) return null;
-    try {
-      const linterInstance = new lintCtor();
-      // esLint is imported as * as esLint, so use esLint.default if available
-      const esLintFn =
-        typeof esLint === "function" ? esLint : (esLint as any).default;
-      if (!esLintFn) return null;
-      return linter(
-        esLintFn(linterInstance, {
-          rules: {
-            semi: ["error", "never"],
-            "no-undef": ["warn"],
-          },
-        })
-      );
-    } catch {
-      return null;
-    }
-  }, [lintCtor]);
+    // Expose editor + monaco to the parent so it can, for example,
+    // invoke the TypeScript worker to transpile the current model.
+    onEditorReady?.(editor, monaco);
 
-  const extensions = useMemo(() => {
-    const exts: any[] = [
-      keymap.of([
-        {
-          key: "Mod-s",
-          run: () => {
-            if (activeAtom != null) {
-              activeAtom.saveCode();
-            }
-            return true;
-          },
-          preventDefault: true,
+    // ---------------------------------------------------------------------------
+    // Configure the TS/JS language service based on interpreter version.
+    // v0 (JS): completions only, no squiggles.
+    // v1 (TS): full strict type checking with red squiggles.
+    // We configure both javascriptDefaults and typescriptDefaults so the
+    // settings are ready whichever language the editor switches to.
+    // ---------------------------------------------------------------------------
+    const jsOpts = {
+      target: monaco.languages.typescript.ScriptTarget.ES2020,
+      allowNonTsExtensions: true,
+      checkJs: false, // v0: no squiggles in JS mode
+      // noEmit intentionally false: Code atoms call getEmitOutput() at save
+      // time to transpile TS -> JS. Setting noEmit: true makes the TS worker
+      // return { emitSkipped: true, outputFiles: [] }.
+      noEmit: false,
+    };
+    const tsOpts = {
+      target: monaco.languages.typescript.ScriptTarget.ES2020,
+      // Emit ESNext module syntax (`import`/`export`) rather than CommonJS
+      // so that user `import` statements survive transpilation. Code atoms
+      // run as real ES modules via Blob URL in the worker — see
+      // `src/worker/code.ts#executeTsCode`.
+      module: monaco.languages.typescript.ModuleKind.ESNext,
+      allowNonTsExtensions: true,
+      strict: true,
+      noEmit: false,
+    };
+    monaco.languages.typescript.javascriptDefaults.setCompilerOptions(jsOpts);
+    monaco.languages.typescript.typescriptDefaults.setCompilerOptions(tsOpts);
+
+    // Inject per-language Abundance globals. Both language services have
+    // their own ambient type set so that switching modes swaps the visible
+    // API surface (TS drops the JS helper functions like Chamfer/Move).
+    monaco.languages.typescript.javascriptDefaults.addExtraLib(
+      ABUNDANCE_JS_AMBIENT_TYPES,
+      "ts:abundance-ambient-js.d.ts",
+    );
+    // Register the TS ambient lib under a `file:///` URI (rather than the
+    // `ts:` scheme) so that the `import * as _replicad from "replicad"`
+    // statement at the top of the generated ts-framework .d.ts can be
+    // resolved by Monaco's node-style module resolver — it walks up from
+    // this file looking for `node_modules/replicad/index.d.ts`, which we
+    // inject below at exactly that path. Without a `file:///` URI here,
+    // resolution fails and `_replicad.AnyShape` collapses to `any`,
+    // making `AbundanceObj.geometry` show up as `any` in Monaco.
+    monaco.languages.typescript.typescriptDefaults.addExtraLib(
+      ABUNDANCE_TS_AMBIENT_TYPES,
+      "file:///abundance-ts-framework.d.ts",
+    );
+
+    // Replicad .d.ts applies to both (user may import types in TS mode).
+    const injectLib = (dts: string, filename: string) => {
+      monaco.languages.typescript.javascriptDefaults.addExtraLib(dts, filename);
+      monaco.languages.typescript.typescriptDefaults.addExtraLib(dts, filename);
+    };
+
+    // Inject replicad's shipped .d.ts (copied to public/ at build time).
+    fetch("/replicad.d.ts")
+      .then((r) => (r.ok ? r.text() : Promise.reject()))
+      .then((dts) => {
+        injectLib(dts, "file:///replicad.d.ts");
+      })
+      .catch(() => {
+        console.warn(
+          "replicad.d.ts not found in /public — run `npm run copy-types` to enable full type inference",
+        );
+      });
+
+    // ---------------------------------------------------------------------------
+    // Auto-fetch types for external `import ... from 'https://esm.sh/...'`
+    // statements. The types live at the URL esm.sh returns in the
+    // `X-TypeScript-Types` response header. Fetched .d.ts strings are added
+    // as extra libs so Monaco resolves the bare module specifier seen by its
+    // TS worker when `moduleResolution` walks the HTTPS import spec.
+    //
+    // Silent on failure — user falls back to `any` typing, which is still
+    // usable. Cached per-URL to avoid re-fetching on every keystroke.
+    // ---------------------------------------------------------------------------
+    const fetchedExternalTypes = new Set<string>();
+    const EXTERNAL_IMPORT_RE =
+      /\bimport\s+(?:(?:[\w*{}\s,]+?)\s+from\s+)?["'](https:\/\/esm\.sh\/[^"']+)["']/g;
+
+    const syncExternalTypes = (source: string) => {
+      for (const match of source.matchAll(EXTERNAL_IMPORT_RE)) {
+        const url = match[1];
+        if (fetchedExternalTypes.has(url)) continue;
+        fetchedExternalTypes.add(url);
+        // HEAD request first to read the X-TypeScript-Types header without
+        // pulling the JS bundle.
+        fetch(url, { method: "HEAD" })
+          .then((r) => {
+            const typesUrl = r.headers.get("X-TypeScript-Types");
+            if (!typesUrl) return Promise.reject("no types header");
+            return fetch(typesUrl).then((tr) =>
+              tr.ok ? tr.text() : Promise.reject("types fetch failed"),
+            );
+          })
+          .then((dts) => {
+            // Register the types under the exact import URL so Monaco's TS
+            // worker matches them to the user's `from 'https://esm.sh/...'`.
+            injectLib(dts, `ts:external-${url}.d.ts`);
+          })
+          .catch(() => {
+            // Silent — user code still works, just with `any` types.
+          });
+      }
+    };
+
+    editor.onDidChangeModelContent(() => {
+      syncExternalTypes(editor.getValue());
+    });
+    // Also scan the initial content on mount.
+    syncExternalTypes(editor.getValue());
+
+    // ---------------------------------------------------------------------------
+    // Provider 1: replicad.XXX  — fires ONLY after the literal token "replicad."
+    // Registered for both "javascript" and "typescript" so it works in either mode.
+    // ---------------------------------------------------------------------------
+    for (const lang of ["javascript", "typescript"] as const) {
+      monaco.languages.registerCompletionItemProvider(lang, {
+        triggerCharacters: ["."],
+        provideCompletionItems(model: any, position: any) {
+          const linePrefix = model
+            .getLineContent(position.lineNumber)
+            .substring(0, position.column - 1);
+
+          if (!/\breplicad\.$/.test(linePrefix)) return { suggestions: [] };
+
+          const word = model.getWordUntilPosition(position);
+          const range = {
+            startLineNumber: position.lineNumber,
+            endLineNumber: position.lineNumber,
+            startColumn: word.startColumn,
+            endColumn: word.endColumn,
+          };
+
+          return {
+            suggestions: buildCompletionItems(
+              monaco,
+              apiJsonRef.current,
+              true,
+              range,
+            )
+              .filter((item) => !(item.label as string).includes("."))
+              .map((item) => ({
+                ...item,
+                label: (item.label as string).replace(/^replicad\./, ""),
+                insertText: (item.insertText as string).replace(
+                  /^replicad\./,
+                  "",
+                ),
+              })),
+          };
         },
-      ]),
-      javascript(),
-      completionExtension,
-    ];
+      });
 
-    if (lintExtension) {
-      exts.push(lintExtension);
-      exts.push(lintGutter());
+      // ---------------------------------------------------------------------------
+      // Provider 2: variable instance methods — fires after "someVar." when the
+      // variable's type can be inferred from the code (e.g. let s = replicad.makeBox(...))
+      // Skips "replicad." (handled above) and known JS/TS globals.
+      // In TS mode, Monaco's own service handles this better; we still register as
+      // a fallback for variables whose types come from our custom API JSON.
+      // ---------------------------------------------------------------------------
+      const JS_GLOBALS = new Set([
+        "console",
+        "Math",
+        "JSON",
+        "Object",
+        "Array",
+        "String",
+        "Number",
+        "Promise",
+      ]);
+
+      monaco.languages.registerCompletionItemProvider(lang, {
+        triggerCharacters: ["."],
+        provideCompletionItems(model: any, position: any) {
+          const linePrefix = model
+            .getLineContent(position.lineNumber)
+            .substring(0, position.column - 1);
+
+          if (!linePrefix.endsWith(".")) return { suggestions: [] };
+
+          const varName = linePrefix
+            .slice(0, -1)
+            .trim()
+            .match(/([a-zA-Z_$][\w$]*)$/)?.[1];
+          if (!varName) return { suggestions: [] };
+          if (varName === "replicad" || JS_GLOBALS.has(varName))
+            return { suggestions: [] };
+
+          const api = apiJsonRef.current;
+          if (!api) return { suggestions: [] };
+
+          const allCode = model.getValue();
+          const varType = inferVariableType(varName, allCode, api);
+          if (!varType) return { suggestions: [] };
+
+          const word = model.getWordUntilPosition(position);
+          const range = {
+            startLineNumber: position.lineNumber,
+            endLineNumber: position.lineNumber,
+            startColumn: word.startColumn,
+            endColumn: word.endColumn,
+          };
+
+          const typeList = varType.includes("AnyShape")
+            ? [
+                "Shape",
+                "Shape3D",
+                "Sketch",
+                "Sketches",
+                "Wire",
+                "Face",
+                "Solid",
+              ]
+            : varType.split("|").map((t) => t.trim());
+
+          const suggestions: any[] = [];
+          for (const t of typeList) {
+            for (const [key, def] of Object.entries(api)) {
+              if (!key.startsWith(t + ".")) continue;
+              const mName = key.split(".")[1];
+              const params = [
+                ...(def.requiredParams ?? []),
+                ...(def.optionalParams ?? []),
+              ];
+              suggestions.push({
+                label: mName,
+                kind: monaco.languages.CompletionItemKind.Method,
+                detail: `(${params.join(", ")}) → ${def.returns ?? ""}`,
+                documentation: { value: buildDocString(key, def) },
+                insertText: `${mName}(${params.join(", ")})`,
+                range,
+              });
+            }
+          }
+          return { suggestions };
+        },
+      });
+
+      // ---------------------------------------------------------------------------
+      // Provider 3: Abundance top-level functions (Move, Assembly, Rotate, etc.)
+      // These are bare async calls — NOT member access — so we suppress this provider
+      // whenever the cursor is after a "." to avoid polluting member completions.
+      // Only registered for JavaScript; TypeScript users are pushed toward
+      // `geometry.chamfer(...)` style method calls instead.
+      // ---------------------------------------------------------------------------
+      if (lang === "javascript") {
+        monaco.languages.registerCompletionItemProvider(lang, {
+          provideCompletionItems(model: any, position: any) {
+            const linePrefix = model
+              .getLineContent(position.lineNumber)
+              .substring(0, position.column - 1);
+
+            if (/\w+\.$/.test(linePrefix)) return { suggestions: [] };
+
+            const word = model.getWordUntilPosition(position);
+            const range = {
+              startLineNumber: position.lineNumber,
+              endLineNumber: position.lineNumber,
+              startColumn: word.startColumn,
+              endColumn: word.endColumn,
+            };
+
+            return {
+              suggestions: buildCompletionItems(
+                monaco,
+                abundanceJsonRef.current,
+                false,
+                range,
+              ).filter((item) => !(item.label as string).includes(".")),
+            };
+          },
+        });
+      }
     }
-
-    return exts;
-  }, [completionExtension, lintExtension, activeAtom]);
+  };
 
   return (
-    <ReactCodeEditor
-      width="100%"
-      height="500px"
-      extensions={extensions}
+    <MonacoEditor
+      height="100%"
+      language={language}
+      theme="vs-dark"
       value={value}
-      onChange={onChange}
-      theme={andromeda}
+      onChange={(v) => onChange(v ?? "")}
+      onMount={handleMount}
+      options={{
+        fontSize: 13,
+        minimap: { enabled: false },
+        scrollBeyondLastLine: false,
+        wordWrap: "on",
+        automaticLayout: true,
+        tabSize: 2,
+        suggestOnTriggerCharacters: true,
+        quickSuggestions: true,
+        parameterHints: { enabled: true },
+        formatOnPaste: true,
+        scrollbar: { vertical: "auto" },
+      }}
     />
   );
 }

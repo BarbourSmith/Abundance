@@ -85,6 +85,14 @@ This document describes the available control types and their properties for use
 - `type`: "spacer"
 - `height`: number (optional, px)
 
+### 9. `label`
+
+- `type`: "label"
+- `value`: string | number
+- `label`: string (optional)
+
+Renders the value as plain, non-interactive text. Useful for displaying read-only information such as computed values or settings that cannot be changed in the current mode.
+
 ---
 
 ## Example Usage

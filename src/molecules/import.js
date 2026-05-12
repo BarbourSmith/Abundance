@@ -108,7 +108,9 @@ export default class Import extends Atom {
       return GlobalVariables.fetchFileContent(repoOwner, repoName, filePath);
     }
 
-    const octokit = new Octokit();
+    const octokit = new Octokit({
+      headers: { "X-GitHub-Api-Version": "2022-11-28" },
+    });
     return octokit.rest.repos.getContent({
       owner: repoOwner,
       repo: repoName,
@@ -182,7 +184,7 @@ export default class Import extends Atom {
     let base64String = result.data.content;
 
     // GitHub API returns base64 with \n every 60 chars; atob() rejects whitespace
-    let binary = atob(base64String.replace(/\s/g, ''));
+    let binary = atob(base64String.replace(/\s/g, ""));
 
     if (this.type == "SVG") {
       return binary;
@@ -202,8 +204,7 @@ export default class Import extends Atom {
 
   createInputParams(setInputChanged) {
     //REVISE FOR NEW MENU
-    this.setInputChanged = setInputChanged;
-    let inputParams = super.createInputParams();
+    let inputParams = super.createInputParams(setInputChanged);
     if (this.fileName == null) {
       inputParams[this.uniqueID + "file_ops"] = {
         type: "select",
@@ -329,9 +330,7 @@ export default class Import extends Atom {
           }
         })
         .catch((err) => {
-          this.setError(
-            `Failed to process imported file "${this.fileName}".`,
-          );
+          this.setError(`Failed to process imported file "${this.fileName}".`);
           throw err;
         });
     } else {

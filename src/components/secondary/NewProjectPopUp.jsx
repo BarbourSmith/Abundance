@@ -77,7 +77,7 @@ const validateTopics = (topics) => {
     }
 
     if (cleaned !== topicValue) {
-      errors.push(`Tag "${topicValue}" will be changed to "${cleaned}"`);
+      errors.push(`Tag "${topicValue}" should be changed to "${cleaned}"`);
     }
 
     sanitized.push(cleaned);
@@ -171,11 +171,6 @@ const NewProjectPopUp = ({ setExportPopUp, authorizedUserOcto, exporting }) => {
 
     if (allErrors.length > 0) {
       setValidationErrors(allErrors);
-      // Block submission and show error dialog
-      window.alert(
-        "Please fix the following issues before submitting:\n\n" +
-          allErrors.join("\n"),
-      );
       return; // Do not proceed with submission
     }
 
@@ -225,7 +220,10 @@ const NewProjectPopUp = ({ setExportPopUp, authorizedUserOcto, exporting }) => {
   return (
     <>
       <div className="login-page export-div">
-        <div className="form animate fadeInUp one">
+        <div
+          className="form animate fadeInUp one"
+          style={{ scrollbarGutter: "stable", overflow: "visible" }}
+        >
           <button
             onClick={() => {
               setExportPopUp(false);
@@ -236,6 +234,7 @@ const NewProjectPopUp = ({ setExportPopUp, authorizedUserOcto, exporting }) => {
           </button>
           <form
             className="new-project-form"
+            style={{ scrollbarGutter: "stable", overflow: "visible" }}
             onSubmit={(e) => {
               handleSubmit(e);
             }}
@@ -302,6 +301,9 @@ const NewProjectPopUp = ({ setExportPopUp, authorizedUserOcto, exporting }) => {
               ref={projectTopicRef}
               onKeyDown={(e) => handleKeyDown(e, "topic")}
             />
+
+            <div style={{ borderTop: "1px solid #ccc", padding: "10px 0" }} />
+
             <button className="submit-button" disabled={pending} type="submit">
               {pending ? newProjectBar + "%" : "Submit/Export to Github"}
             </button>

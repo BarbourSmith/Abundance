@@ -173,8 +173,9 @@ export default class Atom extends ObservableEntity {
   /**
    * Applies each of the passed values to this as this.x
    * @param {object} values - A list of values to set
+   * @param {object} backCompatInputNames - A mapping of current input names to old input names for backwards compatibility when loading old saves. Format is {currentName: [oldName1, oldName2, ...]}
    */
-  setValues(values) {
+  setValues(values, backCompatInputNames = {}) {
     //Assign the object to have the passed in values
 
     for (var key in values) {
@@ -182,21 +183,29 @@ export default class Atom extends ObservableEntity {
     }
 
     if (typeof this.ioValues !== "undefined") {
-      this.ioValues.forEach((ioValue) => {
-        //for each saved value
-        this.inputs.forEach((ap) => {
-          //Find the matching IO and set it to be the saved value
-          if (ioValue.name == ap.name && ap.type == "input") {
-            ap.value = ioValue.ioValue;
-            if (
-              "currentEquation" in ioValue &&
-              !Number.isFinite(Number(ioValue.currentEquation))
-            ) {
-              // only load currentEquation if it exists and isn't a numeric literal
-              ap.currentEquation = ioValue.currentEquation;
-            }
+      // this.inputs is set by current version of this atom's code.
+
+      this.inputs.forEach((ap) => {
+        if (ap.name in backCompatInputNames) {
+          ap.oldNames = backCompatInputNames[ap.name];
+        }
+
+        //Find the matching IO and set it to be the saved value
+        const matchingSavedVal = this.ioValues?.find(
+          (savedVal) =>
+            savedVal.name === ap.name || ap.oldNames?.includes(savedVal.name),
+        );
+
+        if (matchingSavedVal && ap.type == "input") {
+          ap.value = matchingSavedVal.ioValue;
+          if (
+            "currentEquation" in matchingSavedVal &&
+            !Number.isFinite(Number(matchingSavedVal.currentEquation))
+          ) {
+            // only load currentEquation if it exists and isn't a numeric literal
+            ap.currentEquation = matchingSavedVal.currentEquation;
           }
-        });
+        }
       });
     }
   }
@@ -282,16 +291,47 @@ export default class Atom extends ObservableEntity {
             break;
         }
 
-        //Draw Alert block
+        // Wrap text to maximum width
+        const fullMessage = prefix + this.alert.message;
+        const maxWidth = 300; // Maximum width in pixels
+        const padding = 20;
+        const lineHeight = parseInt(GlobalVariables.c.font) + 4;
+
+        // Helper function to wrap text
+        const wrapText = (text, maxPixelWidth) => {
+          const lines = [];
+          const words = text.split(" ");
+          let currentLine = "";
+
+          for (let word of words) {
+            const testLine = currentLine ? currentLine + " " + word : word;
+            const lineWidth = GlobalVariables.c.measureText(testLine).width;
+
+            if (lineWidth > maxPixelWidth && currentLine) {
+              lines.push(currentLine);
+              currentLine = word;
+            } else {
+              currentLine = testLine;
+            }
+          }
+          if (currentLine) {
+            lines.push(currentLine);
+          }
+
+          return lines;
+        };
+
+        const wrappedLines = wrapText(fullMessage, maxWidth);
+        const boxHeight = -(wrappedLines.length * lineHeight + padding);
+
+        // Draw Alert block
         GlobalVariables.c.beginPath();
-        const padding = 10;
         GlobalVariables.c.fillStyle = this.color;
         GlobalVariables.c.rect(
           xInPixels + radiusInPixels - padding / 2,
           yInPixels - radiusInPixels + padding / 2,
-          GlobalVariables.c.measureText(prefix + this.alert.message).width +
-            padding,
-          -(parseInt(GlobalVariables.c.font) + padding),
+          maxWidth + padding,
+          boxHeight,
         );
         GlobalVariables.c.fill();
         GlobalVariables.c.strokeStyle = "black";
@@ -299,18 +339,27 @@ export default class Atom extends ObservableEntity {
         GlobalVariables.c.stroke();
         GlobalVariables.c.closePath();
 
+        // Draw wrapped text lines
         GlobalVariables.c.beginPath();
         GlobalVariables.c.fillStyle = "black";
-        GlobalVariables.c.fillText(
-          prefix + this.alert.message,
-          xInPixels + radiusInPixels,
-          yInPixels - radiusInPixels,
-        );
+        wrappedLines.forEach((line, index) => {
+          GlobalVariables.c.fillText(
+            line,
+            xInPixels + radiusInPixels,
+            yInPixels - radiusInPixels + index * lineHeight + boxHeight / 2,
+          );
+        });
         GlobalVariables.c.closePath();
       }
     }
   }
 
+  /**
+   * Register this.onUpstreamChange as a subscriber to all inputs. If there are
+   * more than zero inputs call back onUpstreamChange once after all inputs
+   * are added and return True. Returns False if there were no inputs, and
+   * therefore onUpstreamChange wasn't called.
+   */
   _subscribeToInputs() {
     this.inputs.forEach((input) => {
       input.subscribe(
@@ -323,7 +372,9 @@ export default class Atom extends ObservableEntity {
     });
     if (this.inputs.length > 0) {
       this.onUpstreamChange();
+      return true;
     }
+    return false;
   }
 
   _addIOWithoutSubscribing(
@@ -427,7 +478,7 @@ export default class Atom extends ObservableEntity {
    */
   alertingErrorHandler() {
     return (err) => {
-      console.error("Error in atom: " + this.name);
+      console.error("Error in atom: " + this.getAtomPath());
       console.error(err);
       this.setError(err || "Unknown error occurred");
     };
@@ -681,8 +732,6 @@ export default class Atom extends ObservableEntity {
     if (this.output) {
       this.output.deleteSelf(silent);
     }
-    /* Remove from worker library */
-    GlobalVariables.cad.deleteFromLibrary(this.uniqueID).then(() => {});
 
     this.parent.nodesOnTheScreen.splice(
       this.parent.nodesOnTheScreen.indexOf(this),
@@ -933,8 +982,28 @@ export default class Atom extends ObservableEntity {
     if (err instanceof Error) {
       err = err.message;
     }
-    this.alert = { type: AlertType.ERROR, message: String(err) };
+    const path = this.getAtomPath();
+    const message = path ? `[${path}] ${err}` : String(err);
+    this.alert = { type: AlertType.ERROR, message };
     this.setStatus(Status.ERROR);
+  }
+
+  /**
+   * Get the full path of this atom in the molecule hierarchy.
+   * Example: "top level/molecule1/moleculemimi/code"
+   * @returns {string} The full path of this atom
+   */
+  getAtomPath() {
+    const path = [];
+    let current = this;
+
+    // Walk up the parent chain
+    while (current) {
+      path.unshift(current.name || current.atomType || "unknown");
+      current = current.parent || current.parentMolecule;
+    }
+
+    return path.join("/");
   }
 
   /**
@@ -942,7 +1011,7 @@ export default class Atom extends ObservableEntity {
    */
   inputsAreReady() {
     return this.inputs.every((input) => {
-      return input.getState().status == Status.READY;
+      return input.getState().status == Status.READY || input.isOptional;
     });
   }
 
@@ -1054,8 +1123,8 @@ export default class Atom extends ObservableEntity {
 
       // --- Text Sprite ---
       const canvas = document.createElement("canvas");
-      canvas.width = 512;
-      canvas.height = 256;
+      canvas.width = 2048; // Large width to accommodate longer text, will be scaled down by sprite scale
+      canvas.height = 1024;
       const ctx = canvas.getContext("2d");
       ctx.font = serializedLabel.text.font;
       ctx.textAlign = "center";
@@ -1085,7 +1154,6 @@ export default class Atom extends ObservableEntity {
       const material = new THREE.SpriteMaterial({
         map: texture,
         depthTest: false,
-        sRGBTransfer: true,
       });
       const sprite = new THREE.Sprite(material);
       sprite.scale.set(...serializedLabel.text.scale);
@@ -1106,16 +1174,34 @@ export default class Atom extends ObservableEntity {
     // Dispose old label geometries first
     this.disposeLabelGeometry();
 
-    const nrs = atomValue.nonReplicadSerialized;
-    if (
-      nrs &&
-      ((Array.isArray(nrs) && nrs.length > 0 && nrs[0].type === "Label") ||
-        nrs.type === "Label")
-    ) {
-      this.nonReplicadGeom = this.reconstructLabelGeometry(nrs);
+    let nrs = atomValue.nonReplicadSerialized;
+
+    // Filter out empty objects from the array
+    if (Array.isArray(nrs)) {
+      nrs = nrs.filter((item) => item && Object.keys(item).length > 0);
+    }
+
+    // Check if we have valid data to process
+    if (!nrs || (Array.isArray(nrs) && nrs.length === 0)) {
+      // No geometry to process
+      this.nonReplicadGeom = {
+        geometry: [],
+        material: null,
+        hideMainMesh: false,
+      };
       return;
+    }
+
+    // Check if this is Label geometry
+    const hasLabels =
+      (Array.isArray(nrs) && nrs.length > 0 && nrs[0].type === "Label") ||
+      nrs.type === "Label";
+
+    if (hasLabels) {
+      this.nonReplicadGeom = this.reconstructLabelGeometry(nrs);
     } else {
-      //delete label geometry if it exists from a prior compute
+      // For non-Label geometry, pass it through as-is
+      // The nonReplicadGeometry context will handle rendering
       this.nonReplicadGeom = {
         geometry: [],
         material: null,
@@ -1151,7 +1237,10 @@ export default class Atom extends ObservableEntity {
       const argsDict = Object.fromEntries(
         this.inputs.map((input) => [input.name, input.getState().value]),
       );
-
+      // console.log(
+      //   `[${this.getAtomPath()}] All inputs ready. Computing with args:`,
+      //   argsDict,
+      // );
       // const inputVals = this.inputs.map((input) => {input.getValue());
       this.setProcessing();
 
@@ -1170,9 +1259,6 @@ export default class Atom extends ObservableEntity {
         .catch(this.alertingErrorHandler());
     } else {
       this.setWaiting();
-      GlobalVariables.cad
-        .deleteFromLibrary(this.uniqueID)
-        .catch(this.alertingErrorHandler());
     }
   }
 
@@ -1250,7 +1336,16 @@ export default class Atom extends ObservableEntity {
     return predictedParams;
   }
 
-  createInputParams() {
+  createInputParams(setInputChanged) {
+    // Stash the React-side state setter so other code on this atom (e.g.
+    // `Code#updateCode` after re-parsing its `Inputs = [...]` block, or
+    // `Import#loadFile` after a file load completes) can ask the input
+    // panel to re-derive its controls. Subclasses no longer need to
+    // duplicate this assignment.
+    if (typeof setInputChanged === "function") {
+      this.setInputChanged = setInputChanged;
+    }
+
     let inputParams = {};
 
     /** Runs through active atom inputs and adds IO parameters to default param*/
@@ -1512,8 +1607,9 @@ export default class Atom extends ObservableEntity {
                             return;
                           const result = atom.evaluateEquation(val);
                           if (Number.isFinite(result)) inp.setValue(result);
-                        } catch {
-                          inp.setValue(NaN);
+                        } catch (err) {
+                          // Invalid equation - don't update the value to NaN
+                          // Keep the previous value instead
                         }
                       }
                     },
@@ -1545,8 +1641,8 @@ export default class Atom extends ObservableEntity {
                   }
                 }
               } catch (err) {
-                console.warn("setting value to NaN");
-                input.setValue(NaN);
+                // Invalid equation - don't update the value, which prevents NaN from propagating
+                // The error is shown to user via alertingErrorHandler, and the value remains unchanged
                 this.alertingErrorHandler()(err);
               }
             },
@@ -1578,6 +1674,16 @@ export default class Atom extends ObservableEntity {
     }
 
     return inputParams;
+  }
+
+  /**
+   * Create parameters for export menu. Base implementation returns empty object.
+   * Override in subclasses that support export functionality (e.g., Molecule).
+   * @param {function} setInputChanged - Callback to trigger re-render of input panel
+   * @returns {object} Object of export menu parameters
+   */
+  createExportMenuInputs(setInputChanged) {
+    return {};
   }
 
   /**
@@ -1724,18 +1830,19 @@ export default class Atom extends ObservableEntity {
    */
   evaluateMathExpression(substitutedEquation) {
     const variables = this.extractVariablesFromEquation(substitutedEquation);
-    const unresolved = [];
+    const notFound = [];
+    const nonFinite = [];
     const resolvedValues = {};
     const BUILTIN_CONSTS = new Set(["pi", "e", "tau", "Infinity", "NaN"]);
     if (variables.length > 0) {
       // Get inputs from all ancestors up the chain, not just immediate parent
       const parentInputs = this.getInputsFromAncestors();
-
       for (const variable of variables) {
         if (BUILTIN_CONSTS.has(variable)) {
           continue; // let evaluator handle it
         }
         let value = null;
+        let wasFound = false;
         // Try parent inputs first (now includes all ancestors)
         for (let j = 0; j < parentInputs.length; j++) {
           if (parentInputs[j].name === variable) {
@@ -1743,59 +1850,78 @@ export default class Atom extends ObservableEntity {
               typeof parentInputs[j].getValue === "function"
                 ? parentInputs[j].getValue()
                 : parentInputs[j].value;
+            wasFound = true;
+
             break;
           }
         }
         // Then this atom's inputs
-        if (value === null || value === undefined) {
+        if (!wasFound) {
           for (let i = 0; i < this.inputs.length; i++) {
             if (this.inputs[i].name === variable) {
               value = this.findIOValue(this.inputs[i].name);
+              wasFound = true;
               break;
             }
           }
         }
-        let num = Number(value);
-        if (
-          value === null ||
-          value === undefined ||
-          (typeof value === "string" && value.trim() === "") ||
-          !Number.isFinite(num)
-        ) {
-          unresolved.push(variable);
+
+        // If variable was never found in any inputs
+        if (!wasFound) {
+          notFound.push(variable);
         } else {
-          resolvedValues[variable] = num;
+          // Variable was found, but check if it resolves to a finite number
+          let num = Number(value);
+          if (
+            value === null ||
+            value === undefined ||
+            (typeof value === "string" && value.trim() === "") ||
+            !Number.isFinite(num)
+          ) {
+            nonFinite.push({ name: variable, value });
+          } else {
+            resolvedValues[variable] = num;
+          }
         }
       }
     }
-    if (unresolved.length) {
-      const msg = `Variable(s) not found: ${unresolved.join(
+    // Check for errors and throw appropriate message
+    if (notFound.length) {
+      const msg = `Variable(s) not found: ${notFound.join(
         ", ",
-      )}. Make sure the variables you are using exist as inputs`;
+      )}. Make sure the variables you are using exist as inputs in ${this.getAtomPath()}`;
       console.warn(msg);
       throw new Error(msg);
-    } else {
-      this.clearAlert();
-      // Substitute all resolved variables
-      for (const variable of Object.keys(resolvedValues)) {
-        const safeVar = variable.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        const variablePattern = new RegExp(`\\b${safeVar}\\b`, "gu");
-        substitutedEquation = substitutedEquation.replace(
-          variablePattern,
-          String(resolvedValues[variable]),
-        );
-      }
+    }
+    if (nonFinite.length) {
+      const details = nonFinite
+        .map((item) => `"${item.name}" (value: ${JSON.stringify(item.value)})`)
+        .join(", ");
+      const msg = `Variable(s) could not be resolved to finite number: ${details}. Ensure equations in input values are fully resolvable in ${this.getAtomPath()}`;
+      console.warn(msg);
+      throw new Error(msg);
+    }
 
-      // Safely evaluate the mathematical expression with error handling
-      try {
-        const result = GlobalVariables.limitedEvaluate(substitutedEquation);
-        return result;
-      } catch (error) {
-        // Handle mathematical expression parsing errors gracefully
-        const msg = `Invalid mathematical expression: "${substitutedEquation}". ${error.message}`;
-        console.warn("Mathematical expression evaluation failed:", msg);
-        throw new Error(msg);
-      }
+    this.clearAlert();
+    // Substitute all resolved variables
+    for (const variable of Object.keys(resolvedValues)) {
+      const safeVar = variable.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const variablePattern = new RegExp(`\\b${safeVar}\\b`, "gu");
+      substitutedEquation = substitutedEquation.replace(
+        variablePattern,
+        String(resolvedValues[variable]),
+      );
+    }
+
+    // Safely evaluate the mathematical expression with error handling
+    try {
+      const result = GlobalVariables.limitedEvaluate(substitutedEquation);
+      return result;
+    } catch (error) {
+      // Handle mathematical expression parsing errors gracefully
+      const msg = `Invalid mathematical expression: "${substitutedEquation}". ${error.message}`;
+      console.warn("Mathematical expression evaluation failed:", msg);
+      throw new Error(msg);
     }
   }
 

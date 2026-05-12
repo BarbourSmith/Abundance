@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import GlobalVariables from "../../js/globalvariables.js";
 
 /**
  * Dialog to confirm navigation to an owned GitHub molecule project
@@ -18,10 +19,9 @@ function NavigateToMoleculeDialog({
   const navigate = useNavigate();
 
   const handleNavigate = () => {
+    GlobalVariables.currentAWSnode = { owner, repoName };
     onClose();
     navigate(`/${owner}/${repoName}`);
-    // Reload the page to load the target project
-    window.location.reload();
   };
 
   const handleStay = () => {

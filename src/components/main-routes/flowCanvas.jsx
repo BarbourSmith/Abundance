@@ -4,6 +4,8 @@ import Molecule from "../../molecules/molecule.js";
 import { createCMenu, cmenu } from "../../js/NewMenu.js";
 import { DeleteAtomsCommand } from "../../js/undoCommands.js";
 import { useNavigate } from "react-router-dom";
+import NavigateToMoleculeDialog from "../secondary/NavigateToMoleculeDialog.jsx";
+import PreviewMoleculeDialog from "../secondary/PreviewMoleculeDialog.jsx";
 
 export default memo(function FlowCanvas({
   loadProject,
@@ -19,6 +21,7 @@ export default memo(function FlowCanvas({
   saveProject,
   setSaveState,
   setSavePopUp,
+  isPreview = false,
 }) {
   /** State for github molecule search input */
   const [isHovering, setIsHovering] = useState(false);
@@ -27,6 +30,15 @@ export default memo(function FlowCanvas({
   /** State for undo notification */
   const [undoNotification, setUndoNotification] = useState(null);
   const [isShortcut, setIsShortcutTriggered] = useState(false);
+
+  /** State for GitHub molecule dialogs */
+  const [navigateDialogOpen, setNavigateDialogOpen] = useState(false);
+  const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
+  const [moleculeDialogData, setMoleculeDialogData] = useState({
+    owner: "",
+    repoName: "",
+    moleculeName: "",
+  });
 
   const canvasRef = useRef(null);
   const circleMenu = useRef(null);
@@ -102,13 +114,13 @@ export default memo(function FlowCanvas({
               GlobalVariables.currentMolecule =
                 GlobalVariables.topLevelMolecule;
               // Only save if project matches
-              setSavePopUp(true);
               saveProject(
                 setSaveState,
                 "auto-save after reauthentication",
+                false,
+                () => setSavePopUp(true),
               ).then(() => {
                 localStorage.removeItem("pendingProjectSave");
-                setSavePopUp(false);
               });
             }
             loadAndDeserialize();
@@ -147,8 +159,8 @@ export default memo(function FlowCanvas({
             // Also load the project metadata from GitHub (without overwriting the molecules)
             if (authorizedUserOcto) {
               const octokit = authorizedUserOcto;
-              octokit
-                .request("GET /repos/{owner}/{repo}", {
+              octokit.rest.repos
+                .get({
                   owner: GlobalVariables.currentAWSnode.owner,
                   repo: GlobalVariables.currentAWSnode.repoName,
                 })
@@ -203,6 +215,47 @@ export default memo(function FlowCanvas({
       canvasRef.current.height = windowSize.height * canvasHeightScale;
     }
   }, [windowSize]);
+
+  /** Handle GitHub molecule navigation and preview dialogs */
+  useEffect(() => {
+    const handleNavigateRequest = (event) => {
+      setMoleculeDialogData({
+        owner: event.detail.owner,
+        repoName: event.detail.repoName,
+        moleculeName: event.detail.moleculeName,
+      });
+      setNavigateDialogOpen(true);
+    };
+
+    const handlePreviewRequest = (event) => {
+      setMoleculeDialogData({
+        owner: event.detail.owner,
+        repoName: event.detail.repoName,
+        moleculeName: event.detail.moleculeName,
+      });
+      setPreviewDialogOpen(true);
+    };
+
+    window.addEventListener(
+      "github-molecule-navigate-request",
+      handleNavigateRequest,
+    );
+    window.addEventListener(
+      "github-molecule-preview-request",
+      handlePreviewRequest,
+    );
+
+    return () => {
+      window.removeEventListener(
+        "github-molecule-navigate-request",
+        handleNavigateRequest,
+      );
+      window.removeEventListener(
+        "github-molecule-preview-request",
+        handlePreviewRequest,
+      );
+    };
+  }, []);
 
   const draw = () => {
     GlobalVariables.c.clearRect(
@@ -394,17 +447,16 @@ export default memo(function FlowCanvas({
         );
       }
 
-      GlobalVariables.atomsSelected = [];
-      //Adds items to the  array that we will use to delete
-      GlobalVariables.currentMolecule.copy();
-      GlobalVariables.atomsSelected.forEach((item) => {
-        GlobalVariables.currentMolecule.nodesOnTheScreen.forEach(
-          (nodeOnTheScreen) => {
-            if (nodeOnTheScreen.uniqueID == item.uniqueID) {
-              nodeOnTheScreen.deleteNode();
-            }
-          },
-        );
+      // Delete selected atoms without clearing the clipboard (atomsSelected)
+      // Use a local variable instead of reusing atomsSelected which stores copied atoms
+      const atomsToDelete = [];
+      GlobalVariables.currentMolecule.nodesOnTheScreen.forEach((atom) => {
+        if (atom.selected) {
+          atomsToDelete.push(atom);
+        }
+      });
+      atomsToDelete.forEach((item) => {
+        item.deleteNode();
       });
       //every time a key is pressed
       GlobalVariables.currentMolecule.nodesOnTheScreen.forEach((molecule) => {
@@ -538,7 +590,7 @@ export default memo(function FlowCanvas({
       longPressTimer.current = null;
     }
 
-    // if it's a right click show the circular menu
+    // if it's a right click show the circular menu (disabled in preview mode)
     var isRightMB;
     if ("which" in event) {
       // Gecko (Firefox), WebKit (Safari/Chrome) & Opera
@@ -549,6 +601,10 @@ export default memo(function FlowCanvas({
     }
     // if it's a right click show the circular menu
     if (isRightMB) {
+      // In preview mode, disable the circular menu
+      if (isPreview) {
+        return;
+      }
       var doubleClick = false;
       // Convert viewport coordinates to canvas-relative coordinates for correct positioning
       const canvasCoords = getCanvasCoordinates(event.clientX, event.clientY);
@@ -618,8 +674,7 @@ export default memo(function FlowCanvas({
             },
             false, // Don't pass to undo
           )
-          .then((newAtom) => {
-          });
+          .then((newAtom) => {});
       }
 
       if (!clickHandledByMolecule) {
@@ -793,6 +848,26 @@ export default memo(function FlowCanvas({
           );
         })}
       </div>
+
+      {isPreview && (
+        <div
+          style={{
+            position: "absolute",
+            top: "20px",
+            left: "50%",
+            transform: "translateX(-50%)",
+            fontSize: "24px",
+            fontWeight: "bold",
+            opacity: 0.3,
+            pointerEvents: "none",
+            zIndex: "4",
+            color: "var(---flowCanvas-background)",
+            letterSpacing: "2px",
+          }}
+        >
+          PREVIEW
+        </div>
+      )}
       <div>
         <div id="circle-menu1" className="cn-menu1" ref={circleMenu}></div>
       </div>
@@ -808,6 +883,22 @@ export default memo(function FlowCanvas({
           {userNotification}
         </div>
       )}
+
+      {/* GitHub molecule dialogs */}
+      <NavigateToMoleculeDialog
+        isOpen={navigateDialogOpen}
+        onClose={() => setNavigateDialogOpen(false)}
+        owner={moleculeDialogData.owner}
+        repoName={moleculeDialogData.repoName}
+        moleculeName={moleculeDialogData.moleculeName}
+      />
+      <PreviewMoleculeDialog
+        isOpen={previewDialogOpen}
+        onClose={() => setPreviewDialogOpen(false)}
+        owner={moleculeDialogData.owner}
+        repoName={moleculeDialogData.repoName}
+        moleculeName={moleculeDialogData.moleculeName}
+      />
     </>
   );
 });

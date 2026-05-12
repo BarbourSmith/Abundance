@@ -1,7 +1,6 @@
 import * as replicad from "replicad";
 import shrinkWrap from "replicad-shrink-wrap";
 import {
-  AbundanceLeaf,
   AbundanceObject,
   asReplicadPlane,
   flattenAssembly,
@@ -79,25 +78,30 @@ class GeometryProvider {
       if (this.projectLRU.length > this.MAX_PROJECTS) {
         this.projectLRU.shift();
       }
-      getAllProjectIds().then(async (allIds) => {
-        if (allIds.size <= this.MAX_PROJECTS) {
-          return;
-        }
-        const evictIds = Array.from(allIds).filter(
-          (id) => !this.projectLRU.includes(id)
-        );
-        for (const evictId of evictIds) {
-          await deleteProjectCache(evictId);
-        }
-      });
+      // We specifically don't await this async task since cleanup
+      // of old projects can happen slowly in the back ground and
+      // doesn't need to block other cache operations.
+      void this.evictProjectsBesides(new Set(this.projectLRU));
     }
+  }
+
+  private evictProjectsBesides(projectIds: Set<string>) {
+    return getAllProjectIds().then(async (allIds) => {
+      if (allIds.size <= this.MAX_PROJECTS) {
+        return;
+      }
+      const evictIds = Array.from(allIds).filter((id) => !projectIds.has(id));
+      for (const evictId of evictIds) {
+        await deleteProjectCache(evictId);
+      }
+    });
   }
 
   // Returns the id of the geometry once it's been added to the cache.
   private async createIfAbsent(
     id: string,
     context: RequestContext,
-    builder: () => Promise<ReplicadObject | undefined>
+    builder: () => Promise<ReplicadObject | undefined>,
   ): Promise<string | undefined> {
     this.updateLRU(context.project);
     if (
@@ -128,7 +132,7 @@ class GeometryProvider {
 
   private getFromWarmCache(
     id: string,
-    context: RequestContext
+    context: RequestContext,
   ): ReplicadObject | undefined {
     if (!context.operationId) {
       return undefined;
@@ -139,14 +143,18 @@ class GeometryProvider {
       throw new Error("No warm cache for operation " + context.operationId);
     }
     const result = operationCache.get(id);
-    result ? this.batchMetrics[0]++ : this.batchMetrics[1]++;
+    if (result) {
+      this.batchMetrics[0]++;
+    } else {
+      this.batchMetrics[1]++;
+    }
     return result?.clone();
   }
 
   private putInWarmCache(
     id: string,
     operationId: string,
-    geometry: ReplicadObject
+    geometry: ReplicadObject,
   ) {
     const operationCache = this.warmCache.get(operationId);
     if (!operationCache) {
@@ -178,14 +186,15 @@ class GeometryProvider {
       console.trace("Cache miss for id:", id);
       throw new Error(
         `Geometry with ID ${id} not found in cache, context: ${JSON.stringify(
-          context
-        )}`
+          context,
+        )}`,
       );
     }
     let result = undefined;
     try {
       result = replicad.deserializeDrawing(shape.serialized);
       this.cacheMiss("deserialize");
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (e) {
       // Not a Drawing, try Shape3D
       try {
@@ -204,7 +213,6 @@ class GeometryProvider {
   }
 
   async clearCache(context: RequestContext): Promise<boolean> {
-    const caches = await getAllProjectIds();
     this.projectLRU = this.projectLRU.filter((id) => id !== context.project);
     await deleteProjectCache(context.project);
     return true;
@@ -216,19 +224,17 @@ class GeometryProvider {
    */
   async sweepCache(
     idsToRetain: Set<string>,
-    context: RequestContext
+    context: RequestContext,
   ): Promise<number> {
     // Step 1: filter geometries based on key since that's a much faster approach
     // and we don't need access to the geom values.
-    const s = performance.now();
     const deletedGeoms = await filter(
       context.project,
       "ReplicadObject",
       (shapeKey: string) => {
         return idsToRetain.has(shapeKey);
-      }
+      },
     );
-    const geomTime = performance.now() - s;
 
     // Step 2: filter AbundanceObjects based on whether all their geometries
     // are in the idsToRetain set, here we need access to their values.
@@ -247,7 +253,7 @@ class GeometryProvider {
           } catch (e) {
             console.error(
               "Failed to parse AbundanceObject. Deleting from cache: ",
-              e
+              e,
             );
             return false; // delete malformed assemblies
           }
@@ -256,10 +262,9 @@ class GeometryProvider {
         console.warn("Received no value for AbundanceObject:", shapeKey);
         return false;
       },
-      true
+      true,
     );
 
-    const assemblyTime = performance.now() - s - geomTime;
     return deletedGeoms + deletedAssemblies;
   }
 
@@ -272,7 +277,7 @@ class GeometryProvider {
   async drawRectangle(
     x: number,
     y: number,
-    context: RequestContext
+    context: RequestContext,
   ): Promise<string> {
     const id = this._makeId("rectangle", x, y);
     await this.createIfAbsent(id, context, () => {
@@ -292,7 +297,7 @@ class GeometryProvider {
   async drawPolysides(
     radius: number,
     numberOfSides: number,
-    context: RequestContext
+    context: RequestContext,
   ): Promise<string> {
     const id = this._makeId("polysides", radius, numberOfSides);
     await this.createIfAbsent(id, context, () => {
@@ -304,7 +309,7 @@ class GeometryProvider {
   async drawText(
     text: string,
     options: any,
-    context: RequestContext
+    context: RequestContext,
   ): Promise<string> {
     const id = this._makeId("text", text, options);
     await this.createIfAbsent(id, context, async () => {
@@ -315,7 +320,7 @@ class GeometryProvider {
 
   async expandCompoundShape(
     id: string,
-    context: RequestContext
+    context: RequestContext,
   ): Promise<string[]> {
     const compound = await this.get(id, context);
     if (!(compound instanceof replicad.Compound)) {
@@ -343,7 +348,7 @@ class GeometryProvider {
     inputId: string,
     plane: SimplePlane,
     height: number,
-    context: RequestContext
+    context: RequestContext,
   ): Promise<string> {
     const extrudedId = this._makeId("extrude", inputId, plane, height);
     await this.createIfAbsent(extrudedId, context, async () => {
@@ -364,7 +369,7 @@ class GeometryProvider {
     dx: number,
     dy: number,
     dz: number,
-    context: RequestContext
+    context: RequestContext,
   ): Promise<string> {
     const movedId = this._makeId("move", id, dx, dy, dz);
     await this.createIfAbsent(movedId, context, async () => {
@@ -379,7 +384,7 @@ class GeometryProvider {
     x: number,
     y: number,
     z: number,
-    context: RequestContext
+    context: RequestContext,
   ): Promise<string> {
     const rotateId = this._makeId("rotate", id, x, y, z);
     await this.createIfAbsent(rotateId, context, async () => {
@@ -400,7 +405,7 @@ class GeometryProvider {
   async scale(
     id: string,
     scaleFactor: number,
-    context: RequestContext
+    context: RequestContext,
   ): Promise<string> {
     const scaleId = this._makeId("scale", id, scaleFactor);
     await this.createIfAbsent(scaleId, context, async () => {
@@ -413,7 +418,7 @@ class GeometryProvider {
   async fillet(
     id: string,
     radius: number,
-    context: RequestContext
+    context: RequestContext,
   ): Promise<string> {
     const filletId = this._makeId("fillet", id, radius);
     await this.createIfAbsent(filletId, context, async () => {
@@ -429,7 +434,7 @@ class GeometryProvider {
   async chamfer(
     id: string,
     size: number,
-    context: RequestContext
+    context: RequestContext,
   ): Promise<string> {
     const chamferId = this._makeId("chamfer", id, size);
     await this.createIfAbsent(chamferId, context, async () => {
@@ -472,7 +477,7 @@ class GeometryProvider {
   async intersect(
     input1ID: string,
     inputID2: string,
-    context: RequestContext
+    context: RequestContext,
   ): Promise<string | undefined> {
     const id = this._makeId("intersect", input1ID, inputID2);
     return await this.createIfAbsent(id, context, async () => {
@@ -496,7 +501,7 @@ class GeometryProvider {
           "Invalid types for intersection: " +
             typeof args[0] +
             " and " +
-            typeof args[1]
+            typeof args[1],
         );
       }
     });
@@ -506,7 +511,7 @@ class GeometryProvider {
   async fuse(
     input1ID: string,
     inputID2: string,
-    context: RequestContext
+    context: RequestContext,
   ): Promise<string> {
     const sortedArgs = [input1ID, inputID2].sort();
     const resultId = this._makeId("fuse", sortedArgs[0], sortedArgs[1]);
@@ -526,7 +531,7 @@ class GeometryProvider {
           "Invalid types for fusion: " +
             typeof args[0] +
             " and " +
-            typeof args[1]
+            typeof args[1],
         );
       }
     });
@@ -535,7 +540,7 @@ class GeometryProvider {
 
   async assemblyFuse(
     assembly: AbundanceObject,
-    context: RequestContext
+    context: RequestContext,
   ): Promise<string> {
     const partIds = flattenAssembly(assembly).map((part) => part.geometry);
     if (partIds.length === 1) {
@@ -544,7 +549,7 @@ class GeometryProvider {
     const id = this._makeId("assemblyFuse", ...partIds.sort());
     await this.createIfAbsent(id, context, async () => {
       const shapes = await Promise.all(
-        partIds.map((partId) => this.get(partId, context))
+        partIds.map((partId) => this.get(partId, context)),
       );
 
       let result = undefined;
@@ -576,7 +581,7 @@ class GeometryProvider {
   async cut(
     toCut: string,
     cutter: string,
-    context: RequestContext
+    context: RequestContext,
   ): Promise<string> {
     const toCutGeom = await this.get(toCut, context);
     if (toCutGeom instanceof replicad.Wire) {
@@ -587,7 +592,7 @@ class GeometryProvider {
       return toCut; // cutting with a wire is a no-op.
     }
 
-    let args = [toCutGeom, cutterGeom];
+    const args = [toCutGeom, cutterGeom];
     const resultId = this._makeId("cut", toCut, cutter);
     if (this.areAllDrawings(args) || this.areAll3DShapes(args)) {
       await this.createIfAbsent(resultId, context, async () => {
@@ -618,7 +623,7 @@ class GeometryProvider {
   async startBatchOperation(
     context: RequestContext,
     id: string,
-    persistIntermediates: boolean = false
+    persistIntermediates: boolean = false,
   ): Promise<AbundanceObject | RequestContext> {
     const batchId = "batch-" + id;
 
@@ -637,7 +642,7 @@ class GeometryProvider {
 
   async endBatchOperation(
     context: RequestContext,
-    result: AbundanceObject
+    result: AbundanceObject,
   ): Promise<void> {
     if (!context.operationId) {
       throw new Error("provided context is not a batch operation " + context);
@@ -652,14 +657,14 @@ class GeometryProvider {
           await putShape(
             context.project,
             leaf.geometry,
-            this.getFromWarmCache(leaf.geometry, context)!.serialize()
+            this.getFromWarmCache(leaf.geometry, context)!.serialize(),
           );
         } else {
           // check that it's already in the serialized cache
           const exists = await shapeExists(context.project, leaf.geometry);
           if (!exists) {
             throw new Error(
-              "Batch operation references unknown geometry: " + leaf.geometry
+              "Batch operation references unknown geometry: " + leaf.geometry,
             );
           }
         }
@@ -685,7 +690,7 @@ class GeometryProvider {
   async shrinkWrapSketches(
     compositeSketchId: string,
     points: number,
-    context: RequestContext
+    context: RequestContext,
   ) {
     const shrinkWrapId = this._makeId("shrinkWrap", compositeSketchId, points);
     await this.createIfAbsent(shrinkWrapId, context, async () => {
@@ -699,7 +704,7 @@ class GeometryProvider {
   async loftSketches(
     sketchIds: string[],
     planes: SimplePlane[],
-    context: RequestContext
+    context: RequestContext,
   ): Promise<string> {
     if (sketchIds.length != planes.length) {
       throw new Error("Number of sketches and planes must match");
@@ -708,16 +713,16 @@ class GeometryProvider {
     await this.createIfAbsent(loftId, context, async () => {
       const sketches = [];
       for (let i = 0; i < sketchIds.length; i++) {
-        let partObj = (await this.get(
+        const partObj = (await this.get(
           sketchIds[i],
-          context
+          context,
         )) as replicad.Drawing;
-        let sketchedpart = partObj.sketchOnPlane(asReplicadPlane(planes[i]));
+        const sketchedpart = partObj.sketchOnPlane(asReplicadPlane(planes[i]));
         if (!("sketches" in sketchedpart)) {
           sketches.push(sketchedpart);
         } else {
           throw new Error(
-            "Sketches to be lofted can't have interior geometries"
+            "Sketches to be lofted can't have interior geometries",
           );
         }
       }
@@ -738,7 +743,7 @@ class GeometryProvider {
     geometry: ReplicadObject,
     context: RequestContext,
     operationName: string,
-    operationArgs: any[]
+    operationArgs: any[],
   ) {
     const id: string = this._makeId(operationName, ...operationArgs);
     await this.createIfAbsent(id, context, () => Promise.resolve(geometry));
@@ -752,14 +757,14 @@ class GeometryProvider {
   async cacheAssemblyStructure(
     id: string,
     assembly: AbundanceObject,
-    context: RequestContext
+    context: RequestContext,
   ): Promise<void> {
     return await putShape(context.project, id, JSON.stringify(assembly), true);
   }
 
   async getAssembly(
     id: string,
-    context: RequestContext
+    context: RequestContext,
   ): Promise<AbundanceObject | undefined> {
     return await getShape(context.project, id).then((shape) => {
       if (shape && shape.type == "AbundanceObject") {

@@ -3,6 +3,7 @@ import GlobalVariables from "../js/globalvariables.js";
 import { Octokit } from "octokit";
 
 import { Status } from "../prototypes/observableEntity.js";
+import { formatOrdinalDate } from "../js/projectNameUtils.js";
 
 /**
  * This class creates the GitHubMolecule atom.
@@ -41,6 +42,12 @@ export default class GitHubMolecule extends Molecule {
      */
     this.description = "Project imported from GitHub";
 
+    /**
+     * Timestamp (milliseconds since epoch) of when this molecule was last reloaded from GitHub
+     * @type {number}
+     */
+    this.lastReloadedFromGithubAt = null;
+
     this.gitHubUniqueID;
 
     this.setValues(values);
@@ -59,6 +66,14 @@ export default class GitHubMolecule extends Molecule {
 
     var clickProcessed = false;
 
+    // Check if GitHub molecule navigation is enabled in dev settings
+    const devSettings = JSON.parse(
+      localStorage.getItem("dev-settings") || "{}",
+    );
+    if (!devSettings.allowGitHubMoleculeNavigation) {
+      return clickProcessed; // Do nothing if navigation is disabled
+    }
+
     var distFromClick = GlobalVariables.distBetweenPoints(x, this.x, y, this.y);
 
     if (distFromClick < this.radius * 2) {
@@ -67,16 +82,30 @@ export default class GitHubMolecule extends Molecule {
         this.parentRepo &&
         this.parentRepo.owner === GlobalVariables.currentUser
       ) {
-        // User owns this GitHub molecule - allow navigation with confirmation
+        // User owns this GitHub molecule - dispatch navigate request event
         const moleculeName = this.name || this.parentRepo.repoName;
-        const confirmMessage = `Navigate to ${moleculeName}?\n\nThis will take you to the project "${this.parentRepo.owner}/${this.parentRepo.repoName}" and leave your current project.\n\nDo you want to continue?`;
-
-        if (window.confirm(confirmMessage)) {
-          // User confirmed - navigate to the owned molecule's project
-          window.location.href = `/${this.parentRepo.owner}/${this.parentRepo.repoName}`;
-        }
+        window.dispatchEvent(
+          new CustomEvent("github-molecule-navigate-request", {
+            detail: {
+              owner: this.parentRepo.owner,
+              repoName: this.parentRepo.repoName,
+              moleculeName: moleculeName,
+            },
+          }),
+        );
+      } else if (this.parentRepo) {
+        // User doesn't own this molecule - dispatch preview request event
+        const moleculeName = this.name || this.parentRepo.repoName;
+        window.dispatchEvent(
+          new CustomEvent("github-molecule-preview-request", {
+            detail: {
+              owner: this.parentRepo.owner,
+              repoName: this.parentRepo.repoName,
+              moleculeName: moleculeName,
+            },
+          }),
+        );
       }
-      // else: User doesn't own this molecule - do nothing (can't navigate into it)
 
       clickProcessed = true;
     }
@@ -117,7 +146,33 @@ export default class GitHubMolecule extends Molecule {
 
   createInputParams(setInputChanged, authorizedUserOcto, userScopes) {
     let inputParams = {};
-    inputParams = super.createInputParams();
+    this.setInputMoleculeChanged = setInputChanged; // Store for later use in reload button
+
+    inputParams = super.createInputParams(setInputChanged);
+    inputParams["ParentInfo"] = {
+      type: "string",
+      label: "Parent Repository",
+      value: this.parentRepo
+        ? `${this.parentRepo.owner}/${this.parentRepo.repoName}`
+        : "",
+      disabled: true,
+    };
+    inputParams["Parent Last Modified"] = {
+      type: "string",
+      label: "Last Modified",
+      value: this.parentRepo
+        ? formatOrdinalDate(this.parentRepo.dateModified)
+        : "",
+      disabled: true,
+    };
+    inputParams["Last Reloaded"] = {
+      type: "string",
+      label: "Last Reloaded From GitHub",
+      value: this.lastReloadedFromGithubAt
+        ? new Date(this.lastReloadedFromGithubAt).toLocaleString()
+        : "Unknown",
+      disabled: true,
+    };
     inputParams["Reload From Github"] = {
       type: "button",
       label: "Reload From Github",
@@ -130,15 +185,29 @@ export default class GitHubMolecule extends Molecule {
   }
 
   /**
+   * Override serialize to include lastReloadedFromGithubAt timestamp
+   */
+  serialize(offset = { x: 0, y: 0 }) {
+    const serialized = super.serialize(offset);
+
+    // Include last reload timestamp if it exists
+    if (this.lastReloadedFromGithubAt !== null) {
+      serialized.lastReloadedFromGithubAt = this.lastReloadedFromGithubAt;
+    }
+
+    return serialized;
+  }
+
+  /**
    * Reload this github molecule from github
    */
   async reloadMoleculeFromGithub(authorizedUserOcto, userScopes) {
     var githubMoleculeObjectPreReload = this.serialize();
+
     var githubMoleculeParentObjectConnectorsPreReload =
       this.parent.serialize().allConnectors;
 
     let gitObj = this.parentRepo;
-    let parentMolecule = this.parent;
 
     //Only delete and continue if you have permission to load
     if (
@@ -154,7 +223,9 @@ export default class GitHubMolecule extends Molecule {
     // Verify the repository is accessible before deleting the existing node.
     // If the repository has been deleted or is unreachable, keep the existing
     // molecule and show an error rather than silently removing it.
-    const octokit = authorizedUserOcto || new Octokit();
+    const octokit =
+      authorizedUserOcto ||
+      new Octokit({ headers: { "X-GitHub-Api-Version": "2022-11-28" } });
     try {
       await octokit.request(
         "GET /repos/{owner}/{repo}/contents/project.abundance",
@@ -164,7 +235,14 @@ export default class GitHubMolecule extends Molecule {
         },
       );
     } catch (error) {
-      window.dispatchEvent(new CustomEvent('user-notification', { detail: { message: `Cannot reload: the repository "${gitObj.owner}/${gitObj.repoName}" could not be found or accessed.`, type: 'error' } }));
+      window.dispatchEvent(
+        new CustomEvent("user-notification", {
+          detail: {
+            message: `Cannot reload: the repository "${gitObj.owner}/${gitObj.repoName}" could not be found or accessed.`,
+            type: "error",
+          },
+        }),
+      );
       return;
     }
 

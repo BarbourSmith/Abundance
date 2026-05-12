@@ -67,6 +67,12 @@ export default class Label extends Atom {
         defaultValue: "#3F3CDD",
         type: "input",
       },
+      {
+        name: "fontSize",
+        valueType: "number",
+        defaultValue: 40,
+        type: "input",
+      },
     ]);
 
     this.setValues(values);
@@ -89,25 +95,27 @@ export default class Label extends Atom {
    * @param {string} text - The text to render
    * @param {string} color - The hex color string for the text
    * @param {number} lineLength - Length of the label line to scale text proportionally
+   * @param {number} fontSize - Font size multiplier (1 = default)
    * @returns {THREE.Sprite}
    */
-  createTextSprite(text, color, lineLength = 10) {
+  createTextSprite(text, color, lineLength = 10, fontSize = 1) {
     const canvas = document.createElement("canvas");
-    const size = 256;
-    canvas.width = size;
-    canvas.height = size / 2;
+    canvas.width = 2048; // Large width to accommodate longer text, will be scaled down by sprite scale
+    canvas.height = 1024;
     const ctx = canvas.getContext("2d");
 
     ctx.fillStyle = "rgba(0,0,0,0)";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    ctx.font = "Bold 40px Arial";
+    const baseFontSize = 40;
+    const scaledFontSize = Math.round(baseFontSize * fontSize);
+    ctx.font = `Bold ${scaledFontSize}px Arial`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
 
     // Draw stroke (text color)
     ctx.strokeStyle = color;
-    ctx.lineWidth = 4;
+    ctx.lineWidth = fontSize * 0.4; // Line width for text stroke, scaled with font size
     ctx.lineJoin = "round";
     ctx.lineCap = "round";
     ctx.strokeText(text, canvas.width / 2, canvas.height / 2);
@@ -121,19 +129,12 @@ export default class Label extends Atom {
     const material = new THREE.SpriteMaterial({
       map: texture,
       depthTest: false, // Render label text on top so it remains visible regardless of depth
-      sRGBTransfer: true,
     });
     const sprite = new THREE.Sprite(material);
-    // Scale based on line length
-    const scaleX = lineLength * 30;
-    const scaleY = lineLength * 60;
-    console.log(
-      "Text sprite scale:",
-      scaleX,
-      scaleY,
-      "from lineLength:",
-      lineLength,
-    );
+    // Scale based on line length and font size
+    const scaleX = lineLength * 30 * fontSize;
+    const scaleY = lineLength * 60 * fontSize;
+
     sprite.scale.set(scaleX, scaleY, 1);
     return sprite;
   }
@@ -153,6 +154,7 @@ export default class Label extends Atom {
     let startPoint = this.findIOValue("startPosition");
     let endPoint = this.findIOValue("endPosition");
     let text = this.findIOValue("text");
+    let fontSize = Number(this.findIOValue("fontSize") || 10);
 
     const start = new THREE.Vector3(
       Number(startPoint[0]) || 0,
@@ -209,9 +211,9 @@ export default class Label extends Atom {
     const perpDir = new THREE.Vector3(-lineDir.y, lineDir.x, 0).normalize();
 
     // --- End segments perpendicular to the line ---
-    // Length of the segments (proportional to line length or fixed)
+    // Length of the segments (proportional to line length)
     const lineLength = start.distanceTo(end);
-    const endSegmentLength = Math.max(lineLength * 0.05, 1 * unitScale); // 5% of line length or 1 unit minimum
+    const endSegmentLength = Math.max(lineLength * 0.05, lineLength * 0.02); // 5% of line length, minimum 2%
 
     // Start perpendicular segment
     const startSegStart = new THREE.Vector3()
@@ -254,11 +256,16 @@ export default class Label extends Atom {
     geometryArray.push(endSegLine);
 
     // --- Text sprite (positioned above the line like an underscore) ---
-    const sprite = this.createTextSprite(String(labelText), color, lineLength);
+    const sprite = this.createTextSprite(
+      String(labelText),
+      color,
+      lineLength,
+      fontSize,
+    );
     const mid = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5);
     // Use the perpendicular direction already calculated for end segments
     // Position text above the line at a fixed offset distance
-    const OFFSET_DIST = 2.5 * unitScale;
+    const OFFSET_DIST = 2.5; //* unitScale;
     const offsetVec = perpDir.clone().multiplyScalar(OFFSET_DIST);
     sprite.position.set(
       mid.x + offsetVec.x,
@@ -279,6 +286,7 @@ export default class Label extends Atom {
       end,
       labelText,
       color,
+      fontSize,
       mid,
       offsetVec,
     );
@@ -289,6 +297,7 @@ export default class Label extends Atom {
     end,
     labelText,
     color,
+    fontSize = 10,
     movement = { x: 0, y: 0, z: 0 },
     rotation = { x: 0, y: 0, z: 0 },
   ) {
@@ -314,12 +323,12 @@ export default class Label extends Atom {
 
     // For text, use perpendicular in XY plane
     const perpDir = new THREE.Vector3(-lineDir.y, lineDir.x, 0).normalize();
-    const OFFSET_DIST = 2.5 * unitScale;
+    const OFFSET_DIST = 2.5; //* unitScale;
     const offset = perpDir.clone().multiplyScalar(OFFSET_DIST);
 
     // Calculate end segments
     const lineLength = start.distanceTo(end);
-    const endSegmentLength = Math.max(lineLength * 0.05, 1 * unitScale);
+    const endSegmentLength = Math.max(lineLength * 0.05, lineLength * 0.02); // 5% of line length, minimum 2%
 
     const startSegStart = new THREE.Vector3()
       .copy(start)
@@ -337,6 +346,7 @@ export default class Label extends Atom {
 
     return {
       type: "Label",
+      fontSize: fontSize,
       line: {
         start: start.toArray(),
         end: end.toArray(),
@@ -359,8 +369,9 @@ export default class Label extends Atom {
         value: labelText,
         color: color,
         position: [mid.x + offset.x, mid.y + offset.y, mid.z + offset.z],
-        scale: [lineLength * 0.1, lineLength * 0.05, 1],
-        font: "Bold 80px Arial",
+        scale: [lineLength * 0.1 * fontSize, lineLength * 0.05 * fontSize, 1],
+        font: `Bold ${fontSize}px Arial`,
+        linewidth: fontSize * 0.4, // Line width for text stroke, scaled with font size
       },
       movement: { ...movement }, // e.g. {x: 10, y: 0, z: 0}
       rotation: { ...rotation }, // e.g. {x: 0, y: 0, z: Math.PI/2}
@@ -378,20 +389,36 @@ export default class Label extends Atom {
     return GlobalVariables.cad.addNonReplicadGeom(geom, this.serializedLabel);
   }
 
-  createInputParams() {
-    let inputParams = super.createInputParams();
+  createInputParams(setInputChanged) {
+    let inputParams = super.createInputParams(setInputChanged);
 
     if (this.inputs) {
       this.inputs.forEach((input) => {
         if (input.name === "text") {
+          const checkConnector = () => {
+            return input.connectors.length > 0;
+          };
           inputParams[this.uniqueID + "text"] = {
             type: "string",
             value: input.value,
             label: "Label text",
+            disabled: checkConnector(),
             onChange: async (value) => {
               if (input.value !== value) {
                 input.setValue(value);
               }
+            },
+          };
+        } else if (input.name === "fontSize") {
+          inputParams[this.uniqueID + "fontSize"] = {
+            type: "range",
+            value: input.value,
+            label: "Font size",
+            min: 0.5,
+            max: 3,
+            step: 0.1,
+            onChange: (value) => {
+              input.setValue(value);
             },
           };
         } else if (input.name === "startPosition") {

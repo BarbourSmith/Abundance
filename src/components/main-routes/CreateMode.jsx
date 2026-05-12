@@ -30,6 +30,7 @@ import {
   useProject,
   useFileImport,
 } from "../../contexts/index.js";
+import { useDevSettings } from "../../contexts/DevSettingsContext.jsx";
 /**
  * Create mode component appears displays flow canvas, renderer and sidebar when
  * a user has been authorized access to a project.
@@ -49,6 +50,7 @@ function CreateMode() {
     redirectType,
     setNotification,
   } = useAppState();
+  const { setShowDevModal } = useDevSettings();
   const {
     setMesh,
     setWireMesh,
@@ -75,7 +77,8 @@ function CreateMode() {
     searchGithubMolecules,
     saveProject: saveProjectFromContext,
   } = useProject();
-  const { uploadFile, deleteFile, fetchFileContent, fetchRawFileContent } = useFileImport();
+  const { uploadFile, deleteFile, fetchFileContent, fetchRawFileContent } =
+    useFileImport();
   const meshRef = useRef();
 
   // Make meshRef, file import functions, and save function available globally
@@ -96,6 +99,31 @@ function CreateMode() {
   }, [uploadFile, deleteFile, fetchFileContent, fetchRawFileContent]);
 
   const navigate = useNavigate();
+  const { owner, repoName } = useParams();
+
+  // Update GlobalVariables when route params change and fetch full AWS node
+  useEffect(() => {
+    if (owner && repoName) {
+      // Fetch the full project metadata from AWS
+      fetch(
+        `https://hg5gsgv9te.execute-api.us-east-2.amazonaws.com/abundance-stage/fetchSingleRepo?owner=${owner}&repoName=${repoName}`,
+      )
+        .then((res) => res.json())
+        .then((data) => {
+          if (data && data.item) {
+            GlobalVariables.currentAWSnode = data.item;
+          } else {
+            // Fallback if we can't fetch from AWS
+            GlobalVariables.currentAWSnode = { owner, repoName };
+          }
+        })
+        .catch((err) => {
+          console.warn("Error fetching AWS node for project:", err);
+          // Fallback to partial node
+          GlobalVariables.currentAWSnode = { owner, repoName };
+        });
+    }
+  }, [owner, repoName]);
 
   /** State for user notification */
   const [userNotification, setUserNotificationRaw] = useState(null);
@@ -115,13 +143,19 @@ function CreateMode() {
   }, []);
 
   // Wrapper function that calls saveProject with CreateMode-specific parameters
-  const saveProject = (setSaveProgress, typeSave, forceSave = false) => {
+  const saveProject = (
+    setSaveProgress,
+    typeSave,
+    forceSave = false,
+    onSaveStart = null,
+  ) => {
     return saveProjectFromContext(
       setSaveProgress,
       typeSave,
       forceSave,
       meshRef,
       setUserNotification,
+      onSaveStart,
     );
   };
 
@@ -212,6 +246,7 @@ function CreateMode() {
     "(CTRL+SHIFT)+U": "Go-Up",
     "(CTRL+SHIFT)+W": "Wireframe",
     "(CTRL+SHIFT)+A": "Show-Top-Level-Mesh",
+    "(CTRL+SHIFT)+D": "Dev-Settings",
   };
 
   // Initialize state with undefined width/height so server and client renders match
@@ -250,6 +285,11 @@ function CreateMode() {
 
   useEffect(() => {
     const myInterval = setInterval(() => {
+      // Skip auto-save when disabled via settings
+      const isAutoSaveDisabled =
+        localStorage.getItem("autoSaveDisabled") === "true";
+      if (isAutoSaveDisabled) return;
+
       // Skip auto-save when any popup is visible to avoid committing
       // unintended changes while the user is navigating away
       if (
@@ -258,8 +298,7 @@ function CreateMode() {
         duplicateDialogRef.current
       )
         return;
-      setSavePopUp(true);
-      saveProject(setSaveState, "Auto Save");
+      saveProject(setSaveState, "Auto Save", false, () => setSavePopUp(true));
     }, 300000);
 
     //Clearing the interval
@@ -303,8 +342,7 @@ function CreateMode() {
         !settingsPopUpRef.current &&
         !duplicateDialogRef.current
       ) {
-        setSavePopUp(true);
-        saveProject(setSaveState, "User Save");
+        saveProject(setSaveState, "User Save", true, () => setSavePopUp(true));
       }
     }
 
@@ -343,6 +381,12 @@ function CreateMode() {
         key: "A",
         action: () => {
           setShowTopLevelWireframe(!showTopLevelWireframeRef.current);
+        },
+      },
+      {
+        key: "D",
+        action: () => {
+          setShowDevModal(true);
         },
       },
     ];
@@ -521,7 +565,9 @@ function CreateMode() {
       setBackgroundUsdzSha(result.data.content.sha);
       setShowBackgroundModel(true);
 
-      saveProject(setSaveState, "Background 3D Model Upload Save");
+      saveProject(setSaveState, "Background 3D Model Upload Save", false, () =>
+        setSavePopUp(true),
+      );
       setNotification(
         `Background 3D model uploaded: ${backgroundFileName}`,
         "notice",
@@ -743,6 +789,7 @@ function CreateMode() {
             }}
           />
           <FlowCanvas
+            key={`${owner}-${repoName}`}
             {...{
               activeAtom,
               authorizedUserOcto,
@@ -771,13 +818,11 @@ function CreateMode() {
       );
     } else {
       // Fallback: navigate to run mode if repo is still missing
-      const { owner, repoName } = useParams();
       navigate(`/run/${owner}/${repoName}`);
     }
   } else {
     /** get repository from github by the id in the url */
     console.warn("You are not logged in");
-    const { owner, repoName } = useParams();
     //try reauthenticating
     authRedirectHandler({
       redirectType: "reauth",

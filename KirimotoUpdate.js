@@ -257,7 +257,6 @@ const generateGcode = (
         return eng.export();
       })
       .then((gcode) => {
-        console.log("G-code generated successfully.");
         resolve(gcode);
       })
       .catch((error) => {

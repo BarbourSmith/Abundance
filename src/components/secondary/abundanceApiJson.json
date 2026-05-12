@@ -1,71 +1,55 @@
 {
-  "AbundanceObject": {
-    "type": "object",
-    "usage": "{ geometry: [], dimension: '3D', tags: [], color: '', plane: null, bom: [] }",
-    "detail": "A generic AbundanceObject. Used as input/output for all built-in Abundance functions.",
-    "properties": [
-      "geometry: Array",
-      "dimension: String",
-      "tags: Array",
-      "color: String",
-      "plane: Object",
-      "bom: Array"
-    ]
+  "new Assembly": {
+    "requiredParams": [],
+    "optionalParams": ["other"],
+    "usage": "new Assembly(other?)",
+    "returns": "Assembly<LeafGeom|Assembly[]>",
+    "detail": "Constructs a new Assembly. Assembly contains either sub-assemblies or a single replicad shape/drawing as .geometry. If other is provided, this will construct a deep copy."
   },
-  "Move": {
-    "type": "function",
-    "requiredParams": ["AbundanceObject", "x", "y", "z"],
+  ".isLeaf": {
+    "type": "method",
+    "requiredParams": [],
     "optionalParams": [],
-    "usage": "await Move(AbundanceObject, x, y, z)",
-    "returns": "AbundanceObject"
+    "usage": "assembly.isLeaf()",
+    "returns": "True if this is Assembly<LeafGeom>. Equivalently, this contains no sub-assemblies.",
+    "detail": "Narrows this to type Assembly<LeafGeom> where LeafGeom = replicad.Drawing|replicad.AnyShape"
   },
-  "Rotate": {
-    "type": "function",
-    "requiredParams": ["AbundanceObject", "x", "y", "z"],
+  ".onLeafs": {
+    "type": "method",
+    "requiredParams": [
+      "fn: (leaf: Assembly<LeafGeom>) => Assembly<LeafGeom> | null"
+    ],
     "optionalParams": [],
-    "usage": "await Rotate(AbundanceObject, x, y, z)",
-    "returns": "AbundanceObject"
+    "usage": "assembly.onLeafs(fn)",
+    "returns": "Assembly<LeafGeom|Assembly[]>",
+    "detail": "Apply function to all leafs in this assembly. Modifies this Assembly\nin place. If fn returns null that leaf is dropped from the assembly.\nEmpty branches are recursively dropped as well."
   },
-  "Scale": {
-    "type": "function",
-    "requiredParams": ["AbundanceObject", "factor"],
+  ".is2D": {
+    "type": "method",
+    "requiredParams": [],
     "optionalParams": [],
-    "usage": "await Scale(AbundanceObject, factor)",
-    "returns": "AbundanceObject"
+    "usage": "assembly.is2D()",
+    "returns": "True if this Assembly contains only 2D replicad Drawings.",
+    "detail": "True when this assembly is (or contains, for branches) 2D geometry. As a rule assemblies should not mix 2D and 3D geometries."
   },
-  "Assembly": {
-    "type": "function",
-    "requiredParams": ["AbundanceObject[]"],
-    "optionalParams": [],
-    "usage": "await Assembly([AbundanceObject])",
-    "returns": "AbundanceObject"
+  ".bom": {
+    "usage": "assembly.bom",
+    "detail": "Mutable field containing the bill of materials for this assembly."
   },
-  "Intersect": {
-    "type": "function",
-    "requiredParams": ["AbundanceObject", "AbundanceObject"],
-    "optionalParams": [],
-    "usage": "await Intersect(AbundanceObject, AbundanceObject)",
-    "returns": "AbundanceObject"
+  ".color": {
+    "usage": "assembly.color",
+    "detail": "Mutable field containing the hex color string of this assembly. Applies to subassemblies unless they overwrite with their own color."
   },
-  "GetBounds": {
-    "type": "function",
-    "requiredParams": ["AbundanceObject"],
-    "optionalParams": [],
-    "usage": "await GetBounds(AbundanceObject)",
-    "returns": "AbundanceObject"
+  ".geometry": {
+    "usage": "assembly.geometry",
+    "detail": "Mutable field containing either the list of sub-assemblies if !this.isLeaf(), or a replicad geometry if this.isLeaf()."
   },
-  "Fillet": {
-    "type": "function",
-    "requiredParams": ["AbundanceObject", "radius"],
-    "optionalParams": [],
-    "usage": "await Fillet(AbundanceObject, radius)",
-    "returns": "AbundanceObject"
+  ".plane": {
+    "usage": "assembly.plane",
+    "detail": "Mutable field containing replicad.Plane of this assembly. For 2D geometries this is the plane where they're written."
   },
-  "Chamfer": {
-    "type": "function",
-    "requiredParams": ["AbundanceObject", "size"],
-    "optionalParams": [],
-    "usage": "await Chamfer(AbundanceObject, size)",
-    "returns": "AbundanceObject"
+  ".tags": {
+    "usage": "assembly.tags",
+    "detail": "Mutable field containing the tags for this assembly. Tags are inherited by sub-assemblies unless they overwrite with their own tags."
   }
 }

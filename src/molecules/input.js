@@ -628,7 +628,9 @@ export default class Input extends Atom {
       return GlobalVariables.fetchFileContent(repoOwner, repoName, filePath);
     }
 
-    const octokit = new Octokit();
+    const octokit = new Octokit({
+      headers: { "X-GitHub-Api-Version": "2022-11-28" },
+    });
     return octokit.rest.repos.getContent({
       owner: repoOwner,
       repo: repoName,
@@ -1008,7 +1010,9 @@ export default class Input extends Atom {
   }
 
   createInputParams(setInputChanged) {
-    this.setInputChanged = setInputChanged;
+    // Forward to super so it can register `setInputChanged`. We discard
+    // its returned controls because Input builds a fully custom panel.
+    super.createInputParams(setInputChanged);
     let inputParams = {};
     inputParams[this.uniqueID] = {
       type: "string",

@@ -30,7 +30,7 @@ const SettingsPopUp = ({
   // Controlled state for CreatableSelect
   const [selectedTopics, setSelectedTopics] = useState(repoTopics);
   const projectDescriptionRef = useRef(
-    Globalvariables.currentAWSnode.description
+    Globalvariables.currentAWSnode.description,
   );
   const dateString = Globalvariables.currentAWSnode.dateCreated;
   const dateCreated = new Date(dateString);
@@ -47,12 +47,11 @@ const SettingsPopUp = ({
       projectDescription: projectDescriptionRef.current.value,
     });
     Globalvariables.currentAWSnode.topics = projectTopic;
-    
+
     // Trigger a save to persist the description and topics changes
     // Use forceSave=true to bypass the "no changes" check since description/topics
     // are not part of the molecule serialization
-    setSavePopUp(true);
-    saveProject(setSaveState, "Settings Save", true);
+    saveProject(setSaveState, "Settings Save", true, () => setSavePopUp(true));
   };
   const [value, setValue] = React.useState(0);
 
@@ -77,10 +76,11 @@ const SettingsPopUp = ({
     displaytheme: false,
     fontSize: parseInt(
       Globalvariables.canvasFont.replace("px Work Sans Bold", ""),
-      10
+      10,
     ),
     atomSize: Globalvariables.atomSize * 1000,
     projectDescription: Globalvariables.currentAWSnode.description,
+    autoSaveDisabled: localStorage.getItem("autoSaveDisabled") === "true",
   });
 
   const handleValueChange = (event) => {
@@ -99,7 +99,7 @@ const SettingsPopUp = ({
       Globalvariables.canvasFont = `${event.target.value}px Work Sans Bold`;
       localStorage.setItem(
         "canvasFont",
-        `${event.target.value}px Work Sans Bold`
+        `${event.target.value}px Work Sans Bold`,
       );
     }
   };
@@ -121,6 +121,9 @@ const SettingsPopUp = ({
         element.className = "light-theme";
         localStorage.setItem("displayTheme", "light-theme");
       }
+    }
+    if (event.target.name === "autoSaveDisabled") {
+      localStorage.setItem("autoSaveDisabled", event.target.checked);
     }
   };
 
@@ -168,30 +171,34 @@ const SettingsPopUp = ({
             <div id="project-info">
               <div id="project-info-name">
                 <label className="info-label-highlight">Project Name</label>
-                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <div
+                  style={{ display: "flex", alignItems: "center", gap: "10px" }}
+                >
                   <p style={{ margin: 0 }}>
                     {Globalvariables.currentAWSnode.repoName}
                   </p>
-                  {handleRenameProject && Globalvariables.currentRepo?.owner?.login === Globalvariables.currentUser && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSettingsPopUp(false);
-                        handleRenameProject();
-                      }}
-                      style={{
-                        padding: "4px 12px",
-                        fontSize: "12px",
-                        cursor: "pointer",
-                        backgroundColor: "#4CAF50",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "4px",
-                      }}
-                    >
-                      Rename
-                    </button>
-                  )}
+                  {handleRenameProject &&
+                    Globalvariables.currentRepo?.owner?.login ===
+                      Globalvariables.currentUser && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSettingsPopUp(false);
+                          handleRenameProject();
+                        }}
+                        style={{
+                          padding: "4px 12px",
+                          fontSize: "12px",
+                          cursor: "pointer",
+                          backgroundColor: "#4CAF50",
+                          color: "white",
+                          border: "none",
+                          borderRadius: "4px",
+                        }}
+                      >
+                        Rename
+                      </button>
+                    )}
                 </div>
               </div>
               <div id="project-info-date">
@@ -221,6 +228,16 @@ const SettingsPopUp = ({
                   style={{ marginRight: 8 }}
                 />
                 Display light/dark
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <input
+                  type="checkbox"
+                  checked={state.autoSaveDisabled}
+                  onChange={handleCheckChange}
+                  name="autoSaveDisabled"
+                  style={{ marginRight: 8 }}
+                />
+                Disable Auto-Save
               </label>
               <div style={{ borderTop: "1px solid #eee", margin: "10px 0" }} />
               <div

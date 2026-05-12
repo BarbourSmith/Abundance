@@ -10,6 +10,7 @@ import {
 } from "react-router-dom";
 
 import GlobalVariables from "./js/globalvariables.js";
+import { fetchGitHubFileContent } from "./js/githubFileUtils.js";
 import { CadWorkerManager } from "./worker/cadWorkerManager.js";
 import LoginMode from "./components/main-routes/LoginMode.jsx";
 import RunMode from "./components/main-routes/RunMode.jsx";
@@ -38,12 +39,13 @@ import {
 
 import { TutorialProvider } from "./tutorial/TutorialManager";
 import { ProgressBarProvider } from "./components/secondary/ProgressBarManager.jsx";
+import { DevSettingsProvider } from "./contexts/DevSettingsContext.jsx";
+import DevSettingsModal from "./components/secondary/DevSettingsModal.jsx";
 
 /*Import style scripts*/
 import "./styles/maslowCreate.css";
 import "./styles/menuIcons.css";
 import "./styles/login.css";
-import "./styles/codemirror.css";
 import "./styles/readme.css";
 
 const queryClient = new QueryClient();
@@ -110,18 +112,6 @@ function AppContent() {
   const [size, setSize] = useState(5);
 
   useEffect(() => {
-    cad
-      .createMesh(size)
-      .then((m) => {
-        setMesh(m);
-        setWireMesh(m);
-      })
-      .catch(() => {
-        // ignore — this call is cancelled on project switch via cancelAll()
-      });
-  }, [size, setMesh, setWireMesh]);
-
-  useEffect(() => {
     const element = document.querySelector("html");
     const storedClass = localStorage.getItem("displayTheme");
 
@@ -133,7 +123,6 @@ function AppContent() {
   const [processing, setProcessing] = useState(false);
 
   useEffect(() => {
-
     setRenderProgress(0);
     setRenderBarVisible(true);
     setRenderStage("Waiting for input"); // Start with Building stage by default
@@ -472,11 +461,13 @@ function AppContent() {
     if (authorizedUser) {
       var octokit = authorizedUser;
     } else {
-      var octokit = new Octokit();
+      var octokit = new Octokit({
+        headers: { "X-GitHub-Api-Version": "2022-11-28" },
+      });
     }
     // Sets the current repo information from node data
-    octokit
-      .request("GET /repos/{owner}/{repo}", {
+    octokit.rest.repos
+      .get({
         owner: project.owner,
         repo: project.repoName,
       })
@@ -486,25 +477,31 @@ function AppContent() {
         GlobalVariables.currentRepoName = project.repoName;
       });
 
-    return octokit
-      .request("GET /repos/{owner}/{repo}/contents/project.abundance", {
+    return octokit.rest.repos
+      .getContent({
         owner: project.owner,
         repo: project.repoName,
+        path: "project.abundance",
       })
       .then(async (response) => {
-        let rawFileContent;
-        // Handle large files (>1MB) using download_url
-        if (!response.data.content || response.data.content.length === 0) {
-          const fileResponse = await fetch(response.data.download_url);
-          rawFileContent = await fileResponse.text();
-        } else {
-          // Handle small files using base64 content with UTF-8 encoding
-          rawFileContent = GlobalVariables.fromBinaryStr(
-            atob(response.data.content),
-          );
+        let rawFileContent = await fetchGitHubFileContent(response.data);
+        let rawFile;
+        try {
+          rawFile = JSON.parse(rawFileContent);
+        } catch (parseError) {
+          if (import.meta.env.DEV) {
+            console.warn(
+              "project.abundance JSON.parse failed, retrying with cache bust:",
+              parseError?.message,
+              "contentLength:",
+              rawFileContent?.length ?? 0,
+            );
+          }
+          rawFileContent = await fetchGitHubFileContent(response.data, {
+            bustCache: true,
+          });
+          rawFile = JSON.parse(rawFileContent);
         }
-
-        let rawFile = JSON.parse(rawFileContent);
 
         // Reset ID counter to avoid collisions with existing IDs
         GlobalVariables.resetIdCounter(rawFile);
@@ -602,7 +599,8 @@ function AppContent() {
       {/* Error notification */}
       {errorNotification && (
         <div className={errorClass}>{errorNotification}</div>
-      )}
+      )}{" "}
+      <DevSettingsModal />{" "}
       <Routes>
         <Route
           exact
@@ -657,21 +655,23 @@ function AppContent() {
 export default function ReplicadApp() {
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <AppStateProvider>
-          <BrowseSettingsProvider>
-            <FileImportProvider>
-              <TutorialProvider>
-                <RenderingProvider>
-                  <ProgressBarProvider>
-                    <AppContent />
-                  </ProgressBarProvider>
-                </RenderingProvider>
-              </TutorialProvider>
-            </FileImportProvider>
-          </BrowseSettingsProvider>
-        </AppStateProvider>
-      </AuthProvider>
+      <DevSettingsProvider>
+        <AuthProvider>
+          <AppStateProvider>
+            <BrowseSettingsProvider>
+              <FileImportProvider>
+                <TutorialProvider>
+                  <RenderingProvider>
+                    <ProgressBarProvider>
+                      <AppContent />
+                    </ProgressBarProvider>
+                  </RenderingProvider>
+                </TutorialProvider>
+              </FileImportProvider>
+            </BrowseSettingsProvider>
+          </AppStateProvider>
+        </AuthProvider>
+      </DevSettingsProvider>
     </QueryClientProvider>
   );
 }

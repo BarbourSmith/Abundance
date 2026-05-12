@@ -99,6 +99,27 @@ export class ReplaceConnectionCommand {
 }
 
 /**
+ * Command that reverses the deletion of a single connector.
+ * Stores the connector data so it can be restored via placeConnector().
+ */
+export class DeleteConnectorCommand {
+  constructor(connectorData, parentMolecule) {
+    this.connectorData = connectorData; // {ap1ID, ap2ID, ap2Name}
+    this.parentMolecule = parentMolecule;
+    this.description = "Delete connector";
+  }
+
+  async undo() {
+    GlobalVariables.isUndoing = true;
+    try {
+      this.parentMolecule.placeConnector(this.connectorData);
+    } finally {
+      GlobalVariables.isUndoing = false;
+    }
+  }
+}
+
+/**
  * Command that reverses a parameter value change on an atom.
  * Consecutive changes to the same atom+field are merged so rapid typing
  * produces only a single undo step.

@@ -1,10 +1,12 @@
 import React, { useEffect, useState, useRef } from "react";
 import GlobalVariables from "../../js/globalvariables.js";
+import Molecule from "../../molecules/molecule.js";
 import ToggleRunCreate from "../secondary/ToggleRunCreate.jsx";
 import FlowCanvas from "./flowCanvas.jsx";
 import LowerHalf from "./lowerHalf.jsx";
 import CodeWindow from "../secondary/codeWindow.jsx";
 import { useParams, useNavigate } from "react-router-dom";
+import GoUpLevelButton from "../secondary/GoUpLevelButton.jsx";
 
 import ParamsMenu from "../secondary/ParamsMenu.jsx";
 import RenderMenu from "../secondary/RenderMenu.jsx";
@@ -91,6 +93,51 @@ function PreviewCreateMode() {
 
   /** State for top level molecule */
   const [currentMoleculeTop, setTop] = useState(false);
+
+  /** Load project when URL params change */
+  useEffect(() => {
+    // Check if project is already loaded
+    if (
+      GlobalVariables.currentAWSnode &&
+      GlobalVariables.currentAWSnode.repoName === repoName &&
+      GlobalVariables.loadedRepo?.name === repoName
+    ) {
+      // Project already loaded, just set up the view
+      GlobalVariables.currentMolecule = GlobalVariables.topLevelMolecule;
+      GlobalVariables.currentMolecule.selected = true;
+      setActiveAtom(GlobalVariables.currentMolecule);
+    } else {
+      // Project not loaded - fetch from AWS and load it
+      GlobalVariables.resetView();
+      fetch(
+        `https://hg5gsgv9te.execute-api.us-east-2.amazonaws.com/abundance-stage/fetchSingleRepo?owner=${owner}&repoName=${repoName}`,
+      )
+        .then((res) => res.json())
+        .then((data) => {
+          if (data && data.item) {
+            GlobalVariables.currentAWSnode = data.item;
+
+            // Load a blank project
+            GlobalVariables.topLevelMolecule = new Molecule({
+              x: 0,
+              y: 0,
+              topLevel: true,
+              atomType: "Molecule",
+            });
+            GlobalVariables.currentMolecule = GlobalVariables.topLevelMolecule;
+            GlobalVariables.currentMolecule.selected = true;
+            loadProject(GlobalVariables.currentAWSnode);
+            setActiveAtom(GlobalVariables.currentMolecule);
+          }
+        })
+        .catch((e) => {
+          console.error("Error loading preview project:", e);
+          setNotification("Can't load project: " + (e.message || e), "error");
+          setTimeout(() => setNotification(null), 5000);
+          navigate("/");
+        });
+    }
+  }, [owner, repoName]);
 
   const solidParamRef = useRef(solidParam);
   useEffect(() => {
@@ -251,49 +298,16 @@ function PreviewCreateMode() {
         initialCollapsed={true}
         collapsedOffset={[45, 0]}
       />
-      <RenderMenu
-        {...{
-          contentCollapsed: expandedMenu !== "render",
-          setContentCollapsed: () => setExpandedMenu("render"),
-          position: { top: screenHeight / 2 + 35, left: 10 },
-          collapsedOffset: [45, -45],
-          closeMenu: () => setExpandedMenu("none"),
-        }}
-        id={"atom-create-render-panel"}
-      />
-      <BomMenu
-        {...{
-          id: "atom-bom-panel",
-          contentCollapsed: expandedMenu !== "bom",
-          setContentCollapsed: () => setExpandedMenu("bom"),
-          closeMenu: () => setExpandedMenu("none"),
-          position: { top: screenHeight / 2 + 80, left: 10 },
-          collapsedOffset: [45, -90],
-        }}
-      />
-      <GitSearchMenu
-        {...{
-          activeAtom,
-          id: "atom-git-search-panel",
-          contentCollapsed: expandedMenu !== "git-search",
-          setContentCollapsed: () => setExpandedMenu("git-search"),
-          closeMenu: () => setExpandedMenu("none"),
-          setParamsMenuExpanded: () => setExpandedMenu("params"),
-          position: { top: screenHeight / 2 + 125, left: 10 },
-          collapsedOffset: [45, -135],
-          gitRef: gitRef,
-          setUserNotification: (msg, type) => setNotification(msg, type),
-        }}
-      />
       <div id="headerBar">
         <img
           className={
             "thumnail-logo" +
-            (userScopes && userScopes.includes("repo") ? " logo-private-scope" : "")
+            (userScopes && userScopes.includes("repo")
+              ? " logo-private-scope"
+              : "")
           }
           src={
-            import.meta.env.VITE_APP_PATH_FOR_PICS +
-            "/imgs/abundance_logo.png"
+            import.meta.env.VITE_APP_PATH_FOR_PICS + "/imgs/abundance_logo.png"
           }
           alt="logo"
           onClick={() => navigate("/")}
@@ -306,6 +320,7 @@ function PreviewCreateMode() {
         setActiveAtom={setActiveAtom}
       />
       <CodeWindow {...{ activeAtom }} />
+      {!GlobalVariables.currentMolecule.topLevel ? <GoUpLevelButton /> : null}
       <FlowCanvas
         {...{
           activeAtom,
@@ -326,6 +341,7 @@ function PreviewCreateMode() {
           windowSize,
           redirectType,
           saveProject: null,
+          isPreview: true,
         }}
       />
       <div className="parent flex-parent" id="lowerHalf">

@@ -23,7 +23,9 @@ export default function BackgroundModel({
 
     const loadModel = async () => {
       try {
-        const octokit = authorizedUserOcto || new Octokit();
+        const octokit =
+          authorizedUserOcto ||
+          new Octokit({ headers: { "X-GitHub-Api-Version": "2022-11-28" } });
 
         const result = await octokit.rest.repos.getContent({
           owner: GlobalVariables.currentAWSnode.owner,

@@ -365,7 +365,7 @@ export default class CutLayout extends Atom {
     } else {
       // No saved placements, set to waiting and wait for user to compute layout with the new geometry.
       this.setStatus(Status.WAITING);
-      console.trace("No saved placements, waiting for user to compute layout.");
+      console.log("No saved placements, waiting for user to compute layout.");
     }
   }
 
@@ -524,10 +524,9 @@ export default class CutLayout extends Atom {
   }
 
   createInputParams(setInputChanged) {
-    this.setInputChanged = setInputChanged;
     const placements = this.getPlacements();
 
-    let inputParams = super.createInputParams();
+    let inputParams = super.createInputParams(setInputChanged);
 
     // If computing, disable all input params
     if (this.computing) {

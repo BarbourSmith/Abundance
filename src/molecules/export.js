@@ -112,9 +112,12 @@ export default class Export extends Atom {
   }
 
   createInputParams(setInputChanged) {
+    // Forward to super so it can register `setInputChanged` on this atom.
+    // We discard its returned controls because Export builds a fully
+    // custom param panel below.
+    super.createInputParams(setInputChanged);
     let inputParams = {};
-    this.setInputChanged = setInputChanged;
-    const exportOptions = ["STL", "SVG", "STEP"];
+    const exportOptions = ["STL", "SVG", "STEP", "TXT"];
 
     /** Runs through active atom inputs and adds IO parameters to default param*/
 

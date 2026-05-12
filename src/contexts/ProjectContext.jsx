@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useRef } from "react";
 import GlobalVariables from "../js/globalvariables.js";
+import { fetchGitHubFileContent } from "../js/githubFileUtils.js";
 import Molecule from "../molecules/molecule.js";
 import { licenses } from "../js/licenseOptions.js";
 import { re } from "mathjs";
@@ -606,21 +607,9 @@ export function ProjectProvider({ children, cad, loadProject }) {
         );
 
         let projectFileContent;
-        if (
-          !projectFileResponse.data.content ||
-          projectFileResponse.data.content.length === 0
-        ) {
-          // Handle large files using download_url
-          const contentResponse = await fetch(
-            projectFileResponse.data.download_url,
-          );
-          projectFileContent = await contentResponse.text();
-        } else {
-          // Decode base64 content
-          projectFileContent = GlobalVariables.fromBinaryStr(
-            atob(projectFileResponse.data.content),
-          );
-        }
+        projectFileContent = await fetchGitHubFileContent(
+          projectFileResponse.data,
+        );
 
         // Parse the JSON
         const projectData = JSON.parse(projectFileContent);
@@ -681,19 +670,9 @@ export function ProjectProvider({ children, cad, loadProject }) {
           },
         );
         let projectFileContent;
-        if (
-          !projectFileResponse.data.content ||
-          projectFileResponse.data.content.length === 0
-        ) {
-          const contentResponse = await fetch(
-            projectFileResponse.data.download_url,
-          );
-          projectFileContent = await contentResponse.text();
-        } else {
-          projectFileContent = GlobalVariables.fromBinaryStr(
-            atob(projectFileResponse.data.content),
-          );
-        }
+        projectFileContent = await fetchGitHubFileContent(
+          projectFileResponse.data,
+        );
         // Parse and update topLevelMolecule
         const projectData = JSON.parse(projectFileContent);
         GlobalVariables.topLevelMolecule = new Molecule(projectData);
@@ -896,21 +875,9 @@ export function ProjectProvider({ children, cad, loadProject }) {
         );
 
         let projectFileContent;
-        if (
-          !projectFileResponse.data.content ||
-          projectFileResponse.data.content.length === 0
-        ) {
-          // Handle large files using download_url
-          const contentResponse = await fetch(
-            projectFileResponse.data.download_url,
-          );
-          projectFileContent = await contentResponse.text();
-        } else {
-          // Decode base64 content
-          projectFileContent = GlobalVariables.fromBinaryStr(
-            atob(projectFileResponse.data.content),
-          );
-        }
+        projectFileContent = await fetchGitHubFileContent(
+          projectFileResponse.data,
+        );
 
         // Parse the JSON
         const projectData = JSON.parse(projectFileContent);
@@ -1191,6 +1158,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
    * @param {boolean} forceSave - If true, bypasses the "no changes" check
    * @param {object} meshRef - Reference to the mesh for thumbnail generation (optional)
    * @param {Function} setErrorNotification - Function to set error notifications (optional)
+   * @param {Function} onSaveStart - Callback invoked only if changes are detected and save will proceed
    */
   const saveProject = async (
     setSaveProgress,
@@ -1198,6 +1166,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
     forceSave = false,
     meshRef = null,
     setErrorNotification = null,
+    onSaveStart = null,
   ) => {
     try {
       // Block the save if the project is still loading/deserializing to prevent
@@ -1216,12 +1185,21 @@ export function ProjectProvider({ children, cad, loadProject }) {
       //We only want to save if something has actually changed since the last save
       var jsonRepOfProject = GlobalVariables.topLevelMolecule.serialize();
 
+      // Add filetypeVersion before change detection so it's consistent
+      jsonRepOfProject.filetypeVersion = 1;
+
       //Don't save again if nothing has changed (unless forceSave is true)
-      if (
-        !forceSave &&
-        JSON.stringify(jsonRepOfProject) == JSON.stringify(lastSaveData.current)
-      ) {
+      const currentSerialized = JSON.stringify(jsonRepOfProject);
+      const lastSerialized = JSON.stringify(lastSaveData.current);
+      const hasChanges = currentSerialized !== lastSerialized;
+      if (!forceSave && !hasChanges) {
+        console.warn("No changes detected since last save. Save skipped.");
         return;
+      }
+
+      // Invoke the onSaveStart callback if provided - this is called only if we pass the change detection
+      if (onSaveStart && typeof onSaveStart === "function") {
+        onSaveStart();
       }
 
       // First validate the GitHub token
@@ -1252,7 +1230,6 @@ export function ProjectProvider({ children, cad, loadProject }) {
 
       setSaveProgress(10);
       // Reuse the already serialized project data instead of serializing again
-      jsonRepOfProject.filetypeVersion = 1;
       const projectContent = JSON.stringify(jsonRepOfProject, null, 2);
       // format and compile the BOM
       let bomContent = GlobalVariables.topLevelMolecule.formatBom();
@@ -1362,8 +1339,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
         // in the background and mark save as completed.
         GlobalVariables.cad
           .sweepCache(geomIds, GlobalVariables.topLevelMolecule.getContext())
-          .then((count) => {
-          })
+          .then((count) => {})
           .catch((error) => {
             console.error("Error during cache sweep:", error);
           });

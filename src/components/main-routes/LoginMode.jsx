@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useMemo } from "react";
 import GlobalVariables from "../../js/globalvariables.js";
 import { Link } from "react-router-dom";
 import globalvariables from "../../js/globalvariables.js";
@@ -124,23 +124,14 @@ const AddProject = ({ projectsLoaded, authorizedUserOcto, projectToShow }) => {
           : "byName";
 
   // Use persistent settings from context
-  //looking for highest ranking project and tool
-  let highestRankingNode = null;
-  let highestRankingToolNode = null;
-
-  if (projectToShow == "featured" && nodes.length > 0) {
-    const filteredNodes = nodes.filter((node) => {
-      return !node.topics.includes("abundance-tool");
-    });
-    const sortedNodes = filteredNodes.sort((a, b) => b.ranking - a.ranking);
-    highestRankingNode = sortedNodes[0];
-
-    const toolNodes = nodes.filter((node) =>
-      node.topics.includes("abundance-tool"),
-    );
-    const sortedToolNodes = toolNodes.sort((a, b) => b.ranking - a.ranking);
-    highestRankingToolNode = sortedToolNodes[0];
-  }
+  // Pick a random featured project from all available nodes - memoized to prevent re-render loop
+  const randomFeaturedNode = useMemo(() => {
+    if (projectToShow == "featured" && nodes.length > 0) {
+      const randomIndex = Math.floor(Math.random() * nodes.length);
+      return nodes[randomIndex];
+    }
+    return null;
+  }, [projectToShow, nodes.length]);
 
   // Apply fork filter
   if (!filters.showForks) {
@@ -253,14 +244,9 @@ const AddProject = ({ projectsLoaded, authorizedUserOcto, projectToShow }) => {
       </div>
       <div className="projects-and-filters-container">
         <div className="project-items-wrapper">
-          <div className="project-items-div">
-            {projectToShow == "featured" &&
-            highestRankingNode &&
-            highestRankingToolNode ? (
-              <FeaturedHighlight
-                highestRankingNode={highestRankingNode}
-                highestRankingToolNode={highestRankingToolNode}
-              />
+          <div className={`project-items-div`}>
+            {projectToShow == "featured" && randomFeaturedNode ? (
+              <FeaturedHighlight randomFeaturedNode={randomFeaturedNode} />
             ) : null}
             {nodes.length > 0 ? (
               <ProjectDiv
@@ -272,6 +258,7 @@ const AddProject = ({ projectsLoaded, authorizedUserOcto, projectToShow }) => {
                   svgCacheBuster,
                   failedImages,
                   setFailedImages,
+                  projectToShow,
                 }}
               />
             ) : (
@@ -288,73 +275,236 @@ const AddProject = ({ projectsLoaded, authorizedUserOcto, projectToShow }) => {
   );
 };
 
-const FeaturedHighlight = ({ highestRankingNode, highestRankingToolNode }) => (
-  <div id="featured-div">
-    <Link
-      onClick={() => {
-        GlobalVariables.currentAWSnode = highestRankingNode;
-      }}
-      id="left-featured-div"
-      className="featured-project-div"
-      key={highestRankingNode.owner + highestRankingNode.repoName}
-      to={
-        highestRankingNode.owner == globalvariables.currentUser
-          ? `/${highestRankingNode.owner}/${highestRankingNode.repoName}`
-          : `/run/${highestRankingNode.owner}/${highestRankingNode.repoName}`
-      }
-    >
-      <div style={{ flexBasis: "60%" }}>
-        <p className="project_name">
-          {convertToDisplayName(highestRankingNode.repoName)}
-        </p>
-        <p className="project_name">By {highestRankingNode.owner}</p>
-      </div>
-      <img
-        className="project_image"
-        src={highestRankingNode.svgURL}
-        onError={({ currentTarget }) => {
-          currentTarget.onerror = null; // prevents looping
-          currentTarget.src =
-            import.meta.env.VITE_APP_PATH_FOR_PICS +
-            "/imgs/defaultThumbnail.svg";
-        }}
-        alt={highestRankingNode.repoName}
-      ></img>
-    </Link>
+const FeaturedHighlight = ({ randomFeaturedNode }) => {
+  const [showQuickView, setShowQuickView] = useState(false);
+  const [panelOnLeft, setPanelOnLeft] = useState(false);
+  const hoverTimerRef = useRef(null);
+  const projectRef = useRef(null);
 
-    <Link
-      id="right-featured-div"
-      onClick={() => {
-        GlobalVariables.currentAWSnode = highestRankingToolNode;
-      }}
-      className="featured-project-div"
-      key={highestRankingToolNode?.owner + highestRankingToolNode?.repoName}
-      to={
-        highestRankingToolNode?.owner == globalvariables.currentUser
-          ? `/${highestRankingToolNode?.owner}/${highestRankingToolNode?.repoName}`
-          : `/run/${highestRankingToolNode?.owner}/${highestRankingToolNode?.repoName}`
+  const PANEL_WIDTH = 300;
+  const PANEL_MARGIN = 20;
+
+  useEffect(() => {
+    return () => {
+      if (hoverTimerRef.current) {
+        clearTimeout(hoverTimerRef.current);
       }
-    >
-      <div style={{ flexBasis: "60%" }}>
-        <p className="project_name">
-          {convertToDisplayName(highestRankingToolNode?.repoName)}
-        </p>
-        <p className="project_name">By {highestRankingToolNode?.owner}</p>
-      </div>
-      <img
-        className="project_image"
-        src={highestRankingToolNode?.svgURL}
-        onError={({ currentTarget }) => {
-          currentTarget.onerror = null; // prevents looping
-          currentTarget.src =
-            import.meta.env.VITE_APP_PATH_FOR_PICS +
-            "/imgs/defaultThumbnail.svg";
+    };
+  }, []);
+
+  const handleEyeMouseEnter = () => {
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+    }
+    hoverTimerRef.current = setTimeout(() => {
+      if (projectRef.current) {
+        const rect = projectRef.current.getBoundingClientRect();
+        const spaceOnRight = window.innerWidth - rect.right;
+        setPanelOnLeft(spaceOnRight < PANEL_WIDTH + PANEL_MARGIN);
+      }
+      setShowQuickView(true);
+    }, 500);
+  };
+
+  const handleEyeMouseLeave = () => {
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+    setShowQuickView(false);
+  };
+
+  return (
+    <div id="featured-div">
+      <Link
+        onClick={() => {
+          GlobalVariables.currentAWSnode = randomFeaturedNode;
         }}
-        alt={highestRankingToolNode.repoName}
-      ></img>
-    </Link>
-  </div>
-);
+        id="featured-project-highlight"
+        className="featured-project-div"
+        key={randomFeaturedNode.owner + randomFeaturedNode.repoName}
+        to={
+          randomFeaturedNode.owner == globalvariables.currentUser
+            ? `/${randomFeaturedNode.owner}/${randomFeaturedNode.repoName}`
+            : `/run/${randomFeaturedNode.owner}/${randomFeaturedNode.repoName}`
+        }
+        ref={projectRef}
+      >
+        <div style={{ position: "relative", left: "5%", top: "5%" }}>
+          <p className="project_name">
+            {convertToDisplayName(randomFeaturedNode.repoName)}
+          </p>
+          <p className="project_name">By {randomFeaturedNode.owner}</p>
+        </div>
+        <img
+          className="project_image"
+          style={{ left: "80%", top: "30%" }}
+          src={randomFeaturedNode.svgURL}
+          onError={({ currentTarget }) => {
+            currentTarget.onerror = null; // prevents looping
+            currentTarget.src =
+              import.meta.env.VITE_APP_PATH_FOR_PICS +
+              "/imgs/defaultThumbnail.svg";
+          }}
+          alt={randomFeaturedNode.repoName}
+        ></img>
+
+        {/* Ranking and Eye Icon Overlay */}
+        <div
+          style={{
+            display: "flex",
+            height: "100%",
+            position: "absolute",
+            top: "1rem",
+            right: "1rem",
+            flexDirection: "column",
+          }}
+        >
+          {/* Ranking */}
+          <div
+            className="ranking-icon"
+            style={{
+              display: "flex",
+              justifyContent: "flex-start",
+            }}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              style={{
+                transform: "scale(.7)",
+                fill: "#5a0562",
+                alignSelf: "center",
+              }}
+              width="16"
+              height="16"
+            >
+              <path d="M8 .2l4.9 15.2L0 6h16L3.1 15.4z" />
+            </svg>
+            <p
+              style={{
+                fontSize: ".7em",
+                display: "inline",
+                alignSelf: "center",
+              }}
+            >
+              {randomFeaturedNode.ranking}
+            </p>
+          </div>
+
+          {/* Eye icon overlay */}
+          <div
+            className="thumb-eye-icon"
+            onMouseEnter={handleEyeMouseEnter}
+            onMouseLeave={handleEyeMouseLeave}
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              marginTop: "5px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              style={{ aspectRatio: "1 / 1" }}
+            >
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+              <circle cx="12" cy="12" r="3"></circle>
+            </svg>
+          </div>
+
+          {/* Quick view panel */}
+          {showQuickView && (
+            <div
+              className={`thumb-quick-view-panel ${panelOnLeft ? "panel-on-left" : ""}`}
+              onMouseEnter={() => {
+                if (hoverTimerRef.current) {
+                  clearTimeout(hoverTimerRef.current);
+                  hoverTimerRef.current = null;
+                }
+              }}
+              onMouseLeave={handleEyeMouseLeave}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="GitInfoLeft">
+                <img
+                  src={randomFeaturedNode.svgURL}
+                  onError={({ currentTarget }) => {
+                    currentTarget.onerror = null;
+                    currentTarget.src =
+                      import.meta.env.VITE_APP_PATH_FOR_PICS +
+                      "/imgs/defaultThumbnail.svg";
+                  }}
+                  alt={randomFeaturedNode.repoName}
+                />
+                <div style={{ display: "flex", alignItems: "center" }}>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    style={{ transform: "scale(.7)" }}
+                    width="16"
+                    height="16"
+                  >
+                    <path d="M8 .2l4.9 15.2L0 6h16L3.1 15.4z" />
+                  </svg>
+                  <p style={{ fontSize: "0.5em" }}>
+                    {randomFeaturedNode.ranking}
+                  </p>
+                </div>
+              </div>
+              <div className="GitInfo">
+                <div>
+                  <strong>Project Name: </strong>
+                  <span>
+                    {convertToDisplayName(randomFeaturedNode.repoName)}
+                  </span>
+                </div>
+                <div>
+                  <strong>Creator: </strong>
+                  <span>{randomFeaturedNode.owner}</span>
+                </div>
+                <div>
+                  <strong>Description: </strong>
+                  <span>
+                    {randomFeaturedNode.description || "No description"}
+                  </span>
+                </div>
+                <div>
+                  <strong>Tags: </strong>
+                  {randomFeaturedNode.topics &&
+                  randomFeaturedNode.topics.length > 0 ? (
+                    randomFeaturedNode.topics.map((tag, idx) => (
+                      <span key={tag + idx} className="bubble-tag">
+                        {tag}
+                      </span>
+                    ))
+                  ) : (
+                    <span>None</span>
+                  )}
+                </div>
+                <div>
+                  <strong>Created: </strong>
+                  <span>
+                    {new Date(
+                      randomFeaturedNode.dateCreated,
+                    ).toLocaleDateString()}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </Link>
+    </div>
+  );
+};
 
 const ProjectDiv = ({
   nodes,
@@ -364,6 +514,7 @@ const ProjectDiv = ({
   svgCacheBuster,
   failedImages,
   setFailedImages,
+  projectToShow,
 }) => {
   const { renameProject } = useProject();
   const navigate = useNavigate();
@@ -484,17 +635,27 @@ const ProjectDiv = ({
     }
   };
 
+  // Memoize image URLs to avoid rebuilding on every render
+  const imageUrlMap = useMemo(() => {
+    const map = new Map();
+    nodes.forEach((node) => {
+      if (!node?.svgURL || failedImages.has(node.svgURL)) {
+        map.set(
+          node.svgURL || `${node.owner}/${node.repoName}`,
+          import.meta.env.VITE_APP_PATH_FOR_PICS + "/imgs/defaultThumbnail.svg",
+        );
+      } else {
+        const separator = node.svgURL.includes("?") ? "&" : "?";
+        map.set(node.svgURL, `${node.svgURL}${separator}cb=${svgCacheBuster}`);
+      }
+    });
+    return map;
+  }, [nodes, svgCacheBuster, failedImages]);
+
   const getImageSrc = (node) => {
-    if (!node?.svgURL || failedImages.has(node.svgURL)) {
-      return (
-        import.meta.env.VITE_APP_PATH_FOR_PICS + "/imgs/defaultThumbnail.svg"
-      );
-    }
     return (
-      node.svgURL +
-      (node.svgURL.includes("?") ? "&" : "?") +
-      "cb=" +
-      svgCacheBuster
+      imageUrlMap.get(node.svgURL || `${node.owner}/${node.repoName}`) ||
+      import.meta.env.VITE_APP_PATH_FOR_PICS + "/imgs/defaultThumbnail.svg"
     );
   };
 
@@ -891,31 +1052,46 @@ const ProjectDiv = ({
     };
   }, [contextMenu.visible]);
 
+  // Stable sort to prevent unnecessary re-renders
+  const sortedNodes = useMemo(
+    () => nodes.sort(sorters[orderType]),
+    [nodes, orderType, sorters],
+  );
+
+  // Memoized project link item component
+  const ProjectLinkItem = React.memo(({ node }) => {
+    const handleLinkClick = (e) => {
+      if (node.notFound) {
+        e.preventDefault();
+      }
+    };
+
+    return (
+      <Link
+        to={
+          node.owner == globalvariables.currentUser
+            ? `/${node.owner}/${node.repoName}`
+            : `/run/${node.owner}/${node.repoName}`
+        }
+        onClick={handleLinkClick}
+      >
+        {browseType == "list" ? (
+          <ListItem {...{ node }} />
+        ) : (
+          <ThumbItem {...{ node }} />
+        )}
+      </Link>
+    );
+  });
+
   return (
     <>
-      <div className="project-item-div">
+      <div
+        className={`project-item-div ${projectToShow === "featured" ? "featured-active" : ""}`}
+      >
         {browseType == "list" ? <ListItem node={dummyNode} /> : null}
-        {nodes.sort(sorters[orderType]).map((node) => (
-          <Link
-            key={node.owner + node.repoName}
-            to={
-              node.owner == globalvariables.currentUser
-                ? `/${node.owner}/${node.repoName}`
-                : `/run/${node.owner}/${node.repoName}`
-            }
-            onClick={(e) => {
-              // Prevent navigation if project is not found
-              if (node.notFound) {
-                e.preventDefault();
-              }
-            }}
-          >
-            {browseType == "list" ? (
-              <ListItem {...{ node }} />
-            ) : (
-              <ThumbItem {...{ node }} />
-            )}
-          </Link>
+        {sortedNodes.map((node) => (
+          <ProjectLinkItem key={node.owner + node.repoName} node={node} />
         ))}
       </div>
       {/* Context menu dropdown */}

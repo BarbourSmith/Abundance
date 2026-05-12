@@ -1,0 +1,160 @@
+.dev-settings-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+.dev-settings-modal {
+  background-color: #1e1e1e;
+  border: 2px solid #c5a3d5;
+  border-radius: 8px;
+  max-width: 500px;
+  width: 90%;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.dev-settings-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 1px solid #c5a3d5;
+}
+
+.dev-settings-header h2 {
+  margin: 0;
+  color: #e0e0e0;
+  font-size: 1.5em;
+  font-family: "Roboto", sans-serif;
+}
+
+.dev-settings-close-btn {
+  background: none;
+  border: none;
+  color: #c5a3d5;
+  font-size: 1.5em;
+  cursor: pointer;
+  padding: 0;
+  width: 2em;
+  height: 2em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+}
+
+.dev-settings-close-btn:hover {
+  color: #e0e0e0;
+}
+
+.dev-settings-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+.dev-setting-item {
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid #333;
+}
+
+.dev-setting-item:last-child {
+  border-bottom: none;
+}
+
+.dev-setting-checkbox {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.dev-setting-checkbox input[type="checkbox"] {
+  margin-right: 12px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: #c5a3d5;
+}
+
+.dev-setting-checkbox label {
+  color: #e0e0e0;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: "Roboto", sans-serif;
+  user-select: none;
+}
+
+.dev-setting-description {
+  color: #888;
+  font-size: 0.85em;
+  margin: 0;
+  margin-left: 30px;
+  font-family: "Roboto", sans-serif;
+}
+
+.dev-settings-footer {
+  display: flex;
+  gap: 10px;
+  padding: 20px;
+  border-top: 1px solid #c5a3d5;
+  justify-content: flex-end;
+}
+
+.dev-settings-reset-btn,
+.dev-settings-close-submit-btn {
+  padding: 8px 16px;
+  border: 1px solid #c5a3d5;
+  border-radius: 4px;
+  font-family: "Roboto", sans-serif;
+  font-size: 0.9em;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.dev-settings-reset-btn {
+  background-color: #333;
+  color: #e0e0e0;
+}
+
+.dev-settings-reset-btn:hover {
+  background-color: #444;
+}
+
+.dev-settings-close-submit-btn {
+  background-color: #c5a3d5;
+  color: #1e1e1e;
+  font-weight: 500;
+}
+
+.dev-settings-close-submit-btn:hover {
+  background-color: #d5b3e5;
+}
+
+/* Scrollbar styling for the modal content */
+.dev-settings-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.dev-settings-content::-webkit-scrollbar-track {
+  background: #2a2a2a;
+}
+
+.dev-settings-content::-webkit-scrollbar-thumb {
+  background: #555;
+  border-radius: 4px;
+}
+
+.dev-settings-content::-webkit-scrollbar-thumb:hover {
+  background: #777;
+}

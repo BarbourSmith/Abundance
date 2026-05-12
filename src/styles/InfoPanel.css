@@ -227,22 +227,118 @@
 
 .console-error-item {
   display: flex;
-  flex-direction: column;
-  padding: 8px 10px;
-  background-color: rgba(200, 50, 50, 0.12);
-  border-left: 3px solid #e05b5b;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 8px;
+  background-color: rgba(120, 120, 120, 0.10);
+  border-left: 3px solid #888;
   border-radius: 3px;
   word-break: break-word;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--control-text, #e0e0e0);
+}
+
+.console-error-item.console-level-error {
+  background-color: rgba(200, 50, 50, 0.12);
+  border-left-color: #e05b5b;
+}
+.console-error-item.console-level-warn {
+  background-color: rgba(220, 170, 50, 0.12);
+  border-left-color: #d4a32c;
+}
+.console-error-item.console-level-info {
+  background-color: rgba(60, 130, 220, 0.10);
+  border-left-color: #3c82dc;
+}
+.console-error-item.console-level-debug {
+  background-color: rgba(120, 120, 120, 0.08);
+  border-left-color: #666;
+}
+.console-error-item.console-level-trace {
+  background-color: rgba(150, 90, 200, 0.10);
+  border-left-color: #965ac8;
+}
+
+.console-error-meta {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-shrink: 0;
+  color: var(--control-text-muted, #888);
+  font-size: 11px;
 }
 
 .console-error-time {
-  font-size: 10px;
-  color: var(--control-text-muted, #888);
-  margin-bottom: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.console-error-level {
+  display: inline-block;
+  min-width: 1em;
+  text-align: center;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.console-level-error .console-error-level {
+  color: #e05b5b;
+}
+.console-level-warn .console-error-level {
+  color: #d4a32c;
+}
+.console-level-info .console-error-level {
+  color: #3c82dc;
+}
+.console-level-trace .console-error-level {
+  color: #965ac8;
 }
 
 .console-error-message {
-  color: #e05b5b;
-  line-height: 1.4;
+  flex: 1 1 auto;
   white-space: pre-wrap;
+  min-width: 0;
+}
+
+.console-level-error .console-error-message {
+  color: #ff8a8a;
+}
+.console-level-warn .console-error-message {
+  color: #f0c14b;
+}
+
+.console-error-stack {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--control-text-muted, #b0b0b0);
+  white-space: pre-wrap;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 4px 6px;
+  border-radius: 2px;
+}
+
+.console-divider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0 2px;
+  color: var(--control-text-muted, #888);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.console-divider::before,
+.console-divider::after {
+  content: "";
+  flex: 1 1 auto;
+  height: 1px;
+  background: var(--control-border, rgba(0, 0, 0, 0.15));
+}
+
+.console-divider-label {
+  flex-shrink: 0;
 }

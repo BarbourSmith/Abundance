@@ -2,6 +2,7 @@ import Atom from "../prototypes/atom.js";
 import Connector from "../prototypes/connector.js";
 import AttachmentPoint from "../prototypes/attachmentpoint.js";
 import GlobalVariables from "../js/globalvariables.js";
+import { fetchGitHubFileContent } from "../js/githubFileUtils.js";
 import {
   AddAtomCommand,
   ReplaceConnectionCommand,
@@ -182,8 +183,8 @@ export default class Molecule extends Atom {
     GlobalVariables.c.fill();
   }
 
-  createInputParams() {
-    let inputParams = { ...super.createInputParams() };
+  createInputParams(setInputChanged) {
+    let inputParams = { ...super.createInputParams(setInputChanged) };
 
     inputParams["molecule name" + this.uniqueID] = {
       type: "string",
@@ -320,7 +321,9 @@ export default class Molecule extends Atom {
   }
 
   async reloadFork() {
-    const octokit = new Octokit();
+    const octokit = new Octokit({
+      headers: { "X-GitHub-Api-Version": "2022-11-28" },
+    });
     let parent = GlobalVariables.currentAWSnode.parentRepo.split("/");
     let parentOwner = parent[0];
     let parentRepo = parent[1];
@@ -347,20 +350,9 @@ export default class Molecule extends Atom {
                 },
               );
               GlobalVariables.topLevelMolecule.nodesOnTheScreen = []; // <-- clear the array
-              let rawFileContent;
-              // Handle large files (>1MB) using download_url
-              if (
-                !response.data.content ||
-                response.data.content.length === 0
-              ) {
-                const fileResponse = await fetch(response.data.download_url);
-                rawFileContent = await fileResponse.text();
-              } else {
-                // Handle small files using base64 content with UTF-8 encoding
-                rawFileContent = GlobalVariables.fromBinaryStr(
-                  atob(response.data.content),
-                );
-              }
+              const rawFileContent = await fetchGitHubFileContent(
+                response.data,
+              );
 
               let rawFile;
               try {
@@ -454,6 +446,9 @@ export default class Molecule extends Atom {
       GlobalVariables.resetView();
       GlobalVariables.currentMolecule = this; //set this to be the currently displayed molecule
       this.enableAllChildren();
+
+      // Store the current output value so we can detect changes when navigating out
+      this.valueWhenNavigatedIn = this.value;
 
       /**
        * Deselects Atom
@@ -1014,13 +1009,19 @@ export default class Molecule extends Atom {
       GlobalVariables.currentMolecule = GlobalVariables.currentMolecule.parent; //set parent this to be the currently displayed molecule
       GlobalVariables.currentMolecule.enableAllChildren();
 
-      // Force propagation upstream since intermediate changes have been
-      // withheld. Only call setReady if we have a valid value.
-      const value = this.value;
-      this.setWaiting();
-      if (value !== null && value !== undefined) {
-        this.setReady(value);
+      // Only force propagation if the molecule's output value actually changed while inside it.
+      // If no changes occurred, don't trigger unnecessary recomputation.
+      const currentValue = this.value;
+      const valueChanged = currentValue !== this.valueWhenNavigatedIn;
+
+      if (valueChanged) {
+        // Force propagation upstream since intermediate changes have been withheld.
+        this.setWaiting();
+        if (currentValue !== null && currentValue !== undefined) {
+          this.setReady(currentValue);
+        }
       }
+
       this.selected = true;
       this.sendToRender();
       GlobalVariables.currentMolecule.getOutputAtom()?.sendToRender();
@@ -1437,7 +1438,9 @@ export default class Molecule extends Atom {
     if (authorizedUser) {
       octokit = authorizedUser;
     } else {
-      octokit = new Octokit();
+      octokit = new Octokit({
+        headers: { "X-GitHub-Api-Version": "2022-11-28" },
+      });
     }
     if (
       gitObj.privateRepo &&
@@ -1454,17 +1457,7 @@ export default class Molecule extends Atom {
           repo: gitObj.repoName,
         })
         .then(async (response) => {
-          let rawFileContent;
-          // Handle large files (>1MB) using download_url
-          if (!response.data.content || response.data.content.length === 0) {
-            const fileResponse = await fetch(response.data.download_url);
-            rawFileContent = await fileResponse.text();
-          } else {
-            // Handle small files using base64 content with UTF-8 encoding
-            rawFileContent = GlobalVariables.fromBinaryStr(
-              atob(response.data.content),
-            );
-          }
+          const rawFileContent = await fetchGitHubFileContent(response.data);
 
           let rawFile;
           try {
@@ -1501,6 +1494,7 @@ export default class Molecule extends Atom {
               parentRepo: gitObj,
               topLevel: false,
               ioValues: oldObject.ioValues,
+              lastReloadedFromGithubAt: Date.now(),
             };
           } else {
             let xPos = position
@@ -1520,6 +1514,7 @@ export default class Molecule extends Atom {
               x: xPos,
               y: yPos,
               topLevel: false,
+              lastReloadedFromGithubAt: Date.now(),
             };
           }
 
@@ -1891,7 +1886,10 @@ export default class Molecule extends Atom {
         //When we have found the input atom
         atom.inputs.forEach((input) => {
           //Check each of its inputs
-          if (input.name == connectorObj.ap2Name) {
+          if (
+            input.name == connectorObj.ap2Name ||
+            input.oldNames?.includes(connectorObj.ap2Name)
+          ) {
             inputAttachmentPoint = input; //Until we find the one with the right name
           }
         });
