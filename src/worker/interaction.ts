@@ -63,9 +63,12 @@ async function difference(
     (!util.is3D(target) && !util.is3D(cutter))
   ) {
     // Process each leaf of target independently
-    const result = await util.actOnLeafs(target, async (leaf: AbundanceLeaf) => {
-      return await recursiveCut(leaf, cutter, context);
-    });
+    const result = await util.actOnLeafs(
+      target,
+      async (leaf: AbundanceLeaf) => {
+        return await recursiveCut(leaf, cutter, context);
+      },
+    );
     return util.withAssemblyBoundingBoxes(result, context);
   } else {
     throw new Error("Both inputs must be either 3D or 2D");
@@ -243,7 +246,9 @@ async function assembly(
   }
   await util.init();
   const geometriesWithBounds = await Promise.all(
-    geometries.map((geometry) => util.withAssemblyBoundingBoxes(geometry, context)),
+    geometries.map((geometry) =>
+      util.withAssemblyBoundingBoxes(geometry, context),
+    ),
   );
 
   let startedBatch = false;
@@ -299,7 +304,11 @@ async function assembly(
       for (let i = 0; i < geometriesWithBounds.length; i++) {
         const geometry = geometriesWithBounds[i];
         assembly.push(
-          await cutAssembly(geometry, geometriesWithBounds.slice(i + 1), context),
+          await cutAssembly(
+            geometry,
+            geometriesWithBounds.slice(i + 1),
+            context,
+          ),
         );
       }
       // Gather all nonReplicadSerialized and bom from input geometries
@@ -338,18 +347,32 @@ async function assembly(
       }
     }
   }
+
+  // Build the initial assembly object with all children already having bounds
+  const assemblyObject: AbundanceObject = {
+    geometry: await Promise.all(assembly),
+    plane: util.XYPlane,
+    tags: [],
+    color: util.defaultColor,
+    bom: bomAssembly,
+    dimension: all3D ? "3D" : "2D",
+    nonReplicadSerialized: nonReplicadGeoms,
+  };
+
+  // Eagerly compute assembly bounds by merging existing child bounds
+  // This is more efficient than withAssemblyBoundingBoxes because it doesn't
+  // recursively traverse - it assumes all children already have bounds
+  const assemblyWithBounds = util.computeAssemblyBounds(assemblyObject);
+
+  // Safety check with recursive validation disabled (forceRecompute=false)
+  // Since we've already computed bounds eagerly, this will detect our computed bounds
+  // and return immediately without recursive traversal
   const result = await util.withAssemblyBoundingBoxes(
-    {
-      geometry: await Promise.all(assembly),
-      plane: util.XYPlane,
-      tags: [],
-      color: util.defaultColor,
-      bom: bomAssembly,
-      dimension: all3D ? "3D" : "2D",
-      nonReplicadSerialized: nonReplicadGeoms,
-    },
+    assemblyWithBounds,
     context,
+    false, // forceRecompute=false, so it skips unnecessary recursion
   );
+
   if (startedBatch) {
     await util.geometryProvider!.endBatchOperation(context, result);
   }
@@ -473,16 +496,39 @@ async function recursiveCut(
   if (util.isAssembly(cuttingParts)) {
     let partBounds = partToCut.boundingBox;
     let cutterBounds = cuttingParts.boundingBox;
+
+    console.log("[recursiveCut] Processing assembly cutter:", {
+      hasCutterBounds: !!cutterBounds,
+      hasPartBounds: !!partBounds,
+    });
+
     if (!partBounds || !cutterBounds) {
       try {
         partBounds = partBounds || (await util.getBounds(partToCut, context));
-        cutterBounds = cutterBounds || (await util.getBounds(cuttingParts, context));
+        cutterBounds =
+          cutterBounds || (await util.getBounds(cuttingParts, context));
+        console.log("[recursiveCut] Computed bounds:", {
+          partBounds: partBounds
+            ? `[${partBounds.min.join(",")},${partBounds.max.join(",")}]`
+            : "null",
+          cutterBounds: cutterBounds
+            ? `[${cutterBounds.min.join(",")},${cutterBounds.max.join(",")}]`
+            : "null",
+        });
       } catch (_) {
         // Bounds checks are an optimization only; continue with full recursion.
+        console.log(
+          "[recursiveCut] Failed to compute bounds, continuing without optimization",
+        );
       }
     }
 
-    if (partBounds && cutterBounds && !util.boundsOverlap(partBounds, cutterBounds)) {
+    if (
+      partBounds &&
+      cutterBounds &&
+      !util.boundsOverlap(partBounds, cutterBounds)
+    ) {
+      console.log("[recursiveCut] ✓ SKIPPING assembly - bounds do not overlap");
       const retainedBounds = partToCut.boundingBox || partBounds;
       return {
         ...partToCut,
@@ -490,6 +536,9 @@ async function recursiveCut(
       };
     }
 
+    console.log(
+      "[recursiveCut] Bounds overlap detected, recursing into assembly children",
+    );
     let cutPart = partToCut;
     for (const childPart of cuttingParts.geometry) {
       cutPart = await recursiveCut(cutPart, childPart, context);
@@ -501,13 +550,30 @@ async function recursiveCut(
     return partToCut;
   }
 
-  const toCutGeom = await util.geometryProvider!.get(partToCut.geometry, context);
+  const toCutGeom = await util.geometryProvider!.get(
+    partToCut.geometry,
+    context,
+  );
   const cuttingPartGeom = await util.geometryProvider!.get(
     cuttingParts.geometry,
     context,
   );
+
+  // @ts-ignore
+  const geomBoundsOverlap = !toCutGeom.boundingBox.isOut(
+    cuttingPartGeom.boundingBox,
+  );
+  console.log("[recursiveCut] Leaf-level geometry check:", {
+    partToCutGeom: partToCut.geometry.substring(0, 50),
+    cuttingPartGeom: cuttingParts.geometry.substring(0, 50),
+    geomBoundsOverlap,
+  });
+
   // @ts-ignore
   if (toCutGeom.boundingBox.isOut(cuttingPartGeom.boundingBox)) {
+    console.log(
+      "[recursiveCut] ✓ SKIPPING leaf - geometry bounds do not overlap",
+    );
     return {
       ...partToCut,
       ...(partToCut.boundingBox ? { boundingBox: partToCut.boundingBox } : {}),
@@ -545,12 +611,21 @@ async function recursiveCut(
           p1.normal[2] * originDelta[2],
       ) < 1e-6;
 
+    console.log("[recursiveCut] 2D coplanarity check:", {
+      normalsAreParallel,
+      originOnPlane,
+      p1Normal: p1.normal,
+      p2Normal: p2.normal,
+    });
+
     if (!normalsAreParallel || !originOnPlane) {
+      console.log("[recursiveCut] ✓ SKIPPING - shapes are not coplanar");
       return partToCut; // skip: not coplanar
     }
   }
   // --- end coplanarity check ---
 
+  console.log("[recursiveCut] Proceeding with cut operation");
   const result = {
     ...partToCut,
     geometry: await util.geometryProvider!.cut(
@@ -559,11 +634,19 @@ async function recursiveCut(
       context,
     ),
   };
+  console.log("[recursiveCut] ✓ Cut operation completed");
+
   let resultBounds: util.AbundanceBounds | undefined = undefined;
   try {
     resultBounds = await util.getBounds(result, context);
+    console.log("[recursiveCut] Computed result bounds:", {
+      bounds: resultBounds
+        ? `[${resultBounds.min.join(",")},${resultBounds.max.join(",")}]`
+        : "null",
+    });
   } catch (_) {
     // Bounds metadata is best-effort and should not fail difference().
+    console.log("[recursiveCut] Failed to compute result bounds");
   }
   return {
     ...result,

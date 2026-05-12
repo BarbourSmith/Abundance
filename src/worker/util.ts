@@ -193,12 +193,52 @@ function mergeBounds(boundsList: AbundanceBounds[]): AbundanceBounds {
   };
 }
 
+/**
+ * Eagerly computes bounding boxes for an assembly by merging existing child bounds.
+ * This is more efficient than withAssemblyBoundingBoxes() because it doesn't recursively
+ * traverse the tree - it assumes all children already have valid bounds from prior operations.
+ *
+ * Use this when creating assemblies or after operations where you know children have bounds.
+ */
+function computeAssemblyBounds(geometry: AbundanceObject): AbundanceObject {
+  if (isLeaf(geometry)) {
+    return geometry;
+  }
+
+  const childBounds = (geometry.geometry as AbundanceObject[])
+    .map((child) => child.boundingBox)
+    .filter((bounds): bounds is AbundanceBounds => bounds !== undefined);
+
+  const boundingBox =
+    childBounds.length > 0 ? mergeBounds(childBounds) : EMPTY_BOUNDS;
+
+  return {
+    ...geometry,
+    boundingBox,
+  };
+}
+
 async function withAssemblyBoundingBoxes(
   geometry: AbundanceObject,
   context: RequestContext,
+  forceRecompute: boolean = false,
 ): Promise<AbundanceObject> {
+  /**
+   * This function computes and caches bounding boxes for geometries.
+   *
+   * Optimization: If a geometry and all its children already have valid bounds,
+   * this function returns immediately without recursive traversal (unless forceRecompute=true).
+   *
+   * When to use forceRecompute=true:
+   * - When geometry children have been modified and bounds are stale
+   * - When bounds need to be recalculated for performance analysis
+   * - Normally, you should NOT use this - leaves bounds are only computed once,
+   *   and assembly bounds are eagerly computed when assemblies are created
+   *
+   * Normal usage: forceRecompute=false (default) - reuses existing bounds when available
+   */
   if (isLeaf(geometry)) {
-    if (geometry.boundingBox) {
+    if (geometry.boundingBox && !forceRecompute) {
       return geometry;
     }
     let bounds: AbundanceBounds | undefined = undefined;
@@ -213,8 +253,23 @@ async function withAssemblyBoundingBoxes(
     };
   }
 
+  // Optimization: if assembly already has bounds and all children have bounds, just return
+  // unless we're forced to recompute
+  if (!forceRecompute && geometry.boundingBox) {
+    const childBounds = (geometry.geometry as AbundanceObject[])
+      .map((child) => child.boundingBox)
+      .filter((bounds): bounds is AbundanceBounds => bounds !== undefined);
+
+    // All children have bounds, so assembly bounds are valid
+    if (childBounds.length === geometry.geometry.length) {
+      return geometry;
+    }
+  }
+
   const childWithBounds = await Promise.all(
-    geometry.geometry.map((child) => withAssemblyBoundingBoxes(child, context)),
+    (geometry.geometry as AbundanceObject[]).map((child) =>
+      withAssemblyBoundingBoxes(child, context, forceRecompute),
+    ),
   );
   if (childWithBounds.length === 0) {
     return {
@@ -411,6 +466,7 @@ export {
   asReplicadPlane,
   asSimplePlane,
   boundsOverlap,
+  computeAssemblyBounds,
   defaultColor,
   flattenAssembly,
   generateUniqueID,
