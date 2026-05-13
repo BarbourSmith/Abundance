@@ -1122,14 +1122,16 @@ export default class Input extends Atom {
       },
     };
 
-    // If type is array, add a control to input options
+    // If type is array, add a control to edit the default array values
     if (this.type === "array") {
+      const defaultArr = Array.isArray(this.options) ? [...this.options] : [];
       inputParams[this.uniqueID + "arrayOptions"] = {
-        type: "string",
-        value: Array.isArray(this.options) ? this.options.join(", ") : "",
-        label: "Array Options (comma separated)",
+        type: "array",
+        value: defaultArr,
+        label: "Default Values",
         disabled: false,
         onChange: (val) => {
+          const newArr = Array.isArray(val) ? [...val] : [];
           if (!GlobalVariables.isUndoing && this.parent) {
             const oldOptions = Array.isArray(this.options)
               ? [...this.options]
@@ -1144,22 +1146,17 @@ export default class Input extends Atom {
                   atom.options = oldVal;
                   if (atom.parentAP) atom.parentAP.options = oldVal;
                   if (typeof atom.setInputChanged === "function")
-                    atom.setInputChanged(oldVal.join(", "));
+                    atom.setInputChanged(oldVal);
                 },
-                `Change array options`,
+                `Change array default values`,
               ),
             );
           }
-          // Split by comma and trim whitespace
-          this.options = val
-            .split(",")
-            .map((v) => v.trim())
-            .filter((v) => v.length > 0);
-          //Add a new input to the current molecule
+          this.options = newArr;
           if (this.parentAP) {
             this.parentAP.options = this.options;
           }
-          this.setInputChanged(val);
+          this.setInputChanged(newArr);
         },
       };
     }

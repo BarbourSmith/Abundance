@@ -745,6 +745,14 @@ return assembly;
       existing.valueType = arg.type;
       existing.defaultValue = arg.defaultValue;
       existing.isOptional = arg.isOptional;
+      // For array inputs, remember the element type so the control panel
+      // can coerce edits and so we know it's not Assembly[] (rejected by
+      // the parser). Cleared for non-array inputs.
+      if (arg.type === "array") {
+        existing.elementType = arg.elementType;
+      } else if ("elementType" in existing) {
+        delete existing.elementType;
+      }
     }
 
     // Remove inputs no longer declared in the run() signature.

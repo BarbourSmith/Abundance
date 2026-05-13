@@ -220,7 +220,7 @@ function convertCodeAtomResult(
     return value;
   }
 
-  throw new Error("Unsupported return type: " + JSON.stringify(value));
+  throw new Error("Unsupported return type: " + value.constructor.name);
 }
 
 /**

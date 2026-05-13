@@ -22,6 +22,7 @@ const EyeIcon = ({ size = 16 }) => (
 import React, {
   useState,
   useEffect,
+  useRef,
   forwardRef,
   useImperativeHandle,
   use,
@@ -255,6 +256,164 @@ const closeButtonStyle = {
   padding: 0,
   transition: "background 0.2s",
 };
+
+/**
+ * Single-textarea editor for array-type inputs. Each line is one entry.
+ *
+ * - Newline separates entries; index numbers shown in a non-editable gutter
+ *   on the left, kept in sync with the textarea's scroll position.
+ * - Enter just inserts a newline naturally → new entry.
+ * - Tab moves focus to the next form control (default browser behavior).
+ * - Local edits are buffered; the array is committed to the molecule on blur,
+ *   with empty trailing entries trimmed.
+ */
+function ArrayInputControl({
+  value,
+  label,
+  isDisabled,
+  elementType,
+  onCommit,
+  inputStyle,
+  inputDisabledStyle,
+  inputFocusedStyle,
+  labelStyle,
+}) {
+  const incoming = Array.isArray(value) ? value : [];
+  const committedText = incoming.join("\n");
+
+  // Local text buffer while the user is typing. `null` means "show committed".
+  const [draft, setDraft] = useState(null);
+  const [isFocused, setIsFocused] = useState(false);
+  const textareaRef = useRef(null);
+  const gutterRef = useRef(null);
+
+  const text = draft !== null ? draft : committedText;
+  const lines = text.length === 0 ? [""] : text.split("\n");
+  const lineCount = lines.length;
+  // Show at least 3 rows, grow up to 10 rows of content.
+  const rows = Math.min(10, Math.max(3, lineCount));
+
+  // Coerce a string line to the configured element type.
+  // - "number"  → Number(line); empty lines dropped before reaching here.
+  // - "boolean" → "true" (case-insensitive) is true; everything else false.
+  // - "string" / undefined → keep raw string.
+  const coerceLine = (line) => {
+    if (elementType === "number") return Number(line);
+    if (elementType === "boolean") return line.trim().toLowerCase() === "true";
+    return line;
+  };
+
+  const handleChange = (e) => {
+    setDraft(e.target.value);
+  };
+
+  const handleBlur = () => {
+    setIsFocused(false);
+    // Commit: split on newlines, trim trailing empties only.
+    const arr = text.split("\n");
+    while (arr.length > 0 && arr[arr.length - 1] === "") arr.pop();
+    // For non-string element types, also strip empty lines anywhere — they
+    // would coerce to NaN / false, which is rarely what the user wants.
+    const filtered =
+      elementType === "number" || elementType === "boolean"
+        ? arr.filter((s) => s !== "")
+        : arr;
+    onCommit(filtered.map(coerceLine));
+    setDraft(null);
+  };
+
+  const handleScroll = () => {
+    if (gutterRef.current && textareaRef.current) {
+      gutterRef.current.scrollTop = textareaRef.current.scrollTop;
+    }
+  };
+
+  const baseInputStyle = isDisabled
+    ? { ...inputStyle, ...inputDisabledStyle }
+    : isFocused
+      ? { ...inputStyle, ...inputFocusedStyle }
+      : inputStyle;
+
+  const textareaStyle = {
+    ...baseInputStyle,
+    width: "100%",
+    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, monospace",
+    lineHeight: "20px",
+    resize: "vertical",
+    whiteSpace: "pre",
+    overflow: "auto",
+    borderTopLeftRadius: 0,
+    borderBottomLeftRadius: 0,
+    borderLeft: "none",
+  };
+
+  const gutterStyle = {
+    boxSizing: "border-box",
+    padding: "4px 6px 4px 8px",
+    fontSize: inputStyle.fontSize ?? 14,
+    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, monospace",
+    lineHeight: "20px",
+    color: "var(--control-text-muted)",
+    background: "#1e222c",
+    border: "1px solid #333741",
+    borderRight: "none",
+    borderTopLeftRadius: 4,
+    borderBottomLeftRadius: 4,
+    textAlign: "right",
+    userSelect: "none",
+    overflow: "hidden",
+    minWidth: 26,
+    flexShrink: 0,
+  };
+
+  return (
+    <div
+      style={{
+        ...labelStyle,
+        alignItems: "flex-start",
+        flexDirection: "column",
+        gap: 4,
+      }}
+    >
+      <span
+        style={{
+          color: isDisabled
+            ? inputDisabledStyle.color
+            : "var(--control-text-muted)",
+        }}
+      >
+        {label}:
+      </span>
+      <div
+        style={{
+          display: "flex",
+          width: "100%",
+          alignItems: "stretch",
+        }}
+      >
+        <div ref={gutterRef} style={gutterStyle} aria-hidden="true">
+          {lines.map((_, i) => (
+            <div key={i}>{i}</div>
+          ))}
+        </div>
+        <textarea
+          ref={textareaRef}
+          value={text}
+          rows={rows}
+          disabled={isDisabled}
+          onChange={handleChange}
+          onFocus={() => setIsFocused(true)}
+          onBlur={handleBlur}
+          onScroll={handleScroll}
+          spellCheck={false}
+          style={textareaStyle}
+          placeholder="One value per line"
+        />
+      </div>
+    </div>
+  );
+}
+
 
 /**
  * @param {{
@@ -543,6 +702,22 @@ export const SimpleControlPanel = forwardRef(function SimpleControlPanel(
 
   // Listen for keyboard events on the panel to trigger focus
   const handlePanelKeyDown = (e) => {
+    // If the user is already typing inside a form control (input, textarea,
+    // select, or any contenteditable element), don't steal focus to the
+    // first registered input. This prevents the array textarea (and any
+    // other unregistered inputs) from losing focus mid-keystroke.
+    const target = e.target;
+    if (target) {
+      const tag = target.tagName;
+      if (
+        tag === "INPUT" ||
+        tag === "TEXTAREA" ||
+        tag === "SELECT" ||
+        target.isContentEditable
+      ) {
+        return;
+      }
+    }
     // Just pass through to handleKeyDown - it will set shouldFocus as needed
     handleKeyDown(e);
   };
@@ -1694,6 +1869,21 @@ export const SimpleControlPanel = forwardRef(function SimpleControlPanel(
                               )}
                         </select>
                       </div>
+                    );
+                  case "array":
+                    return (
+                      <ArrayInputControl
+                        key={key}
+                        value={Array.isArray(currentValue) ? currentValue : []}
+                        label={label}
+                        isDisabled={isDisabled}
+                        elementType={config.elementType}
+                        onCommit={(newArr) => commitChange(key, newArr, config)}
+                        inputStyle={inputStyle}
+                        inputDisabledStyle={inputDisabledStyle}
+                        inputFocusedStyle={inputFocusedStyle}
+                        labelStyle={labelStyle}
+                      />
                     );
                   case "button":
                     return (

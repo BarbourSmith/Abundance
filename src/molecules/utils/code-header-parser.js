@@ -8,18 +8,22 @@
  * `parseCodeHeader(srcCode)`.
  */
 
-/** @typedef {"number" | "string" | "boolean" | "geometry"} AbundanceValueType */
+/** @typedef {"number" | "string" | "boolean" | "geometry" | "array"} AbundanceValueType */
+/** @typedef {"number" | "string" | "boolean"} AbundanceArrayElementType */
 
 /**
  * @typedef {Object} ParsedArg
  * @property {string} name - Parameter name (a valid JS identifier).
  * @property {AbundanceValueType} type - Abundance value type derived from
  *   the TS type annotation. Anything not a primitive becomes `"geometry"`.
+ * @property {AbundanceArrayElementType} [elementType] - Element type, set
+ *   only when `type === "array"`. One of `"number" | "string" | "boolean"`.
  * @property {boolean} isOptional - True if the parameter has a `?` marker
  *   or an explicit default value.
- * @property {number|string|boolean|null|undefined} defaultValue - Parsed
- *   JS literal of the default expression. `undefined` when no default was
- *   declared and the type is not geometry; `null` for geometry inputs
+ * @property {number|string|boolean|Array|null|undefined} defaultValue -
+ *   Parsed JS literal of the default expression. `undefined` when no
+ *   default was declared and the type is not geometry/array; `null` for
+ *   geometry inputs without an explicit default; `[]` for array inputs
  *   without an explicit default.
  */
 
@@ -118,19 +122,43 @@ function splitParam(p) {
 }
 
 /**
- * Map a TypeScript type expression to one of Abundance's input value types.
- * Anything not number/string/boolean (replicad shapes, AbundanceObj, any,
- * ...) becomes a `geometry` input. Unions like `number | undefined` are
- * mapped by their leading token.
+ * Map a TypeScript type expression to an Abundance value descriptor.
  *
- * @returns {AbundanceValueType}
+ * Primitives (`number`, `string`, `boolean`) map to their respective value
+ * types. `Assembly` (and any non-primitive single token) maps to `geometry`.
+ * Array forms `T[]` and `Array<T>` for primitive `T` map to `array` with
+ * the corresponding `elementType`. `Assembly[]` / `Array<Assembly>` are
+ * explicitly rejected. Unions like `number | undefined` are mapped by
+ * their leading token.
+ *
+ * @returns {{ valueType: AbundanceValueType, elementType?: AbundanceArrayElementType }}
  */
-function tsTypeToValueType(tsType) {
-  const first = (tsType || "").trim().split(/[\s|&]/)[0];
-  if (first === "number") return "number";
-  if (first === "string") return "string";
-  if (first === "boolean") return "boolean";
-  if (first === "Assembly") return "geometry";
+function tsTypeToValueInfo(tsType) {
+  const head = (tsType || "").trim().split(/[\s|&]/)[0].trim();
+  if (!head) {
+    throw new Error(`Unsupported or missing type annotation: "${tsType}"`);
+  }
+
+  // `Array<T>` form.
+  const arrayGenericMatch = head.match(/^Array<\s*([^<>]+?)\s*>$/);
+  // `T[]` form (primitive identifier followed by `[]`). Only accept simple
+  // identifiers here; e.g. `number[][]` is not supported.
+  const bracketMatch = head.match(/^([A-Za-z_$][\w$]*)\[\]$/);
+
+  if (arrayGenericMatch || bracketMatch) {
+    const inner = (arrayGenericMatch?.[1] ?? bracketMatch[1]).trim();
+    if (inner === "number" || inner === "string" || inner === "boolean") {
+      return { valueType: "array", elementType: inner };
+    }
+    throw new Error(
+      `Unsupported array element type: "${inner}". Supported element types are number, string, boolean.`,
+    );
+  }
+
+  if (head === "number") return { valueType: "number" };
+  if (head === "string") return { valueType: "string" };
+  if (head === "boolean") return { valueType: "boolean" };
+  if (head === "Assembly") return { valueType: "geometry" };
   throw new Error(`Unsupported or missing type annotation: "${tsType}"`);
 }
 
@@ -140,12 +168,17 @@ function tsTypeToValueType(tsType) {
  * malformed primitive literals.
  *
  * Returns `undefined` when no default was declared and the type is not
- * `geometry` (the caller can then fall back to its own default). Geometry
- * inputs without an explicit default get `null`, indicating no upstream
- * connection is required.
+ * `geometry` or `array` (the caller can then fall back to its own default).
+ * Geometry inputs without an explicit default get `null`, indicating no
+ * upstream connection is required. Array inputs without an explicit
+ * default get `[]`.
  */
-function parseDefaultLiteral(raw, valueType, paramName) {
-  if (raw === undefined) return valueType === "geometry" ? null : undefined;
+function parseDefaultLiteral(raw, valueType, paramName, elementType) {
+  if (raw === undefined) {
+    if (valueType === "geometry") return null;
+    if (valueType === "array") return [];
+    return undefined;
+  }
   if (raw === "") {
     throw new Error(
       `Parameter "${paramName}" in run() has an empty default value`,
@@ -176,6 +209,32 @@ function parseDefaultLiteral(raw, valueType, paramName) {
       return raw.slice(1, -1);
     }
     return raw;
+  }
+  if (valueType === "array") {
+    let parsed;
+    try {
+      // User code is already executed in a worker sandbox; treat the raw
+      // expression as a JS literal. Parens force expression context so a
+      // bare `[...]` is parsed as an array, not a block.
+      parsed = new Function(`return (${raw});`)();
+    } catch (e) {
+      throw new Error(
+        `Parameter "${paramName}" has an invalid array default value: "${raw}" (${e.message})`,
+      );
+    }
+    if (!Array.isArray(parsed)) {
+      throw new Error(
+        `Parameter "${paramName}" default value must be an array literal: "${raw}"`,
+      );
+    }
+    for (const el of parsed) {
+      if (typeof el !== elementType) {
+        throw new Error(
+          `Parameter "${paramName}" default array element "${el}" does not match element type "${elementType}"`,
+        );
+      }
+    }
+    return parsed;
   }
   return null;
 }
@@ -208,13 +267,21 @@ export function parseCodeHeader(srcCode) {
       );
     }
     const { name, hasOptionalMarker, tsType, defaultRaw } = parsed;
-    const type = tsTypeToValueType(tsType);
-    const defaultValue = parseDefaultLiteral(defaultRaw, type, name);
-    return {
+    const { valueType, elementType } = tsTypeToValueInfo(tsType);
+    const defaultValue = parseDefaultLiteral(
+      defaultRaw,
+      valueType,
       name,
-      type,
+      elementType,
+    );
+    /** @type {ParsedArg} */
+    const result = {
+      name,
+      type: valueType,
       isOptional: hasOptionalMarker || defaultRaw !== undefined,
       defaultValue,
     };
+    if (elementType) result.elementType = elementType;
+    return result;
   });
 }

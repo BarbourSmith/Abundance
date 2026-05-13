@@ -87,7 +87,7 @@ export function makeAbundanceFramework(replicad) {
       } else if (this.geometry instanceof replicad.Shape || this.geometry instanceof replicad.Drawing) {
         geomString = this.geometry.constructor.name;
       }
-      let planeString = this.plane ? "replicad.plane" : "null";
+      const planeString = this.plane ? "replicad.plane" : "null";
       return `{__isRawAbundanceObj: true, color: ${this.color}, tags: ${JSON.stringify(this.tags)}, bom: ${JSON.stringify(this.bom)}, plane: ${planeString}, geometry: ${geomString}}`;
     }
   }
