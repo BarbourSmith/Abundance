@@ -899,10 +899,6 @@ export default class Atom extends ObservableEntity {
         // the molecule's interface. Input attachments have type="input".
         const isMoleculeInput = ap.type === "input";
 
-        if (ap.name === "close") {
-          console.log(ap);
-        }
-
         // Save if value changed from default OR has custom equation OR is a molecule input
         if (isDifferentFromDefault || hasCustomEquation || isMoleculeInput) {
           var saveIO = {
@@ -1229,11 +1225,6 @@ export default class Atom extends ObservableEntity {
       const argsDict = Object.fromEntries(
         this.inputs.map((input) => [input.name, input.getState().value]),
       );
-      // console.log(
-      //   `[${this.getAtomPath()}] All inputs ready. Computing with args:`,
-      //   argsDict,
-      // );
-      // const inputVals = this.inputs.map((input) => {input.getValue());
       this.setProcessing();
 
       this.compute(argsDict)
