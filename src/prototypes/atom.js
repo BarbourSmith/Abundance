@@ -872,7 +872,8 @@ export default class Atom extends ObservableEntity {
 
       if (
         typeof ap.getValue() == "number" ||
-        typeof ap.getValue() == "string"
+        typeof ap.getValue() == "string" ||
+        typeof ap.getValue() == "boolean"
       ) {
         // Only save values that differ from defaults or have custom equations
         const currentValue = ap.getValue();
@@ -898,18 +899,9 @@ export default class Atom extends ObservableEntity {
         // the molecule's interface. Input attachments have type="input".
         const isMoleculeInput = ap.type === "input";
 
-        // Debug logging for Input-type attachments
-        /*if (isMoleculeInput || ap.name === "Wood Thickness") {
-          console.log(
-            `[Serialize Debug] AP="${ap.name}", type="${ap.type}", valueType="${
-              ap.valueType
-            }", currentValue=${currentValue}, defaultValue=${
-              ap.defaultValue
-            }, isMoleculeInput=${isMoleculeInput}, willSave=${
-              isDifferentFromDefault || hasCustomEquation || isMoleculeInput
-            }`,
-          );
-        }*/
+        if (ap.name === "close") {
+          console.log(ap);
+        }
 
         // Save if value changed from default OR has custom equation OR is a molecule input
         if (isDifferentFromDefault || hasCustomEquation || isMoleculeInput) {
