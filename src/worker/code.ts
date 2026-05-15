@@ -27,11 +27,7 @@ import * as replicad from "replicad";
 import * as util from "./util";
 import { AbundanceObject } from "./util";
 import { RequestContext } from "./geometryProvider";
-import {
-  executeCode as executeLegacy,
-  composeID,
-  validateUserCode,
-} from "./code-legacy";
+import { executeCode as executeLegacy, validateUserCode } from "./code-legacy";
 import { assembly } from "./interaction";
 
 // Pre-compiled Runtime JS for the user's code sandbox. Built from ts-framework.ts
@@ -53,9 +49,7 @@ import { makeAbundanceFramework } from "./generated/ts-framework.generated.js";
 // so it's safe to bind these at module load time. The factory itself just
 // declares the class; replicad is only dereferenced when Assembly methods
 // are actually invoked, by which time `init()` has run.
-const { Assembly } = makeAbundanceFramework(
-  util.replicad as any,
-);
+const { Assembly } = makeAbundanceFramework(util.replicad as any);
 type Assembly<G = any> = InstanceType<typeof Assembly> & { geometry: G };
 
 type Primitive = number | string | boolean | null | undefined;
@@ -341,6 +335,13 @@ function formatLogArg(value: any): string {
   }
 }
 
+function composeCacheKey(code: string, args: { [key: string]: any }) {
+  const argString = Object.entries(args)
+    .map(([k, v]) => `${k}:${JSON.stringify(v)}`)
+    .join("-");
+  return util.hashString(code + "-" + argString);
+}
+
 async function executeTsCode(
   code: string,
   argumentsArray: { [key: string]: any },
@@ -360,6 +361,55 @@ async function executeTsCode(
     if (code.length > 50000) {
       throw new Error("Code too long (maximum 50,000 characters)");
     }
+
+    // Build a sandbox-side `console` shim. We forward each call to the
+    // main-thread `onLog` callback (if any) AFTER formatting args to a
+    // string here in the worker — replicad shapes / WASM objects are not
+    // structured-cloneable, so we can't pass raw args across the boundary.
+    // Fall back to the worker's native console when no callback was given.
+    const sandboxConsole: any = onLog
+      ? (() => {
+          const make =
+            (level: CodeAtomLogLevel) =>
+            (...args: any[]) => {
+              // Mirror to the worker's real console too, so devs running
+              // with DevTools open still see output in the worker context.
+              (console as any)[level === "trace" ? "log" : level](...args);
+
+              // Process for UI console and onLog callback
+              const message = args.map(formatLogArg).join(" ");
+              const stack =
+                level === "trace"
+                  ? (new Error().stack || "").split("\n").slice(2).join("\n")
+                  : null;
+              onLog(level, message, stack);
+            };
+          return {
+            log: make("log"),
+            info: make("info"),
+            warn: make("warn"),
+            error: make("error"),
+            debug: make("debug"),
+            trace: make("trace"),
+          };
+        })()
+      : console;
+
+    // Check cache before materializing arguments or launching the sandbox.
+    const cacheId = composeCacheKey(code, argumentsArray);
+    const cached = await util.geometryProvider!.getAssembly(cacheId, context);
+    if (cached) return cached;
+
+    const batchId = "code-atom-" + cacheId;
+    const batch: RequestContext | AbundanceObject =
+      await util.geometryProvider!.startBatchOperation(context, batchId);
+    if (util.isAbundanceObject(batch)) {
+      sandboxConsole.info("Cache hit. Execution skipped.");
+      return batch;
+    }
+
+    context = batch;
+    context.nextId = 0;
 
     // Convert incoming Abundance geometry arguments into raw POJOs marked
     // with `__isRawAbundanceObj`. The prepended framework's `__promoteInput`
@@ -406,55 +456,6 @@ async function executeTsCode(
         argumentsArray[key] = actualValue;
       }
     }
-
-    // Build a sandbox-side `console` shim. We forward each call to the
-    // main-thread `onLog` callback (if any) AFTER formatting args to a
-    // string here in the worker — replicad shapes / WASM objects are not
-    // structured-cloneable, so we can't pass raw args across the boundary.
-    // Fall back to the worker's native console when no callback was given.
-    const sandboxConsole: any = onLog
-      ? (() => {
-          const make =
-            (level: CodeAtomLogLevel) =>
-            (...args: any[]) => {
-              // Mirror to the worker's real console too, so devs running
-              // with DevTools open still see output in the worker context.
-              (console as any)[level === "trace" ? "log" : level](...args);
-
-              // Process for UI console and onLog callback
-              const message = args.map(formatLogArg).join(" ");
-              const stack =
-                level === "trace"
-                  ? (new Error().stack || "").split("\n").slice(2).join("\n")
-                  : null;
-              onLog(level, message, stack);
-            };
-          return {
-            log: make("log"),
-            info: make("info"),
-            warn: make("warn"),
-            error: make("error"),
-            debug: make("debug"),
-            trace: make("trace"),
-          };
-        })()
-      : console;
-
-    // Cache lookup on the (transpiled) code + args signature.
-    const cacheId = composeID(code, argsSignature);
-    const cached = await util.geometryProvider!.getAssembly(cacheId, context);
-    if (cached) return cached;
-
-    const batchId = "code-atom-" + cacheId;
-    const batch: RequestContext | AbundanceObject =
-      await util.geometryProvider!.startBatchOperation(context, batchId);
-    if (util.isAbundanceObject(batch)) {
-      sandboxConsole.info("Cache hit. Execution skipped.");
-      return batch;
-    }
-
-    context = batch;
-    context.nextId = 0;
 
     validateUserCode(code);
 
