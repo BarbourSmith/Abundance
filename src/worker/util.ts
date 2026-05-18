@@ -336,6 +336,144 @@ function hashString(str: string): string {
   return hash.toString(16).padStart(8, "0");
 }
 
+/**
+ * Consolidate Euler rotations (X/Y/Z) into a single axis-angle rotation.
+ *
+ * Given rotations around the local/global X, Y, Z axes:
+ *   Rx(xDeg) -> Ry(yDeg) -> Rz(zDeg)
+ *
+ * This computes:
+ *   angleDeg
+ *   axis [x,y,z]
+ *
+ * so you can do:
+ *   obj.rotate(angleDeg, center, axis)
+ *
+ * Assumes:
+ * - Right-handed coordinate system
+ * - Intrinsic rotations applied in X -> Y -> Z order
+ * - rotate() uses axis-angle rotation
+ */
+
+type Vec3 = [number, number, number];
+
+interface AxisAngle {
+  angleDeg: number;
+  axis: Vec3;
+}
+
+function degreesToRadians(deg: number): number {
+  return (deg * Math.PI) / 180;
+}
+
+function radiansToDegrees(rad: number): number {
+  return (rad * 180) / Math.PI;
+}
+
+/**
+ * 3x3 matrix multiplication
+ */
+function multiply3x3(a: number[][], b: number[][]): number[][] {
+  const out = Array.from({ length: 3 }, () => [0, 0, 0]);
+
+  for (let r = 0; r < 3; r++) {
+    for (let c = 0; c < 3; c++) {
+      out[r][c] = a[r][0] * b[0][c] + a[r][1] * b[1][c] + a[r][2] * b[2][c];
+    }
+  }
+
+  return out;
+}
+
+function rotationX(rad: number): number[][] {
+  const c = Math.cos(rad);
+  const s = Math.sin(rad);
+
+  return [
+    [1, 0, 0],
+    [0, c, -s],
+    [0, s, c],
+  ];
+}
+
+function rotationY(rad: number): number[][] {
+  const c = Math.cos(rad);
+  const s = Math.sin(rad);
+
+  return [
+    [c, 0, s],
+    [0, 1, 0],
+    [-s, 0, c],
+  ];
+}
+
+function rotationZ(rad: number): number[][] {
+  const c = Math.cos(rad);
+  const s = Math.sin(rad);
+
+  return [
+    [c, -s, 0],
+    [s, c, 0],
+    [0, 0, 1],
+  ];
+}
+
+/**
+ * Convert a rotation matrix into axis-angle form.
+ */
+function matrixToAxisAngle(m: number[][]): AxisAngle {
+  const trace = m[0][0] + m[1][1] + m[2][2];
+
+  // Numerical safety
+  const cosTheta = Math.min(1, Math.max(-1, (trace - 1) / 2));
+
+  const theta = Math.acos(cosTheta);
+
+  if (Math.abs(theta) < 1e-8) {
+    return {
+      angleDeg: 0,
+      axis: [1, 0, 0],
+    };
+  }
+
+  const sinTheta = Math.sin(theta);
+
+  const x = (m[2][1] - m[1][2]) / (2 * sinTheta);
+  const y = (m[0][2] - m[2][0]) / (2 * sinTheta);
+  const z = (m[1][0] - m[0][1]) / (2 * sinTheta);
+
+  // Normalize axis
+  const len = Math.hypot(x, y, z);
+
+  return {
+    angleDeg: radiansToDegrees(theta),
+    axis: [x / len, y / len, z / len],
+  };
+}
+
+/**
+ * Consolidate sequence of X, Y, Z rotations (around the global
+ * x, y, z axes respectively) into a single rotation operation
+ *
+ * Rotation order:
+ *   X -> Y -> Z
+ */
+function eulerToSingleAxisRotation(
+  xDeg: number,
+  yDeg: number,
+  zDeg: number,
+): AxisAngle {
+  const rx = rotationX(degreesToRadians(xDeg));
+  const ry = rotationY(degreesToRadians(yDeg));
+  const rz = rotationZ(degreesToRadians(zDeg));
+
+  // Combined rotation matrix:
+  // Apply X, then Y, then Z
+  const combined = multiply3x3(rz, multiply3x3(ry, rx));
+
+  return matrixToAxisAngle(combined);
+}
+
 export {
   AbundanceLeaf,
   AbundanceObject,
@@ -364,4 +502,7 @@ export {
   NonReplicadGeom,
   XYPlane,
   startHeapMonitor,
+  AxisAngle,
+  Vec3,
+  eulerToSingleAxisRotation,
 };

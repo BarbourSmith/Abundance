@@ -3,6 +3,7 @@ import shrinkWrap from "replicad-shrink-wrap";
 import {
   AbundanceObject,
   asReplicadPlane,
+  eulerToSingleAxisRotation,
   flattenAssembly,
   SimplePlane,
 } from "./util";
@@ -397,10 +398,8 @@ class GeometryProvider {
         // TODO(tristan): should this rotate around center of bounding box?
         return geometry.rotate(z, [0, 0]);
       } else {
-        return geometry
-          .rotate(x, [0, 0, 0], [1, 0, 0])
-          .rotate(y, [0, 0, 0], [0, 1, 0])
-          .rotate(z, [0, 0, 0], [0, 0, 1]);
+        const transform = eulerToSingleAxisRotation(x, y, z);
+        return geometry.rotate(transform.angleDeg, [0, 0, 0], transform.axis);
       }
     });
     return rotateId;
