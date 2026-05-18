@@ -2,6 +2,29 @@ import { Drawing } from "replicad";
 import * as util from "./util";
 import { AbundanceLeaf, AbundanceObject } from "./util";
 import { RequestContext } from "./geometryProvider";
+
+const CAD_WORKER_HEARTBEAT_TYPE = "__abundanceCadWorkerHeartbeat";
+
+function emitCadWorkerHeartbeat(
+  requestId?: string,
+  stage?: string,
+  detail?: Record<string, unknown>,
+) {
+  if (
+    !requestId ||
+    typeof self === "undefined" ||
+    typeof self.postMessage !== "function"
+  ) {
+    return;
+  }
+
+  self.postMessage({
+    type: CAD_WORKER_HEARTBEAT_TYPE,
+    requestId,
+    stage,
+    ...detail,
+  });
+}
 /**
  * All methods in this file take multiple geometries and combine them in some way.
  *
@@ -341,10 +364,16 @@ deserialization options:
 async function assembly(
   geometries: AbundanceObject[],
   context: RequestContext,
+  requestMeta?: { __cadWorkerRequestId?: string },
 ): Promise<AbundanceObject> {
+  const requestId = requestMeta?.__cadWorkerRequestId;
   if (!Array.isArray(geometries) || geometries.length === 0) {
     throw new Error("inputIDs must be a non-empty array");
   }
+
+  emitCadWorkerHeartbeat(requestId, "assembly:start", {
+    inputCount: geometries.length,
+  });
 
   // Dimension assertions:
   // Allowed inputs -> all 2d, all 3d, or just wires/points
@@ -387,6 +416,9 @@ async function assembly(
       // Always update to reflect current state, even if empty
       batch.nonReplicadSerialized = nonReplicadGeoms;
       batch.bom = bomAssembly;
+      emitCadWorkerHeartbeat(requestId, "assembly:cache-hit", {
+        inputCount: geometries.length,
+      });
       return batch;
     }
 
@@ -404,8 +436,17 @@ async function assembly(
     nonReplicadGeoms.length = 0;
     for (let i = 0; i < geometries.length; i++) {
       const geometry = geometries[i];
+      emitCadWorkerHeartbeat(requestId, "assembly:cut-step", {
+        step: i + 1,
+        total: geometries.length,
+      });
       assembly.push(
-        await cutAssembly(geometry, geometries.slice(i + 1), context),
+        await cutAssembly(
+          geometry,
+          geometries.slice(i + 1),
+          context,
+          requestId,
+        ),
       );
     }
     // Gather all nonReplicadSerialized and bom from input geometries
@@ -450,6 +491,10 @@ async function assembly(
   if (startedBatch) {
     await util.geometryProvider!.endBatchOperation(context, result);
   }
+
+  emitCadWorkerHeartbeat(requestId, "assembly:complete", {
+    inputCount: geometries.length,
+  });
 
   return result;
 }
@@ -501,6 +546,7 @@ async function cutAssembly(
   partToCut: AbundanceObject,
   cuttingParts: AbundanceObject[],
   context: RequestContext,
+  requestId?: string,
 ): Promise<AbundanceObject> {
   await util.init();
 
@@ -510,7 +556,10 @@ async function cutAssembly(
     const assemblyCut: any[] = [];
     for (const part of assemblyToCut) {
       // make new assembly from cut parts
-      assemblyCut.push(await cutAssembly(part, cuttingParts, context));
+      emitCadWorkerHeartbeat(requestId, "assembly:descend", {
+        childCount: assemblyToCut.length,
+      });
+      assemblyCut.push(await cutAssembly(part, cuttingParts, context, requestId));
     }
 
     //returns new assembly that has been cut
@@ -530,13 +579,18 @@ async function cutAssembly(
 
     // if part to cut is a single part send to cutting function with cutting parts
     let partCutCopy = partToCut;
-    for (const cuttingPart of cuttingParts) {
+    for (let i = 0; i < cuttingParts.length; i++) {
+      const cuttingPart = cuttingParts[i];
+      emitCadWorkerHeartbeat(requestId, "assembly:part-cut", {
+        step: i + 1,
+        total: cuttingParts.length,
+      });
       // for each cutting part cut the part
-      partCutCopy = await recursiveCut(partCutCopy, cuttingPart, context);
+      partCutCopy = await recursiveCut(partCutCopy, cuttingPart, context, requestId);
     }
     // return new cut part, expand compound solid if it was cut into disconnected
     // parts
-    return splitCompSolid(partCutCopy, context);
+    return splitCompSolid(partCutCopy, context, requestId);
   }
 }
 
@@ -561,13 +615,20 @@ async function recursiveCut(
   partToCut: AbundanceLeaf,
   cuttingParts: AbundanceObject,
   context: RequestContext,
+  requestId?: string,
 ): Promise<AbundanceLeaf> {
   if (util.isWireGeometry(partToCut)) {
     return partToCut;
   }
 
   let resultGeomId: string = partToCut.geometry;
-  for (const cuttingPart of util.flattenAssembly(cuttingParts)) {
+  const flattenedCuttingParts = util.flattenAssembly(cuttingParts);
+  for (let i = 0; i < flattenedCuttingParts.length; i++) {
+    const cuttingPart = flattenedCuttingParts[i];
+    emitCadWorkerHeartbeat(requestId, "assembly:leaf-cut", {
+      step: i + 1,
+      total: flattenedCuttingParts.length,
+    });
     const toCutGeom = await util.geometryProvider!.get(resultGeomId, context);
     if (partToCut.dimension != cuttingPart.dimension) {
       continue;
@@ -635,7 +696,9 @@ async function recursiveCut(
 async function splitCompSolid(
   part: AbundanceLeaf,
   context: RequestContext,
+  requestId?: string,
 ): Promise<AbundanceObject> {
+  emitCadWorkerHeartbeat(requestId, "assembly:split-compound");
   const subPartIds = await util.geometryProvider!.expandCompoundShape(
     part.geometry,
     context,

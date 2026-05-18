@@ -1,12 +1,15 @@
 import { wrap } from "comlink";
 
+const CAD_WORKER_HEARTBEAT_TYPE = "__abundanceCadWorkerHeartbeat";
+
 /**
- * Wraps a comlink-based Web Worker with a per-call timeout watchdog.
+ * Wraps a comlink-based Web Worker with a per-call inactivity watchdog.
  *
- * If any call to the CAD worker takes longer than `timeoutMs`, the worker is
- * considered hung: the call (and every other in-flight call) is rejected with a
- * descriptive error, the underlying Worker is terminated, and a fresh Worker is
- * spawned so subsequent calls continue to work.
+ * If the actively tracked CAD worker call goes `timeoutMs` without any visible
+ * activity, the worker is considered hung: the call (and every other in-flight
+ * call) is rejected with a descriptive error, the underlying Worker is
+ * terminated, and a fresh Worker is spawned so subsequent calls continue to
+ * work.
  *
  * Usage:
  *   const cad = new CadWorkerManager(cadWorker, 120_000);
@@ -19,11 +22,12 @@ import { wrap } from "comlink";
 export class CadWorkerManager {
   /**
    * @param {new () => Worker} WorkerFactory - The Vite `?worker` import (a constructor).
-   * @param {number} [timeoutMs=120000] - Milliseconds before a call is considered hung.
+    * @param {number} [timeoutMs=120000] - Milliseconds of inactivity before a call is considered hung.
    */
   constructor(WorkerFactory, timeoutMs = 120_000) {
     this._WorkerFactory = WorkerFactory;
     this._timeoutMs = timeoutMs;
+    this._nextRequestId = 1;
     /** @type {Array<{reject: Function, timeoutId: ReturnType<typeof setTimeout>}>} */
     this._pendingCalls = [];
     /**
@@ -33,6 +37,7 @@ export class CadWorkerManager {
      * @type {((message: string) => void) | null}
      */
     this.onRestartCallback = null;
+    this._handleWorkerMessage = this._handleWorkerMessage.bind(this);
 
     this._createWorker();
 
@@ -57,25 +62,14 @@ export class CadWorkerManager {
 
   _createWorker() {
     this._rawWorker = new this._WorkerFactory();
+    if (typeof this._rawWorker.addEventListener === "function") {
+      this._rawWorker.addEventListener("message", this._handleWorkerMessage);
+    }
     this._proxy = wrap(this._rawWorker);
   }
 
-  /**
-   * Start timeout and progress-logging timers for an entry that is now
-   * actively being processed by the worker.
-   */
-  _startTimers(entry) {
-    entry.startTime = Date.now();
-
-    // Log progress every 5 seconds so it's visible in the console.
-    entry.progressIntervalId = setInterval(() => {
-      const elapsed = Math.round((Date.now() - entry.startTime) / 1000);
-      const remaining = Math.round(
-        (this._timeoutMs - (Date.now() - entry.startTime)) / 1000,
-      );
-
-    }, 5000);
-
+  _armTimeout(entry) {
+    clearTimeout(entry.timeoutId);
     entry.timeoutId = setTimeout(() => {
       clearInterval(entry.progressIntervalId);
       entry.progressIntervalId = null;
@@ -84,11 +78,53 @@ export class CadWorkerManager {
       this._pendingCalls = this._pendingCalls.filter((c) => c !== entry);
       entry.reject(
         new Error(
-          `CAD worker timed out on "${String(entry.method)}" after ${this._timeoutMs}ms`,
+          `CAD worker timed out on "${String(entry.method)}" after ${this._timeoutMs}ms of inactivity`,
         ),
       );
       this._restartWorker();
     }, this._timeoutMs);
+  }
+
+  _recordActivity(entry) {
+    entry.lastActivityAt = Date.now();
+    this._armTimeout(entry);
+  }
+
+  _handleWorkerMessage(event) {
+    const data = event?.data;
+    if (!data || data.type !== CAD_WORKER_HEARTBEAT_TYPE || !data.requestId) {
+      return;
+    }
+
+    const activeEntry = this._pendingCalls[0];
+    if (
+      !activeEntry ||
+      activeEntry.startTime === null ||
+      activeEntry.requestId !== data.requestId
+    ) {
+      return;
+    }
+
+    this._recordActivity(activeEntry);
+  }
+
+  /**
+   * Start timeout and progress-logging timers for an entry that is now
+   * actively being processed by the worker.
+   */
+  _startTimers(entry) {
+    entry.startTime = Date.now();
+    entry.lastActivityAt = entry.startTime;
+
+    // Log progress every 5 seconds so it's visible in the console.
+    entry.progressIntervalId = setInterval(() => {
+      const elapsed = Math.round((Date.now() - entry.startTime) / 1000);
+      const remaining = Math.round(
+        (this._timeoutMs - (Date.now() - entry.lastActivityAt)) / 1000,
+      );
+
+    }, 5000);
+    this._armTimeout(entry);
   }
 
   /**
@@ -120,7 +156,14 @@ export class CadWorkerManager {
         progressIntervalId: null,
         method,
         startTime: null,
+        lastActivityAt: null,
+        requestId: `${Date.now()}-${this._nextRequestId++}`,
       };
+
+      const workerArgs =
+        method === "assembly"
+          ? [...args, { __cadWorkerRequestId: entry.requestId }]
+          : args;
 
       this._pendingCalls.push(entry);
 
@@ -137,7 +180,7 @@ export class CadWorkerManager {
         entry.timeoutId = null;
       };
 
-      this._proxy[method](...args).then(
+      this._proxy[method](...workerArgs).then(
         (result) => {
           cleanup();
           this._pendingCalls = this._pendingCalls.filter((c) => c !== entry);
