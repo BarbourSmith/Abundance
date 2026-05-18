@@ -1571,6 +1571,11 @@ export default class Atom extends ObservableEntity {
           inputParams[this.uniqueID + input.name] = {
             type: "string", //forcing string type to evaluate as equation
             value: displayValue,
+            // The currently resolved numeric value of this input. The panel
+            // shows this beneath the equation field (greyed) when the typed
+            // expression differs from the value it evaluates to. Hidden when
+            // disabled by a connector (the upstream value is already shown).
+            resolvedValue: hasConnector ? undefined : input.getValue(),
             label: input.name,
             disabled: hasConnector,
             onChange: (value) => {
@@ -1624,20 +1629,27 @@ export default class Atom extends ObservableEntity {
                   input._nameSubscribedAtoms.size > 0
                 ) {
                   // Subscriptions are handling updates, no need to evaluate here
-                  return;
-                }
+                } else {
+                  const result = this.evaluateEquation(currentEquation);
 
-                const result = this.evaluateEquation(currentEquation);
-
-                if (Number.isFinite(result)) {
-                  if (result !== input.value) {
-                    input.setValue(result);
+                  if (Number.isFinite(result)) {
+                    if (result !== input.value) {
+                      input.setValue(result);
+                    }
                   }
                 }
               } catch (err) {
                 // Invalid equation - don't update the value, which prevents NaN from propagating
                 // The error is shown to user via alertingErrorHandler, and the value remains unchanged
                 this.alertingErrorHandler()(err);
+              }
+              // Tell the control panel to re-pull `resolvedValue` (and any
+              // other fields derived from input state) now that the equation
+              // has been committed. Without this, the resolved-value hint
+              // stays stale until the panel is regenerated for another
+              // reason (e.g. selecting a different atom and back).
+              if (typeof this.setInputChanged === "function") {
+                this.setInputChanged(this.status);
               }
             },
           };

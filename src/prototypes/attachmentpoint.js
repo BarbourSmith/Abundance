@@ -857,9 +857,15 @@ export default class AttachmentPoint extends ObservableEntity {
       }
 
       // For complex expressions with multiple variables or operators,
-      // substitute the variable values directly and evaluate
+      // substitute the variable values directly and evaluate.
+      // Array-valued subscribed inputs are handled separately: we resolve
+      // `arr.length` and `arr[expr]` to numeric literals BEFORE doing the
+      // naive scalar substitution (otherwise an array would stringify to
+      // "1,2,3" and corrupt the equation).
       let substitutedEquation = this._currentEquation;
       let allReady = true;
+      const arrayVars = new Map();
+      const scalarVars = new Map();
 
       for (const [varName, inputAtom] of this._nameSubscribedAtoms) {
         const state = inputAtom.getState();
@@ -868,11 +874,11 @@ export default class AttachmentPoint extends ObservableEntity {
           state.value !== null &&
           state.value !== undefined
         ) {
-          const safeVar = varName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-          substitutedEquation = substitutedEquation.replace(
-            new RegExp(`\\b${safeVar}\\b`, "g"),
-            String(state.value),
-          );
+          if (Array.isArray(state.value)) {
+            arrayVars.set(varName, state.value);
+          } else {
+            scalarVars.set(varName, state.value);
+          }
         } else {
           allReady = false;
         }
@@ -882,6 +888,22 @@ export default class AttachmentPoint extends ObservableEntity {
         // Some variables are not ready yet
         this.setStatus(Status.WAITING);
         return;
+      }
+
+      if (arrayVars.size > 0) {
+        substitutedEquation = this._resolveArrayAccess(
+          substitutedEquation,
+          arrayVars,
+          scalarVars,
+        );
+      }
+
+      for (const [varName, value] of scalarVars) {
+        const safeVar = varName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        substitutedEquation = substitutedEquation.replace(
+          new RegExp(`\\b${safeVar}\\b`, "g"),
+          String(value),
+        );
       }
 
       // Use the parent molecule's evaluateEquation on the substituted equation
@@ -905,6 +927,125 @@ export default class AttachmentPoint extends ObservableEntity {
     } catch (err) {
       this.setStatus(Status.WAITING);
     }
+  }
+
+  /**
+   * Resolves JS-style array access patterns in an equation string into numeric
+   * literals: `name.length` becomes the array's length, and `name[expr]`
+   * becomes the element at the (possibly computed, possibly negative) index.
+   *
+   * Negative indices use Python-style semantics: `arr[-1]` is the last
+   * element, `arr[-n]` is the nth-from-end. Out-of-bounds (after negative
+   * normalization) throws so the caller's catch can mark this AP WAITING.
+   *
+   * Index expressions may reference other scalar subscribed vars; those are
+   * substituted before evaluating the index. Nested array access
+   * (`offsets[offsets.length - 1]`) is handled by iterating: passes only
+   * resolve indices whose inner expression contains no further unresolved
+   * array access.
+   *
+   * @param {string} equation - The equation source.
+   * @param {Map<string, Array>} arrayVars - Array-valued subscribed inputs.
+   * @param {Map<string, *>} scalarVars - Scalar-valued subscribed inputs.
+   * @returns {string} Equation with array access reduced to numeric literals.
+   */
+  _resolveArrayAccess(equation, arrayVars, scalarVars) {
+    const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+    // 1. Replace `name.length` with the literal array length for each array var.
+    for (const [name, arr] of arrayVars) {
+      const lengthRe = new RegExp(`\\b${escapeRe(name)}\\.length\\b`, "g");
+      equation = equation.replace(lengthRe, String(arr.length));
+    }
+
+    // 2. Iteratively replace `name[expr]` with the literal element value.
+    //    A safety counter caps the loop in case of pathological input.
+    const innerHasArrayAccess = (inner) =>
+      [...arrayVars.keys()].some((n) =>
+        new RegExp(`\\b${escapeRe(n)}\\[`).test(inner),
+      );
+
+    let safety = 0;
+    while (safety++ < 1000) {
+      let replaced = false;
+
+      for (const [name, arr] of arrayVars) {
+        const openRe = new RegExp(`\\b${escapeRe(name)}\\[`, "g");
+        let m;
+        while ((m = openRe.exec(equation)) !== null) {
+          const innerStart = m.index + m[0].length;
+          let depth = 1;
+          let i = innerStart;
+          while (i < equation.length && depth > 0) {
+            const ch = equation[i];
+            if (ch === "[") depth++;
+            else if (ch === "]") depth--;
+            if (depth === 0) break;
+            i++;
+          }
+          if (depth !== 0) {
+            // Unbalanced brackets; bail out of this var's scan.
+            break;
+          }
+
+          const inner = equation.slice(innerStart, i);
+          if (innerHasArrayAccess(inner)) {
+            // Defer: an inner array index needs to be resolved first.
+            openRe.lastIndex = i + 1;
+            continue;
+          }
+
+          // Substitute scalar vars inside the index expression so mathjs can
+          // evaluate it as a pure numeric expression.
+          let innerSub = inner;
+          for (const [sName, sVal] of scalarVars) {
+            innerSub = innerSub.replace(
+              new RegExp(`\\b${escapeRe(sName)}\\b`, "g"),
+              String(sVal),
+            );
+          }
+
+          let idxVal;
+          try {
+            if (typeof this.parentMolecule.evaluateEquation === "function") {
+              idxVal = this.parentMolecule.evaluateEquation(innerSub);
+            } else {
+              idxVal = Function('"use strict"; return (' + innerSub + ")")();
+            }
+          } catch (e) {
+            throw new Error(
+              `Cannot evaluate array index expression "${inner}" for "${name}": ${e.message}`,
+            );
+          }
+
+          let idx = Math.trunc(Number(idxVal));
+          if (!Number.isFinite(idx)) {
+            throw new Error(
+              `Array index for "${name}" did not resolve to a finite number (got ${idxVal})`,
+            );
+          }
+          // Python-style negative indexing: -1 -> last element.
+          if (idx < 0) idx = arr.length + idx;
+          if (idx < 0 || idx >= arr.length) {
+            throw new Error(
+              `Array index ${idxVal} out of bounds for "${name}" (length ${arr.length})`,
+            );
+          }
+
+          const elementLiteral = String(arr[idx]);
+          equation =
+            equation.slice(0, m.index) + elementLiteral + equation.slice(i + 1);
+          replaced = true;
+          break; // restart - string indices have shifted
+        }
+
+        if (replaced) break;
+      }
+
+      if (!replaced) break;
+    }
+
+    return equation;
   }
 
   /**

@@ -1573,9 +1573,17 @@ export const SimpleControlPanel = forwardRef(function SimpleControlPanel(
                       <div
                         key={key}
                         style={{
-                          ...labelStyle,
+                          display: "flex",
+                          flexDirection: "column",
+                          marginBottom: 8,
                         }}
                       >
+                        <div
+                          style={{
+                            ...labelStyle,
+                            marginBottom: 0,
+                          }}
+                        >
                         <span
                           style={{
                             width: inputFullWidth
@@ -1757,6 +1765,47 @@ export const SimpleControlPanel = forwardRef(function SimpleControlPanel(
                             )}
                           </div>
                         )}
+                        </div>
+                        {(() => {
+                          // Show the evaluated numeric result below the
+                          // equation field when the typed value differs from
+                          // what it resolves to (i.e. the user typed an
+                          // expression rather than a bare literal). Hidden
+                          // for connected/disabled inputs and for non-finite
+                          // results.
+                          const rv = config.resolvedValue;
+                          if (rv === undefined || rv === null) return null;
+                          if (isDisabled) return null;
+                          const n = Number(rv);
+                          if (!Number.isFinite(n)) return null;
+                          if (String(rv) === String(currentValue ?? ""))
+                            return null;
+                          const formatted = Number.isInteger(n)
+                            ? String(n)
+                            : n
+                                .toFixed(6)
+                                .replace(/0+$/, "")
+                                .replace(/\.$/, "");
+                          return (
+                            <div
+                              style={{
+                                fontSize: 11,
+                                color: "#8a8f99",
+                                marginTop: 2,
+                                marginLeft: inputFullWidth
+                                  ? 0
+                                  : panelRef.current
+                                    ? panelRef.current.offsetWidth * 0.4 + 10
+                                    : 100,
+                                fontFamily:
+                                  "ui-monospace, SFMono-Regular, Menlo, monospace",
+                              }}
+                              title={`Resolved value: ${rv}`}
+                            >
+                              = {formatted}
+                            </div>
+                          );
+                        })()}
                       </div>
                     );
                   case "color":
