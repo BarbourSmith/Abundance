@@ -371,10 +371,6 @@ async function assembly(
     throw new Error("inputIDs must be a non-empty array");
   }
 
-  emitCadWorkerHeartbeat(requestId, "assembly:start", {
-    inputCount: geometries.length,
-  });
-
   // Dimension assertions:
   // Allowed inputs -> all 2d, all 3d, or just wires/points
 
@@ -416,9 +412,6 @@ async function assembly(
       // Always update to reflect current state, even if empty
       batch.nonReplicadSerialized = nonReplicadGeoms;
       batch.bom = bomAssembly;
-      emitCadWorkerHeartbeat(requestId, "assembly:cache-hit", {
-        inputCount: geometries.length,
-      });
       return batch;
     }
 
@@ -436,10 +429,6 @@ async function assembly(
     nonReplicadGeoms.length = 0;
     for (let i = 0; i < geometries.length; i++) {
       const geometry = geometries[i];
-      emitCadWorkerHeartbeat(requestId, "assembly:cut-step", {
-        step: i + 1,
-        total: geometries.length,
-      });
       assembly.push(
         await cutAssembly(
           geometry,
@@ -491,10 +480,6 @@ async function assembly(
   if (startedBatch) {
     await util.geometryProvider!.endBatchOperation(context, result);
   }
-
-  emitCadWorkerHeartbeat(requestId, "assembly:complete", {
-    inputCount: geometries.length,
-  });
 
   return result;
 }
@@ -556,9 +541,6 @@ async function cutAssembly(
     const assemblyCut: any[] = [];
     for (const part of assemblyToCut) {
       // make new assembly from cut parts
-      emitCadWorkerHeartbeat(requestId, "assembly:descend", {
-        childCount: assemblyToCut.length,
-      });
       assemblyCut.push(await cutAssembly(part, cuttingParts, context, requestId));
     }
 
@@ -581,10 +563,6 @@ async function cutAssembly(
     let partCutCopy = partToCut;
     for (let i = 0; i < cuttingParts.length; i++) {
       const cuttingPart = cuttingParts[i];
-      emitCadWorkerHeartbeat(requestId, "assembly:part-cut", {
-        step: i + 1,
-        total: cuttingParts.length,
-      });
       // for each cutting part cut the part
       partCutCopy = await recursiveCut(partCutCopy, cuttingPart, context, requestId);
     }
