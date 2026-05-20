@@ -8,8 +8,8 @@ import * as util from "./util";
 
 type DisplayMesh = {
   cameraZoom: number;
-  faces?: ShapeMesh;
-  edges?: {
+  faces: ShapeMesh;
+  edges: {
     lines: number[];
     edgeGroups: {
       start: number;
@@ -18,7 +18,6 @@ type DisplayMesh = {
     }[];
   };
   color: string;
-  point?: [number, number, number];
 };
 
 let defaultMesh: any = undefined;
@@ -233,13 +232,7 @@ async function generateDisplayMesh(
 
     let cameraZoom;
     try {
-      // Exclude Vertex (Point3D) geometries from bounding box — they produce a
-      // degenerate single-point box that would skew or zero-out the zoom level.
-      const cameraGeoms = meshArray
-        .map((m) => m.geometry)
-        .filter((g) => !(g instanceof replicad.Vertex));
-      cameraZoom =
-        cameraGeoms.length > 0 ? generateCameraPosition(cameraGeoms) : 1;
+      cameraZoom = generateCameraPosition(meshArray.map((m) => m.geometry));
     } catch (e) {
       console.error("Error generating camera position:", e);
       cameraZoom = 1;
@@ -249,25 +242,8 @@ async function generateDisplayMesh(
     // Iterate through the meshArray and create final meshes with faces, edges and color to pass to display
     for (const [index, meshObj] of meshArray.entries()) {
       try {
-        if (meshObj.geometry instanceof replicad.Vertex) {
-          // Point3D — emit a point coordinate, no mesh geometry
-          finalMeshes.push({
-            cameraZoom: cameraZoom,
-            point: (meshObj.geometry as replicad.Vertex).asTuple(),
-            color: meshObj.color,
-          });
-        } else if (meshObj.geometry instanceof replicad.Wire) {
-          // Wire — edges only, no faces
-          finalMeshes.push({
-            cameraZoom: cameraZoom,
-            edges: meshObj.geometry.meshEdges({
-              tolerance: 0.03,
-              angularTolerance: 0.1,
-            }),
-            color: meshObj.color,
-          });
-        } else if (meshObj.geometry instanceof replicad.Drawing) {
-          const sketchPlane = util.asReplicadPlane(geom.plane);
+        const sketchPlane = util.asReplicadPlane(geom.plane);
+        if (meshObj.geometry instanceof replicad.Drawing) {
           const threeDShape = meshObj.geometry
             .sketchOnPlane(sketchPlane)
             .extrude(0.0001);
@@ -281,7 +257,6 @@ async function generateDisplayMesh(
             color: meshObj.color,
           });
         } else {
-          // Shape3D — mesh normally
           finalMeshes.push({
             cameraZoom: cameraZoom,
             faces: meshObj.geometry.mesh({

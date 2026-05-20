@@ -17,28 +17,19 @@ async function extrude(
   if (util.is3D(toExtrude)) {
     throw new Error("Cannot extrude a 3D geometry.");
   }
-  if (util.isWireGeometry(toExtrude)) {
-    throw new Error("Cannot extrude a Wire.");
-  }
-  if (util.isPoint3D(toExtrude)) {
-    throw new Error("Cannot extrude a Point3D.");
-  }
   await util.init();
-  const extruded = await util.actOnLeafs(
-    toExtrude,
-    async (leaf: AbundanceLeaf) => {
-      return {
-        ...leaf,
-        geometry: await util.geometryProvider!.extrude(
-          leaf.geometry,
-          leaf.plane,
-          height,
-          context,
-        ),
-        dimension: "3D",
-      };
-    },
-  );
+  const extruded = await util.actOnLeafs(toExtrude, async (leaf: AbundanceLeaf) => {
+    return {
+      ...leaf,
+      geometry: await util.geometryProvider!.extrude(
+        leaf.geometry,
+        leaf.plane,
+        height,
+        context,
+      ),
+      dimension: "3D",
+    };
+  });
   return util.withAssemblyBoundingBoxes(extruded, context);
 }
 
@@ -144,12 +135,8 @@ async function move(
     z,
     context,
   );
-  if (
-    util.is3D(toMove) ||
-    util.isWireGeometry(toMove) ||
-    util.isPoint3D(toMove)
-  ) {
-    return util.actOnLeafs(
+  if (util.is3D(toMove)) {
+    const moved = await util.actOnLeafs(
       toMove,
       async (leaf: AbundanceLeaf) => {
         return {
@@ -332,12 +319,8 @@ async function rotate(
   if (toRotate.nonReplicadSerialized) {
     toRotate.nonReplicadSerialized = handleNonReplicadRotate(toRotate, x, y, z);
   }
-  if (
-    util.is3D(toRotate) ||
-    util.isWireGeometry(toRotate) ||
-    util.isPoint3D(toRotate)
-  ) {
-    return util.actOnLeafs(
+  if (util.is3D(toRotate)) {
+    const rotated = await util.actOnLeafs(
       toRotate,
       async (leaf: AbundanceLeaf) => {
         return {
@@ -356,24 +339,21 @@ async function rotate(
     );
     return util.withAssemblyBoundingBoxes(rotated, context);
   } else {
-    const rotated = await util.actOnLeafs(
-      toRotate,
-      async (leaf: AbundanceLeaf) => {
-        return {
-          ...leaf,
-          geometry: await util.geometryProvider!.rotate(
-            leaf.geometry,
-            0,
-            0,
-            z,
-            context,
-          ),
-          plane: util.asSimplePlane(
-            util.asReplicadPlane(leaf.plane).pivot(x, "X").pivot(y, "Y"),
-          ),
-        };
-      },
-    );
+    const rotated = await util.actOnLeafs(toRotate, async (leaf: AbundanceLeaf) => {
+      return {
+        ...leaf,
+        geometry: await util.geometryProvider!.rotate(
+          leaf.geometry,
+          0,
+          0,
+          z,
+          context,
+        ),
+        plane: util.asSimplePlane(
+          util.asReplicadPlane(leaf.plane).pivot(x, "X").pivot(y, "Y"),
+        ),
+      };
+    });
     return util.withAssemblyBoundingBoxes(rotated, context);
   }
 }
