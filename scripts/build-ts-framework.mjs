@@ -156,7 +156,9 @@ dts = dts
   // callback param/return) with `Assembly<LeafGeom>` so `leaf.geometry`
   // narrows to the proper replicad union without any user-side checks.
   .replace(/\bAssembly<any>/g, "Assembly<LeafGeom>")
-  // is2D / is3D: turn boolean returns into proper type-narrowing guards.
+  // is2D / is3D / isWire / isPoint: turn boolean returns into proper
+  // type-narrowing guards so user code can read `.geometry` as the
+  // appropriate replicad type without a manual cast.
   .replace(
     /is2D\(\): boolean;/g,
     "is2D(): this is Assembly<_replicad.Drawing>;",
@@ -164,6 +166,14 @@ dts = dts
   .replace(
     /is3D\(\): boolean;/g,
     "is3D(): this is Assembly<_replicad.AnyShape>;",
+  )
+  .replace(
+    /isWire\(\): boolean;/g,
+    "isWire(): this is Assembly<_replicad.Wire>;",
+  )
+  .replace(
+    /isPoint\(\): boolean;/g,
+    "isPoint(): this is Assembly<_replicad.Vertex>;",
   );
 
 // Build the final .d.ts: import + declare global wrapper, then a real
@@ -185,6 +195,7 @@ const finalDts =
   `    type Sketch = _replicad.Sketch;\n` +
   `    type Sketches = _replicad.Sketches;\n` +
   `    type Wire = _replicad.Wire;\n` +
+  `    type Vertex = _replicad.Vertex;\n` +
   `    type Face = _replicad.Face;\n` +
   `    type Solid = _replicad.Solid;\n` +
   `    type Shape<T> = _replicad.Shape<T>;\n` +

@@ -317,8 +317,12 @@ Allowed input types are:
 • number
 • string
 • boolean
-• Assembly - a structured Abundance assembly (may contain a single or multiple geometries).
-  See Abundance Methods panel.
+• Assembly - a structured Abundance assembly. Geometry may be one of:
+    - 3D solid  (.is3D() → true)
+    - 2D sketch (.is2D() → true)
+    - Wire curve (.isWire() → true)
+    - Point3D vertex (.isPoint3D() → true)
+  See Abundance Methods panel for full API.
 
 Allowed return types are same as input types.
 

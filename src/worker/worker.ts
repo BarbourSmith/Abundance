@@ -658,9 +658,11 @@ async function generateThumbnail(
     ) {
       projectionShape = prettyProjection(fusedGeometry);
       svg = projectionShape.visible.toSVG();
+    } else if (fusedGeometry instanceof replicad.Vertex) {
+      throw new Error("Cannot generate an SVG projection for a Point3D geometry.");
     } else {
       projectionShape = util.replicad.drawProjection(
-        fusedGeometry.sketchOnPlane("XY").extrude(0.0001),
+        (fusedGeometry as replicad.Drawing).sketchOnPlane("XY").extrude(0.0001),
         "top",
       ).visible;
       svg = projectionShape.toSVG();

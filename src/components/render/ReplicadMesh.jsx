@@ -41,9 +41,19 @@ export default React.memo(
 
     function makeMeshes(meshes) {
       let meshArray = [];
-      let keepOutMesh = [];
       if (!Array.isArray(meshes)) return meshArray;
       meshes.map((m) => {
+        // Point3D — no buffer geometry to build, just store the coordinate
+        if (m.point) {
+          meshArray.push({
+            pointPosition: m.point,
+            color: m.color,
+            solid: false,
+            isWire: false,
+          });
+          return;
+        }
+
         const body = new BufferGeometry();
         const lines = new BufferGeometry();
         // We use the three helpers to synchronise the buffer geometry with the
@@ -57,6 +67,8 @@ export default React.memo(
         const thisBody = body;
         const thisLines = lines;
         const thisColor = m.color;
+        // Wire has edges but no faces — render as lines only
+        const isWireType = !m.faces && !!m.edges;
         // If the color is keep out or glass make it transparent
         if (thisColor == "#D9544D" || thisColor == "#E6F3FF") {
           meshArray.push({
@@ -64,6 +76,7 @@ export default React.memo(
             lines: thisLines,
             color: thisColor,
             solid: false,
+            isWire: isWireType,
           });
         } else {
           meshArray.push({
@@ -71,6 +84,7 @@ export default React.memo(
             lines: thisLines,
             color: thisColor,
             solid: isSolid,
+            isWire: isWireType,
           });
         }
       });
@@ -322,61 +336,96 @@ export default React.memo(
         {fullMesh.map((m, index) => {
           return (
             <group key={"group" + m.color + index}>
-              {!isSolid ? (
-                <mesh geometry={m.body} key={"mesh" + m.color}>
-                  {/*the offsets are here to avoid z fighting between the mesh and the lines*/}
-                  {m.color != "#D9544D" && m.color != "#E6F3FF" ? (
-                    <meshMatcapMaterial
-                      color={m.color}
-                      key={"material" + m.color}
-                      polygonOffset
-                      polygonOffsetFactor={2.0}
-                      polygonOffsetUnits={1.0}
+              {m.pointPosition ? (
+                // Point3D — render as a fixed screen-space sprite point
+                <points key={"point" + JSON.stringify(m.pointPosition) + index}>
+                  <bufferGeometry>
+                    <bufferAttribute
+                      attach="attributes-position"
+                      count={1}
+                      array={new Float32Array(m.pointPosition)}
+                      itemSize={3}
                     />
-                  ) : m.color == "#E6F3FF" ? (
-                    <meshPhysicalMaterial
-                      color={m.color}
-                      transparent={true}
-                      opacity={0.5}
-                      transmission={0.6}
-                      roughness={0}
-                      metalness={0}
-                      clearcoat={1}
-                      clearcoatRoughness={0}
-                      ior={1.5}
+                  </bufferGeometry>
+                  <pointsMaterial
+                    color={m.color}
+                    size={5}
+                    sizeAttenuation={false}
+                  />
+                </points>
+              ) : m.isWire ? (
+                // Wire — render as lines only, no body mesh
+                <>
+                  <lineSegments key={"wirelines" + index} geometry={m.lines} />
+                  <lineSegments key={"wirelinesdark" + index} geometry={m.lines}>
+                    <lineBasicMaterial
+                      color={"#3c5a6e"}
+                      opacity={"1"}
+                      linewidth={8}
                     />
+                  </lineSegments>
+                </>
+              
+              ) : (
+                // Normal solid / 2D geometry
+                <>
+                  {!isSolid ? (
+                    <mesh geometry={m.body} key={"mesh" + m.color}>
+                      {/*the offsets are here to avoid z fighting between the mesh and the lines*/}
+                      {m.color != "#D9544D" && m.color != "#E6F3FF" ? (
+                        <meshMatcapMaterial
+                          color={m.color}
+                          key={"material" + m.color}
+                          polygonOffset
+                          polygonOffsetFactor={2.0}
+                          polygonOffsetUnits={1.0}
+                        />
+                      ) : m.color == "#E6F3FF" ? (
+                        <meshPhysicalMaterial
+                          color={m.color}
+                          transparent={true}
+                          opacity={0.5}
+                          transmission={0.6}
+                          roughness={0}
+                          metalness={0}
+                          clearcoat={1}
+                          clearcoatRoughness={0}
+                          ior={1.5}
+                        />
+                      ) : (
+                        <meshBasicMaterial
+                          geometry={m.body}
+                          transparent={true}
+                          opacity={0.3}
+                          color={m.color}
+                        >
+                          <Wireframe geometry={m.body} {...wireframeProps} />
+                        </meshBasicMaterial>
+                      )}
+                    </mesh>
                   ) : (
                     <meshBasicMaterial
                       geometry={m.body}
                       transparent={true}
-                      opacity={0.3}
+                      opacity={0.7}
                       color={m.color}
                     >
                       <Wireframe geometry={m.body} {...wireframeProps} />
                     </meshBasicMaterial>
                   )}
-                </mesh>
-              ) : (
-                <meshBasicMaterial
-                  geometry={m.body}
-                  transparent={true}
-                  opacity={0.7}
-                  color={m.color}
-                >
-                  <Wireframe geometry={m.body} {...wireframeProps} />
-                </meshBasicMaterial>
+                  <lineSegments
+                    key={"lines" + m.color}
+                    geometry={m.lines}
+                  ></lineSegments>
+                  <lineSegments key={"linesmesh" + m.color} geometry={m.lines}>
+                    <lineBasicMaterial
+                      color={"#3c5a6e"}
+                      opacity={"1"}
+                      linewidth={8}
+                    />
+                  </lineSegments>
+                </>
               )}
-              <lineSegments
-                key={"lines" + m.color}
-                geometry={m.lines}
-              ></lineSegments>
-              <lineSegments key={"linesmesh" + m.color} geometry={m.lines}>
-                <lineBasicMaterial
-                  color={"#3c5a6e"}
-                  opacity={"1"}
-                  linewidth={8}
-                />
-              </lineSegments>
             </group>
           );
         })}

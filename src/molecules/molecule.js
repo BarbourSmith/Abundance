@@ -152,6 +152,11 @@ export default class Molecule extends Atom {
       return [1, 1]; // be nice about division by 0
     }
 
+    if (this.status == Status.READY) {
+      // If this atom is ready, skip to progress 100%
+      return [totalCount, totalCount];
+    }
+
     return [readyCount, totalCount];
   }
 

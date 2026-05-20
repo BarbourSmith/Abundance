@@ -27,11 +27,7 @@ import * as replicad from "replicad";
 import * as util from "./util";
 import { AbundanceObject } from "./util";
 import { RequestContext } from "./geometryProvider";
-import {
-  executeCode as executeLegacy,
-  composeID,
-  validateUserCode,
-} from "./code-legacy";
+import { executeCode as executeLegacy, validateUserCode } from "./code-legacy";
 import { assembly } from "./interaction";
 
 // Pre-compiled Runtime JS for the user's code sandbox. Built from ts-framework.ts
@@ -53,9 +49,7 @@ import { makeAbundanceFramework } from "./generated/ts-framework.generated.js";
 // so it's safe to bind these at module load time. The factory itself just
 // declares the class; replicad is only dereferenced when Assembly methods
 // are actually invoked, by which time `init()` has run.
-const { Assembly, __promoteInput } = makeAbundanceFramework(
-  util.replicad as any,
-);
+const { Assembly } = makeAbundanceFramework(util.replicad as any);
 type Assembly<G = any> = InstanceType<typeof Assembly> & { geometry: G };
 
 type Primitive = number | string | boolean | null | undefined;
@@ -116,16 +110,6 @@ function isAssembly(value: any): boolean {
   return !!value && value.__abundance === "Assembly";
 }
 
-function isReplicadAnyShape(value: any): value is replicad.AnyShape {
-  return (
-    replicad.isShape3D(value) ||
-    value instanceof replicad.Wire ||
-    value instanceof replicad.Face ||
-    value instanceof replicad.Edge ||
-    value instanceof replicad.Vertex
-  );
-}
-
 /**
  * Extract the parameter names from the user's `function run(...)` signature
  * in the (already-transpiled) code. This is the authoritative ordering used
@@ -170,7 +154,6 @@ function extractRunParamNames(code: string): string[] {
  */
 function defaultProps() {
   return {
-    color: "#ffffff",
     tags: [] as string[],
     bom: [] as string[],
     plane: util.replicad.makePlane(),
@@ -195,11 +178,11 @@ function convertCodeAtomResult(
   if (value == null) return value;
   if (isPrimitive(value)) return value;
 
-  if (isReplicadAnyShape(value) || value instanceof replicad.Drawing) {
-    return new Assembly({ geometry: value, ...defaultProps() });
+  if (Array.isArray(value) && value.every(isPrimitive)) {
+    return value;
   }
 
-  if (Array.isArray(value) && value.every(isPrimitive)) {
+  if (isAssembly(value)) {
     return value;
   }
 
@@ -216,11 +199,21 @@ function convertCodeAtomResult(
     });
   }
 
-  if (isAssembly(value)) {
-    return value;
+  let simpleReplicadGeomDim = undefined;
+  try {
+    simpleReplicadGeomDim = util.dimensionLabel(value);
+    const isFacelessType =
+      simpleReplicadGeomDim === "Point3D" || simpleReplicadGeomDim === "Wire";
+    return new Assembly({
+      geometry: value,
+      dimension: simpleReplicadGeomDim,
+      color: isFacelessType ? "#3c5a6e" : util.defaultColor,
+      ...defaultProps(),
+    });
+  } catch (e) {
+    console.error(e);
+    throw new Error("Unsupported return type: " + value.constructor.name);
   }
-
-  throw new Error("Unsupported return type: " + JSON.stringify(value));
 }
 
 /**
@@ -236,21 +229,16 @@ async function addAssemblyPartsToCache(
     assembly: Assembly<AnyGeom>,
   ): Promise<AbundanceObject> => {
     if (assembly.isLeaf()) {
-      if (
-        !(assembly.geometry instanceof replicad.Drawing) &&
-        !replicad.isShape3D(assembly.geometry)
-      ) {
-        const typeName =
-          assembly.geometry && assembly.geometry.constructor
-            ? assembly.geometry.constructor.name
-            : typeof assembly.geometry;
-        throw new Error(
-          "Leaf geometry must be Shape3D or Drawing. But received " +
-            typeName +
-            (typeName === "Edge"
-              ? " (note: makeCircle returns Edge, consider drawCircle instead)"
-              : ""),
-        );
+      let dimensionLabel;
+      try {
+        dimensionLabel = util.dimensionLabel(assembly.geometry);
+      } catch (e: any) {
+        if (assembly.geometry instanceof replicad.Edge) {
+          e.message +=
+            " Raw Edges not supported. Consider returning a drawing, eg drawCircle instead of makeCircle. " +
+            " Or return a wire via replicad.assembleWire([edge, edge2, ...]) instead";
+        }
+        throw e;
       }
       return {
         ...assembly,
@@ -263,11 +251,7 @@ async function addAssemblyPartsToCache(
         plane: assembly.plane
           ? util.asSimplePlane(assembly.plane)
           : util.XYPlane,
-        // The Assembly class only has is2D()/is3D() methods, not a `dimension`
-        // property. Without this, util.is3D() sees `undefined` and treats even
-        // 3D code-atom outputs as 2D sketches, breaking fusion with extruded
-        // shapes ("Fusion must be composed from only sketches OR only solids").
-        dimension: assembly.is2D() ? "2D" : "3D",
+        dimension: dimensionLabel,
       };
     } else {
       const children = await Promise.all(
@@ -351,6 +335,13 @@ function formatLogArg(value: any): string {
   }
 }
 
+function composeCacheKey(code: string, args: { [key: string]: any }) {
+  const argString = Object.entries(args)
+    .map(([k, v]) => `${k}:${JSON.stringify(v)}`)
+    .join("-");
+  return util.hashString(code + "-" + argString);
+}
+
 async function executeTsCode(
   code: string,
   argumentsArray: { [key: string]: any },
@@ -370,6 +361,55 @@ async function executeTsCode(
     if (code.length > 50000) {
       throw new Error("Code too long (maximum 50,000 characters)");
     }
+
+    // Build a sandbox-side `console` shim. We forward each call to the
+    // main-thread `onLog` callback (if any) AFTER formatting args to a
+    // string here in the worker — replicad shapes / WASM objects are not
+    // structured-cloneable, so we can't pass raw args across the boundary.
+    // Fall back to the worker's native console when no callback was given.
+    const sandboxConsole: any = onLog
+      ? (() => {
+          const make =
+            (level: CodeAtomLogLevel) =>
+            (...args: any[]) => {
+              // Mirror to the worker's real console too, so devs running
+              // with DevTools open still see output in the worker context.
+              (console as any)[level === "trace" ? "log" : level](...args);
+
+              // Process for UI console and onLog callback
+              const message = args.map(formatLogArg).join(" ");
+              const stack =
+                level === "trace"
+                  ? (new Error().stack || "").split("\n").slice(2).join("\n")
+                  : null;
+              onLog(level, message, stack);
+            };
+          return {
+            log: make("log"),
+            info: make("info"),
+            warn: make("warn"),
+            error: make("error"),
+            debug: make("debug"),
+            trace: make("trace"),
+          };
+        })()
+      : console;
+
+    // Check cache before materializing arguments or launching the sandbox.
+    const cacheId = composeCacheKey(code, argumentsArray);
+    const cached = await util.geometryProvider!.getAssembly(cacheId, context);
+    if (cached) return cached;
+
+    const batchId = "code-atom-" + cacheId;
+    const batch: RequestContext | AbundanceObject =
+      await util.geometryProvider!.startBatchOperation(context, batchId);
+    if (util.isAbundanceObject(batch)) {
+      sandboxConsole.info("Cache hit. Execution skipped.");
+      return batch;
+    }
+
+    context = batch;
+    context.nextId = 0;
 
     // Convert incoming Abundance geometry arguments into raw POJOs marked
     // with `__isRawAbundanceObj`. The prepended framework's `__promoteInput`
@@ -416,55 +456,6 @@ async function executeTsCode(
         argumentsArray[key] = actualValue;
       }
     }
-
-    // Build a sandbox-side `console` shim. We forward each call to the
-    // main-thread `onLog` callback (if any) AFTER formatting args to a
-    // string here in the worker — replicad shapes / WASM objects are not
-    // structured-cloneable, so we can't pass raw args across the boundary.
-    // Fall back to the worker's native console when no callback was given.
-    const sandboxConsole: any = onLog
-      ? (() => {
-          const make =
-            (level: CodeAtomLogLevel) =>
-            (...args: any[]) => {
-              // Mirror to the worker's real console too, so devs running
-              // with DevTools open still see output in the worker context.
-              (console as any)[level === "trace" ? "log" : level](...args);
-
-              // Process for UI console and onLog callback
-              const message = args.map(formatLogArg).join(" ");
-              const stack =
-                level === "trace"
-                  ? (new Error().stack || "").split("\n").slice(2).join("\n")
-                  : null;
-              onLog(level, message, stack);
-            };
-          return {
-            log: make("log"),
-            info: make("info"),
-            warn: make("warn"),
-            error: make("error"),
-            debug: make("debug"),
-            trace: make("trace"),
-          };
-        })()
-      : console;
-
-    // Cache lookup on the (transpiled) code + args signature.
-    const cacheId = composeID(code, argsSignature);
-    const cached = await util.geometryProvider!.getAssembly(cacheId, context);
-    if (cached) return cached;
-
-    const batchId = "code-atom-" + cacheId;
-    const batch: RequestContext | AbundanceObject =
-      await util.geometryProvider!.startBatchOperation(context, batchId);
-    if (util.isAbundanceObject(batch)) {
-      sandboxConsole.info("Cache hit. Execution skipped.");
-      return batch;
-    }
-
-    context = batch;
-    context.nextId = 0;
 
     validateUserCode(code);
 
@@ -581,12 +572,14 @@ async function executeTsCode(
     }
 
     // Ensure not a mix of 2d and 3d parts.
-    const leafDims: boolean[] = [];
+    const leafDims: string[] = [];
     rawResult.onLeafs((leaf: Assembly<LeafGeom>) => {
-      leafDims.push(leaf.is2D());
+      leafDims.push(leaf.dimension);
     });
-    if (leafDims.includes(true) && leafDims.includes(false)) {
-      throw new Error("Mix of 2D and 3D parts is not allowed.");
+    if (new Set(leafDims).size > 1) {
+      throw new Error(
+        `Assemblies may not mix types. Found: ${leafDims.join(", ")}.`,
+      );
     }
 
     // Promote raw geometries into the cache as singletons.

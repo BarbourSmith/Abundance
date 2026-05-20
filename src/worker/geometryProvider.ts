@@ -16,7 +16,11 @@ import {
   filter,
 } from "./indexeddbUtils";
 
-type ReplicadObject = replicad.Shape3D | replicad.Drawing | replicad.Wire;
+type ReplicadObject =
+  | replicad.Shape3D
+  | replicad.Drawing
+  | replicad.Wire
+  | replicad.Vertex;
 
 type RequestContext = {
   project: string;
@@ -423,10 +427,13 @@ class GeometryProvider {
     const filletId = this._makeId("fillet", id, radius);
     await this.createIfAbsent(filletId, context, async () => {
       const geometry = await this.get(id, context);
-      if (geometry instanceof replicad.Wire) {
-        throw new Error("Cannot fillet a wire");
+      if (
+        geometry instanceof replicad.Wire ||
+        geometry instanceof replicad.Vertex
+      ) {
+        throw new Error("Cannot fillet a wire or Point3D");
       }
-      return geometry.fillet(radius);
+      return (geometry as replicad.Shape3D | replicad.Drawing).fillet(radius);
     });
     return filletId;
   }
@@ -439,10 +446,13 @@ class GeometryProvider {
     const chamferId = this._makeId("chamfer", id, size);
     await this.createIfAbsent(chamferId, context, async () => {
       const geometry = await this.get(id, context);
-      if (geometry instanceof replicad.Wire) {
-        throw new Error("Cannot chamfer a wire");
+      if (
+        geometry instanceof replicad.Wire ||
+        geometry instanceof replicad.Vertex
+      ) {
+        throw new Error("Cannot chamfer a wire or Point3D");
       }
-      return geometry.chamfer(size);
+      return (geometry as replicad.Shape3D | replicad.Drawing).chamfer(size);
     });
     return chamferId;
   }
@@ -695,21 +705,40 @@ class GeometryProvider {
     const shrinkWrapId = this._makeId("shrinkWrap", compositeSketchId, points);
     await this.createIfAbsent(shrinkWrapId, context, async () => {
       const geometry = await this.get(compositeSketchId, context);
-      //@ts-ignore
       return shrinkWrap(geometry, points);
     });
     return shrinkWrapId;
   }
 
+  async _getAsPoint(
+    id: string,
+    context: RequestContext,
+  ): Promise<replicad.Vertex> {
+    const geom = await this.get(id, context);
+    if (geom instanceof replicad.Vertex) {
+      return geom;
+    } else {
+      throw new Error("Expected a Point3D but got " + typeof geom);
+    }
+  }
+
   async loftSketches(
     sketchIds: string[],
     planes: SimplePlane[],
+    startPoint: string | undefined,
+    endPoint: string | undefined,
     context: RequestContext,
   ): Promise<string> {
     if (sketchIds.length != planes.length) {
       throw new Error("Number of sketches and planes must match");
     }
-    const loftId = this._makeId("loft", ...sketchIds, ...planes);
+    const loftId = this._makeId(
+      "loft",
+      ...sketchIds,
+      ...planes,
+      startPoint,
+      endPoint,
+    );
     await this.createIfAbsent(loftId, context, async () => {
       const sketches = [];
       for (let i = 0; i < sketchIds.length; i++) {
@@ -726,7 +755,44 @@ class GeometryProvider {
           );
         }
       }
-      return sketches[0].loftWith(sketches.slice(1), {});
+      const config = {
+        startPoint: startPoint
+          ? (await this._getAsPoint(startPoint, context)).asTuple()
+          : undefined,
+        endPoint: endPoint
+          ? (await this._getAsPoint(endPoint, context)).asTuple()
+          : undefined,
+      };
+      return sketches[0].loftWith(sketches.slice(1), config);
+    });
+    return loftId;
+  }
+
+  async loftWires(
+    wireIds: string[],
+    startPoint: string | undefined,
+    endPoint: string | undefined,
+    context: RequestContext,
+  ): Promise<string> {
+    const loftId = this._makeId("loftWire", ...wireIds, startPoint, endPoint);
+    await this.createIfAbsent(loftId, context, async () => {
+      const wires = [];
+      for (let i = 0; i < wireIds.length; i++) {
+        const partObj = (await this.get(wireIds[i], context)) as replicad.Wire;
+        if (!partObj.isClosed) {
+          throw new Error("Only closed wires may be lofted");
+        }
+        wires.push(partObj);
+      }
+      const config = {
+        startPoint: startPoint
+          ? (await this._getAsPoint(startPoint, context)).asTuple()
+          : undefined,
+        endPoint: endPoint
+          ? (await this._getAsPoint(endPoint, context)).asTuple()
+          : undefined,
+      };
+      return replicad.loft(wires, config);
     });
     return loftId;
   }

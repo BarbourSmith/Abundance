@@ -59,7 +59,7 @@ export class Assembly<G = any> {
   // `geometry: any` to `geometry: G` so callers see the generic parameter
   // narrowed to the proper replicad union. See scripts/build-ts-framework.mjs.
   geometry: any = [];
-  color: string = "#ffffff";
+  color: string = "#aad7f2";
   tags: string[] = [];
   bom: string[] = [];
   plane: any = replicad.makePlane();
@@ -135,9 +135,27 @@ export class Assembly<G = any> {
     return !!g && !("_wrapped" in g);
   }
 
-  /** True when this assembly's first leaf is a 3D replicad shape. */
+  /** True when this assembly's first leaf is a replicad Wire (1D curve). */
+  isWire(): boolean {
+    if (Array.isArray(this.geometry)) {
+      return this.geometry.length > 0 && this.geometry[0].isWire();
+    }
+    return this.geometry instanceof replicad.Wire;
+  }
+
+  isPoint(): boolean {
+    if (Array.isArray(this.geometry)) {
+      return this.geometry.length > 0 && this.geometry[0].isPoint();
+    }
+    return this.geometry instanceof replicad.Vertex;
+  }
+
+  /** True when this assembly's first leaf is a 3D replicad solid (not a Wire or Point3D). */
   is3D(): boolean {
-    return !this.is2D();
+    if (Array.isArray(this.geometry)) {
+      return this.geometry.length > 0 && this.geometry[0].is3D();
+    }
+    return replicad.isShape3D(this.geometry);
   }
 
   toJSON() {

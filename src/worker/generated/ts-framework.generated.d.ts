@@ -14,6 +14,7 @@ declare global {
     type Sketch = _replicad.Sketch;
     type Sketches = _replicad.Sketches;
     type Wire = _replicad.Wire;
+    type Vertex = _replicad.Vertex;
     type Face = _replicad.Face;
     type Solid = _replicad.Solid;
     type Shape<T> = _replicad.Shape<T>;
@@ -78,7 +79,10 @@ declare global {
        * considered 3D.
        */
       is2D(): this is Assembly<_replicad.Drawing>;
-      /** True when this assembly's first leaf is a 3D replicad shape. */
+      /** True when this assembly's first leaf is a replicad Wire (1D curve). */
+      isWire(): this is Assembly<_replicad.Wire>;
+      isPoint(): this is Assembly<_replicad.Vertex>;
+      /** True when this assembly's first leaf is a 3D replicad solid (not a Wire or Point3D). */
       is3D(): this is Assembly<_replicad.AnyShape>;
       toJSON(): string;
   }

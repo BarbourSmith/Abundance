@@ -41,7 +41,7 @@ export type RealizedAssembly = RealizedLeaf | RealizedBranch;
 export type RealizedBranch = {
   geometry: RealizedAssembly[];
   plane: replicad.Plane;
-  dimension: "2D" | "3D" | "Wire";
+  dimension: "2D" | "3D" | "Wire" | "Point3D";
   color: string;
   tags: string[];
   bom: string[];
@@ -50,7 +50,7 @@ export type RealizedBranch = {
 export type RealizedLeaf = {
   geometry: ReplicadObject[]; // For backwards compatibility this is an array. But it always contains a single item.
   plane: replicad.Plane;
-  dimension: "2D" | "3D" | "Wire";
+  dimension: "2D" | "3D" | "Wire" | "Point3D";
   color: string;
   tags: string[];
   bom: string[];

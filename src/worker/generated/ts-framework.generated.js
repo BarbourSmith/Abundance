@@ -12,7 +12,7 @@ export function makeAbundanceFramework(replicad) {
       // `geometry: any` to `geometry: G` so callers see the generic parameter
       // narrowed to the proper replicad union. See scripts/build-ts-framework.mjs.
       __publicField(this, "geometry", []);
-      __publicField(this, "color", "#ffffff");
+      __publicField(this, "color", "#aad7f2");
       __publicField(this, "tags", []);
       __publicField(this, "bom", []);
       __publicField(this, "plane", replicad.makePlane());
@@ -76,9 +76,25 @@ export function makeAbundanceFramework(replicad) {
       const g = this.geometry;
       return !!g && !("_wrapped" in g);
     }
-    /** True when this assembly's first leaf is a 3D replicad shape. */
+    /** True when this assembly's first leaf is a replicad Wire (1D curve). */
+    isWire() {
+      if (Array.isArray(this.geometry)) {
+        return this.geometry.length > 0 && this.geometry[0].isWire();
+      }
+      return this.geometry instanceof replicad.Wire;
+    }
+    isPoint() {
+      if (Array.isArray(this.geometry)) {
+        return this.geometry.length > 0 && this.geometry[0].isPoint();
+      }
+      return this.geometry instanceof replicad.Vertex;
+    }
+    /** True when this assembly's first leaf is a 3D replicad solid (not a Wire or Point3D). */
     is3D() {
-      return !this.is2D();
+      if (Array.isArray(this.geometry)) {
+        return this.geometry.length > 0 && this.geometry[0].is3D();
+      }
+      return replicad.isShape3D(this.geometry);
     }
     toJSON() {
       let geomString = "unknown";
@@ -87,7 +103,7 @@ export function makeAbundanceFramework(replicad) {
       } else if (this.geometry instanceof replicad.Shape || this.geometry instanceof replicad.Drawing) {
         geomString = this.geometry.constructor.name;
       }
-      let planeString = this.plane ? "replicad.plane" : "null";
+      const planeString = this.plane ? "replicad.plane" : "null";
       return `{__isRawAbundanceObj: true, color: ${this.color}, tags: ${JSON.stringify(this.tags)}, bom: ${JSON.stringify(this.bom)}, plane: ${planeString}, geometry: ${geomString}}`;
     }
   }
