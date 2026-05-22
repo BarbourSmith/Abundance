@@ -653,7 +653,6 @@ class GeometryProvider {
     const cutter = r(
       new part1.oc.BRepAlgoAPI_Cut_3(part1.wrapped, part2.wrapped, progress),
     );
-    part1.wrapped.Modified_2(false);
     cutter.Build(progress);
     cutter.SimplifyResult(true, true, 1e-3);
 
