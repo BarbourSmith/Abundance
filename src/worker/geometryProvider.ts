@@ -660,10 +660,10 @@ class GeometryProvider {
     const mod =
       cutter.HasModified() ||
       cutter.HasGenerated() ||
-      cutter.IsDeleted(part1.wrapped);
-    //console.trace(
-    //  `mod: ${cutter.HasModified()} gen: ${cutter.HasGenerated()} del: ${cutter.IsDeleted(part1.wrapped)}`,
-    //);
+      cutter.IsDeleted(part2.wrapped);
+    /*console.trace(
+      `mod: ${cutter.HasModified()} gen: ${cutter.HasGenerated()} del: ${cutter.IsDeleted(part1.wrapped)} del p2: ${cutter.IsDeleted(part2.wrapped)}`,
+    );*/
 
     return { didChange: mod, result: newShape };
   }
