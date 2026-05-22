@@ -647,6 +647,9 @@ class GeometryProvider {
   _customCut(part1: replicad.Shape3D, part2: replicad.Shape3D): CutResult {
     const r = GCWithScope();
     const progress = r(new part1.oc.Message_ProgressRange_1());
+    // Note that part1.oc isn't significant here. could equally be part2.oc
+    // we just need a reference to OpenCascade to make the differencing operation.
+    // The argument order is what controls which part is cut vs cutting.
     const cutter = r(
       new part1.oc.BRepAlgoAPI_Cut_3(part1.wrapped, part2.wrapped, progress),
     );
