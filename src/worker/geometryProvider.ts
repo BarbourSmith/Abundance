@@ -4,7 +4,6 @@ import {
   AbundanceObject,
   asReplicadPlane,
   flattenAssembly,
-  isEmptyShape,
   SimplePlane,
 } from "./util";
 import {
@@ -761,57 +760,6 @@ class GeometryProvider {
         }
       },
     );
-  }
-
-  /**
-   * Same as replicad's cut operation for Shape3ds but also includes
-   * a boolean indicating whether the cut resulted in a change to the
-   * input geometry. Note that geometries which share a face usually will
-   * indicate true even if the final geometry is logically equivalent.
-   */
-  _customCut(part1: replicad.Shape3D, part2: replicad.Shape3D): BooleanResult {
-    const r = GCWithScope();
-    const initialVolume = replicad.measureVolume(part1);
-    const progress = r(new part1.oc.Message_ProgressRange_1());
-    // Note that part1.oc isn't significant here. could equally be part2.oc
-    // we just need a reference to OpenCascade to make the differencing operation.
-    // The argument order is what controls which part is cut vs cutting.
-    const cutter = r(
-      new part1.oc.BRepAlgoAPI_Cut_3(part1.wrapped, part2.wrapped, progress),
-    );
-    cutter.Build(progress);
-    cutter.SimplifyResult(true, true, 1e-3);
-
-    const newShape = replicad.cast(cutter.Shape());
-    console.log(`timing: cut operation : ${performance.now() - start}`);
-    if (!replicad.isShape3D(newShape))
-      throw new Error("Could not cut as a 3d shape");
-    const mod =
-      cutter.HasModified() ||
-      cutter.HasGenerated() ||
-      cutter.IsDeleted(part2.wrapped) ||
-      cutter.IsDeleted(part1.wrapped);
-    console.trace(
-      `mod: ${cutter.HasModified()} gen: ${cutter.HasGenerated()} del: ${cutter.IsDeleted(part1.wrapped)} del p2: ${cutter.IsDeleted(part2.wrapped)}`,
-    );
-    start = performance.now();
-    const resultVol = replicad.measureVolume(newShape);
-    console.log(
-      `timing: result volume ${resultVol} : ${performance.now() - start}`,
-    );
-    console.log("result volume: ", resultVol);
-
-    // TODO: tristan
-    // volume calculation is fast, usually less than 1 ms
-    // So.. we can afford to use it to distinguish our modifiation case
-    // of which there are three:
-    // 1) happy case - cut resulted in a new shape, return it's id
-    // 2) no-op cut - cut resulted in the same shape, return original id
-    // 3) supercut - cut deleted the input shape entirely, <- what do we do here?
-    // old school is that we stored the empty object in the cache as if we were in case 1
-    // we could re-institute this. but now is also a chance to think about how none-shapes are
-    // dealt with.
-    return { didChange: mod, result: newShape };
   }
 
   /**

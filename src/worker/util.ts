@@ -557,20 +557,6 @@ function coPlanar(p1: SimplePlane, p2: SimplePlane): boolean {
   return normalsAreParallel && originOnPlane;
 }
 
-function isEmptyShape(shape: ReplicadObject): boolean {
-  if (shape instanceof replicad.Wire || shape instanceof replicad.Vertex) {
-    return false;
-  }
-  if (shape instanceof replicad.Drawing) {
-    //@ts-ignore
-    return shape.innerShape === null;
-  }
-  if (replicad.isShape3D(shape)) {
-    return replicad.measureVolume(shape) === 0;
-  }
-  return false;
-}
-
 export {
   AbundanceBounds,
   AbundanceLeaf,
@@ -606,5 +592,4 @@ export {
   withAssemblyBoundingBoxes,
   XYPlane,
   startHeapMonitor,
-  isEmptyShape,
 };
