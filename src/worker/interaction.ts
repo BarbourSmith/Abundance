@@ -1,4 +1,4 @@
-import { Drawing } from "replicad";
+import { BoundingBox, Drawing } from "replicad";
 import * as util from "./util";
 import { AbundanceLeaf, AbundanceObject } from "./util";
 import { RequestContext } from "./geometryProvider";
@@ -314,40 +314,6 @@ async function fusion(
   };
 }
 
-/*
-
-where n is number of leafs and a is number of assemblies
-
-Current control flow:
-For each assembly do cutAssembly with all subsequent geometries
-
-cutAssembly:
-if an assembly recurse down to each part
-if a leaf:
-for each leaf in each input assembly - cut this leaf with that one
-
-
-Runtime:
-* O(n^2) for number of leafs
-
-
-behavior constraints - we need to to retain assembly structures
-
-Options:
-deserialize all then do same as we've done here
-fuse each assembly then cut parts with fused others
-  O(a) fuses
-  O(n) cuts
-
-
-deserialization options:
-1) deserialize into an (eg) realized assembly
-2) create a higher level cache which writes results into our main cache but doesn't
-   need deserialization
-
-
-*/
-
 /**
  * A function which takes in an array of target geometries and forms them into an assembly
  * Geometries will cut all geometries below them in the list to make sure that no parts intersect
@@ -361,9 +327,13 @@ async function assembly(
     throw new Error("inputIDs must be a non-empty array");
   }
 
+  // Assembly of a singleton is a no-op. Return the leaf as the result.
+  if (geometries.length == 1) {
+    return geometries[0];
+  }
+
   // Dimension assertions:
   // Allowed inputs -> all 2d, all 3d, or just wires/points
-
   const all3D = geometries.every((geom) => util.is3D(geom));
   const all2D = geometries.every((geom) => util.is2D(geom));
   const allWireOrPoint = geometries.every(
@@ -374,20 +344,27 @@ async function assembly(
       "Input geometries must be all 2D, all 3D, or just wires/points.",
     );
   }
+  // Fast return if all points or wires.
+  if (allWireOrPoint) {
+    return util.assemblyOf(geometries);
+  }
+  if (!(all2D || all3D)) {
+    throw new Error(
+      "Input geometries must be all 2D or all 3D (unless they are wires/points).",
+    );
+  }
 
   await util.init();
 
-  // Eagerly compute bounding boxes for all input geometries
-  const geometriesWithBounds = await Promise.all(
+  // Pre-emptively compute bounding boxes for all input geometries.
+  geometries = await Promise.all(
     geometries.map((geometry) =>
       util.withAssemblyBoundingBoxes(geometry, context),
     ),
   );
 
-  let startedBatch = false;
   if (!context.operationId) {
-    const batchId =
-      "assembly-" + util.hashString(JSON.stringify(geometriesWithBounds));
+    const batchId = "assembly-" + util.hashString(JSON.stringify(geometries));
     const batch: RequestContext | AbundanceObject =
       await util.geometryProvider!.startBatchOperation(context, batchId);
 
@@ -399,7 +376,7 @@ async function assembly(
       // Gather all nonReplicadSerialized and bom from input geometries
       const nonReplicadGeoms: any[] = [];
       const bomAssembly: any[] = [];
-      for (const geometry of geometriesWithBounds) {
+      for (const geometry of geometries) {
         if (
           Array.isArray(geometry.nonReplicadSerialized) &&
           geometry.nonReplicadSerialized.length > 0
@@ -416,100 +393,38 @@ async function assembly(
       return batchWithBounds;
     }
 
+    // cache miss on the batch operation.
     context = batch;
-    startedBatch = true;
   }
 
+  // The general case of a cache miss assembly operation.
   const assembly: AbundanceObject[] = [];
-  const bomAssembly: any[] = [];
-  const nonReplicadGeoms: any[] = [];
 
-  if (geometriesWithBounds.length > 1) {
-    const all3D = geometriesWithBounds.every((geom) => util.is3D(geom));
-    const all2D = geometriesWithBounds.every((geom) => !util.is3D(geom));
-
-    if (all3D || all2D) {
-      // Always clear arrays before populating
-      bomAssembly.length = 0;
-      nonReplicadGeoms.length = 0;
-      for (let i = 0; i < geometriesWithBounds.length; i++) {
-        const geometry = geometriesWithBounds[i];
-        assembly.push(
-          await cutAssembly(
-            geometry,
-            geometriesWithBounds.slice(i + 1),
-            context,
-          ),
-        );
-      }
-      // Gather all nonReplicadSerialized and bom from input geometries
-      for (const geometry of geometriesWithBounds) {
-        if (
-          Array.isArray(geometry.nonReplicadSerialized) &&
-          geometry.nonReplicadSerialized.length > 0
-        ) {
-          nonReplicadGeoms.push(...geometry.nonReplicadSerialized);
-        }
-        if (Array.isArray(geometry.bom) && geometry.bom.length > 0) {
-          bomAssembly.push(...geometry.bom);
-        }
-      }
-    } else {
-      throw new Error(
-        "Assemblies must be composed from only sketches OR only solids",
-      );
-    }
-  } else {
-    // Always clear arrays before populating
-    bomAssembly.length = 0;
-    nonReplicadGeoms.length = 0;
-    const geometry = geometriesWithBounds[0];
-    assembly.push(geometry);
-    // Gather all nonReplicadSerialized and bom from input geometries
-    for (const geometry of geometriesWithBounds) {
-      if (
-        Array.isArray(geometry.nonReplicadSerialized) &&
-        geometry.nonReplicadSerialized.length > 0
-      ) {
-        nonReplicadGeoms.push(...geometry.nonReplicadSerialized);
-      }
-      if (Array.isArray(geometry.bom) && geometry.bom.length > 0) {
-        bomAssembly.push(...geometry.bom);
-      }
-    }
+  // Each geometry is cut by all following geometries.
+  // TODO: test if this is faster working back-to-front or front-to-back.
+  for (let i = 0; i < geometries.length - 1; i++) {
+    const geometry = geometries[i];
+    assembly.push(
+      await cutAssembly(geometry, geometries.slice(i + 1), context),
+    );
   }
+  assembly.push(geometries[geometries.length - 1]); // Final entry is always unmodified.
 
   // Build the initial assembly object with all children already having bounds
-  const assemblyObject: AbundanceObject = {
-    geometry: await Promise.all(assembly),
-    plane: util.XYPlane,
-    tags: [],
-    color: util.defaultColor,
-    bom: bomAssembly,
-    dimension: geometriesWithBounds.every((geom) => util.is3D(geom))
-      ? "3D"
-      : geometriesWithBounds.every((geom) => !util.is3D(geom))
-        ? "2D"
-        : "Wire",
-    nonReplicadSerialized: nonReplicadGeoms,
-  };
-
-  // Eagerly compute assembly bounds by merging existing child bounds
-  // This is more efficient than withAssemblyBoundingBoxes because it doesn't
-  // recursively traverse - it assumes all children already have bounds
-  const assemblyWithBounds = util.computeAssemblyBounds(assemblyObject);
+  const assemblyObject: AbundanceObject = util.assemblyOf(
+    await Promise.all(assembly),
+  );
 
   // Safety check with recursive validation disabled (forceRecompute=false)
   // Since we've already computed bounds eagerly, this will detect our computed bounds
   // and return immediately without recursive traversal
   const result = await util.withAssemblyBoundingBoxes(
-    assemblyWithBounds,
+    assemblyObject,
     context,
     false, // forceRecompute=false, so it skips unnecessary recursion
   );
-  if (startedBatch) {
-    await util.geometryProvider!.endBatchOperation(context, result);
-  }
+
+  await util.geometryProvider!.endBatchOperation(context, result);
   return result;
 }
 
@@ -544,6 +459,8 @@ async function fuseAssembly(
 
 /**
  * Performs a boolean cut operation on an assembly or part with one or more cutting geometries.
+ * This function assumes that partToCut an cuttingParts are of the same dimensionality,
+ * either all 2D or all 3D.
  *
  * @param {Object} partToCut - The library object (part or assembly) that will be cut
  * @param {Object[]} cuttingParts - Array of geometries that will cut the part
@@ -565,29 +482,19 @@ async function cutAssembly(
 
   //If the partToCut is an assembly pass each part back into cutAssembly function to be cut separately
   if (util.isAssembly(partToCut)) {
-    const assemblyToCut = partToCut.geometry;
-    const assemblyCut: any[] = [];
-    for (const part of assemblyToCut) {
+    const partsAfterCut: AbundanceObject[] = [];
+    for (const part of partToCut.geometry) {
       // make new assembly from cut parts
-      assemblyCut.push(await cutAssembly(part, cuttingParts, context));
+      partsAfterCut.push(await cutAssembly(part, cuttingParts, context));
     }
 
-    //returns new assembly that has been cut
-    const newAssembly = {
-      geometry: assemblyCut,
-      tags: partToCut.tags,
-      bom: partToCut.bom,
-      plane: partToCut.plane,
-      color: partToCut.color,
-    };
+    const newAssembly = util.computeAssemblyBounds({
+      ...partToCut, // Retain metadata from original assembly top-level branch.
+      geometry: partsAfterCut,
+    });
     return newAssembly;
   } else {
-    // if part to cut is wire geometry, return it unchanged (wires should pass through assemblies)
-    if (util.isWireGeometry(partToCut)) {
-      return partToCut;
-    }
-
-    // if part to cut is a single part send to cutting function with cutting parts
+    // Part to cut is a single leaf.
     let partCutCopy = partToCut;
     for (const cuttingPart of cuttingParts) {
       // Check if bounding boxes overlap before attempting cut
@@ -630,16 +537,13 @@ async function recursiveCut(
   cuttingParts: AbundanceObject,
   context: RequestContext,
 ): Promise<AbundanceLeaf> {
-  if (util.isWireGeometry(partToCut)) {
-    return partToCut;
-  }
-
   let resultGeomId: string = partToCut.geometry;
+
+  // TODO: traversing leafs in this way isn't optimal for bounding box
+  // checks since we could find an entire branch of the assembly which doesn't
+  // intersect bounding box. This is simpler implemenation but may someday warrant
+  // a change.
   for (const cuttingPart of util.flattenAssembly(cuttingParts)) {
-    if (partToCut.dimension != cuttingPart.dimension) {
-      continue;
-      // skip this leaf. can't cut 2D with 3D or vice versa
-    }
     // --- Coplanarity check for 2D shapes ---
     if (
       partToCut.dimension === "2D" &&
@@ -647,35 +551,16 @@ async function recursiveCut(
       partToCut.plane &&
       cuttingPart.plane
     ) {
-      // Compare normals (should be parallel) and origins (should be on the same plane)
-      const p1 = partToCut.plane;
-      const p2 = cuttingPart.plane;
-      const normalsAreParallel =
-        Math.abs(p1.normal[0] * p2.normal[1] - p1.normal[1] * p2.normal[0]) <
-          1e-6 &&
-        Math.abs(p1.normal[0] * p2.normal[2] - p1.normal[2] * p2.normal[0]) <
-          1e-6 &&
-        Math.abs(p1.normal[1] * p2.normal[2] - p1.normal[2] * p2.normal[1]) <
-          1e-6;
-
-      // Check if origins are on the same plane (dot product of normal and vector between origins is zero)
-      const originDelta = [
-        p2.origin[0] - p1.origin[0],
-        p2.origin[1] - p1.origin[1],
-        p2.origin[2] - p1.origin[2],
-      ];
-      const originOnPlane =
-        Math.abs(
-          p1.normal[0] * originDelta[0] +
-            p1.normal[1] * originDelta[1] +
-            p1.normal[2] * originDelta[2],
-        ) < 1e-6;
-
-      if (!normalsAreParallel || !originOnPlane) {
+      // Compare normals (should be parallel) and origins (should be on the same plane)=
+      if (!util.coPlanar(partToCut.plane, cuttingPart.plane)) {
         continue; // skip: not coplanar
       }
     }
-    // --- end coplanarity check ---
+
+    // Bounding box check.
+    if (!util.boundsOverlap(partToCut.boundingBox, cuttingPart.boundingBox)) {
+      continue; // skip: bounding boxes don't overlap
+    }
 
     resultGeomId = await util.geometryProvider!.cut(
       resultGeomId,

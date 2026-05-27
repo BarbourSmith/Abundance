@@ -4,6 +4,7 @@ import {
   AbundanceObject,
   asReplicadPlane,
   flattenAssembly,
+  isEmptyShape,
   SimplePlane,
 } from "./util";
 import {
@@ -30,9 +31,23 @@ type RequestContext = {
   [key: string]: any; // Allows for additional props
 };
 
-type CutResult = {
-  didChange: boolean;
-  result: replicad.Shape3D;
+/**
+ * Possible outcome types of a boolean operation. No-op implies the
+ * input is == to the output. EmptyShape implies the output is an
+ * empty shape, eg intersection of disjoint shapes. NewShape is
+ * the typical case where the operation produces a non-empty shape
+ * distinct from it's inputs.
+ */
+enum BooleanOutcome {
+  EmptyShape,
+  InputShape,
+  NewShape,
+}
+
+type BooleanResult = {
+  outcome: BooleanOutcome;
+  inputIndexAsResult?: number; // if outcome is InputShape, which input shape is it.
+  result?: replicad.Shape3D | replicad.Drawing; // it outcome is NewShape, include that here.
 };
 
 /**
@@ -45,6 +60,7 @@ type CutResult = {
  * or retrieve the geometry via `get(id)`.
  */
 class GeometryProvider {
+  public EMPTY_SHAPE_SENTINEL = "emptyshape";
   private MAX_PROJECTS = 4;
   private projectLRU: string[] = [];
   private cacheHitMetrics: Record<string, [number, number, number]>; // hits, misses, total-miss-duration-ms
@@ -107,7 +123,50 @@ class GeometryProvider {
     });
   }
 
+  private async booleanOperation(
+    resultId: string,
+    inputs: string[],
+    context: RequestContext,
+    operation: (inputs: string[]) => Promise<BooleanResult>,
+  ): Promise<string> {
+    // Always use cache result if it's available
+    if (
+      this.getFromWarmCache(resultId, context) ||
+      (await shapeExists(context.project, resultId))
+    ) {
+      return resultId;
+    }
+
+    // Cache miss. Compute the operation then either:
+    //  add result to the cache
+    //  if a no-op return the appropriate input id
+    //  if a empty shape return the sentinel
+    const opResult = await operation(inputs);
+    switch (opResult.outcome) {
+      case BooleanOutcome.EmptyShape:
+        return this.EMPTY_SHAPE_SENTINEL;
+      case BooleanOutcome.InputShape:
+        if (opResult.inputIndexAsResult === undefined) {
+          throw new Error(
+            "Boolean operation returned InputShape without index: " +
+              JSON.stringify(opResult),
+          );
+        }
+        return inputs[opResult.inputIndexAsResult];
+      case BooleanOutcome.NewShape:
+        if (opResult.result) {
+          await putShape(
+            context.project,
+            resultId,
+            opResult.result.serialize(),
+          );
+        }
+        return resultId;
+    }
+  }
+
   // Returns the id of the geometry once it's been added to the cache.
+  // Or undefined if builder results in an empty object.
   private async createIfAbsent(
     id: string,
     context: RequestContext,
@@ -183,6 +242,10 @@ class GeometryProvider {
    * @returns The geometry object itself (ie ReplicadObject)
    */
   async get(id: string, context: RequestContext): Promise<ReplicadObject> {
+    if (id === this.EMPTY_SHAPE_SENTINEL) {
+      console.warn("Attempting to retrieve empty sentinel from the cache");
+      return replicad.makeCompound([]) as replicad.Shape3D;
+    }
     const warmCached = this.getFromWarmCache(id, context);
     if (warmCached) {
       this.cacheHit("deserialize");
@@ -345,6 +408,9 @@ class GeometryProvider {
     id: string,
     context: RequestContext,
   ): Promise<string[]> {
+    if (id === this.EMPTY_SHAPE_SENTINEL) {
+      return [this.EMPTY_SHAPE_SENTINEL];
+    }
     const compound = await this.get(id, context);
     if (!(compound instanceof replicad.Compound)) {
       return [id];
@@ -394,6 +460,9 @@ class GeometryProvider {
     dz: number,
     context: RequestContext,
   ): Promise<string> {
+    if (id === this.EMPTY_SHAPE_SENTINEL) {
+      return this.EMPTY_SHAPE_SENTINEL;
+    }
     const movedId = this._makeId("move", id, dx, dy, dz);
     await this.createIfAbsent(movedId, context, async () => {
       const geometry = await this.get(id, context);
@@ -409,11 +478,13 @@ class GeometryProvider {
     z: number,
     context: RequestContext,
   ): Promise<string> {
+    if (id === this.EMPTY_SHAPE_SENTINEL) {
+      return this.EMPTY_SHAPE_SENTINEL;
+    }
     const rotateId = this._makeId("rotate", id, x, y, z);
     await this.createIfAbsent(rotateId, context, async () => {
       const geometry = await this.get(id, context);
       if (geometry instanceof replicad.Drawing) {
-        // TODO(tristan): should this rotate around center of bounding box?
         return geometry.rotate(z, [0, 0]);
       } else {
         return geometry
@@ -430,6 +501,9 @@ class GeometryProvider {
     scaleFactor: number,
     context: RequestContext,
   ): Promise<string> {
+    if (id === this.EMPTY_SHAPE_SENTINEL) {
+      return this.EMPTY_SHAPE_SENTINEL;
+    }
     const scaleId = this._makeId("scale", id, scaleFactor);
     await this.createIfAbsent(scaleId, context, async () => {
       const geometry = await this.get(id, context);
@@ -443,6 +517,9 @@ class GeometryProvider {
     radius: number,
     context: RequestContext,
   ): Promise<string> {
+    if (id === this.EMPTY_SHAPE_SENTINEL) {
+      return this.EMPTY_SHAPE_SENTINEL;
+    }
     const filletId = this._makeId("fillet", id, radius);
     await this.createIfAbsent(filletId, context, async () => {
       const geometry = await this.get(id, context);
@@ -462,6 +539,9 @@ class GeometryProvider {
     size: number,
     context: RequestContext,
   ): Promise<string> {
+    if (id === this.EMPTY_SHAPE_SENTINEL) {
+      return this.EMPTY_SHAPE_SENTINEL;
+    }
     const chamferId = this._makeId("chamfer", id, size);
     await this.createIfAbsent(chamferId, context, async () => {
       const geometry = await this.get(id, context);
@@ -508,6 +588,12 @@ class GeometryProvider {
     inputID2: string,
     context: RequestContext,
   ): Promise<string | undefined> {
+    if (
+      input1ID === this.EMPTY_SHAPE_SENTINEL ||
+      inputID2 === this.EMPTY_SHAPE_SENTINEL
+    ) {
+      return this.EMPTY_SHAPE_SENTINEL;
+    }
     const id = this._makeId("intersect", input1ID, inputID2);
     return await this.createIfAbsent(id, context, async () => {
       const args = [
@@ -542,6 +628,12 @@ class GeometryProvider {
     inputID2: string,
     context: RequestContext,
   ): Promise<string> {
+    if (input1ID === this.EMPTY_SHAPE_SENTINEL) {
+      return inputID2;
+    }
+    if (inputID2 === this.EMPTY_SHAPE_SENTINEL) {
+      return input1ID;
+    }
     const sortedArgs = [input1ID, inputID2].sort();
     const resultId = this._makeId("fuse", sortedArgs[0], sortedArgs[1]);
 
@@ -571,7 +663,9 @@ class GeometryProvider {
     assembly: AbundanceObject,
     context: RequestContext,
   ): Promise<string> {
-    const partIds = flattenAssembly(assembly).map((part) => part.geometry);
+    const partIds = flattenAssembly(assembly)
+      .map((part) => part.geometry)
+      .filter((id) => id !== this.EMPTY_SHAPE_SENTINEL);
     if (partIds.length === 1) {
       return partIds[0];
     }
@@ -611,44 +705,62 @@ class GeometryProvider {
     toCut: string,
     cutter: string,
     context: RequestContext,
-  ): Promise<string> {
-    const toCutGeom = await this.get(toCut, context);
-    if (toCutGeom instanceof replicad.Wire) {
-      return toCut; // cutting wire is a no-op.
-    }
-    const cutterGeom = await this.get(cutter, context);
-    if (cutterGeom instanceof replicad.Wire) {
-      return toCut; // cutting with a wire is a no-op.
-    }
-
-    const args = [toCutGeom, cutterGeom];
-    const resultId = this._makeId("cut", toCut, cutter);
-    if (this.areAllDrawings(args)) {
-      if (args[0].boundingBox.isOut(args[1].boundingBox)) {
-        return toCut;
-      }
-      await this.createIfAbsent(resultId, context, async () => {
-        return args[0].cut(args[1]);
-      });
-      return resultId;
-    }
-    if (this.areAll3DShapes(args)) {
-      if (args[0].boundingBox.isOut(args[1].boundingBox)) {
-        return toCut;
-      }
-      // Special case for 3D Objects. Return the original object if
-      // the cut resulted in no change.
-      const id = await this.createIfAbsent(resultId, context, async () => {
-        const res = this._customCut(args[0], args[1]);
-        if (res.didChange) {
-          return res.result;
-        } else {
-          return undefined;
+  ): Promise<string | undefined> {
+    // Don't deserialize if it's a cache hit. Move checks inside the
+    // cache check operation.
+    return await this.booleanOperation(
+      this._makeId("cut", toCut, cutter),
+      [toCut, cutter],
+      context,
+      async () => {
+        // Empty shape special cases
+        if (toCut === this.EMPTY_SHAPE_SENTINEL) {
+          return { outcome: BooleanOutcome.EmptyShape };
+        } else if (cutter === this.EMPTY_SHAPE_SENTINEL) {
+          return {
+            outcome: BooleanOutcome.InputShape,
+            inputIndexAsResult: 0,
+          };
         }
-      });
-      return id === undefined ? toCut : id;
-    }
-    return toCut;
+
+        const toCutGeom = await this.get(toCut, context);
+        const cutterGeom = await this.get(cutter, context);
+
+        const args = [toCutGeom, cutterGeom];
+        if (this.areAllDrawings(args)) {
+          return {
+            outcome: BooleanOutcome.NewShape,
+            result: args[0].cut(args[1]),
+          };
+        } else if (this.areAll3DShapes(args)) {
+          const initialVolume = replicad.measureVolume(args[0]);
+          const result = args[0].cut(args[1]);
+          const resultVolume = replicad.measureVolume(result);
+          const volumeDiff = Math.abs(initialVolume - resultVolume);
+          const tolerance = 1e-5;
+          if (volumeDiff < tolerance) {
+            return {
+              outcome: BooleanOutcome.InputShape,
+              inputIndexAsResult: 0,
+            };
+          } else if (resultVolume < tolerance) {
+            return { outcome: BooleanOutcome.EmptyShape };
+          } else {
+            return {
+              outcome: BooleanOutcome.NewShape,
+              result: this.as3dShapeOrThrow(result),
+            };
+          }
+        } else {
+          throw new Error(
+            "Invalid types for cut: " +
+              typeof args[0] +
+              " and " +
+              typeof args[1],
+          );
+        }
+      },
+    );
   }
 
   /**
@@ -657,8 +769,9 @@ class GeometryProvider {
    * input geometry. Note that geometries which share a face usually will
    * indicate true even if the final geometry is logically equivalent.
    */
-  _customCut(part1: replicad.Shape3D, part2: replicad.Shape3D): CutResult {
+  _customCut(part1: replicad.Shape3D, part2: replicad.Shape3D): BooleanResult {
     const r = GCWithScope();
+    const initialVolume = replicad.measureVolume(part1);
     const progress = r(new part1.oc.Message_ProgressRange_1());
     // Note that part1.oc isn't significant here. could equally be part2.oc
     // we just need a reference to OpenCascade to make the differencing operation.
@@ -670,16 +783,34 @@ class GeometryProvider {
     cutter.SimplifyResult(true, true, 1e-3);
 
     const newShape = replicad.cast(cutter.Shape());
+    console.log(`timing: cut operation : ${performance.now() - start}`);
     if (!replicad.isShape3D(newShape))
       throw new Error("Could not cut as a 3d shape");
     const mod =
       cutter.HasModified() ||
       cutter.HasGenerated() ||
-      cutter.IsDeleted(part2.wrapped);
-    /*console.trace(
+      cutter.IsDeleted(part2.wrapped) ||
+      cutter.IsDeleted(part1.wrapped);
+    console.trace(
       `mod: ${cutter.HasModified()} gen: ${cutter.HasGenerated()} del: ${cutter.IsDeleted(part1.wrapped)} del p2: ${cutter.IsDeleted(part2.wrapped)}`,
-    );*/
+    );
+    start = performance.now();
+    const resultVol = replicad.measureVolume(newShape);
+    console.log(
+      `timing: result volume ${resultVol} : ${performance.now() - start}`,
+    );
+    console.log("result volume: ", resultVol);
 
+    // TODO: tristan
+    // volume calculation is fast, usually less than 1 ms
+    // So.. we can afford to use it to distinguish our modifiation case
+    // of which there are three:
+    // 1) happy case - cut resulted in a new shape, return it's id
+    // 2) no-op cut - cut resulted in the same shape, return original id
+    // 3) supercut - cut deleted the input shape entirely, <- what do we do here?
+    // old school is that we stored the empty object in the cache as if we were in case 1
+    // we could re-institute this. but now is also a chance to think about how none-shapes are
+    // dealt with.
     return { didChange: mod, result: newShape };
   }
 
@@ -734,6 +865,9 @@ class GeometryProvider {
       // For all intermediate shapes which are part of the result assembly,
       // promote them to the serialized cache.
       for (const leaf of flattenAssembly(result)) {
+        if (leaf.geometry === this.EMPTY_SHAPE_SENTINEL) {
+          continue; // Empty shapes don't exist in the cache
+        }
         const geom = this.getFromWarmCache(leaf.geometry, context);
         if (geom) {
           await putShape(
@@ -883,6 +1017,12 @@ class GeometryProvider {
     operationName: string,
     operationArgs: any[],
   ) {
+    if (
+      replicad.isShape3D(geometry) &&
+      replicad.measureVolume(geometry) === 0
+    ) {
+      return this.EMPTY_SHAPE_SENTINEL;
+    }
     const id: string = this._makeId(operationName, ...operationArgs);
     await this.createIfAbsent(id, context, () => Promise.resolve(geometry));
     return id;

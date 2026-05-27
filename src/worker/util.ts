@@ -2,7 +2,11 @@ import * as replicad from "replicad";
 import opencascade from "replicad-opencascadejs/src/replicad_single.js";
 import opencascadeWasm from "replicad-opencascadejs/src/replicad_single.wasm?url";
 import { v4 as uuidv4 } from "uuid";
-import { GeometryProvider, RequestContext } from "./geometryProvider";
+import {
+  GeometryProvider,
+  ReplicadObject,
+  RequestContext,
+} from "./geometryProvider";
 
 const defaultColor: string = "#aad7f2";
 let loaded: boolean = false;
@@ -514,6 +518,59 @@ function hashString(str: string): string {
   return hash.toString(16).padStart(8, "0");
 }
 
+function assemblyOf(subAssemblies: AbundanceObject[]): AbundanceObject {
+  const result: AbundanceBranch = {
+    geometry: subAssemblies,
+    plane: XYPlane,
+    color: defaultColor,
+    tags: [],
+    bom: [],
+    dimension: subAssemblies[0].dimension,
+    nonReplicadSerialized: subAssemblies
+      .map((a) => a.nonReplicadSerialized || [])
+      .flat(),
+  };
+  return computeAssemblyBounds(result);
+}
+
+function coPlanar(p1: SimplePlane, p2: SimplePlane): boolean {
+  const normalsAreParallel =
+    Math.abs(p1.normal[0] * p2.normal[1] - p1.normal[1] * p2.normal[0]) <
+      1e-6 &&
+    Math.abs(p1.normal[0] * p2.normal[2] - p1.normal[2] * p2.normal[0]) <
+      1e-6 &&
+    Math.abs(p1.normal[1] * p2.normal[2] - p1.normal[2] * p2.normal[1]) < 1e-6;
+
+  // Check if origins are on the same plane (dot product of normal and vector between origins is zero)
+  const originDelta = [
+    p2.origin[0] - p1.origin[0],
+    p2.origin[1] - p1.origin[1],
+    p2.origin[2] - p1.origin[2],
+  ];
+  const originOnPlane =
+    Math.abs(
+      p1.normal[0] * originDelta[0] +
+        p1.normal[1] * originDelta[1] +
+        p1.normal[2] * originDelta[2],
+    ) < 1e-6;
+
+  return normalsAreParallel && originOnPlane;
+}
+
+function isEmptyShape(shape: ReplicadObject): boolean {
+  if (shape instanceof replicad.Wire || shape instanceof replicad.Vertex) {
+    return false;
+  }
+  if (shape instanceof replicad.Drawing) {
+    //@ts-ignore
+    return shape.innerShape === null;
+  }
+  if (replicad.isShape3D(shape)) {
+    return replicad.measureVolume(shape) === 0;
+  }
+  return false;
+}
+
 export {
   AbundanceBounds,
   AbundanceLeaf,
@@ -522,8 +579,10 @@ export {
   actOnLeafsSync,
   asReplicadPlane,
   asSimplePlane,
+  assemblyOf,
   boundsOverlap,
   computeAssemblyBounds,
+  coPlanar,
   defaultColor,
   dimensionLabel,
   flattenAssembly,
@@ -547,4 +606,5 @@ export {
   withAssemblyBoundingBoxes,
   XYPlane,
   startHeapMonitor,
+  isEmptyShape,
 };

@@ -214,8 +214,13 @@ async function generateDisplayMesh(
       return { id: id, mesh: await generateDefaultMesh(context) };
     }
 
-    // Flatten the assembly to remove hierarchy
-    const flattened = util.flattenAssembly(geom);
+    // Flatten the assembly to remove hierarchy. Skip empty shapes
+    const flattened = util.flattenAssembly(geom).filter((part) => {
+      return part.geometry !== util.geometryProvider?.EMPTY_SHAPE_SENTINEL;
+    });
+    if (flattened.length === 0) {
+      return { id: id, mesh: await generateDefaultMesh(context) };
+    }
 
     const meshArray: { color: string; geometry: ReplicadObject }[] = [];
 

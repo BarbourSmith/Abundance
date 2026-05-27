@@ -395,7 +395,8 @@ async function executeTsCode(
         })()
       : console;
 
-    // Check cache before materializing arguments or launching the sandbox.
+    // Check cache for result of this code atom before doing any heavy work like
+    // materializing arguments or launching the sandbox.
     const cacheId = composeCacheKey(code, argumentsArray);
     const cached = await util.geometryProvider!.getAssembly(cacheId, context);
     if (cached) return cached;
@@ -415,6 +416,7 @@ async function executeTsCode(
     // with `__isRawAbundanceObj`. The prepended framework's `__promoteInput`
     // helper will wrap these into real AbundanceObj instances inside the
     // sandbox before invoking `run()`.
+    // Trim out any empty geometries in the heirarchy.
     const assemblyAsPojo = async (
       assembly: AbundanceObject,
       context: RequestContext,
