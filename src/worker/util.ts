@@ -165,7 +165,19 @@ async function getBounds(
     await actOnLeafs(geometry, async (leaf: AbundanceLeaf) => {
       const replicadbox = (await geometryProvider!.get(leaf.geometry, context))
         .boundingBox;
-      let bbox = replicadbox.bounds;
+      let bbox = undefined;
+      try {
+        bbox = replicadbox.bounds;
+      } catch (error) {
+        console.error(
+          "Failed to get bounds for geometry ID " + leaf.geometry,
+          error,
+        );
+        return {
+          min: [minX, minY, minZ],
+          max: [maxX, maxY, maxZ],
+        };
+      }
       minX = Math.min(minX, bbox[0][0]);
       minY = Math.min(minY, bbox[0][1]);
       maxX = Math.max(maxX, bbox[1][0]);
