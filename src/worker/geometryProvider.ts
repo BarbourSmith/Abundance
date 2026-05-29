@@ -133,6 +133,7 @@ class GeometryProvider {
       this.getFromWarmCache(resultId, context) ||
       (await shapeExists(context.project, resultId))
     ) {
+      this.cacheHit(resultId);
       return resultId;
     }
 
@@ -140,9 +141,11 @@ class GeometryProvider {
     //  add result to the cache
     //  if a no-op return the appropriate input id
     //  if a empty shape return the sentinel
+    const start = performance.now();
     const opResult = await operation(inputs);
     switch (opResult.outcome) {
       case BooleanOutcome.EmptyShape:
+        this.cacheHit("boolempty" + resultId);
         return this.EMPTY_SHAPE_SENTINEL;
       case BooleanOutcome.InputShape:
         if (opResult.inputIndexAsResult === undefined) {
@@ -151,8 +154,10 @@ class GeometryProvider {
               JSON.stringify(opResult),
           );
         }
+        this.cacheHit("boolnoop" + resultId);
         return inputs[opResult.inputIndexAsResult];
       case BooleanOutcome.NewShape:
+        this.cacheMiss(resultId, performance.now() - start);
         if (opResult.result) {
           await putShape(
             context.project,
