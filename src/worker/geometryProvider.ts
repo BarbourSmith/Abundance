@@ -711,6 +711,9 @@ class GeometryProvider {
       return preparedResult;
     }
 
+    if (this.warmCache.has(batchId)) {
+      throw new Error("Batch operation with id " + batchId + " already exists");
+    }
     this.warmCache.set(batchId, new Map());
     return {
       ...context,

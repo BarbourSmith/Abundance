@@ -1017,13 +1017,6 @@ export default class Molecule extends Atom {
           atom.onUpstreamChange();
         }
       }
-      // For Code atoms, we can't easily parse which variables they use, so trigger recomputation
-      // whenever a molecule input changes, unless that input is already wired as an atom-level input.
-      else if (atom.atomType === "Code" && atom.isEnabled()) {
-        if (!atom.inputs.some((input) => input.name === inputName)) {
-          atom.onUpstreamChange();
-        }
-      }
     });
   }
 
