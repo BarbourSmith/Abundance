@@ -97,6 +97,10 @@ export default class Input extends Atom {
     // Set values first to ensure type is set correctly
     this.setValues(values);
 
+    if (this.fileType && this.importOptions.includes(this.fileType)) {
+      this.importIndex = this.importOptions.indexOf(this.fileType);
+    }
+
     // Determine the output valueType (import type outputs geometry)
     const outputValueType = this.type === "import" ? "geometry" : this.type;
     this.addIO("number or geometry", outputValueType, this.value, "output");
@@ -1233,15 +1237,23 @@ export default class Input extends Atom {
 
     // If type is import, add controls for file upload
     if (this.type === "import") {
+      const selectedImportType = this.importOptions.includes(this.fileType)
+        ? this.fileType
+        : this.importOptions[this.importIndex] || this.importOptions[0];
+
+      this.importIndex = this.importOptions.indexOf(selectedImportType);
+
       if (this.fileName === null) {
         inputParams[this.uniqueID + "file_ops"] = {
           type: "select",
+          value: selectedImportType,
           options: this.importOptions,
           label: "File Type",
           onChange: (value) => {
             if (!value) {
               value = this.importOptions[0];
             }
+            this.fileType = value;
             this.importIndex = this.importOptions.indexOf(value);
           },
         };

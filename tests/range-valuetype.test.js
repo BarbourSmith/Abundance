@@ -117,6 +117,25 @@ describe("Range valuetype for Input atoms", () => {
     expect(serialized.max).toBe(95);
   });
 
+  it("should preserve persisted import file type selection when rebuilding controls", () => {
+    const input = new Input({
+      x: 0.3,
+      y: 0.3,
+      parent: parentMolecule,
+      uniqueID: GlobalVariables.generateUniqueID(),
+      type: "import",
+      fileType: "STL",
+    });
+
+    const setInputChanged = vi.fn();
+    const params = input.createInputParams(setInputChanged);
+    const fileTypeParam = params[input.uniqueID + "file_ops"];
+
+    expect(input.importIndex).toBe(1);
+    expect(fileTypeParam).toBeDefined();
+    expect(fileTypeParam.value).toBe("STL");
+  });
+
   it("should propagate min/max to parent attachment point options", () => {
     const input = new Input({
       x: 0.3,
