@@ -1,7 +1,7 @@
 import * as workerpool from "workerpool";
 import type { ShapeMesh } from "replicad";
 import * as replicad from "replicad";
-import { ReplicadObject, RequestContext } from "./geometryProvider";
+import { ReplicadObject, RequestContext, WasmDeserializationError } from "./geometryProvider";
 import { text } from "./shapes";
 import type { AbundanceObject } from "./util";
 import * as util from "./util";
@@ -24,6 +24,13 @@ type DisplayMesh = {
 let defaultMesh: any = undefined;
 const started: Promise<boolean> = util.init(false);
 void started.then(() => util.startHeapMonitor("meshWorker"));
+
+// postMessage (used internally by workerpool to return results) is processed
+// as part of the current microtask queue before any scheduled macrotask fires.
+// This delay ensures the fallback response is fully delivered before the worker
+// shuts down. 100ms is deliberately conservative — in practice postMessage
+// dispatch completes within a few milliseconds on the same device.
+const WORKER_RESTART_DELAY_MS = 100;
 
 function getLargestBoundingBox(meshArray: ReplicadObject[]):
   | {
@@ -314,8 +321,33 @@ async function generateDisplayMesh(
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("Error in generateDisplayMesh:", msg, e);
-    // Fall back to default mesh while preserving the original id so callers can update UI state
-    return { id, mesh: await generateDefaultMesh(context) };
+
+    // A WasmDeserializationError means the WASM module has encountered an
+    // unrecoverable state (e.g. "index out of bounds" RuntimeError).
+    // WebAssembly.RuntimeError is also checked directly as a safety net for any
+    // future call sites that do not wrap the error in WasmDeserializationError.
+    const isWasmError =
+      e instanceof WasmDeserializationError ||
+      e instanceof WebAssembly.RuntimeError;
+
+    // Fall back to default mesh while preserving the original id so callers can update UI state.
+    // If the default mesh itself fails (e.g. WASM already corrupted and no cached default),
+    // propagate the original error rather than swallowing it.
+    // Schedule the worker restart AFTER the fallback attempt so the response
+    // (or error) is queued for delivery before the worker shuts down.
+    try {
+      return { id, mesh: await generateDefaultMesh(context) };
+    } catch (fallbackError) {
+      console.error("Fallback mesh generation also failed:", fallbackError);
+      throw e;
+    } finally {
+      if (isWasmError) {
+        console.warn(
+          "WASM error detected in mesh worker; scheduling worker restart to recover clean WASM state",
+        );
+        setTimeout(() => self.close(), WORKER_RESTART_DELAY_MS);
+      }
+    }
   }
 }
 
