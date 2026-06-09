@@ -205,6 +205,16 @@ export default class Import extends Atom {
   createInputParams(setInputChanged) {
     //REVISE FOR NEW MENU
     let inputParams = super.createInputParams(setInputChanged);
+
+    // Remove the delete button that super added (it appears at the top of the
+    // controls because it was inserted first). We re-add it at the end below so
+    // that it is consistently positioned at the bottom, matching other atoms.
+    const deleteKey = this.uniqueID + "delete";
+    const deleteConfig = inputParams[deleteKey];
+    if (deleteConfig) {
+      delete inputParams[deleteKey];
+    }
+
     if (this.fileName == null) {
       inputParams[this.uniqueID + "file_ops"] = {
         type: "select",
@@ -246,6 +256,13 @@ export default class Import extends Atom {
       label: "Loaded File",
       disabled: true,
     };
+
+    // Re-add the delete button at the end so it appears at the bottom of the
+    // controls panel on mobile, consistent with color.js, constant.js, etc.
+    if (deleteConfig) {
+      inputParams[deleteKey] = deleteConfig;
+    }
+
     return inputParams;
   }
 
