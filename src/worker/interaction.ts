@@ -362,8 +362,8 @@ async function assembly(
       util.withAssemblyBoundingBoxes(geometry, context),
     ),
   );
-
-  if (!context.operationId) {
+  const insideOtherBatch = !!context.operationId;
+  if (!insideOtherBatch) {
     const batchId = "assembly-" + util.hashString(JSON.stringify(geometries));
     const batch: RequestContext | AbundanceObject =
       await util.geometryProvider!.startBatchOperation(context, batchId);
@@ -423,8 +423,10 @@ async function assembly(
     context,
     false, // forceRecompute=false, so it skips unnecessary recursion
   );
-
-  await util.geometryProvider!.endBatchOperation(context, result);
+  if (!insideOtherBatch) {
+    console.trace("Ending batch operation with id " + context.operationId);
+    await util.geometryProvider!.endBatchOperation(context, result);
+  }
   return result;
 }
 

@@ -590,8 +590,21 @@ async function executeTsCode(
       context,
       cacheId,
     );
-    await util.geometryProvider!.endBatchOperation(context, abundanceObj);
-    return abundanceObj;
+    if (util.isAssembly(abundanceObj)) {
+      const disjointAssembly = await assembly(abundanceObj.geometry, context);
+
+      // Copy all properties from abundanceObj except geometry
+      Object.keys(abundanceObj).forEach((key) => {
+        if (key !== "geometry") {
+          (disjointAssembly as any)[key] = (abundanceObj as any)[key];
+        }
+      });
+      await util.geometryProvider!.endBatchOperation(context, disjointAssembly);
+      return disjointAssembly;
+    } else {
+      await util.geometryProvider!.endBatchOperation(context, abundanceObj);
+      return abundanceObj;
+    }
   } catch (error) {
     console.error("Code execution error:", error);
     if (Number.isInteger(error)) {
