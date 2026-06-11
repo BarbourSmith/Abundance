@@ -249,6 +249,7 @@ async function intersect(
       color: leaf.color,
       plane: leaf.plane,
       bom: leaf.bom,
+      metadata: leaf.metadata,
       dimension: leaf.dimension,
     };
   });
@@ -597,6 +598,7 @@ async function splitCompSolid(
       color: part.color,
       bom: part.bom,
       plane: part.plane,
+      metadata: part.metadata,
       dimension: part.dimension,
     });
   }
@@ -606,6 +608,7 @@ async function splitCompSolid(
     color: part.color,
     bom: part.bom,
     plane: part.plane,
+    metadata: part.metadata,
   };
 }
 

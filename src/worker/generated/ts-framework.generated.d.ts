@@ -64,6 +64,15 @@ declare global {
       tags: string[];
       bom: string[];
       plane: _replicad.Plane;
+      /**
+       * Open bag for atom-specific payloads that downstream consumers (renderer,
+       * exporters, analyses) may opt into. The framework treats this opaquely —
+       * it is shallow-copied on construction and forwarded through serialisation,
+       * but its contents are never inspected. Atoms attaching data here should
+       * use a namespaced key (e.g. `metadata.heatmap`) to avoid collisions with
+       * other atoms' payloads.
+       */
+      metadata?: Record<string, any>;
       constructor(other?: Partial<Assembly>);
       /**
        * User-defined type guard. Lets callers narrow an `Assembly` to a leaf

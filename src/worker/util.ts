@@ -91,6 +91,7 @@ interface AbundanceBranch {
   dimension?: "2D" | "3D" | "Wire" | "Point3D";
   nonReplicadSerialized?: any;
   boundingBox?: AbundanceBounds;
+  metadata?: Record<string, any>;
 }
 
 interface AbundanceLeaf {
@@ -102,6 +103,7 @@ interface AbundanceLeaf {
   bom: string[];
   nonReplicadSerialized?: any;
   boundingBox?: AbundanceBounds;
+  metadata?: Record<string, any>;
 }
 
 function dimensionLabel(geom: any): "2D" | "3D" | "Wire" | "Point3D" {
@@ -437,6 +439,7 @@ async function actOnLeafs(
       color: assembly.color,
       tags: assembly.tags,
       bom: assembly.bom,
+      metadata: assembly.metadata,
       nonReplicadSerialized: nonReplicadSerialized,
       // ← boundingBox intentionally NOT included
     };

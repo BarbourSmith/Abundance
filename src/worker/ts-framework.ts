@@ -63,6 +63,15 @@ export class Assembly<G = any> {
   tags: string[] = [];
   bom: string[] = [];
   plane: any = replicad.makePlane();
+  /**
+   * Open bag for atom-specific payloads that downstream consumers (renderer,
+   * exporters, analyses) may opt into. The framework treats this opaquely —
+   * it is shallow-copied on construction and forwarded through serialisation,
+   * but its contents are never inspected. Atoms attaching data here should
+   * use a namespaced key (e.g. `metadata.heatmap`) to avoid collisions with
+   * other atoms' payloads.
+   */
+  metadata?: Record<string, any>;
 
   constructor(other?: Partial<Assembly>) {
     if (other) {
@@ -70,6 +79,7 @@ export class Assembly<G = any> {
       this.tags = other.tags?.slice() ?? this.tags;
       this.bom = other.bom?.slice() ?? this.bom;
       this.plane = other.plane?.clone() ?? this.plane;
+      if (other.metadata !== undefined) this.metadata = other.metadata;
       // Deep clone
       if (other && other.isLeaf && other.isLeaf()) {
         this.geometry = other.geometry.clone();
