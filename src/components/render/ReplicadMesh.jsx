@@ -6,7 +6,7 @@ import React, {
   forwardRef,
 } from "react";
 import { useThree } from "@react-three/fiber";
-import { BufferGeometry, BufferAttribute } from "three";
+import { BufferGeometry, BufferAttribute, DoubleSide } from "three";
 import {
   Scene,
   Mesh,
@@ -64,11 +64,13 @@ export default React.memo(
         if (m.edges) syncLines(lines, m.edges);
         else if (m.faces) syncLinesFromFaces(lines, body);
 
-        // Per-vertex heatmap colours from metadata.heatmap (see meshWorker).
+        // Per-vertex colours from a meshOverride. The override travels as a
+        // plain number[] so it round-trips through JSON cache; wrap into a
+        // Float32Array here for the BufferAttribute.
         if (m.vertexColors && m.faces) {
           body.setAttribute(
             "color",
-            new BufferAttribute(m.vertexColors, 3),
+            new BufferAttribute(new Float32Array(m.vertexColors), 3),
           );
         }
 
@@ -386,6 +388,7 @@ export default React.memo(
                         <meshBasicMaterial
                           key={"material-heatmap" + m.color}
                           vertexColors
+                          side={DoubleSide}
                           polygonOffset
                           polygonOffsetFactor={2.0}
                           polygonOffsetUnits={1.0}

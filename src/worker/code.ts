@@ -240,14 +240,21 @@ async function addAssemblyPartsToCache(
         }
         throw e;
       }
+      const geomId = await util.geometryProvider!.addSingularToCache(
+        assembly.geometry,
+        context,
+        cacheId,
+        [context.nextId++], // Cache under the code atom's id + an offset within the result structure
+      );
+      // meshOverride gets special treatment, tagged to this ID only.
+      const metadata = { ...assembly.metadata };
+      if (metadata.meshOverride) {
+        metadata.meshOverride.id = geomId;
+      }
       return {
         ...assembly,
-        geometry: await util.geometryProvider!.addSingularToCache(
-          assembly.geometry,
-          context,
-          cacheId,
-          [context.nextId++], // Cache under the code atom's id + an offset within the result structure
-        ),
+        metadata,
+        geometry: geomId,
         plane: assembly.plane
           ? util.asSimplePlane(assembly.plane)
           : util.XYPlane,

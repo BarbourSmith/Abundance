@@ -19,9 +19,10 @@ type DisplayMesh = {
   };
   color: string;
   point?: [number, number, number];
-  // Per-vertex RGB triples in [0,1], aligned with faces.vertices. Present
-  // when the source assembly carried a metadata.heatmap payload.
-  vertexColors?: Float32Array;
+  // Per-vertex RGB triples in [0,1], aligned with faces.vertices. Set
+  // when an atom supplies a pre-baked metadata.meshOverride. Plain array
+  // so it survives JSON serialization through the assembly cache.
+  vertexColors?: number[];
 };
 
 let defaultMesh: any = undefined;
@@ -226,6 +227,7 @@ async function generateDisplayMesh(
     }
 
     const meshArray: {
+      sourceId: string;
       color: string;
       geometry: ReplicadObject;
       metadata?: Record<string, any>;
@@ -239,6 +241,7 @@ async function generateDisplayMesh(
         context,
       );
       meshArray.push({
+        sourceId: displayObject.geometry,
         color: displayObject.color,
         geometry: geom,
         metadata: displayObject.metadata,
@@ -264,6 +267,22 @@ async function generateDisplayMesh(
     // Iterate through the meshArray and create final meshes with faces, edges and color to pass to display
     for (const [index, meshObj] of meshArray.entries()) {
       try {
+        // Generic atom-supplied mesh: short-circuits all tessellation. The
+        // atom owns the full render contract (faces, edges, optional vertex
+        // colours); meshWorker stays domain-agnostic.
+        const override = meshObj.metadata?.meshOverride;
+        if (override && override.faces && override.id == meshObj.sourceId) {
+          finalMeshes.push({
+            cameraZoom: cameraZoom,
+            faces: override.faces,
+            edges: override.edges,
+            color: meshObj.color,
+            ...(override.vertexColors
+              ? { vertexColors: override.vertexColors }
+              : {}),
+          });
+          continue;
+        }
         if (meshObj.geometry instanceof replicad.Vertex) {
           // Point3D — emit a point coordinate, no mesh geometry
           finalMeshes.push({
@@ -286,7 +305,7 @@ async function generateDisplayMesh(
           const threeDShape = meshObj.geometry
             .sketchOnPlane(sketchPlane)
             .extrude(0.0001);
-          let faces = threeDShape.mesh({
+          const faces = threeDShape.mesh({
             tolerance: 0.1,
             angularTolerance: 0.5,
           });
@@ -294,23 +313,11 @@ async function generateDisplayMesh(
             tolerance: 0.1,
             angularTolerance: 0.5,
           });
-          let vertexColors: Float32Array | undefined;
-          const heatmap = meshObj.metadata?.heatmap;
-          if (heatmap && heatmap.kind === "perQuadField") {
-            try {
-              const r = applyPerQuadHeatmap(faces, heatmap, meshObj.plane);
-              faces = r.mesh;
-              vertexColors = r.vertexColors;
-            } catch (e) {
-              console.error("Heatmap colourise failed:", e);
-            }
-          }
           finalMeshes.push({
             cameraZoom: cameraZoom,
             faces,
             edges,
             color: meshObj.color,
-            ...(vertexColors ? { vertexColors } : {}),
           });
         } else {
           // Shape3D — mesh normally
@@ -349,278 +356,6 @@ async function generateDisplayMesh(
     // Fall back to default mesh while preserving the original id so callers can update UI state
     return { id, mesh: await generateDefaultMesh(context) };
   }
-}
-
-// ─── Heatmap helpers ──────────────────────────────────────────────────────
-//
-// Given a `metadata.heatmap` payload of shape:
-//   { kind: "perQuadField", quads: [[T2,T2,T2,T2], ...],
-//     values: number[], range: [min,max], gradient: [hex,hex],
-//     targetEdge?: number }
-// subdivide the planar (top/bottom) triangles of the supplied ShapeMesh on
-// the plane until each triangle's projected edge is below `targetEdge`, then
-// emit per-vertex RGB colours by point-in-quad lookup against the quad
-// field. Side triangles of the thin extrude are skipped (subdividing them
-// produces slivers without visual benefit). Hard-capped to avoid runaway
-// triangle counts on misconfigured atoms.
-
-const MAX_HEATMAP_TRIS = 50000;
-
-function applyPerQuadHeatmap(
-  mesh: ShapeMesh,
-  heatmap: any,
-  plane: { origin: number[]; xDir: number[]; normal: number[] },
-): { mesh: ShapeMesh; vertexColors: Float32Array } {
-  const targetEdge: number =
-    typeof heatmap.targetEdge === "number" && heatmap.targetEdge > 0
-      ? heatmap.targetEdge
-      : 1;
-  const quads = heatmap.quads as Array<
-    [
-      [number, number],
-      [number, number],
-      [number, number],
-      [number, number],
-    ]
-  >;
-  const values = heatmap.values as number[];
-  const range = heatmap.range as [number, number];
-  const gradient = heatmap.gradient as [string, string];
-
-  // Plane basis. yDir = normal × xDir.
-  const nx = plane.normal[0],
-    ny = plane.normal[1],
-    nz = plane.normal[2];
-  const xx = plane.xDir[0],
-    xy = plane.xDir[1],
-    xz = plane.xDir[2];
-  const yx = ny * xz - nz * xy;
-  const yy = nz * xx - nx * xz;
-  const yz = nx * xy - ny * xx;
-  const ox = plane.origin[0],
-    oy = plane.origin[1],
-    oz = plane.origin[2];
-  const project = (
-    x: number,
-    y: number,
-    z: number,
-  ): [number, number] => {
-    const dx = x - ox,
-      dy = y - oy,
-      dz = z - oz;
-    return [dx * xx + dy * xy + dz * xz, dx * yx + dy * yy + dz * yz];
-  };
-
-  // Subdivide top/bottom face triangles in place; copy side triangles
-  // through unchanged.
-  const vertices = mesh.vertices.slice();
-  const normals = mesh.normals.slice();
-  const newTriangles: number[] = [];
-  const newFaceGroups: ShapeMesh["faceGroups"] = [];
-  let capped = false;
-
-  for (const fg of mesh.faceGroups) {
-    const startIdx = newTriangles.length;
-    const triEnd = fg.start + fg.count;
-    for (let t = fg.start; t < triEnd; t += 3) {
-      const i0 = mesh.triangles[t];
-      const i1 = mesh.triangles[t + 1];
-      const i2 = mesh.triangles[t + 2];
-      if (newTriangles.length / 3 >= MAX_HEATMAP_TRIS) {
-        capped = true;
-        newTriangles.push(i0, i1, i2);
-        continue;
-      }
-      if (
-        triangleAlignedWithPlane(
-          i0,
-          i1,
-          i2,
-          vertices,
-          plane.normal as [number, number, number],
-        )
-      ) {
-        subdivideTri(
-          i0,
-          i1,
-          i2,
-          vertices,
-          normals,
-          newTriangles,
-          targetEdge,
-          project,
-        );
-      } else {
-        newTriangles.push(i0, i1, i2);
-      }
-    }
-    newFaceGroups.push({
-      start: startIdx,
-      count: newTriangles.length - startIdx,
-      faceId: fg.faceId,
-    });
-  }
-  if (capped) {
-    console.warn(
-      `Heatmap subdivision hit ${MAX_HEATMAP_TRIS} triangle cap; consider raising targetEdge`,
-    );
-  }
-
-  // Colourise: for each vertex, point-in-quad lookup, then gradient lerp.
-  const numVerts = vertices.length / 3;
-  const vertexColors = new Float32Array(numVerts * 3);
-  const [r0, g0, b0] = hexToRgb(gradient[0]);
-  const [r1, g1, b1] = hexToRgb(gradient[1]);
-  const rmin = range[0];
-  const rspan = range[1] - range[0] || 1;
-  for (let v = 0; v < numVerts; v++) {
-    const [px, py] = project(
-      vertices[v * 3],
-      vertices[v * 3 + 1],
-      vertices[v * 3 + 2],
-    );
-    let value = rmin;
-    for (let q = 0; q < quads.length; q++) {
-      if (pointInQuad(px, py, quads[q])) {
-        value = values[q];
-        break;
-      }
-    }
-    let s = (value - rmin) / rspan;
-    if (s < 0) s = 0;
-    else if (s > 1) s = 1;
-    vertexColors[v * 3] = r0 + (r1 - r0) * s;
-    vertexColors[v * 3 + 1] = g0 + (g1 - g0) * s;
-    vertexColors[v * 3 + 2] = b0 + (b1 - b0) * s;
-  }
-
-  return {
-    mesh: { vertices, normals, triangles: newTriangles, faceGroups: newFaceGroups },
-    vertexColors,
-  };
-}
-
-function triangleAlignedWithPlane(
-  i0: number,
-  i1: number,
-  i2: number,
-  vertices: number[],
-  planeNormal: [number, number, number],
-): boolean {
-  const ax = vertices[i1 * 3] - vertices[i0 * 3];
-  const ay = vertices[i1 * 3 + 1] - vertices[i0 * 3 + 1];
-  const az = vertices[i1 * 3 + 2] - vertices[i0 * 3 + 2];
-  const bx = vertices[i2 * 3] - vertices[i0 * 3];
-  const by = vertices[i2 * 3 + 1] - vertices[i0 * 3 + 1];
-  const bz = vertices[i2 * 3 + 2] - vertices[i0 * 3 + 2];
-  const cx = ay * bz - az * by;
-  const cy = az * bx - ax * bz;
-  const cz = ax * by - ay * bx;
-  const len = Math.hypot(cx, cy, cz);
-  if (len < 1e-12) return false;
-  const dot =
-    (cx * planeNormal[0] + cy * planeNormal[1] + cz * planeNormal[2]) / len;
-  return Math.abs(dot) > 0.9;
-}
-
-function subdivideTri(
-  i0: number,
-  i1: number,
-  i2: number,
-  vertices: number[],
-  normals: number[],
-  outTris: number[],
-  targetEdge: number,
-  project: (x: number, y: number, z: number) => [number, number],
-): void {
-  if (outTris.length / 3 >= MAX_HEATMAP_TRIS) {
-    outTris.push(i0, i1, i2);
-    return;
-  }
-  const p0 = project(
-    vertices[i0 * 3],
-    vertices[i0 * 3 + 1],
-    vertices[i0 * 3 + 2],
-  );
-  const p1 = project(
-    vertices[i1 * 3],
-    vertices[i1 * 3 + 1],
-    vertices[i1 * 3 + 2],
-  );
-  const p2 = project(
-    vertices[i2 * 3],
-    vertices[i2 * 3 + 1],
-    vertices[i2 * 3 + 2],
-  );
-  const e01 = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]);
-  const e12 = Math.hypot(p2[0] - p1[0], p2[1] - p1[1]);
-  const e20 = Math.hypot(p0[0] - p2[0], p0[1] - p2[1]);
-  if (Math.max(e01, e12, e20) <= targetEdge) {
-    outTris.push(i0, i1, i2);
-    return;
-  }
-  const m01 = addMidpoint(i0, i1, vertices, normals);
-  const m12 = addMidpoint(i1, i2, vertices, normals);
-  const m20 = addMidpoint(i2, i0, vertices, normals);
-  subdivideTri(i0, m01, m20, vertices, normals, outTris, targetEdge, project);
-  subdivideTri(m01, i1, m12, vertices, normals, outTris, targetEdge, project);
-  subdivideTri(m20, m12, i2, vertices, normals, outTris, targetEdge, project);
-  subdivideTri(m01, m12, m20, vertices, normals, outTris, targetEdge, project);
-}
-
-function addMidpoint(
-  i: number,
-  j: number,
-  vertices: number[],
-  normals: number[],
-): number {
-  const idx = vertices.length / 3;
-  vertices.push(
-    (vertices[i * 3] + vertices[j * 3]) * 0.5,
-    (vertices[i * 3 + 1] + vertices[j * 3 + 1]) * 0.5,
-    (vertices[i * 3 + 2] + vertices[j * 3 + 2]) * 0.5,
-  );
-  const nx = (normals[i * 3] + normals[j * 3]) * 0.5;
-  const ny = (normals[i * 3 + 1] + normals[j * 3 + 1]) * 0.5;
-  const nz = (normals[i * 3 + 2] + normals[j * 3 + 2]) * 0.5;
-  const nl = Math.hypot(nx, ny, nz) || 1;
-  normals.push(nx / nl, ny / nl, nz / nl);
-  return idx;
-}
-
-function pointInQuad(
-  x: number,
-  y: number,
-  q: [
-    [number, number],
-    [number, number],
-    [number, number],
-    [number, number],
-  ],
-): boolean {
-  let inside = false;
-  for (let i = 0, j = 3; i < 4; j = i++) {
-    const xi = q[i][0],
-      yi = q[i][1];
-    const xj = q[j][0],
-      yj = q[j][1];
-    if (
-      yi > y !== yj > y &&
-      x < ((xj - xi) * (y - yi)) / (yj - yi) + xi
-    ) {
-      inside = !inside;
-    }
-  }
-  return inside;
-}
-
-function hexToRgb(hex: string): [number, number, number] {
-  const h = hex.replace("#", "");
-  return [
-    parseInt(h.slice(0, 2), 16) / 255,
-    parseInt(h.slice(2, 4), 16) / 255,
-    parseInt(h.slice(4, 6), 16) / 255,
-  ];
 }
 
 workerpool.worker({
