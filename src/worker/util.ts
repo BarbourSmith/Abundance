@@ -111,7 +111,7 @@ function dimensionLabel(geom: any): "2D" | "3D" | "Wire" | "Point3D" {
     return "Wire";
   } else if (geom instanceof replicad.Vertex) {
     return "Point3D";
-  } else if (replicad.isShape3D(geom)) {
+  } else if (replicad.isShape3D(geom) || geom instanceof replicad.Face) {
     return "3D";
   } else {
     throw new Error(
