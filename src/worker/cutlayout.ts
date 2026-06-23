@@ -3,9 +3,11 @@ import { PlacementWrapper, PolygonPacker } from "polygon-packer";
 import type { DisplayCallback } from "polygon-packer/src/types";
 import { Drawing, Face, Shape3D } from "replicad";
 import { extractKeepOut } from "./tags";
-import { ReplicadObject, RequestContext } from "./geometryProvider";
+import { RequestContext } from "./geometryProvider";
 import type { AbundanceLeaf, AbundanceObject } from "./util";
 import * as util from "./util";
+import shrinkWrap from "replicad-shrink-wrap";
+import * as replicad from "replicad";
 
 type SimpleXY = { x: number; y: number };
 
@@ -153,11 +155,8 @@ async function layout(
   previousPlacements: Placement[][] | undefined = undefined,
 ): Promise<[AbundanceObject, Placement[][]]> {
   checkConfig(layoutConfig);
-
-  const [rotatedAssembly, shapesForLayout] = await rotateForLayout(
+  const [assemblyWithMetadata, shapesForLayout] = await prepShapesForLayout(
     assembly,
-    layoutConfig,
-    warningCallback,
     context,
   );
 
@@ -171,7 +170,7 @@ async function layout(
   return positionsPromise.then(async (positions) => {
     //This does the actual layout of the parts.
     const layedOutAssembly = await applyLayout(
-      rotatedAssembly,
+      assemblyWithMetadata,
       positions,
       layoutConfig,
       context,
@@ -181,7 +180,7 @@ async function layout(
       // This should not happen anymore since we provide default placements,
       // but keep this as a safety check
       console.warn("Unexpected: received empty positions array");
-      return [rotatedAssembly, []];
+      return [assembly, []];
     } else {
       const unplacedParts = shapesForLayout.length - positions.flat().length;
       if (unplacedParts > 0) {
@@ -209,34 +208,9 @@ async function displayLayout(
   layoutConfig: LayoutConfig,
   context: RequestContext,
 ): Promise<AbundanceObject> {
-  const [rotatedAssembly, shapesForLayout] = await rotateForLayout(
-    assembly,
-    layoutConfig,
-    warningCallback,
-    context,
-  );
-  const result = await applyLayout(
-    rotatedAssembly,
-    positions,
-    layoutConfig,
-    context,
-  );
+  const result = await applyLayout(assembly, positions, layoutConfig, context);
+  console.log(result);
   return result;
-}
-
-/**
- * Apply the transformations to display already-rotated geometry.
- * This function is used when we already have a pre-rotated assembly
- * to avoid calling rotateForLayout again for performance.
- */
-async function displayLayoutWithRotatedAssembly(
-  rotatedAssembly: AbundanceObject,
-  positions: Placement[][],
-  warningCallback: (msg: string) => void,
-  layoutConfig: LayoutConfig,
-  context: RequestContext,
-): Promise<AbundanceObject> {
-  return applyLayout(rotatedAssembly, positions, layoutConfig, context);
 }
 
 /**
@@ -255,10 +229,8 @@ async function createAndDisplayDefaultLayout(
   layoutConfig: LayoutConfig,
   context: RequestContext,
 ): Promise<[AbundanceObject, Placement[][]]> {
-  const [rotatedAssembly, shapesForLayout] = await rotateForLayout(
+  const [assemblyWithMetadata, shapesForLayout] = await prepShapesForLayout(
     assembly,
-    layoutConfig,
-    warningCallback,
     context,
   );
   const defaultPlacements = createDefaultPlacements(
@@ -266,7 +238,7 @@ async function createAndDisplayDefaultLayout(
     layoutConfig,
   );
   const displayedLayout = await applyLayout(
-    rotatedAssembly,
+    assemblyWithMetadata,
     defaultPlacements,
     layoutConfig,
     context,
@@ -277,15 +249,58 @@ async function createAndDisplayDefaultLayout(
 async function prepShapesForLayout(
   assembly: AbundanceObject,
   context: RequestContext,
-): Promise<ShapeForLayout[]> {
-  util.actOnLeafs(assembly, async (leaf: AbundanceLeaf) => {
+): Promise<[AbundanceObject, ShapeForLayout[]]> {
+  const facefinder = new replicad.FaceFinder().inPlane("XY");
+
+  const faceToPolygon = (face: Face) => {
+    const mesh = face
+      .clone()
+      .outerWire()
+      .meshEdges({ tolerance: 0.2, angularTolerance: 0.5 }); //The tolerance here is described in the conversation here https://github.com/BarbourSmith/Abundance/pull/173
+
+    return preparePoints(mesh, 0.2 / 100);
+  };
+
+  const result: ShapeForLayout[] = [];
+  assembly = await util.actOnLeafs(assembly, async (leaf: AbundanceLeaf) => {
     if (util.is2D(leaf)) {
-      const geom = (await util.geometryProvider!.get(leaf.geometry, context)) as Drawing;
-      geom.sketchOnPlane();
-
+      const geom = (await util.geometryProvider!.get(
+        leaf.geometry,
+        context,
+      )) as Drawing;
+      let sketched = geom.sketchOnPlane();
+      // Consolidate disjoint drawings into a single wrapped shape.
+      if (sketched instanceof replicad.Sketches) {
+        sketched = shrinkWrap(geom, 50).sketchOnPlane();
+        if (sketched instanceof replicad.Sketches) {
+          throw Error("Failed to shrinkwrap disjoint sketches");
+        }
+      }
+      result.push({ id: leaf.geometry, shape: faceToPolygon(sketched.face()) });
+      return leaf;
+    } else if (util.is3D(leaf)) {
+      const geom = (await util.geometryProvider!.get(
+        leaf.geometry,
+        context,
+      )) as Shape3D;
+      // query for face in XY plane.
+      const faces = facefinder.find(geom);
+      if (faces.length === 1) {
+        result.push({ id: leaf.geometry, shape: faceToPolygon(faces[0]) });
+      } else if (faces.length > 1) {
+        // TODO: what do we do here? shrinkwrap again? I don't think we support fixed but
+        // disjoint faces in the packer.
+        console.error(
+          "Found multiple faces in XY plane for geometry: " + leaf.geometry,
+        );
+        result.push({ id: leaf.geometry, shape: faceToPolygon(faces[0]) }); // Just pick the first one for now.
+      }
+      console.error("found no face :(");
+      return leaf;
+    }
+  });
+  return [assembly, result];
 }
-
-
 
 /**
  * Pick orientations for each part in the assembly. Return the index of the face which should
@@ -410,13 +425,14 @@ async function applyLayout(
   layoutConfig: LayoutConfig,
   context: RequestContext,
 ): Promise<AbundanceObject> {
+  let index = 0;
   const result = util.actOnLeafs(
     rotatedAssembly,
     async (leaf: AbundanceLeaf) => {
       let transform;
       let sheetNumber = 0;
-      // @ts-ignore TODO: some fancy subtyping to define an id-ed AbundanceLeaf variant
-      const leafID = leaf.id;
+      const leafID = index;
+      index++;
       for (let sheet = 0; sheet < positions.length; sheet++) {
         const candidates = positions[sheet].filter(
           (transform) => transform.id == leafID,
@@ -548,16 +564,9 @@ function computePositions(
   };
   // from the mesh format of [x1, y1, z1, x2, y2, z2, ...] to FloatPolygon friendly format of
   // [{x: x1, y: y1}, {x: x2, y: y2}...]
-  const polygons = shapesForLayout.map((shape, index) => {
-    const face = shape.shape;
-    const mesh = face
-      .clone()
-      .outerWire()
-      .meshEdges({ tolerance: tolerance, angularTolerance: 0.5 }); //The tolerance here is described in the conversation here https://github.com/BarbourSmith/Abundance/pull/173
-
-    const prepared = preparePoints(mesh, tolerance / 100);
-    const result = asFloat64(prepared);
-    return result;
+  console.trace("shapesForLayout: ", shapesForLayout);
+  const polygons = shapesForLayout.map((shape) => {
+    return asFloat64(shape.shape);
   });
 
   // Clockwise winding direction appears to matter here for the current packing algo.
@@ -872,7 +881,6 @@ export {
   createAndDisplayDefaultLayout,
   createDefaultPlacements,
   displayLayout,
-  displayLayoutWithRotatedAssembly,
   layout,
   orient,
   displayOrientation,
