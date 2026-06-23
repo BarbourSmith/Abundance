@@ -338,11 +338,12 @@ async function rotateForLayout(
     // Go through largest faces first. They're usually going to be the best candidates.
     const orderedFaces = geom.faces
       .slice()
-      .map((face, index) => ({ f: face, i: index }))
-      .sort(
-        (a, b) =>
-          areaApprox(b.f.clone().UVBounds) - areaApprox(a.f.clone().UVBounds),
-      );
+      .map((face, index) => ({
+        f: face,
+        i: index,
+        area: areaApprox(face.clone().UVBounds),
+      }))
+      .sort((a, b) => b.area - a.area);
 
     const filtered = orderedFaces.filter(
       ({ f: face }) => face.geomType == "PLANE",
@@ -357,20 +358,27 @@ async function rotateForLayout(
     let bestCandidate: OrientationCandidate | undefined = undefined;
 
     orderedFaces.forEach(({ f: face, i: originalIndex }) => {
-      if (prefilter != undefined) {
-        if (!prefilter(face)) {
-          return;
-        }
+      if (prefilter != undefined && !prefilter(face)) {
+        console.log("skipping face " + originalIndex + " due to prefilter");
+        return;
       }
 
       const prospectiveGoem = moveFaceToCuttingPlane(geom, face);
 
       // For first few largest faces we might generate a prefilter.
       const thickness = prospectiveGoem.boundingBox.depth;
+      console.log("face " + originalIndex + " thickness: " + thickness);
       if (
+        prefilter == undefined &&
         prospectiveGoem.boundingBox.width > thickness * 2 &&
         prospectiveGoem.boundingBox.height > thickness * 2
       ) {
+        console.log(
+          "creating prefilter for face " +
+            originalIndex +
+            " normal to: " +
+            face.normalAt().toString(),
+        );
         const norm = face.normalAt();
         prefilter = (otherFace: Face) => {
           // Only consider faces that are nearly parallel to the current face
@@ -386,20 +394,37 @@ async function rotateForLayout(
         innerWires: face.innerWires().length,
       };
 
+      const inTollerance = (a: number, b: number) => {
+        return Math.abs(a - b) < THICKNESS_TOLLERANCE;
+      };
+
       // compare faceProps to the best we've found so far
       if (bestCandidate == undefined) {
         bestCandidate = faceProps;
+        console.log("best candidate set to ", faceProps);
       } else {
-        if (faceProps.offset < bestCandidate.offset) {
-          bestCandidate = faceProps;
-        } else if (
-          faceProps.thickness - bestCandidate.thickness <
-          THICKNESS_TOLLERANCE
-        ) {
-          bestCandidate = faceProps;
-        } else if (faceProps.innerWires < bestCandidate.innerWires) {
-          bestCandidate = faceProps;
+        if (!inTollerance(bestCandidate.offset, faceProps.offset)) {
+          if (faceProps.offset < bestCandidate.offset) {
+            console.log("best candidate update due to offset ", faceProps);
+            bestCandidate = faceProps;
+          }
+          return;
         }
+
+        if (!inTollerance(bestCandidate.thickness, faceProps.thickness)) {
+          if (faceProps.thickness < bestCandidate.thickness) {
+            console.log("best candidate update due to thickness ", faceProps);
+            bestCandidate = faceProps;
+          }
+          return;
+        }
+
+        if (faceProps.innerWires < bestCandidate.innerWires) {
+          console.log("best candidate update due to inner wires ", faceProps);
+          bestCandidate = faceProps;
+          return;
+        }
+
         // else no change.
       }
     });
