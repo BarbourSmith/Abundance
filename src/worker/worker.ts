@@ -8,6 +8,8 @@ import {
   createAndDisplayDefaultLayout,
   displayLayout,
   layout,
+  orient,
+  displayOrientation,
   clearRotateCache,
 } from "./cutlayout";
 import { RequestContext } from "./geometryProvider";
@@ -791,6 +793,8 @@ if (
     extractAllTags,
     layout,
     displayLayout,
+    orient,
+    displayOrientation,
     createAndDisplayDefaultLayout,
     bom,
     addNonReplicadGeom,

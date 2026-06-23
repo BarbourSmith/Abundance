@@ -3,6 +3,7 @@ import Assembly from "../molecules/assembly.js";
 import Circle from "../molecules/circle.js";
 import Color from "../molecules/color.js";
 import CutLayout from "../molecules/cutlayout.js";
+import CutOrient from "../molecules/cutOrient.js";
 import ShrinkWrap from "../molecules/shrinkWrap.js";
 import Rectangle from "../molecules/rectangle.js";
 import Loft from "../molecules/loft.js";
@@ -105,6 +106,11 @@ class GlobalVariables {
       cutLayout: {
         creator: CutLayout,
         atomType: "CutLayout",
+        atomCategory: "Tags",
+      },
+      cutOrient: {
+        creator: CutOrient,
+        atomType: "CutOrient",
         atomCategory: "Tags",
       },
       regularPolygon: {
