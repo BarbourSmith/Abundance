@@ -1,7 +1,7 @@
 import { proxy } from "comlink";
 import { PlacementWrapper, PolygonPacker } from "polygon-packer";
 import type { DisplayCallback } from "polygon-packer/src/types";
-import { Face, Shape3D } from "replicad";
+import { Drawing, Face, Shape3D } from "replicad";
 import { extractKeepOut } from "./tags";
 import { ReplicadObject, RequestContext } from "./geometryProvider";
 import type { AbundanceLeaf, AbundanceObject } from "./util";
@@ -10,7 +10,7 @@ import * as util from "./util";
 type SimpleXY = { x: number; y: number };
 
 type OrientationConfig = {
-  thickness: number;
+  units: "MM" | "inches";
 };
 
 type Orientation = {
@@ -67,15 +67,12 @@ async function orient(
   orientationConfig: OrientationConfig,
   context: RequestContext,
 ): Promise<[AbundanceObject, Orientation[]]> {
-  const orientations: Orientation[] = await rotateForLayout(
-    assembly,
-    orientationConfig,
-    context,
-  );
+  const orientations: Orientation[] = await rotateForLayout(assembly, context);
   console.log("picked orientations: ", orientations);
   const orientedAssembly = await displayOrientation(
     assembly,
     orientations,
+    orientationConfig,
     context,
   );
   return [orientedAssembly, orientations];
@@ -84,12 +81,15 @@ async function orient(
 async function displayOrientation(
   assembly: AbundanceObject,
   orientations: Orientation[],
+  orientationConfig: OrientationConfig,
   context: RequestContext,
 ) {
   const getCacheId = (geom: string, index: number) => {
     return "faceToXY-" + index + "-" + geom;
   };
+  const padding = 1; //orientationConfig.units === "MM" ? 25 : 1;
 
+  const bottomLeftTarget = { x: 0, y: 0 };
   let index = 0;
   const result = util.actOnLeafs(assembly, async (leaf: AbundanceLeaf) => {
     if (!util.is3D(leaf)) {
@@ -103,6 +103,8 @@ async function displayOrientation(
     const cachedResultOrContext: AbundanceObject | RequestContext =
       await util.geometryProvider!.startBatchOperation(context, batchId);
     if (util.isAbundanceObject(cachedResultOrContext)) {
+      bottomLeftTarget.x =
+        (cachedResultOrContext.boundingBox?.max[0] || 0) + padding; // Update bottomLeftTarget for next leaf
       return cachedResultOrContext as AbundanceLeaf; // Return cached result if available
     }
     const geom = (await util.geometryProvider!.get(
@@ -111,8 +113,23 @@ async function displayOrientation(
     )) as Shape3D;
     targetFaceIndex = targetFaceIndex % geom.faces.length; // Ensure the index is within bounds
 
-    const result = moveFaceToCuttingPlane(geom, geom.faces[targetFaceIndex]);
+    let result = moveFaceToCuttingPlane(geom, geom.faces[targetFaceIndex]);
 
+    // Translate and rotate so we accumulate a nonoverlapping stack
+    let bbox = result.boundingBox;
+    if (bbox.width > bbox.height) {
+      result = result.rotate(90, [0, 0, 0], [0, 0, 1]);
+    }
+    bbox = result.boundingBox;
+    result = result.translate(
+      bottomLeftTarget.x - bbox.bounds[0][0],
+      bottomLeftTarget.y - bbox.bounds[0][1],
+      0,
+    );
+    bbox = result.boundingBox;
+    bottomLeftTarget.x += bbox.width + padding;
+
+    leaf.boundingBox = { min: bbox.bounds[0], max: bbox.bounds[1] };
     leaf.geometry = await util.geometryProvider!.addSingularToCache(
       result,
       cachedResultOrContext,
@@ -257,21 +274,25 @@ async function createAndDisplayDefaultLayout(
   return [displayedLayout, defaultPlacements];
 }
 
+async function prepShapesForLayout(
+  assembly: AbundanceObject,
+  context: RequestContext,
+): Promise<ShapeForLayout[]> {
+  util.actOnLeafs(assembly, async (leaf: AbundanceLeaf) => {
+    if (util.is2D(leaf)) {
+      const geom = (await util.geometryProvider!.get(leaf.geometry, context)) as Drawing;
+      geom.sketchOnPlane();
+
+}
+
+
+
 /**
- * Rotates and moves all leafs into an orientation which can be fed into
- * the nesting algorithm.
- *
- * Specific criteria of this pre-layout step are as follows:
- * 1) rotate the part such that the best possible face is aligned with the XY plane.
- *    Criteria for the best face are as follows (in order):
- *    a) face must be flat (eg: not the edge of a cylinder)
- *    b) face must have no protrusions below the XY plane
- *    c) face must be within the (inferred) thickness of the material
- *    d) face should have minimal number of interior voids and have the largest bounding box
+ * Pick orientations for each part in the assembly. Return the index of the face which should
+ * be down on the XY plane.
  */
 async function rotateForLayout(
   assembly: AbundanceObject,
-  orientationConfig: OrientationConfig,
   context: RequestContext,
 ): Promise<Orientation[]> {
   // Filter out keepout geometry before any processing
@@ -282,26 +303,6 @@ async function rotateForLayout(
 
   // Compute rotated positions for this layout.
   const THICKNESS_TOLLERANCE = 0.001;
-
-  function equalThickness(a: number, b: number) {
-    return Math.abs(a - b) < THICKNESS_TOLLERANCE;
-  }
-
-  function thicknessComparator(a: number, b: number) {
-    if (orientationConfig.thickness > 0) {
-      // If a thickness is set, prefer candidates that equal target thickness.
-      if (equalThickness(a, orientationConfig.thickness)) {
-        return -1; // a is preferred
-      } else if (equalThickness(b, orientationConfig.thickness)) {
-        return 1; // b is preferred
-      } else {
-        return 0;
-      }
-    } else {
-      // Unspecified thickness, prefer thinnest candidate.
-      return a - b; // prefer thinnest candidate
-    }
-  }
 
   const orientations: Orientation[] = [];
   await util.actOnLeafs(filteredAssembly, async (leaf: AbundanceLeaf) => {
@@ -350,10 +351,7 @@ async function rotateForLayout(
       const prospectiveGoem = moveFaceToCuttingPlane(geom, face);
 
       // For first few largest faces we might generate a prefilter.
-      const thickness =
-        orientationConfig.thickness > 0
-          ? orientationConfig.thickness
-          : prospectiveGoem.boundingBox.depth;
+      const thickness = prospectiveGoem.boundingBox.depth;
       if (
         prospectiveGoem.boundingBox.width > thickness * 2 &&
         prospectiveGoem.boundingBox.height > thickness * 2
@@ -380,7 +378,8 @@ async function rotateForLayout(
         if (faceProps.offset < bestCandidate.offset) {
           bestCandidate = faceProps;
         } else if (
-          thicknessComparator(faceProps.thickness, bestCandidate.thickness) < 0
+          faceProps.thickness - bestCandidate.thickness <
+          THICKNESS_TOLLERANCE
         ) {
           bestCandidate = faceProps;
         } else if (faceProps.innerWires < bestCandidate.innerWires) {

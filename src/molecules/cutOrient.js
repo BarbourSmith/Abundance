@@ -53,11 +53,6 @@ export default class CutOrient extends Atom {
 
     this.addAllIOs([
       { name: "geometry", valueType: "geometry", type: "input" },
-      {
-        name: "Thickness",
-        valueType: "number",
-        defaultValue: 0,
-      },
       { name: "geometry", valueType: "geometry", type: "output" },
     ]);
 
@@ -147,7 +142,10 @@ export default class CutOrient extends Atom {
    */
   getOrientationConfig() {
     return {
-      thickness: this.findIOValue("Thickness"),
+      units:
+        GlobalVariables.topLevelMolecule.units[
+          GlobalVariables.topLevelMolecule.unitsKey
+        ],
     };
   }
 
@@ -157,7 +155,12 @@ export default class CutOrient extends Atom {
       const priorStatus = this.status;
       this.setProcessing();
       return GlobalVariables.cad
-        .displayOrientation(inputGeom, this.orientations, this.getContext())
+        .displayOrientation(
+          inputGeom,
+          this.orientations,
+          this.getOrientationConfig(),
+          this.getContext(),
+        )
         .then((result) => {
           if (this.selected) {
             this.sendToRender();
