@@ -521,13 +521,13 @@ function checkConfig(layoutConfig: LayoutConfig) {
 }
 
 /**
- * Converts a shape array of {x, y} points to a Float64Array format for polygon packing.
+ * Converts a shape array of {x, y} points to a Float32Array format for polygon packing.
  * @param {Array} shape - Array of point objects with x and y properties
- * @returns {Float64Array} Float64Array containing points as [x1, y1, x2, y2, ...] with the polygon closed
+ * @returns {Float32Array} Float32Array containing points as [x1, y1, x2, y2, ...] with the polygon closed
  * @throws {Error} Throws an error if any points contain NaN values
  */
-function asFloat64(shape: SimpleXY[]): Float64Array {
-  const points = new Float64Array(shape.length * 2 + 2);
+function asFloat32(shape: SimpleXY[]): Float32Array {
+  const points = new Float32Array(shape.length * 2 + 2);
   let i = 0;
   shape.forEach((point) => {
     points[i] = point.x;
@@ -539,7 +539,7 @@ function asFloat64(shape: SimpleXY[]): Float64Array {
 
   if (points.filter((c) => !Number.isFinite(c)).length > 0) {
     throw new Error(
-      "NaN points in Float64Array from: " + JSON.stringify(shape),
+      "NaN points in Float32Array from: " + JSON.stringify(shape),
     );
   }
 
@@ -591,11 +591,11 @@ function computePositions(
   // [{x: x1, y: y1}, {x: x2, y: y2}...]
   console.trace("shapesForLayout: ", shapesForLayout);
   const polygons = shapesForLayout.map((shape) => {
-    return asFloat64(shape.shape);
+    return asFloat32(shape.shape);
   });
 
   // Clockwise winding direction appears to matter here for the current packing algo.
-  const bin = asFloat64([
+  const bin = asFloat32([
     { x: 0, y: 0 },
     { x: 0, y: layoutConfig.height },
     { x: layoutConfig.width, y: layoutConfig.height },
