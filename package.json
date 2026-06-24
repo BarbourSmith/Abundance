@@ -35,6 +35,7 @@
     "eslint-linter-browserify": "^9.17.0",
     "file-saver": "^2.0.5",
     "geometry-utils": "file:vendor/geometry-utils",
+    "wasm-nesting": "file:vendor/wasm-nesting",
     "js-sha256": "^0.11.1",
     "mathjs": "^12.4.3",
     "oauthio-web": "^0.6.2",
