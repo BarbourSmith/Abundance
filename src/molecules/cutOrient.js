@@ -196,7 +196,7 @@ export default class CutOrient extends Atom {
       inputParams[this.uniqueID + "orientation" + index] = {
         type: "number",
         value: orientation.downwardFaceIndex,
-        label: index + " Underside Face",
+        label: "Underside Face pt" + index,
         step: 1,
         onChange: (value, index) => {
           const match = index.match(/orientation(\d+)/);
