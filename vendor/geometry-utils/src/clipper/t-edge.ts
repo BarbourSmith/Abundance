@@ -1,14 +1,14 @@
-import Point from '../point';
+import { PointI32 } from '../geometry';
 import { HORIZONTAL } from './constants';
 import { slopesEqual } from '../helpers';
 import { clipperRound } from '../helpers';
 import { POLY_TYPE, POLY_FILL_TYPE, CLIP_TYPE, DIRECTION, NullPtr } from './types';
 
 export default class TEdge {
-    public Bot: Point;
-    public Curr: Point;
-    public Top: Point;
-    public Delta: Point;
+    public Bot: PointI32;
+    public Curr: PointI32;
+    public Top: PointI32;
+    public Delta: PointI32;
     public Dx: number;
     public PolyTyp: POLY_TYPE;
     public Side: DIRECTION;
@@ -25,10 +25,10 @@ export default class TEdge {
     public PrevInSEL: TEdge;
 
     constructor() {
-        this.Bot = Point.zero();
-        this.Curr = Point.zero();
-        this.Top = Point.zero();
-        this.Delta = Point.zero();
+        this.Bot = PointI32.create();
+        this.Curr = PointI32.create();
+        this.Top = PointI32.create();
+        this.Delta = PointI32.create();
         this.Dx = 0;
         this.PolyTyp = POLY_TYPE.SUBJECT;
         this.Side = DIRECTION.LEFT;
@@ -45,7 +45,7 @@ export default class TEdge {
         this.PrevInSEL = null;
     }
 
-    public init(nextEdge: TEdge, prevEdge: TEdge, point: Point): void {
+    public init(nextEdge: TEdge, prevEdge: TEdge, point: PointI32): void {
         this.Next = nextEdge;
         this.Prev = prevEdge;
         //e.Curr = pt;
@@ -147,50 +147,64 @@ export default class TEdge {
         return y === this.Top.y ? this.Top.x : this.Bot.x + clipperRound(this.Dx * (y - this.Bot.y));
     }
 
-    public deleteFromSEL(inputEdge: TEdge): NullPtr<TEdge> {
-        if (this.PrevInSEL === null && this.NextInSEL === null && this !== inputEdge) {
+    public getNext(isAel: boolean): NullPtr<TEdge> {
+        return isAel ? this.NextInAEL : this.NextInSEL;
+    }
+
+    public setNext(isAel: boolean, value: NullPtr<TEdge>): void{
+        if (isAel) {
+            this.NextInAEL = value;
+         }  else {
+            this.NextInSEL = value;
+         }
+    }
+
+    public getPrev(isAel: boolean): NullPtr<TEdge> {
+        return isAel ? this.PrevInAEL : this.PrevInSEL;
+    }
+
+    public setPrev(isAel: boolean, value: NullPtr<TEdge>): void{
+        if (isAel) {
+            this.PrevInAEL = value;
+         }  else {
+            this.PrevInSEL = value;
+         }
+    }
+
+    private deleteFromEl(isAel: boolean, inputEdge: TEdge): NullPtr<TEdge> {
+        const next = this.getNext(isAel);
+        const prev = this.getPrev(isAel);
+        const hasNext = next !== null;
+        const hasPrev = prev !== null;
+
+        if (!hasPrev && !hasNext && this !== inputEdge) {
             return inputEdge;
         }
 
         let result: TEdge = inputEdge;
         //already deleted
-        if (this.PrevInSEL !== null) {
-            this.PrevInSEL.NextInSEL = this.NextInSEL;
+        if (hasPrev) {
+            prev.setNext(isAel, next);
         } else {
-            result = this.NextInSEL;
+            result = next;
         }
 
-        if (this.NextInSEL !== null) {
-            this.NextInSEL.PrevInSEL = this.PrevInSEL;
+        if (hasNext) {
+            next.setPrev(isAel, prev);
         }
 
-        this.NextInSEL = null;
-        this.PrevInSEL = null;
+        this.setNext(isAel, null);
+        this.setPrev(isAel, null);
 
         return result;
     }
 
+    public deleteFromSEL(inputEdge: TEdge): NullPtr<TEdge> {
+        return this.deleteFromEl(false, inputEdge);
+    }
+
     public deleteFromAEL(inputEdge: TEdge): NullPtr<TEdge> {
-        if (this.PrevInAEL === null && this.NextInAEL === null && this !== inputEdge) {
-            return inputEdge;
-        }
-
-        let result: TEdge = inputEdge;
-        //already deleted
-        if (this.PrevInAEL !== null) {
-            this.PrevInAEL.NextInAEL = this.NextInAEL;
-        } else {
-            result = this.NextInAEL;
-        }
-
-        if (this.NextInAEL !== null) {
-            this.NextInAEL.PrevInAEL = this.PrevInAEL;
-        }
-
-        this.NextInAEL = null;
-        this.PrevInAEL = null;
-
-        return result;
+        return this.deleteFromEl(true, inputEdge);
     }
 
     public getIntermediate(y: number): boolean {
@@ -365,11 +379,11 @@ export default class TEdge {
         }
     }
 
-    public static intersectPoint(edge1: TEdge, edge2: TEdge, intersectPoint: Point, useFullRange: boolean): boolean {
+    public static intersectPoint(edge1: TEdge, edge2: TEdge, intersectPoint: PointI32, useFullRange: boolean): boolean {
         //nb: with very large coordinate values, it's possible for SlopesEqual() to
         //return false but for the edge.Dx value be equal due to double precision rounding.
         if (TEdge.slopesEqual(edge1, edge2, useFullRange) || edge1.Dx === edge2.Dx) {
-            const point: Point = edge2.Bot.y > edge1.Bot.y ? edge2.Bot : edge1.Bot;
+            const point: PointI32 = edge2.Bot.y > edge1.Bot.y ? edge2.Bot : edge1.Bot;
 
             intersectPoint.update(point);
 
@@ -417,164 +431,97 @@ export default class TEdge {
         return slopesEqual(e1.Delta.y, e2.Delta.x, e1.Delta.x, e2.Delta.y, useFullRange);
     }
 
-    public static swapPositionsInAEL(edge1: TEdge, edge2: TEdge): boolean {
-        //check that one or other edge hasn't already been removed from AEL ...
-        if (edge1.NextInAEL === edge1.PrevInAEL || edge2.NextInAEL === edge2.PrevInAEL) {
+    public static swapPositionInEL(edge1: TEdge, edge2: TEdge, isAel: boolean): boolean {
+        //check that one or other edge hasn't already been removed from EL ...
+        const isRemoved: boolean = isAel 
+            ? edge1.getNext(isAel) === edge1.getPrev(isAel) || edge2.getNext(isAel) === edge2.getPrev(isAel)
+            : (edge1.getNext(isAel) === null && edge1.getPrev(isAel) === null) || (edge2.getNext(isAel) === null && edge2.getPrev(isAel) === null);
+
+        if (isRemoved) {
             return false;
         }
 
         let prev: NullPtr<TEdge> = null;
         let next: NullPtr<TEdge> = null;
 
-        if (edge1.NextInAEL === edge2) {
-            next = edge2.NextInAEL;
+        if (edge1.getNext(isAel) === edge2) {
+            next = edge2.getNext(isAel);
 
             if (next !== null) {
-                next.PrevInAEL = edge1;
+                next.setPrev(isAel, edge1);
             }
 
-            prev = edge1.PrevInAEL;
+            prev = edge1.getPrev(isAel);
 
             if (prev !== null) {
-                prev.NextInAEL = edge2;
+                prev.setNext(isAel, edge2);
             }
 
-            edge2.PrevInAEL = prev;
-            edge2.NextInAEL = edge1;
-            edge1.PrevInAEL = edge2;
-            edge1.NextInAEL = next;
+            edge2.setPrev(isAel, prev);
+            edge2.setNext(isAel, edge1);
+            edge1.setPrev(isAel, edge2);
+            edge1.setNext(isAel, next);
 
             return true;
         }
 
-        if (edge2.NextInAEL === edge1) {
-            next = edge1.NextInAEL;
+        if (edge2.getNext(isAel) === edge1) {
+            next = edge1.getNext(isAel);
 
             if (next !== null) {
-                next.PrevInAEL = edge2;
+                next.setPrev(isAel, edge2);
             }
 
-            prev = edge2.PrevInAEL;
+            prev = edge2.getPrev(isAel);
 
             if (prev !== null) {
-                prev.NextInAEL = edge1;
+                prev.setNext(isAel, edge1);
             }
 
-            edge1.PrevInAEL = prev;
-            edge1.NextInAEL = edge2;
-            edge2.PrevInAEL = edge1;
-            edge2.NextInAEL = next;
+            edge1.setPrev(isAel, prev)
+            edge1.setNext(isAel, edge2);
+            edge2.setPrev(isAel, edge1);
+            edge2.setNext(isAel, next);
 
             return true;
         }
 
-        next = edge1.NextInAEL;
-        prev = edge1.PrevInAEL;
-        edge1.NextInAEL = edge2.NextInAEL;
+        next = edge1.getNext(isAel);
+        prev = edge1.getPrev(isAel);
 
-        if (edge1.NextInAEL !== null) {
-            edge1.NextInAEL.PrevInAEL = edge1;
+        edge1.setNext(isAel, edge2.getNext(isAel));
+
+        if (edge1.getNext(isAel) !== null) {
+            edge1.getNext(isAel).setPrev(isAel, edge1);
         }
 
-        edge1.PrevInAEL = edge2.PrevInAEL;
+        edge1.setPrev(isAel, edge2.getPrev(isAel));
 
-        if (edge1.PrevInAEL !== null) {
-            edge1.PrevInAEL.NextInAEL = edge1;
+        if (edge1.getPrev(isAel) !== null) {
+            edge1.getPrev(isAel).setNext(isAel, edge1);
         }
 
-        edge2.NextInAEL = next;
+        edge2.setNext(isAel, next);
 
-        if (edge2.NextInAEL !== null) {
-            edge2.NextInAEL.PrevInAEL = edge2;
+        if (edge2.getNext(isAel) !== null) {
+            edge2.getNext(isAel).setPrev(isAel, edge2);
         }
 
-        edge2.PrevInAEL = prev;
+        edge2.setPrev(isAel, prev);
 
-        if (edge2.PrevInAEL !== null) {
-            edge2.PrevInAEL.NextInAEL = edge2;
+        if (edge2.getPrev(isAel) !== null) {
+            edge2.getPrev(isAel).setNext(isAel, edge2);
         }
 
         return true;
     }
 
+    public static swapPositionsInAEL(edge1: TEdge, edge2: TEdge): boolean {
+        return TEdge.swapPositionInEL(edge1, edge2, true);
+    }
+
     public static swapPositionsInSEL(edge1: TEdge, edge2: TEdge): boolean {
-        if ((edge1.NextInSEL === null && edge1.PrevInSEL === null) || (edge2.NextInSEL === null && edge2.PrevInSEL === null)) {
-            return false;
-        }
-
-        let prev: NullPtr<TEdge> = null;
-        let next: NullPtr<TEdge> = null;
-
-        if (edge1.NextInSEL === edge2) {
-            next = edge2.NextInSEL;
-
-            if (next !== null) {
-                next.PrevInSEL = edge1;
-            }
-
-            prev = edge1.PrevInSEL;
-
-            if (prev !== null) {
-                prev.NextInSEL = edge2;
-            }
-
-            edge2.PrevInSEL = prev;
-            edge2.NextInSEL = edge1;
-            edge1.PrevInSEL = edge2;
-            edge1.NextInSEL = next;
-
-            return true;
-        }
-
-        if (edge2.NextInSEL === edge1) {
-            next = edge1.NextInSEL;
-
-            if (next !== null) {
-                next.PrevInSEL = edge2;
-            }
-
-            prev = edge2.PrevInSEL;
-
-            if (prev !== null) {
-                prev.NextInSEL = edge1;
-            }
-
-            edge1.PrevInSEL = prev;
-            edge1.NextInSEL = edge2;
-            edge2.PrevInSEL = edge1;
-            edge2.NextInSEL = next;
-
-            return true;
-        }
-
-        next = edge1.NextInSEL;
-        prev = edge1.PrevInSEL;
-
-        edge1.NextInSEL = edge2.NextInSEL;
-
-        if (edge1.NextInSEL !== null) {
-            edge1.NextInSEL.PrevInSEL = edge1;
-        }
-
-        edge1.PrevInSEL = edge2.PrevInSEL;
-
-        if (edge1.PrevInSEL !== null) {
-            edge1.PrevInSEL.NextInSEL = edge1;
-        }
-
-        edge2.NextInSEL = next;
-
-        if (edge2.NextInSEL !== null) {
-            edge2.NextInSEL.PrevInSEL = edge2;
-        }
-
-        edge2.PrevInSEL = prev;
-
-        if (edge2.PrevInSEL !== null) {
-            edge2.PrevInSEL.NextInSEL = edge2;
-        }
-
-        return true;
+        return TEdge.swapPositionInEL(edge1, edge2, false);
     }
 
     public static swapSides(edge1: TEdge, edge2: TEdge): void {

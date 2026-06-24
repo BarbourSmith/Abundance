@@ -1,18 +1,12 @@
 {
-    "compilerOptions": {
-        "outDir": "../../dist/",
-        "noImplicitAny": true,
-        "resolveJsonModule": true,
-        "module": "es6",
-        "target": "es6",
-        "jsx": "react",
-        "allowJs": true,
-        "typeRoots": ["../../node_modules/@types"],
-        "allowSyntheticDefaultImports": true,
-        "moduleResolution": "node",
-        "skipLibCheck": true,
-        "lib": ["dom", "es2016", "esnext.bigint"]
-    },
+    "extends": "../../tsconfig.json",
     "include": ["src/**/*", "src/typings/**/*.d.ts"],
-    "exclude": []
+    "exclude": [],
+    "compilerOptions": {
+        "typeRoots": ["node_modules/@types", "../../node_modules/@types"], // Ensure workspace dependencies are included
+        "baseUrl": ".", // Allow module resolution from the workspace root
+        "paths": {
+            "wasm-nesting": ["../wasm-nesting/pkg"] // Map the wasm-nesting module to its output directory
+        }
+    }
 }

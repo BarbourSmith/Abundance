@@ -1,4 +1,5 @@
-import { generateNFPCacheKey, getBits, getPolygonNode, joinUint16, toRotationIndex } from '../helpers';
+import { get_bits_u32, join_u16_to_u32, to_rotation_index_wasm } from 'wasm-nesting';
+import { generateNFPCacheKey, getPolygonNode } from '../helpers';
 import { NFPCache, PolygonNode } from '../types';
 import WorkerContent from './worker-content';
 
@@ -13,19 +14,19 @@ export default class PlaceContent extends WorkerContent {
 
     constructor() {
         super();
-        this._emptyNode = getPolygonNode(-1, new Float64Array(0));
+        this._emptyNode = getPolygonNode(-1, new Float32Array(0));
     }
 
     public init(buffer: ArrayBuffer): this {
         const view: DataView = new DataView(buffer);
-        const mapBufferSize: number = view.getFloat64(Float64Array.BYTES_PER_ELEMENT * 3);
-        const nestConfig: number = view.getFloat64(Float64Array.BYTES_PER_ELEMENT);
+        const mapBufferSize: number = view.getUint32(Uint32Array.BYTES_PER_ELEMENT * 3);
+        const nestConfig: number = view.getUint32(Uint32Array.BYTES_PER_ELEMENT);
 
-        this.initNodes(buffer, Float64Array.BYTES_PER_ELEMENT * 4 + mapBufferSize);
+        this.initNodes(buffer, Uint32Array.BYTES_PER_ELEMENT * 4 + mapBufferSize);
 
-        this._rotations = getBits(nestConfig, 9, 5);
-        this._area = view.getFloat64(Float64Array.BYTES_PER_ELEMENT * 2);
-        this._nfpCache = PlaceContent.deserializeBufferToMap(buffer, Float64Array.BYTES_PER_ELEMENT * 4, mapBufferSize);
+        this._rotations = get_bits_u32(nestConfig, 9, 5);
+        this._area = view.getFloat32(Uint32Array.BYTES_PER_ELEMENT * 2);
+        this._nfpCache = PlaceContent.deserializeBufferToMap(buffer, Uint32Array.BYTES_PER_ELEMENT * 4, mapBufferSize);
 
         return this;
     }
@@ -36,10 +37,10 @@ export default class PlaceContent extends WorkerContent {
         this._area = 0;
     }
 
-    public getBinNfp(index: number): Float64Array | null {
+    public getBinNfp(index: number): ArrayBuffer | null {
         const key: number = generateNFPCacheKey(this.rotations, true, this._emptyNode, this.nodeAt(index));
 
-        return this._nfpCache.has(key) ? new Float64Array(this._nfpCache.get(key)) : null;
+        return this._nfpCache.has(key) ? this._nfpCache.get(key) : null;
     }
 
     // ensure all necessary NFPs exist
@@ -60,7 +61,7 @@ export default class PlaceContent extends WorkerContent {
     }
 
     public getPathKey(index: number): number {
-        return joinUint16(toRotationIndex(this.nodeAt(index).rotation, this.rotations), this.nodeAt(index).source);
+        return join_u16_to_u32(to_rotation_index_wasm(this.nodeAt(index).rotation, this.rotations), this.nodeAt(index).source);
     }
 
     public get rotations(): number {

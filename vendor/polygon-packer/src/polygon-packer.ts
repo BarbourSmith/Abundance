@@ -1,10 +1,19 @@
-import { ClipperWrapper, getUint16, Polygon } from "geometry-utils";
+import {
+  ClipperWrapper,
+  getUint16,
+  readUint32FromF32,
+  PolygonF32,
+} from "geometry-utils";
 
 import { GeneticAlgorithm } from "./genetic-algorithm";
-import Phenotype from "./genetic-algorithm/phenotype";
 import { Parallel } from "./parallel";
 import NFPStore from "./nfp-store";
-import { BoundRect, DisplayCallback, NestConfig, PolygonNode } from "./types";
+import {
+  BoundRectF32,
+  DisplayCallback,
+  NestConfig,
+  PolygonNode,
+} from "./types";
 
 export default class PolygonPacker {
   #geneticAlgorithm = new GeneticAlgorithm();
@@ -13,13 +22,13 @@ export default class PolygonPacker {
 
   #binArea: number = 0;
 
-  #binBounds: BoundRect = null;
+  #binBounds: BoundRectF32 = null;
 
-  #resultBounds: BoundRect = null;
+  #resultBounds: BoundRectF32 = null;
 
   #isWorking: boolean = false;
 
-  #best: Float64Array = null;
+  #best: Float32Array = null;
 
   #progress: number = 0;
 
@@ -31,57 +40,14 @@ export default class PolygonPacker {
 
   #nodes: PolygonNode[] = [];
 
-  // Convert previous placements to a Phenotype object
-  private convertPlacementsToPhotype(placements: any[], configuration: NestConfig): Phenotype {
-    if (!placements || placements.length === 0) {
-      return null;
-    }
-
-    // Create a mapping from part ID to node index
-    const nodeMap = new Map<string, number>();
-    this.#nodes.forEach((node, index) => {
-      nodeMap.set(node.source.toString(), index);
-    });
-
-    const orderedNodes: PolygonNode[] = [];
-    const rotations: number[] = [];
-
-    // Try to match placements with nodes
-    placements.forEach((placement) => {
-      const nodeIndex = nodeMap.get(placement.id.toString());
-      if (nodeIndex !== undefined) {
-        orderedNodes.push(this.#nodes[nodeIndex]);
-        rotations.push(placement.rotate || 0);
-      } else {
-        console.log(`Warning: Could not find node for placement ID ${placement.id}`);
-      }
-    });
-
-    // Add any remaining nodes that weren't in the placements
-    this.#nodes.forEach((node, index) => {
-      if (!orderedNodes.find(n => n.source === node.source)) {
-        orderedNodes.push(node);
-        rotations.push(0);
-      }
-    });
-
-    if (orderedNodes.length === 0) {
-      return null;
-    }
-
-    return new Phenotype(orderedNodes, rotations);
-  }
-
   // progressCallback is called when progress is made
   // displayCallback is called when a new placement has been made
-  // previousPlacements is an optional array of previous placements to use as starting point
   public start(
     configuration: NestConfig,
-    polygons: Float64Array[],
-    binPolygon: Float64Array,
+    polygons: Float32Array[],
+    binPolygon: Float32Array,
     progressCallback: (progress: number) => void,
     displayCallback: DisplayCallback,
-    previousPlacements: any[] = null
   ): void {
     const clipperWrapper = new ClipperWrapper(configuration);
     const binData = clipperWrapper.generateBounds(binPolygon);
@@ -93,7 +59,7 @@ export default class PolygonPacker {
     this.#isWorking = true;
     this.#nodes = clipperWrapper.generateTree(polygons, configuration.useHoles);
 
-    this.launchWorkers(configuration, displayCallback, previousPlacements);
+    this.launchWorkers(configuration, displayCallback);
 
     this.#workerTimer = setInterval(() => {
       progressCallback(this.#progress);
@@ -104,66 +70,58 @@ export default class PolygonPacker {
     this.#progress = spawnCount / this.#nfpStore.nfpPairs.length;
   };
 
-  launchWorkers(configuration: NestConfig, displayCallback: DisplayCallback, previousPlacements: any[] = null) {
-    let seedPhenotype = null;
-
-    // Convert previous placements to a seed phenotype if provided
-    if (previousPlacements && previousPlacements.length > 0) {
-      seedPhenotype = this.convertPlacementsToPhotype(previousPlacements[0], configuration);
-    }
-
-    this.#geneticAlgorithm.init(this.#nodes, this.#resultBounds, configuration, seedPhenotype);
+  launchWorkers(configuration: NestConfig, displayCallback: DisplayCallback) {
+    this.#geneticAlgorithm.init(this.#nodes, this.#resultBounds, configuration);
     this.#nfpStore.init(
       this.#geneticAlgorithm.individual,
       this.#binNode,
-      configuration
+      configuration,
     );
     this.#paralele.start(
       this.#nfpStore.nfpPairs,
       (generatedNfp: ArrayBuffer[]) =>
         this.onPair(configuration, generatedNfp, displayCallback),
       this.onError,
-      this.onSpawn
+      this.onSpawn,
     );
   }
 
   private onError(error: ErrorEvent) {
-    console.log(error.message);
-    console.log(error.error);
+    console.trace("Error in worker thread");
+    console.log(JSON.stringify(error));
   }
 
   private onPair(
     configuration: NestConfig,
     generatedNfp: ArrayBuffer[],
-    displayCallback: DisplayCallback
+    displayCallback: DisplayCallback,
   ): void {
     this.#nfpStore.update(generatedNfp);
 
-    // can't use .spawn because our data is an array
     this.#paralele.start(
       this.#nfpStore.getPlacementData(this.#binArea),
       (placements: ArrayBuffer[]) =>
         this.onPlacement(configuration, placements, displayCallback),
-      this.onError
+      this.onError,
     );
   }
 
   private onPlacement(
     configuration: NestConfig,
     placements: ArrayBuffer[],
-    displayCallback: DisplayCallback
+    displayCallback: DisplayCallback,
   ): void {
     if (placements.length === 0) {
       return;
     }
 
     let i: number = 0;
-    let placementsData: Float64Array = new Float64Array(placements[0]);
-    let currentPlacement: Float64Array = null;
+    let placementsData: Float32Array = new Float32Array(placements[0]);
+    let currentPlacement: Float32Array = null;
     this.#nfpStore.fitness = placementsData[0];
 
     for (i = 1; i < placements.length; ++i) {
-      currentPlacement = new Float64Array(placements[i]);
+      currentPlacement = new Float32Array(placements[i]);
       if (currentPlacement[0] < placementsData[0]) {
         placementsData = currentPlacement;
       }
@@ -178,7 +136,7 @@ export default class PolygonPacker {
       this.#best = placementsData;
 
       const binArea: number = Math.abs(this.#binArea);
-      const polygon: Polygon = Polygon.create();
+      const polygon: PolygonF32 = new PolygonF32();
       const placementCount = placementsData[1];
       let placedCount: number = 0;
       let placedArea: number = 0;
@@ -192,13 +150,13 @@ export default class PolygonPacker {
 
       for (i = 0; i < placementCount; ++i) {
         totalArea += binArea;
-        itemData = placementsData[2 + i];
+        itemData = readUint32FromF32(placementsData, 2 + i);
         offset = getUint16(itemData, 1);
         size = getUint16(itemData, 0);
         placedCount += size;
 
         for (j = 0; j < size; ++j) {
-          pathId = getUint16(placementsData[offset + j], 1);
+          pathId = getUint16(readUint32FromF32(placementsData, offset + j), 1);
           polygon.bind(this.#nodes[pathId].memSeg);
           placedArea += polygon.absArea;
         }

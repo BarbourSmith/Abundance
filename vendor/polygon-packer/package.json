@@ -2,7 +2,6 @@
     "name": "polygon-packer",
     "version": "1.0.0",
     "main": "src/index.ts",
-    "type": "module",
     "scripts": {
         "build": "webpack",
         "watch": "webpack --watch --config webpack.config.mjs",

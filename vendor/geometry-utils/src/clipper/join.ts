@@ -1,4 +1,4 @@
-import Point from '../point';
+import { PointI32 } from '../geometry';
 import OutPt from './out-pt';
 import OutRec from './out-rec';
 import { NullPtr } from './types';
@@ -6,12 +6,33 @@ import { NullPtr } from './types';
 export default class Join {
     public OutPt1: OutPt;
     public OutPt2: OutPt;
-    public OffPt: Point;
+    public OffPt: PointI32;
 
-    constructor(outPt1: NullPtr<OutPt> = null, outPt2: NullPtr<OutPt> = null, offPoint: NullPtr<Point> = null) {
+    constructor(outPt1: NullPtr<OutPt> = null, outPt2: NullPtr<OutPt> = null, offPoint: NullPtr<PointI32> = null) {
         this.OutPt1 = outPt1;
         this.OutPt2 = outPt2;
-        this.OffPt = offPoint === null ? Point.zero() : Point.from(offPoint);
+        this.OffPt = PointI32.from(offPoint);
+    }
+
+    private applyJoin(op1: OutPt, op2: OutPt, reverse: boolean) {
+        const op1b = op1.duplicate(!reverse);
+        const op2b = op2.duplicate(reverse);
+
+        if (reverse) {
+            op1.prev = op2;
+            op2.next = op1;
+            op1b.next = op2b;
+            op2b.prev = op1b;
+        } else {
+            op1.next = op2;
+            op2.prev = op1;
+            op1b.prev = op2b;
+            op2b.next = op1b;
+            
+        }
+
+        this.OutPt1 = op1;
+        this.OutPt2 = op1b;
     }
 
     public joinPoints(isRecordsSame: boolean, isUseFullRange: boolean): boolean {
@@ -49,25 +70,7 @@ export default class Join {
                 return false;
             }
 
-            if (reverse1) {
-                op1b = op1.duplicate(false);
-                op2b = op2.duplicate(true);
-                op1.prev = op2;
-                op2.next = op1;
-                op1b.next = op2b;
-                op2b.prev = op1b;
-                this.OutPt1 = op1;
-                this.OutPt2 = op1b;
-            } else {
-                op1b = op1.duplicate(true);
-                op2b = op2.duplicate(false);
-                op1.next = op2;
-                op2.prev = op1;
-                op1b.prev = op2b;
-                op2b.next = op1b;
-                this.OutPt1 = op1;
-                this.OutPt2 = op1b;
-            }
+            this.applyJoin(op1, op2, reverse1);
 
             return true;
         } else if (isHorizontal) {
@@ -86,7 +89,7 @@ export default class Join {
             //a flat 'polygon'
             //Op1 -. Op1b & Op2 -. Op2b are the extremites of the horizontal edges
 
-            const value: Point = Join.getOverlap(op1.point.x, op1b.point.x, op2.point.x, op2b.point.x);
+            const value: PointI32 = Join.getOverlap(op1.point.x, op1b.point.x, op2.point.x, op2b.point.x);
             const isOverlapped = value.x < value.y;
 
             if (!isOverlapped) {
@@ -96,7 +99,7 @@ export default class Join {
             //DiscardLeftSide: when overlapping edges are joined, a spike will created
             //which needs to be cleaned up. However, we don't want Op1 or Op2 caught up
             //on the discard Side as either may still be needed for other joins ...
-            const Pt: Point = Point.zero();
+            const Pt: PointI32 = PointI32.create();
             let DiscardLeftSide: boolean = false;
             if (op1.point.x >= value.x && op1.point.x <= value.y) {
                 //Pt = op1.Pt;
@@ -123,44 +126,28 @@ export default class Join {
             //    1. Jr.OutPt1.Pt.Y === Jr.OutPt2.Pt.Y
             //    2. Jr.OutPt1.Pt > Jr.OffPt.Y
             //make sure the polygons are correctly oriented ...
-            op1b = op1.next;
-
-            while (op1b.point.almostEqual(op1.point) && op1b !== op1) {
-                op1b = op1b.next;
-            }
+            op1b = op1.getUniquePt(true);
 
             const reverse1: boolean =
-                op1b.point.y > op1.point.y || !Point.slopesEqual(op1.point, op1b.point, this.OffPt, isUseFullRange);
+                op1b.point.y > op1.point.y || !PointI32.slopesEqual(op1.point, op1b.point, this.OffPt, isUseFullRange);
 
             if (reverse1) {
-                op1b = op1.prev;
+                op1b = op1.getUniquePt(false);
 
-                while (op1b.point.almostEqual(op1.point) && op1b !== op1) {
-                    op1b = op1b.prev;
-                }
-
-                if (op1b.point.y > op1.point.y || !Point.slopesEqual(op1.point, op1b.point, this.OffPt, isUseFullRange)) {
+                if (op1b.point.y > op1.point.y || !PointI32.slopesEqual(op1.point, op1b.point, this.OffPt, isUseFullRange)) {
                     return false;
                 }
             }
 
-            op2b = op2.next;
-
-            while (op2b.point.almostEqual(op2.point) && op2b !== op2) {
-                op2b = op2b.next;
-            }
+            op2b = op2.getUniquePt(true);
 
             const reverse2: boolean =
-                op2b.point.y > op2.point.y || !Point.slopesEqual(op2.point, op2b.point, this.OffPt, isUseFullRange);
+                op2b.point.y > op2.point.y || !PointI32.slopesEqual(op2.point, op2b.point, this.OffPt, isUseFullRange);
 
             if (reverse2) {
-                op2b = op2.prev;
+                op2b = op2.getUniquePt(false);
 
-                while (op2b.point.almostEqual(op2.point) && op2b !== op2) {
-                    op2b = op2b.prev;
-                }
-
-                if (op2b.point.y > op2.point.y || !Point.slopesEqual(op2.point, op2b.point, this.OffPt, isUseFullRange)) {
+                if (op2b.point.y > op2.point.y || !PointI32.slopesEqual(op2.point, op2b.point, this.OffPt, isUseFullRange)) {
                     return false;
                 }
             }
@@ -169,25 +156,7 @@ export default class Join {
                 return false;
             }
 
-            if (reverse1) {
-                op1b = op1.duplicate(false);
-                op2b = op2.duplicate(true);
-                op1.prev = op2;
-                op2.next = op1;
-                op1b.next = op2b;
-                op2b.prev = op1b;
-                this.OutPt1 = op1;
-                this.OutPt2 = op1b;
-            } else {
-                op1b = op1.duplicate(true);
-                op2b = op2.duplicate(false);
-                op1.next = op2;
-                op2.prev = op1;
-                op1b.prev = op2b;
-                op2b.next = op1b;
-                this.OutPt1 = op1;
-                this.OutPt2 = op1b;
-            }
+            this.applyJoin(op1, op2, reverse1);
 
             return true;
         }
@@ -236,13 +205,13 @@ export default class Join {
         outRec2.FirstLeft = outRec1;
     }
 
-    public static getOverlap(a1: number, a2: number, b1: number, b2: number): Point {
+    public static getOverlap(a1: number, a2: number, b1: number, b2: number): PointI32 {
         if (a1 < a2) {
             return b1 < b2
-                ? Point.create(Math.max(a1, b1), Math.min(a2, b2))
-                : Point.create(Math.max(a1, b2), Math.min(a2, b1));
+                ? PointI32.create(Math.max(a1, b1), Math.min(a2, b2))
+                : PointI32.create(Math.max(a1, b2), Math.min(a2, b1));
         }
 
-        return b1 < b2 ? Point.create(Math.max(a2, b1), Math.min(a1, b2)) : Point.create(Math.max(a2, b2), Math.min(a1, b1));
+        return b1 < b2 ? PointI32.create(Math.max(a2, b1), Math.min(a1, b2)) : PointI32.create(Math.max(a2, b2), Math.min(a1, b1));
     }
 }
