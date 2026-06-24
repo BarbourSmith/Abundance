@@ -67,8 +67,21 @@ export default class PolygonPacker {
   }
 
   private onSpawn = (spawnCount: number): void => {
-    this.#progress = spawnCount / this.#nfpStore.nfpPairs.length;
+    const totalPairs = this.#nfpStore.nfpPairs.length;
+    this.#progress = totalPairs === 0 ? 1 : spawnCount / totalPairs;
   };
+
+  private startPlacementWorkers(
+    configuration: NestConfig,
+    displayCallback: DisplayCallback,
+  ): void {
+    this.#paralele.start(
+      this.#nfpStore.getPlacementData(this.#binArea),
+      (placements: ArrayBuffer[]) =>
+        this.onPlacement(configuration, placements, displayCallback),
+      this.onError,
+    );
+  }
 
   launchWorkers(configuration: NestConfig, displayCallback: DisplayCallback) {
     this.#geneticAlgorithm.init(this.#nodes, this.#resultBounds, configuration);
@@ -77,6 +90,14 @@ export default class PolygonPacker {
       this.#binNode,
       configuration,
     );
+
+    // When all required NFPs are already cached there is no pair work to spawn.
+    // Skip straight to placement workers instead of treating this as an error.
+    if (this.#nfpStore.nfpPairs.length === 0) {
+      this.startPlacementWorkers(configuration, displayCallback);
+      return;
+    }
+
     this.#paralele.start(
       this.#nfpStore.nfpPairs,
       (generatedNfp: ArrayBuffer[]) =>
@@ -97,13 +118,7 @@ export default class PolygonPacker {
     displayCallback: DisplayCallback,
   ): void {
     this.#nfpStore.update(generatedNfp);
-
-    this.#paralele.start(
-      this.#nfpStore.getPlacementData(this.#binArea),
-      (placements: ArrayBuffer[]) =>
-        this.onPlacement(configuration, placements, displayCallback),
-      this.onError,
-    );
+    this.startPlacementWorkers(configuration, displayCallback);
   }
 
   private onPlacement(
