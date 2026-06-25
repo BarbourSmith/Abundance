@@ -241,6 +241,12 @@
   height: 150%;
 }
 
+.CutOrient {
+  background: url("/imgs/cutlayout.png");
+  width: 150%;
+  height: 150%;
+}
+
 .ExtractTag {
   background: url("/imgs/extracttag.png");
   width: 150%;
