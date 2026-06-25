@@ -273,7 +273,12 @@ function projectAndWrapBoundary(shape: Shape3D): SimpleXY[] | undefined {
     console.error("Failed to generate projection", err);
     return undefined;
   }
-  return shrinkWrapForBoundary(projection.visible);
+  try {
+    return shrinkWrapForBoundary(projection.visible);
+  } catch (err) {
+    console.error("Failed to shrinkwrap projection: ", err);
+    return undefined;
+  }
 }
 
 function boundingBoxAsBoundary(shape: Shape3D): SimpleXY[] {
