@@ -519,6 +519,11 @@ async function hashFileContents(file: File): Promise<string> {
   return hash;
 }
 
+function hashAssembly(assembly: AbundanceObject): string {
+  const jsonString = JSON.stringify(assembly);
+  return hashString(jsonString);
+}
+
 /**
  * Generates a concise 32-bit FNV-1a hash for a string (suitable for cache keys).
  * @param {string} str - The input string to hash (e.g., G-code)
@@ -591,6 +596,7 @@ export {
   geometryProvider,
   getBounds,
   hashFileContents,
+  hashAssembly,
   hashString,
   init,
   is2D,

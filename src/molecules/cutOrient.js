@@ -4,6 +4,7 @@ import GlobalVariables from "../js/globalvariables.js";
 import { proxy } from "comlink";
 import { Status } from "../prototypes/observableEntity.js";
 import * as THREE from "three";
+import * as util from "../worker/util.ts";
 
 /**
  * Orient all given parts to the best orientation for cutting. Returns a new assembly of the oriented parts.
@@ -47,7 +48,8 @@ export default class CutOrient extends Atom {
      * @type {array}
      */
     this.orientations = [];
-    this.orientationsFor = "";
+    this.orientationsFor = null;
+    this.orientationsForHashed = null;
 
     this.computing = false;
 
@@ -57,9 +59,6 @@ export default class CutOrient extends Atom {
     ]);
 
     this.setValues(values);
-    if (this.orientations.length > 0) {
-      this.displayOrientation();
-    }
   }
 
   /**
@@ -149,44 +148,34 @@ export default class CutOrient extends Atom {
     };
   }
 
-  displayOrientation() {
-    if (this.inputsAreReady()) {
-      var inputGeom = this.findIOValue("geometry");
-      const priorStatus = this.status;
-      this.setProcessing();
-      return GlobalVariables.cad
-        .displayOrientation(
-          inputGeom,
-          this.orientations,
-          this.getOrientationConfig(),
-          this.getContext(),
-        )
-        .then((result) => {
-          if (this.selected) {
-            this.sendToRender();
-          }
-          this.setReady(result);
-        });
-    } else {
-      return Promise.resolve();
-    }
+  saveAndDisplayOrientations(orientations, inputGeom) {
+    this.orientations = orientations;
+    this.orientationsFor = inputGeom;
+    this.orientationsForHashed = util.hashAssembly(inputGeom);
+    return GlobalVariables.cad.displayOrientation(
+      inputGeom,
+      this.orientations,
+      this.getOrientationConfig(),
+      this.getContext(),
+    );
   }
 
   compute(inputs) {
     const inputGeom = inputs.geometry;
-    return GlobalVariables.cad
-      .orient(inputGeom, this.getOrientationConfig(), this.getContext())
-      .then(([result, orientations]) => {
-        this.handleNewOrientations(orientations, inputGeom);
-        return result;
-      });
-  }
-
-  handleNewOrientations(orientations, inputGeom) {
-    console.log("New orientations received:", orientations);
-    this.orientations = orientations;
-    this.orientationsFor = inputGeom;
-    this.displayOrientation();
+    if (
+      util.hashAssembly(inputGeom) != this.orientationsForHashed ||
+      this.orientations.length == 0
+    ) {
+      // No valid cached orientations, so we need to recompute them
+      return GlobalVariables.cad
+        .orient(inputGeom, this.getOrientationConfig(), this.getContext())
+        .then(([result, orientations]) => {
+          return this.saveAndDisplayOrientations(orientations, inputGeom);
+        });
+    } else {
+      // We have valid cached orientations, so we can just display them
+      return this.saveAndDisplayOrientations(this.orientations, inputGeom);
+    }
   }
 
   createInputParams(setInputChanged) {
@@ -205,7 +194,17 @@ export default class CutOrient extends Atom {
           if (indexNumber != null) {
             const orientation = this.orientations[indexNumber];
             orientation.downwardFaceIndex = value;
-            this.handleNewOrientations(this.orientations, this.orientationsFor);
+            this.setProcessing();
+            this.saveAndDisplayOrientations(
+              this.orientations,
+              this.orientationsFor,
+            ).then((result) => {
+              console.log("result from manual orientation change: ", result);
+              if (this.selected) {
+                this.sendToRender();
+              }
+              this.setReady(result);
+            });
           }
         },
       };
@@ -220,6 +219,7 @@ export default class CutOrient extends Atom {
     //Save the readme text to the serial stream
     var valuesObj = super.serialize(values);
     valuesObj.orientations = this.orientations;
+    valuesObj.orientationsForHashed = util.hashAssembly(this.orientationsFor);
 
     return valuesObj;
   }

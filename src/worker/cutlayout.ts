@@ -69,6 +69,7 @@ async function orient(
   orientationConfig: OrientationConfig,
   context: RequestContext,
 ): Promise<[AbundanceObject, Orientation[]]> {
+  console.log("orient called.");
   const orientations: Orientation[] = await rotateForLayout(assembly, context);
   console.log("picked orientations: ", orientations);
   const orientedAssembly = await displayOrientation(
@@ -85,7 +86,8 @@ async function displayOrientation(
   orientations: Orientation[],
   orientationConfig: OrientationConfig,
   context: RequestContext,
-) {
+): Promise<AbundanceObject> {
+  console.log("displayOrientation called.");
   const getCacheId = (geom: string, index: number) => {
     return "faceToXY-" + index + "-" + geom;
   };
@@ -395,7 +397,6 @@ async function rotateForLayout(
 
     orderedFaces.forEach(({ f: face, i: originalIndex }) => {
       if (prefilter != undefined && !prefilter(face)) {
-        console.log("skipping face " + originalIndex + " due to prefilter");
         return;
       }
 
@@ -403,7 +404,6 @@ async function rotateForLayout(
 
       // For first few largest faces we might generate a prefilter.
       const thickness = prospectiveGoem.boundingBox.depth;
-      console.log("face " + originalIndex + " thickness: " + thickness);
       if (
         prefilter == undefined &&
         prospectiveGoem.boundingBox.width > thickness * 2 &&
