@@ -395,7 +395,7 @@ async function rotateForLayout(
     let prefilter: ((otherFace: Face) => boolean) | undefined = undefined;
     let bestCandidate: OrientationCandidate | undefined = undefined;
 
-    orderedFaces.forEach(({ f: face, i: originalIndex }) => {
+    filtered.forEach(({ f: face, i: originalIndex }) => {
       if (prefilter != undefined && !prefilter(face)) {
         return;
       }
