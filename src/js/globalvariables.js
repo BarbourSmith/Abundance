@@ -103,16 +103,6 @@ class GlobalVariables {
         atomType: "ExtractTag",
         atomCategory: "Tags",
       },
-      cutLayout: {
-        creator: CutLayout,
-        atomType: "CutLayout",
-        atomCategory: "Tags",
-      },
-      cutOrient: {
-        creator: CutOrient,
-        atomType: "CutOrient",
-        atomCategory: "Tags",
-      },
       regularPolygon: {
         creator: RegularPolygon,
         atomType: "RegularPolygon",
@@ -151,7 +141,6 @@ class GlobalVariables {
         atomCategory: "Actions",
       },
       move: { creator: Move, atomType: "Move", atomCategory: "Actions" },
-      //nest:               {creator: Nest, atomType: 'Nest', atomCategory: 'Export'},
       gcode: {
         creator: Gcode,
         atomType: "Gcode",
@@ -165,6 +154,16 @@ class GlobalVariables {
       export: {
         creator: Export,
         atomType: "Export",
+        atomCategory: "ImportExport",
+      },
+      cutOrient: {
+        creator: CutOrient,
+        atomType: "CutOrient",
+        atomCategory: "ImportExport",
+      },
+      cutLayout: {
+        creator: CutLayout,
+        atomType: "CutLayout",
         atomCategory: "ImportExport",
       },
       githubmolecule: {
