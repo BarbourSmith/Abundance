@@ -369,7 +369,7 @@ export default function GitSearchMenu({
       Color: "/imgs/Color.png",
       ExtractTag: "/imgs/extracttag.png",
       CutLayout: "/imgs/cutlayout.png",
-      CutOrient: "/imgs/cutlayout.png",
+      CutOrient: "/imgs/cutorient.png",
       GeneticAlgorithm: "/imgs/genetic.svg",
     };
 
