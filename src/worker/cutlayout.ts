@@ -246,37 +246,65 @@ async function createAndDisplayDefaultLayout(
   return [displayedLayout, defaultPlacements];
 }
 
+function shrinkWrapForBoundary(drawing: Drawing): SimpleXY[] {
+  const wrapped = shrinkWrap(drawing, 50).sketchOnPlane();
+  if (wrapped instanceof replicad.Sketches) {
+    throw Error(
+      "Disjoint parts not always supported. Failed to shrinkwrap a disjoint input",
+    );
+  }
+  return faceToPolygon(wrapped.face());
+}
+
+function faceToPolygon(face: Face) {
+  const mesh = face
+    .clone()
+    .outerWire()
+    .meshEdges({ tolerance: 0.2, angularTolerance: 0.5 }); //The tolerance here is described in the conversation here https://github.com/BarbourSmith/Abundance/pull/173
+
+  return preparePoints(mesh, 0.2 / 100);
+}
+
+function projectAndWrapBoundary(shape: Shape3D): SimpleXY[] | undefined {
+  let projection;
+  try {
+    projection = replicad.drawProjection(shape, "XY");
+  } catch (err) {
+    console.error("Failed to generate projection", err);
+    return undefined;
+  }
+  return shrinkWrapForBoundary(projection.visible);
+}
+
+function boundingBoxAsBoundary(shape: Shape3D): SimpleXY[] {
+  const bounds = shape.boundingBox.bounds;
+  return [
+    { x: bounds[0][0], y: bounds[0][1] },
+    { x: bounds[0][0], y: bounds[1][1] },
+    { x: bounds[1][0], y: bounds[1][1] },
+    { x: bounds[1][0], y: bounds[0][1] },
+  ];
+}
+
 async function prepShapesForLayout(
   assembly: AbundanceObject,
   context: RequestContext,
 ): Promise<[AbundanceObject, ShapeForLayout[]]> {
   const facefinder = new replicad.FaceFinder().inPlane("XY");
 
-  const faceToPolygon = (face: Face) => {
-    const mesh = face
-      .clone()
-      .outerWire()
-      .meshEdges({ tolerance: 0.2, angularTolerance: 0.5 }); //The tolerance here is described in the conversation here https://github.com/BarbourSmith/Abundance/pull/173
-
-    return preparePoints(mesh, 0.2 / 100);
-  };
-
-  const result: ShapeForLayout[] = [];
+  const result = [] as ShapeForLayout[];
   assembly = await util.actOnLeafs(assembly, async (leaf: AbundanceLeaf) => {
     if (util.is2D(leaf)) {
       const geom = (await util.geometryProvider!.get(
         leaf.geometry,
         context,
       )) as Drawing;
-      let sketched = geom.sketchOnPlane();
-      // Consolidate disjoint drawings into a single wrapped shape.
-      if (sketched instanceof replicad.Sketches) {
-        sketched = shrinkWrap(geom, 50).sketchOnPlane();
-        if (sketched instanceof replicad.Sketches) {
-          throw Error("Failed to shrinkwrap disjoint sketches");
-        }
-      }
-      result.push({ id: leaf.geometry, shape: faceToPolygon(sketched.face()) });
+      const sketched = geom.sketchOnPlane();
+      const boundary =
+        sketched instanceof replicad.Sketches
+          ? shrinkWrapForBoundary(geom) // if disjoint shapes, shrinkwrap them all
+          : faceToPolygon(sketched.face());
+      result.push({ id: leaf.geometry, shape: boundary });
       return leaf;
     } else if (util.is3D(leaf)) {
       const geom = (await util.geometryProvider!.get(
@@ -285,17 +313,20 @@ async function prepShapesForLayout(
       )) as Shape3D;
       // query for face in XY plane.
       const faces = facefinder.find(geom);
+      let boundary;
       if (faces.length === 1) {
-        result.push({ id: leaf.geometry, shape: faceToPolygon(faces[0]) });
-      } else if (faces.length > 1) {
-        // TODO: what do we do here? shrinkwrap again? I don't think we support fixed but
-        // disjoint faces in the packer.
-        console.error(
-          "Found multiple faces in XY plane for geometry: " + leaf.geometry,
-        );
-        result.push({ id: leaf.geometry, shape: faceToPolygon(faces[0]) }); // Just pick the first one for now.
+        // Happy case, a single face on the XY plane. Use it's boundary.
+        boundary = faceToPolygon(faces[0]);
+      } else {
+        // Either too many faces or none at all. In either case fall back to the
+        // projected boundary of this part.
+        boundary = projectAndWrapBoundary(geom);
+        if (boundary === undefined) {
+          // Fall back further to a bounding box rectangle
+          boundary = boundingBoxAsBoundary(geom);
+        }
       }
-      console.error("found no face :(");
+      result.push({ id: leaf.geometry, shape: boundary }); // Just pick the first one for now.
       return leaf;
     }
   });
