@@ -814,33 +814,38 @@ class GeometryProvider {
       throw new Error("provided context is not a batch operation " + context);
     }
     this.batchMetrics = [0, 0];
-    if (!context.persistIntermediates) {
-      // For all intermediate shapes which are part of the result assembly,
-      // promote them to the serialized cache.
-      for (const leaf of flattenAssembly(result)) {
-        if (leaf.geometry === this.EMPTY_SHAPE_SENTINEL) {
-          continue; // Empty shapes don't exist in the cache
-        }
-        const geom = this.getFromWarmCache(leaf.geometry, context);
-        if (geom) {
-          await putShape(
-            context.project,
-            leaf.geometry,
-            this.getFromWarmCache(leaf.geometry, context)!.serialize(),
-          );
-        } else {
-          // check that it's already in the serialized cache
-          const exists = await shapeExists(context.project, leaf.geometry);
-          if (!exists) {
-            throw new Error(
-              "Batch operation references unknown geometry: " + leaf.geometry,
+    try {
+      if (!context.persistIntermediates) {
+        // For all intermediate shapes which are part of the result assembly,
+        // promote them to the serialized cache.
+        for (const leaf of flattenAssembly(result)) {
+          if (leaf.geometry === this.EMPTY_SHAPE_SENTINEL) {
+            continue; // Empty shapes don't exist in the cache
+          }
+          const geom = this.getFromWarmCache(leaf.geometry, context);
+          if (geom) {
+            await putShape(
+              context.project,
+              leaf.geometry,
+              this.getFromWarmCache(leaf.geometry, context)!.serialize(),
             );
+          } else {
+            // check that it's already in the serialized cache
+            const exists = await shapeExists(context.project, leaf.geometry);
+            if (!exists) {
+              throw new Error(
+                "Batch operation references unknown geometry: " + leaf.geometry,
+              );
+            }
           }
         }
       }
+      await this.cacheAssemblyStructure(context.operationId, result, context);
+    } finally {
+      // Always clear the warm-cache entry so retries cannot get stuck behind
+      // stale "already exists" state after a failed end-batch path.
+      this.warmCache.delete(context.operationId);
     }
-    await this.cacheAssemblyStructure(context.operationId, result, context);
-    this.warmCache.delete(context.operationId);
   }
 
   /**

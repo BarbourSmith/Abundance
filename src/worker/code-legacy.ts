@@ -167,6 +167,9 @@ async function executeCode(
   argumentsArray: { [key: string]: any },
   context: RequestContext,
 ): Promise<AbundanceObject | number | string | boolean | null | undefined> {
+  let startedBatch = false;
+  let finishedBatch = false;
+  let batchContext: RequestContext | null = null;
   try {
     // Validate input parameters
     if (typeof code !== "string") {
@@ -218,6 +221,8 @@ async function executeCode(
 
     context = batch;
     context.nextId = 0;
+    startedBatch = true;
+    batchContext = context;
 
     // Validate code for dangerous patterns
     // TODO: we probably want to allow some of these but still need to warn about them before executing
@@ -404,6 +409,7 @@ async function executeCode(
       // Clean up the warm cache without caching the result
       // Primitive and array (point) results are not cached - only geometry results are cached
       util.geometryProvider!.cleanupBatchWithoutCaching(context);
+      finishedBatch = true;
       return rawResult;
     }
 
@@ -415,8 +421,19 @@ async function executeCode(
       cacheId,
     );
     await util.geometryProvider!.endBatchOperation(context, abundanceObj);
+    finishedBatch = true;
     return abundanceObj;
   } catch (error) {
+    if (startedBatch && !finishedBatch && batchContext?.operationId) {
+      try {
+        util.geometryProvider!.cleanupBatchWithoutCaching(batchContext);
+      } catch (cleanupError) {
+        console.warn(
+          "Failed to cleanup legacy code batch operation",
+          cleanupError,
+        );
+      }
+    }
     console.error("Code execution error:", error);
     throw new Error(`Code execution failed: ${(error as Error).message}`);
   }

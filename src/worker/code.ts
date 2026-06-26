@@ -356,6 +356,9 @@ async function executeTsCode(
   atomUniqueId: string | number,
   onLog?: CodeAtomLogCallback,
 ): Promise<AbundanceObject | Primitive | Primitive[]> {
+  let startedBatch = false;
+  let finishedBatch = false;
+  let batchContext: RequestContext | null = null;
   try {
     if (typeof code !== "string") {
       throw new Error("Code must be a string");
@@ -418,6 +421,8 @@ async function executeTsCode(
 
     context = batch;
     context.nextId = 0;
+    startedBatch = true;
+    batchContext = context;
 
     // Convert incoming Abundance geometry arguments into raw POJOs marked
     // with `__isRawAbundanceObj`. The prepended framework's `__promoteInput`
@@ -577,6 +582,7 @@ async function executeTsCode(
       // Clean up the warm cache without caching the result
       // Primitive and array (point) results are not cached - only geometry results are cached
       await util.geometryProvider!.cleanupBatchWithoutCaching(context);
+      finishedBatch = true;
       return rawResult;
     }
 
@@ -607,12 +613,21 @@ async function executeTsCode(
         }
       });
       await util.geometryProvider!.endBatchOperation(context, disjointAssembly);
+      finishedBatch = true;
       return disjointAssembly;
     } else {
       await util.geometryProvider!.endBatchOperation(context, abundanceObj);
+      finishedBatch = true;
       return abundanceObj;
     }
   } catch (error) {
+    if (startedBatch && !finishedBatch && batchContext?.operationId) {
+      try {
+        util.geometryProvider!.cleanupBatchWithoutCaching(batchContext);
+      } catch (cleanupError) {
+        console.warn("Failed to cleanup TS code batch operation", cleanupError);
+      }
+    }
     console.error("Code execution error:", error);
     if (Number.isInteger(error)) {
       throw new Error(`OpenCascade kernel error code: ${error}`);
