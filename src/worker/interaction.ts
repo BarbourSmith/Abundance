@@ -364,6 +364,7 @@ async function assembly(
     ),
   );
   const insideOtherBatch = !!context.operationId;
+  let startedOwnBatch = false;
   if (!insideOtherBatch) {
     const batchId = "assembly-" + util.hashString(JSON.stringify(geometries));
     const batch: RequestContext | AbundanceObject =
@@ -396,6 +397,7 @@ async function assembly(
 
     // cache miss on the batch operation.
     context = batch;
+    startedOwnBatch = true;
   }
 
   try {
@@ -431,12 +433,14 @@ async function assembly(
     }
     return result;
   } catch (error) {
-    // Clean up batch to prevent "already exists" errors on retry
-    if (!insideOtherBatch) {
+    if (startedOwnBatch) {
       try {
         util.geometryProvider!.cleanupBatchWithoutCaching(context);
       } catch (cleanupError) {
-        console.error("Failed to clean up assembly batch after error:", cleanupError);
+        console.warn(
+          "Failed to cleanup assembly batch operation",
+          cleanupError,
+        );
       }
     }
     throw error;
@@ -552,7 +556,7 @@ async function recursiveCut(
   cuttingParts: AbundanceObject,
   context: RequestContext,
 ): Promise<AbundanceLeaf> {
-  let resultGeomId: string = partToCut.geometry;
+  let resultGeomId: string | undefined = partToCut.geometry;
 
   // TODO: traversing leafs in this way isn't optimal for bounding box
   // checks since we could find an entire branch of the assembly which doesn't
@@ -577,15 +581,21 @@ async function recursiveCut(
       continue; // skip: bounding boxes don't overlap
     }
 
+    const currentResultGeomId =
+      resultGeomId ?? util.geometryProvider!.EMPTY_SHAPE_SENTINEL;
+    if (currentResultGeomId === util.geometryProvider!.EMPTY_SHAPE_SENTINEL) {
+      break;
+    }
+
     resultGeomId = await util.geometryProvider!.cut(
-      resultGeomId,
+      currentResultGeomId,
       cuttingPart.geometry,
       context,
     );
   }
   const result = {
     ...partToCut,
-    geometry: resultGeomId,
+    geometry: resultGeomId ?? util.geometryProvider!.EMPTY_SHAPE_SENTINEL,
   };
   return result;
 }
