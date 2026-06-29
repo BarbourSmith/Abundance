@@ -831,12 +831,32 @@ class GlobalVariables {
     const recentErrors = this.recentErrors.slice(-20);
     const errorSummary = summarizeRecentErrors(recentErrors);
     const loadElapsedMs = this.startTime ? Date.now() - this.startTime : null;
-    const pendingAtomCount = Math.min(
+    const topLevelTerminal =
+      topLevelStatus === "ready" ||
+      topLevelStatus === "error" ||
+      topLevelStatus === "upstream_error";
+
+    let pendingAtomCount = Math.min(
       this.numberOfAtomsToLoad,
       this.totalAtomCount,
     );
+
+    if (topMol?.getCompletionTuple) {
+      try {
+        const tuple = topMol.getCompletionTuple();
+        if (Array.isArray(tuple) && tuple.length === 2) {
+          const readyCount = Number(tuple[0]);
+          const totalCount = Number(tuple[1]);
+          if (Number.isFinite(readyCount) && Number.isFinite(totalCount)) {
+            pendingAtomCount = Math.max(totalCount - readyCount, 0);
+          }
+        }
+      } catch {}
+    }
+
     const stuckProcessing =
       !this.projectIsLoading &&
+      !topLevelTerminal &&
       pendingAtomCount > 0 &&
       loadElapsedMs !== null &&
       loadElapsedMs > 30000;
@@ -899,7 +919,7 @@ class GlobalVariables {
         stuckProcessing,
         stalledReason:
           stuckProcessing
-            ? "Deserialization finished but top-level remains processing with pending atoms past timeout"
+            ? "Deserialization finished but top-level is still non-terminal with pending atoms past timeout"
             : null,
       },
       currentMolecule: currentMol
@@ -944,6 +964,28 @@ class GlobalVariables {
           ),
         };
       }
+    }
+
+    if (typeof window !== "undefined" && window.__cadWorkerDebug) {
+      const workerDebug = window.__cadWorkerDebug;
+      const activeOp = workerDebug.activeOperation || null;
+      const workerInterpretation =
+        workerDebug.liveness === "possibly_stuck"
+          ? "Worker appears busy on a long-running operation with queued work waiting behind it."
+          : workerDebug.liveness === "progressing"
+            ? "Worker is actively processing; queued work should continue once the current operation finishes."
+          : "Worker is idle or has no active operation.";
+
+      report.worker = {
+        ...workerDebug,
+        activeOperationSummary: activeOp
+          ? `${activeOp.displayLabel} (${Math.round((activeOp.elapsedMs || 0) / 1000)}s elapsed, expected ~${Math.round((activeOp.expectedDurationMs || 0) / 1000)}s)`
+          : null,
+        interpretation: workerInterpretation,
+        secondsSinceLastWorkerEvent: workerDebug.lastEventAt
+          ? Math.round((Date.now() - workerDebug.lastEventAt) / 1000)
+          : null,
+      };
     }
 
     return JSON.stringify(report, null, 2);

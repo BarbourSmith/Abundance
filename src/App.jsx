@@ -63,10 +63,10 @@ const pool = workerpool.pool(RenderURL, {
   },
 });
 
-// CadWorkerManager wraps the comlink worker with a 360-second per-call timeout.
-// If the worker hangs it is automatically terminated and restarted, so the UI
-// never gets permanently stuck waiting for a computation that will never return.
-const cad = new CadWorkerManager(cadWorker, 1_080_000);
+// CadWorkerManager wraps the comlink worker with adaptive hang detection.
+// The second argument is the floor for hang detection sensitivity, not a hard
+// per-call timeout, so expensive valid operations can still complete.
+const cad = new CadWorkerManager(cadWorker, 600_000);
 
 function getLatestActiveWorkerTask(taskMap) {
   let latestTask = null;
@@ -95,7 +95,23 @@ function applyWorkerTaskUi(
   }
 
   const activeTask = getLatestActiveWorkerTask(taskMap);
-  setComputingLabel(activeTask?.displayLabel || activeTask?.method || "computing");
+  const debugOperation =
+    typeof window !== "undefined" ? window.__cadWorkerDebug?.activeOperation : null;
+  const label =
+    debugOperation?.displayLabel || activeTask?.displayLabel || activeTask?.method || "computing";
+  const elapsedMs =
+    debugOperation?.elapsedMs ||
+    (activeTask?.startedAt ? Date.now() - activeTask.startedAt : null);
+  const expectedMs = debugOperation?.expectedDurationMs || null;
+  const elapsedPart = Number.isFinite(elapsedMs)
+    ? `${Math.max(1, Math.round(elapsedMs / 1000))}s`
+    : null;
+  const expectedPart = Number.isFinite(expectedMs)
+    ? `/${Math.max(1, Math.round(expectedMs / 1000))}s`
+    : "";
+  setComputingLabel(
+    elapsedPart ? `${label} (${elapsedPart}${expectedPart})` : label,
+  );
 
   if (!shouldShowLoadingBar) {
     setRenderBarVisible(false);
@@ -249,11 +265,16 @@ function AppContent() {
   }, []);
 
   const [processing, setProcessing] = useState(false);
+  const processingRef = useRef(processing);
   const activeWorkerTasksRef = useRef(new Map());
   const initialProjectLoadRef = useRef(Boolean(GlobalVariables.topLevelMolecule));
   const currentTopLevelMoleculeIdRef = useRef(
     GlobalVariables.topLevelMolecule?.uniqueID || null,
   );
+
+  useEffect(() => {
+    processingRef.current = processing;
+  }, [processing]);
 
   useEffect(() => {
     const refreshUi = () => {
@@ -274,7 +295,7 @@ function AppContent() {
         applyWorkerTaskUi(
           activeWorkerTasksRef.current,
           topLevelMolecule,
-          processing,
+          processingRef.current,
           shouldShowLoadingBar,
           setRenderProgress,
           setRenderStage,
@@ -306,7 +327,7 @@ function AppContent() {
         setRenderBarVisible,
         setComputingLabel,
         shouldShowLoadingBar,
-        processing,
+        processingRef.current,
       );
 
       if (
@@ -351,9 +372,15 @@ function AppContent() {
     window.addEventListener("cad-worker-task-error", handleWorkerTaskFinished);
     window.addEventListener("cad-worker-task-cancelled", handleWorkerTaskFinished);
     window.addEventListener("cad-worker-restarted", handleWorkerRestarted);
+    const refreshTimer = setInterval(() => {
+      if (activeWorkerTasksRef.current.size > 0) {
+        refreshUi();
+      }
+    }, 1000);
     refreshUi();
 
     return () => {
+      clearInterval(refreshTimer);
       window.removeEventListener(
         "top-level-molecule-changed",
         handleTopLevelChanged,
@@ -368,7 +395,7 @@ function AppContent() {
       window.removeEventListener("cad-worker-task-cancelled", handleWorkerTaskFinished);
       window.removeEventListener("cad-worker-restarted", handleWorkerRestarted);
     };
-  }, [processing, setRenderProgress, setRenderBarVisible, setRenderStage, setComputingLabel]);
+  }, []);
 
   useEffect(() => {
     if (renderProgress >= 100) {

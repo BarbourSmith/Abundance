@@ -988,16 +988,33 @@ export default class Molecule extends Atom {
 
         if (this.inputs.every((input) => input.status == Status.READY)) {
           // All inputs are ready but our output isn't yet.
-          // Check for an internal error, else we're in progress.
+          // Derive molecule status from child execution state to avoid
+          // getting stuck in PROCESSING when children are already terminal.
+          const childStatuses = this.nodesOnTheScreen
+            .filter((atom) => atom !== outputAtom && atom.status !== Status.DISABLED)
+            .map((atom) => atom.status);
+
+          const hasChildError = childStatuses.some(
+            (status) => status === Status.ERROR || status === Status.UPSTREAM_ERROR,
+          );
+          const hasChildProcessing = childStatuses.some(
+            (status) => status === Status.PROCESSING,
+          );
+
           if (
             outputAtom.status == Status.UPSTREAM_ERROR ||
-            outputAtom.status == Status.ERROR
+            outputAtom.status == Status.ERROR ||
+            hasChildError
           ) {
             this.onChildError();
+          } else if (hasChildProcessing) {
+            this.setProcessing();
           } else if (outputAtom.inputs[0]?.connectors.length == 0) {
             this.setWaiting(); // No connectors to our internal output means we're in a freshly initialized state.;
           } else {
-            this.setProcessing();
+            // No children are actively processing and no terminal child error
+            // exists, so stay waiting for new upstream transitions.
+            this.setWaiting();
           }
         } else {
           // Else set status to waiting since some of our inputs are not ready.
@@ -1722,6 +1739,7 @@ export default class Molecule extends Atom {
     return this.nodesOnTheScreen.filter((atom) => {
       return (
         atom.selected && atom.output && atom.output.valueType === "geometry"
+        && atom.getState().status === Status.READY
       );
     });
   }
@@ -1985,6 +2003,11 @@ export default class Molecule extends Atom {
               console.warn("Flow canvas element not found");
               return;
             }
+
+            // Newly user-placed atoms get a short interactive boost so their
+            // first compute can run ahead of stale background queued work.
+            atom._interactiveBoostUntil = Date.now() + 20_000;
+
             // Only auto-create connectors for manual atom creation, not for paste operations
             if (!skipAutoConnect) {
               this.autoCreateConnector(atom);

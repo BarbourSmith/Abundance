@@ -139,6 +139,12 @@ export default class Atom extends ObservableEntity {
     };
 
     this.subscribe(this.selfSubscriber.bind(this), "self-clear-alert");
+
+    // Track async compute lifecycle so upstream churn does not enqueue
+    // overlapping worker calls for the same atom.
+    this._isComputing = false;
+    this._recomputeQueued = false;
+    this._computeEpoch = 0;
   }
 
   selfSubscriber() {
@@ -1207,6 +1213,8 @@ export default class Atom extends ObservableEntity {
    *   as well.
    */
   onUpstreamChange() {
+    const requestedEpoch = ++this._computeEpoch;
+
     // No-op if this atom isn't enabled
     if (!this.isEnabled()) {
       return;
@@ -1218,28 +1226,65 @@ export default class Atom extends ObservableEntity {
       return;
     }
 
-    if (this.inputsAreReady()) {
-      const argsDict = Object.fromEntries(
-        this.inputs.map((input) => [input.name, input.getState().value]),
-      );
-      this.setProcessing();
-
-      this.compute(argsDict)
-        .then((value) => {
-          this.buildNonReplicadGeom(value);
-          this.setReady(value);
-
-          if (
-            this.setInputChanged &&
-            typeof this.setInputChanged === "function"
-          ) {
-            this.setInputChanged(this.status);
-          }
-        })
-        .catch(this.alertingErrorHandler());
-    } else {
+    if (!this.inputsAreReady()) {
       this.setWaiting();
+      return;
     }
+
+    // If a compute is already in flight for this atom, mark a single
+    // follow-up run and let the current one finish.
+    if (this._isComputing) {
+      this._recomputeQueued = true;
+      return;
+    }
+
+    const argsDict = Object.fromEntries(
+      this.inputs.map((input) => [input.name, input.getState().value]),
+    );
+    const runEpoch = requestedEpoch;
+    this._isComputing = true;
+    this.setProcessing();
+
+    this.compute(argsDict)
+      .then((value) => {
+        // Ignore stale compute results that completed after newer upstream
+        // changes invalidated this run.
+        if (runEpoch !== this._computeEpoch) {
+          return;
+        }
+
+        this.buildNonReplicadGeom(value);
+        this.setReady(value);
+
+        if (
+          this.setInputChanged &&
+          typeof this.setInputChanged === "function"
+        ) {
+          this.setInputChanged(this.status);
+        }
+      })
+      .catch((err) => {
+        if (runEpoch !== this._computeEpoch) {
+          return;
+        }
+        this.alertingErrorHandler()(err);
+      })
+      .finally(() => {
+        if (runEpoch !== this._computeEpoch) {
+          this._isComputing = false;
+          if (this._recomputeQueued) {
+            this._recomputeQueued = false;
+            this.onUpstreamChange();
+          }
+          return;
+        }
+
+        this._isComputing = false;
+        if (this._recomputeQueued) {
+          this._recomputeQueued = false;
+          this.onUpstreamChange();
+        }
+      });
   }
 
   /**
@@ -1262,11 +1307,15 @@ export default class Atom extends ObservableEntity {
   getCadTaskMeta(method) {
     const atomType = this.atomType || String(method);
     const moleculeName = this.parent?.name || null;
+    const interactivePriority =
+      Number.isFinite(this._interactiveBoostUntil) &&
+      Date.now() < this._interactiveBoostUntil;
     return {
       atomId: this.uniqueID,
       atomType,
       moleculeName,
       displayLabel: moleculeName ? `${moleculeName}/${atomType}` : atomType,
+      priority: interactivePriority ? "interactive" : "normal",
     };
   }
 
