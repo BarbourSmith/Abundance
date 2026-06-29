@@ -825,10 +825,21 @@ class GlobalVariables {
 
     const currentMol = this.currentMolecule;
     const topMol = this._topLevelMolecule;
+    const topLevelStatus = topMol?.status || null;
     const currentAtoms = currentMol?.nodesOnTheScreen ?? [];
     const topAtoms = topMol?.nodesOnTheScreen ?? [];
     const recentErrors = this.recentErrors.slice(-20);
+    const errorSummary = summarizeRecentErrors(recentErrors);
     const loadElapsedMs = this.startTime ? Date.now() - this.startTime : null;
+    const pendingAtomCount = Math.min(
+      this.numberOfAtomsToLoad,
+      this.totalAtomCount,
+    );
+    const stuckProcessing =
+      !this.projectIsLoading &&
+      pendingAtomCount > 0 &&
+      loadElapsedMs !== null &&
+      loadElapsedMs > 30000;
 
     // Gather all molecules with status info from the visible render tree
     const allVisibleMolecules = [];
@@ -852,11 +863,17 @@ class GlobalVariables {
       generatedAt: new Date().toISOString(),
       diagnostics: {
         loadHealth:
-          this.projectIsLoading && this.numberOfAtomsToLoad > 0
-            ? "STALLED"
-            : this.numberOfAtomsToLoad === 0
-              ? "COMPLETE"
-              : "IN_PROGRESS",
+          !this.projectIsLoading &&
+          (topLevelStatus === "error" || topLevelStatus === "upstream_error")
+            ? "FAILED"
+            : stuckProcessing
+              ? "STUCK_PROCESSING"
+            : this.projectIsLoading && this.numberOfAtomsToLoad > 0
+              ? "STALLED"
+              : this.numberOfAtomsToLoad === 0 || topLevelStatus === "ready"
+                ? "COMPLETE"
+                : "IN_PROGRESS",
+        topLevelStatus,
         visibleAtomsCoverage: {
           visibleAtomCount: currentAtoms.length,
           totalAtomCount: this.totalAtomCount,
@@ -872,13 +889,18 @@ class GlobalVariables {
         repoUrl: this.currentRepo?.html_url ?? null,
         isLoading: this.projectIsLoading,
         totalAtomCount: this.totalAtomCount,
-        pendingAtomCount: this.numberOfAtomsToLoad,
+        pendingAtomCount,
         loadElapsedMs,
         loadStalled:
-          this.projectIsLoading &&
-          this.numberOfAtomsToLoad > 0 &&
+          ((this.projectIsLoading && this.numberOfAtomsToLoad > 0) ||
+            stuckProcessing) &&
           loadElapsedMs !== null &&
           loadElapsedMs > 30000,
+        stuckProcessing,
+        stalledReason:
+          stuckProcessing
+            ? "Deserialization finished but top-level remains processing with pending atoms past timeout"
+            : null,
       },
       currentMolecule: currentMol
         ? {
@@ -893,6 +915,9 @@ class GlobalVariables {
           }
         : null,
       visibleMoleculesSnapshot: allVisibleMolecules.slice(0, 20),
+      terminalBlockingAtoms: errorSummary.topFailingAtomPaths.map(
+        (entry) => entry.path,
+      ),
       topLevelMolecule:
         topMol && topMol !== currentMol
           ? {
@@ -904,7 +929,7 @@ class GlobalVariables {
             }
           : null,
       recentErrors,
-      errorSummary: summarizeRecentErrors(recentErrors),
+      errorSummary,
     };
 
     if (typeof navigator !== "undefined") {

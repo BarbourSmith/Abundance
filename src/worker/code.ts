@@ -614,6 +614,12 @@ async function executeTsCode(
     }
   } catch (error) {
     console.error("Code execution error:", error);
+    // Clean up batch operation to prevent "already exists" errors on retry
+    try {
+      util.geometryProvider!.cleanupBatchWithoutCaching(context);
+    } catch (cleanupError) {
+      console.error("Failed to clean up batch after error:", cleanupError);
+    }
     if (Number.isInteger(error)) {
       throw new Error(`OpenCascade kernel error code: ${error}`);
     }

@@ -418,6 +418,12 @@ async function executeCode(
     return abundanceObj;
   } catch (error) {
     console.error("Code execution error:", error);
+    // Clean up batch operation to prevent "already exists" errors on retry
+    try {
+      util.geometryProvider!.cleanupBatchWithoutCaching(context);
+    } catch (cleanupError) {
+      console.error("Failed to clean up batch after error:", cleanupError);
+    }
     throw new Error(`Code execution failed: ${(error as Error).message}`);
   }
 }

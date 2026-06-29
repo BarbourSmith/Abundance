@@ -796,7 +796,13 @@ class GeometryProvider {
     }
 
     if (this.warmCache.has(batchId)) {
-      throw new Error("Batch operation with id " + batchId + " already exists");
+      // Stale batch recovery: a previous run may have failed before cleanup.
+      // Since this id is content-addressed and we already checked serialized
+      // cache above, it is safe to discard the orphaned warm entry and retry.
+      console.warn(
+        "Recovering stale batch operation with id " + batchId,
+      );
+      this.warmCache.delete(batchId);
     }
     this.warmCache.set(batchId, new Map());
     return {

@@ -285,10 +285,16 @@ function AppContent() {
         if (
           initialProjectLoadRef.current &&
           !GlobalVariables.projectIsLoading &&
-          activeWorkerTasksRef.current.size === 0 &&
-          topLevelMolecule?.getState?.().status === "ready"
+          activeWorkerTasksRef.current.size === 0
         ) {
-          initialProjectLoadRef.current = false;
+          const topLevelStatus = topLevelMolecule?.getState?.().status;
+          const terminalStatus =
+            topLevelStatus === "ready" ||
+            topLevelStatus === "error" ||
+            topLevelStatus === "upstream_error";
+          if (terminalStatus || !topLevelMolecule) {
+            initialProjectLoadRef.current = false;
+          }
         }
         return;
       }
@@ -306,10 +312,16 @@ function AppContent() {
       if (
         initialProjectLoadRef.current &&
         !GlobalVariables.projectIsLoading &&
-        activeWorkerTasksRef.current.size === 0 &&
-        topLevelMolecule?.getState?.().status === "ready"
+        activeWorkerTasksRef.current.size === 0
       ) {
-        initialProjectLoadRef.current = false;
+        const topLevelStatus = topLevelMolecule?.getState?.().status;
+        const terminalStatus =
+          topLevelStatus === "ready" ||
+          topLevelStatus === "error" ||
+          topLevelStatus === "upstream_error";
+        if (terminalStatus || !topLevelMolecule) {
+          initialProjectLoadRef.current = false;
+        }
       }
     };
 

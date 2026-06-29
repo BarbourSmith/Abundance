@@ -398,37 +398,49 @@ async function assembly(
     context = batch;
   }
 
-  // The general case of a cache miss assembly operation.
-  const assembly: AbundanceObject[] = [];
+  try {
+    // The general case of a cache miss assembly operation.
+    const assembly: AbundanceObject[] = [];
 
-  // Each geometry is cut by all following geometries.
-  // TODO: test if this is faster working back-to-front or front-to-back.
-  for (let i = 0; i < geometries.length - 1; i++) {
-    const geometry = geometries[i];
-    assembly.push(
-      await cutAssembly(geometry, geometries.slice(i + 1), context),
+    // Each geometry is cut by all following geometries.
+    // TODO: test if this is faster working back-to-front or front-to-back.
+    for (let i = 0; i < geometries.length - 1; i++) {
+      const geometry = geometries[i];
+      assembly.push(
+        await cutAssembly(geometry, geometries.slice(i + 1), context),
+      );
+    }
+    assembly.push(geometries[geometries.length - 1]); // Final entry is always unmodified.
+
+    // Build the initial assembly object with all children already having bounds
+    const assemblyObject: AbundanceObject = util.assemblyOf(
+      await Promise.all(assembly),
     );
-  }
-  assembly.push(geometries[geometries.length - 1]); // Final entry is always unmodified.
 
-  // Build the initial assembly object with all children already having bounds
-  const assemblyObject: AbundanceObject = util.assemblyOf(
-    await Promise.all(assembly),
-  );
-
-  // Safety check with recursive validation disabled (forceRecompute=false)
-  // Since we've already computed bounds eagerly, this will detect our computed bounds
-  // and return immediately without recursive traversal
-  const result = await util.withAssemblyBoundingBoxes(
-    assemblyObject,
-    context,
-    false, // forceRecompute=false, so it skips unnecessary recursion
-  );
-  if (!insideOtherBatch) {
-    console.trace("Ending batch operation with id " + context.operationId);
-    await util.geometryProvider!.endBatchOperation(context, result);
+    // Safety check with recursive validation disabled (forceRecompute=false)
+    // Since we've already computed bounds eagerly, this will detect our computed bounds
+    // and return immediately without recursive traversal
+    const result = await util.withAssemblyBoundingBoxes(
+      assemblyObject,
+      context,
+      false, // forceRecompute=false, so it skips unnecessary recursion
+    );
+    if (!insideOtherBatch) {
+      console.trace("Ending batch operation with id " + context.operationId);
+      await util.geometryProvider!.endBatchOperation(context, result);
+    }
+    return result;
+  } catch (error) {
+    // Clean up batch to prevent "already exists" errors on retry
+    if (!insideOtherBatch) {
+      try {
+        util.geometryProvider!.cleanupBatchWithoutCaching(context);
+      } catch (cleanupError) {
+        console.error("Failed to clean up assembly batch after error:", cleanupError);
+      }
+    }
+    throw error;
   }
-  return result;
 }
 
 //// Helper Functions ////
