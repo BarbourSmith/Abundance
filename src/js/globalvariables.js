@@ -318,6 +318,17 @@ class GlobalVariables {
       console.error = function (...args) {
         const message = args
           .map((a) => {
+            if (a instanceof Error) {
+              const serialized = {
+                name: a.name,
+                message: a.message,
+                stack: a.stack,
+              };
+              if ("cause" in a && a.cause !== undefined) {
+                serialized.cause = a.cause;
+              }
+              return JSON.stringify(serialized);
+            }
             try {
               return typeof a === "object" ? JSON.stringify(a) : String(a);
             } catch {
@@ -747,11 +758,114 @@ class GlobalVariables {
       return entry;
     };
 
+    const summarizeAtomStatuses = (atoms) => {
+      return (atoms ?? []).reduce((acc, atom) => {
+        const key = atom.status || "unknown";
+        acc[key] = (acc[key] || 0) + 1;
+        return acc;
+      }, {});
+    };
+
+    const summarizeAtomTypesByStatus = (atoms) => {
+      const breakdown = {};
+      (atoms ?? []).forEach((atom) => {
+        const status = atom.status || "unknown";
+        const type = atom.atomType || "Unknown";
+        if (!breakdown[status]) breakdown[status] = {};
+        breakdown[status][type] = (breakdown[status][type] || 0) + 1;
+      });
+      return breakdown;
+    };
+
+    const summarizeRecentErrors = (errors) => {
+      const pathCounts = {};
+      const detailCounts = {};
+      const errorByType = {};
+
+      (errors ?? []).forEach((entry) => {
+        const msg = String(entry?.message ?? "");
+        const pathPrefix = "Error in atom: ";
+        if (msg.startsWith(pathPrefix)) {
+          const path = msg.slice(pathPrefix.length).trim();
+          if (path) {
+            pathCounts[path] = (pathCounts[path] || 0) + 1;
+          }
+          return;
+        }
+        if (!msg) return;
+
+        try {
+          const parsed = JSON.parse(msg);
+          if (parsed.name) {
+            errorByType[parsed.name] = (errorByType[parsed.name] || 0) + 1;
+          }
+        } catch {}
+
+        detailCounts[msg] = (detailCounts[msg] || 0) + 1;
+      });
+
+      const topFailingAtomPaths = Object.entries(pathCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map(([path, count]) => ({ path, count }));
+
+      const topErrorDetails = Object.entries(detailCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map(([message, count]) => ({ message, count }));
+
+      return {
+        totalCaptured: errors?.length ?? 0,
+        uniqueFailingAtoms: Object.keys(pathCounts).length,
+        topFailingAtomPaths,
+        topErrorDetails,
+        errorTypeDistribution: errorByType,
+      };
+    };
+
     const currentMol = this.currentMolecule;
     const topMol = this._topLevelMolecule;
+    const currentAtoms = currentMol?.nodesOnTheScreen ?? [];
+    const topAtoms = topMol?.nodesOnTheScreen ?? [];
+    const recentErrors = this.recentErrors.slice(-20);
+    const loadElapsedMs = this.startTime ? Date.now() - this.startTime : null;
+
+    // Gather all molecules with status info from the visible render tree
+    const allVisibleMolecules = [];
+    const gatherMolecules = (mol) => {
+      if (!mol) return;
+      if (mol.atomType === "Molecule" || mol.name === mol.parent?.name) {
+        allVisibleMolecules.push({
+          name: mol.name,
+          uniqueID: mol.uniqueID,
+          status: mol.status,
+          visibleAtomCount: mol.nodesOnTheScreen?.length ?? 0,
+          totalAtomCount: mol.totalAtomCount ?? null,
+          atomTypes: summarizeAtomTypesByStatus(mol.nodesOnTheScreen ?? []),
+        });
+      }
+      (mol.nodesOnTheScreen ?? []).forEach((child) => gatherMolecules(child));
+    };
+    if (currentMol) gatherMolecules(currentMol);
 
     const report = {
       generatedAt: new Date().toISOString(),
+      diagnostics: {
+        loadHealth:
+          this.projectIsLoading && this.numberOfAtomsToLoad > 0
+            ? "STALLED"
+            : this.numberOfAtomsToLoad === 0
+              ? "COMPLETE"
+              : "IN_PROGRESS",
+        visibleAtomsCoverage: {
+          visibleAtomCount: currentAtoms.length,
+          totalAtomCount: this.totalAtomCount,
+          percentVisible: this.totalAtomCount
+            ? Math.round((currentAtoms.length / this.totalAtomCount) * 100)
+            : 0,
+          note: "Many atoms exist in nested molecules not visible in currentMolecule view",
+        },
+      },
       project: {
         name: this.currentRepoName || null,
         owner: this.currentAWSnode?.owner ?? null,
@@ -759,9 +873,12 @@ class GlobalVariables {
         isLoading: this.projectIsLoading,
         totalAtomCount: this.totalAtomCount,
         pendingAtomCount: this.numberOfAtomsToLoad,
-        loadElapsedMs: this.startTime
-          ? Date.now() - this.startTime
-          : null,
+        loadElapsedMs,
+        loadStalled:
+          this.projectIsLoading &&
+          this.numberOfAtomsToLoad > 0 &&
+          loadElapsedMs !== null &&
+          loadElapsedMs > 30000,
       },
       currentMolecule: currentMol
         ? {
@@ -769,10 +886,13 @@ class GlobalVariables {
             atomType: currentMol.atomType,
             uniqueID: currentMol.uniqueID,
             isTopLevel: currentMol.topLevel ?? false,
-            atomCount: currentMol.nodesOnTheScreen?.length ?? 0,
-            atoms: (currentMol.nodesOnTheScreen ?? []).map(describeAtom),
+            atomCount: currentAtoms.length,
+            statusCounts: summarizeAtomStatuses(currentAtoms),
+            atomTypesByStatus: summarizeAtomTypesByStatus(currentAtoms),
+            atoms: currentAtoms.map(describeAtom),
           }
         : null,
+      visibleMoleculesSnapshot: allVisibleMolecules.slice(0, 20),
       topLevelMolecule:
         topMol && topMol !== currentMol
           ? {
@@ -780,9 +900,11 @@ class GlobalVariables {
               atomType: topMol.atomType,
               uniqueID: topMol.uniqueID,
               totalAtomCount: topMol.totalAtomCount ?? null,
+              statusCounts: summarizeAtomStatuses(topAtoms),
             }
           : null,
-      recentErrors: this.recentErrors.slice(-20),
+      recentErrors,
+      errorSummary: summarizeRecentErrors(recentErrors),
     };
 
     if (typeof navigator !== "undefined") {
