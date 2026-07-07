@@ -96,7 +96,25 @@ async function displayOrientation(
   const bottomLeftTarget = { x: 0, y: 0 };
   let index = 0;
   const result = util.actOnLeafs(assembly, async (leaf: AbundanceLeaf) => {
+    if (util.is2D(leaf)) {
+      leaf.plane = util.XYPlane;
+      const geom = (await util.geometryProvider!.get(
+        leaf.geometry,
+        context,
+      )) as Drawing;
+      const bbox = geom.boundingBox;
+      leaf.geometry = await util.geometryProvider!.move(
+        leaf.geometry,
+        bottomLeftTarget.x - bbox.bounds[0][0],
+        bottomLeftTarget.y - bbox.bounds[0][1],
+        0,
+        context,
+      );
+      bottomLeftTarget.x += bbox.width + padding;
+      return leaf;
+    }
     if (!util.is3D(leaf)) {
+      // Wire or point3d get passed through.
       return leaf;
     }
     let targetFaceIndex = orientations[index].downwardFaceIndex;
@@ -359,10 +377,8 @@ async function rotateForLayout(
 
   const orientations: Orientation[] = [];
   await util.actOnLeafs(filteredAssembly, async (leaf: AbundanceLeaf) => {
-    let geom = await util.geometryProvider!.get(leaf.geometry, context);
     if (util.is2D(leaf)) {
-      // drawings get stuck onto the XY plane. No other rotation needed.
-      leaf.plane = util.XYPlane;
+      // no-op for 2d shapes. They get arranged in displayOrientation later.
       return leaf;
     }
     if (!util.is3D(leaf)) {
@@ -370,7 +386,7 @@ async function rotateForLayout(
       return leaf;
     }
     // Now just dealing with 3d shapes.
-
+    let geom = await util.geometryProvider!.get(leaf.geometry, context);
     geom = geom as Shape3D;
 
     // Go through largest faces first. They're usually going to be the best candidates.
