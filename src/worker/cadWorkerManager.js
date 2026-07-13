@@ -379,6 +379,38 @@ export class CadWorkerManager {
   }
 
   /**
+   * Update the inactivity timeout used for future calls and for the currently
+   * active call (if any).
+   * @param {number} timeoutMs
+   * @returns {number} The normalized timeout currently in use.
+   */
+  setTimeoutMs(timeoutMs) {
+    const parsed = Number(timeoutMs);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return this._timeoutMs;
+    }
+
+    this._timeoutMs = Math.round(parsed);
+
+    // Re-arm the active watchdog so a changed timeout takes effect immediately
+    // without waiting for the next queued call.
+    const activeEntry =
+      this._pendingCalls.find((entry) => entry.startTime) || null;
+    if (activeEntry && activeEntry.timeoutId) {
+      this._armTimeout(activeEntry);
+    }
+
+    return this._timeoutMs;
+  }
+
+  /**
+   * @returns {number}
+   */
+  getTimeoutMs() {
+    return this._timeoutMs;
+  }
+
+  /**
    * Snapshot of the current worker queue for diagnostics (System State Report).
    * The worker processes calls serially, so the entry with a `startTime` is the
    * one actively blocking everything behind it.

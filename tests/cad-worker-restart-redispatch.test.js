@@ -131,4 +131,21 @@ describe("CadWorkerManager timeout re-dispatch", () => {
     resolveFreshKeep("fresh:keep");
     await expect(survivor).resolves.toBe("fresh:keep");
   });
+
+  it("applies timeout updates at runtime", async () => {
+    const neverResolves = () => new Promise(() => {});
+    const { WorkerFactory } = makeFactory([neverResolves, neverResolves]);
+
+    const cad = new CadWorkerManager(WorkerFactory, 5_000);
+
+    expect(cad.getTimeoutMs()).toBe(5_000);
+    expect(cad.getQueueSnapshot().timeoutMs).toBe(5_000);
+
+    cad.setTimeoutMs(40);
+
+    expect(cad.getTimeoutMs()).toBe(40);
+    expect(cad.getQueueSnapshot().timeoutMs).toBe(40);
+
+    await expect(cad.hang("runtime-timeout")).rejects.toThrow(/stalled/i);
+  });
 });

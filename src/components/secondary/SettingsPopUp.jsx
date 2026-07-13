@@ -2,6 +2,12 @@ import React, { useState, useRef, useEffect } from "react";
 import Globalvariables from "../../js/globalvariables.js";
 import CreatableSelect from "react-select/creatable";
 import topics from "../../js/maslowTopics.js";
+import {
+  CAD_WORKER_TIMEOUT_MIN_MS,
+  CAD_WORKER_TIMEOUT_MAX_MS,
+  readCadWorkerTimeoutMs,
+  writeCadWorkerTimeoutMs,
+} from "../../utils/cadWorkerTimeoutSettings.js";
 
 const SettingsPopUp = ({
   setSettingsPopUp,
@@ -21,6 +27,8 @@ const SettingsPopUp = ({
   setSavePopUp,
   handleRenameProject,
 }) => {
+  const minWorkerTimeoutSeconds = Math.round(CAD_WORKER_TIMEOUT_MIN_MS / 1000);
+  const maxWorkerTimeoutSeconds = Math.round(CAD_WORKER_TIMEOUT_MAX_MS / 1000);
   let repoTopics = [];
   if (Globalvariables.currentAWSnode.topics.length > 0) {
     Globalvariables.currentAWSnode.topics.forEach((topic) => {
@@ -79,11 +87,27 @@ const SettingsPopUp = ({
       10,
     ),
     atomSize: Globalvariables.atomSize * 1000,
+    workerTimeoutSeconds: Math.round(readCadWorkerTimeoutMs() / 1000),
     projectDescription: Globalvariables.currentAWSnode.description,
     autoSaveDisabled: localStorage.getItem("autoSaveDisabled") === "true",
   });
 
   const handleValueChange = (event) => {
+    if (event.target.name === "workerTimeoutSeconds") {
+      const normalizedTimeoutMs = writeCadWorkerTimeoutMs(
+        Number(event.target.value) * 1000,
+      );
+      setState({
+        ...state,
+        workerTimeoutSeconds: Math.round(normalizedTimeoutMs / 1000),
+      });
+
+      if (Globalvariables.cad?.setTimeoutMs) {
+        Globalvariables.cad.setTimeoutMs(normalizedTimeoutMs);
+      }
+      return;
+    }
+
     setState({
       ...state,
       [event.target.name]: event.target.value,
@@ -290,6 +314,35 @@ const SettingsPopUp = ({
                   {state.atomSize}
                 </span>
               </div>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  margin: "10px 0 4px 0",
+                }}
+              >
+                <label className="settings-labels" style={{ minWidth: 80 }}>
+                  Worker Timeout
+                </label>
+                <input
+                  type="range"
+                  min={minWorkerTimeoutSeconds}
+                  max={maxWorkerTimeoutSeconds}
+                  step={15}
+                  value={state.workerTimeoutSeconds}
+                  onChange={handleValueChange}
+                  name="workerTimeoutSeconds"
+                  className="settings-sliders"
+                  style={{ width: 140 }}
+                />
+                <span style={{ fontSize: 13, color: "#888", marginLeft: 6 }}>
+                  {state.workerTimeoutSeconds}s
+                </span>
+              </div>
+              <span style={{ fontSize: 12, color: "#666" }}>
+                Time the CAD worker can stay silent before it is restarted.
+              </span>
             </div>
           </CustomTabPanel>
           <CustomTabPanel value={value} index={2}>

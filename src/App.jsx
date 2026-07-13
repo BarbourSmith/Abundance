@@ -12,6 +12,7 @@ import {
 import GlobalVariables from "./js/globalvariables.js";
 import { fetchGitHubFileContent } from "./js/githubFileUtils.js";
 import { filterGeometryByTags } from "./utils/geometryFilterByTags.js";
+import { readCadWorkerTimeoutMs } from "./utils/cadWorkerTimeoutSettings.js";
 import { CadWorkerManager } from "./worker/cadWorkerManager.js";
 import LoginMode from "./components/main-routes/LoginMode.jsx";
 import RunMode from "./components/main-routes/RunMode.jsx";
@@ -63,12 +64,12 @@ const pool = workerpool.pool(RenderURL, {
   },
 });
 
-// CadWorkerManager wraps the comlink worker with a 90-second inactivity timeout.
+// CadWorkerManager wraps the comlink worker with a configurable inactivity timeout.
 // The watchdog is reset whenever the worker reports mid-computation progress, so
 // a long-running operation only times out if it goes truly silent (stalled). If
 // the worker hangs it is automatically terminated and restarted, so the UI never
 // gets permanently stuck waiting for a computation that will never return.
-const cad = new CadWorkerManager(cadWorker, 90_000);
+const cad = new CadWorkerManager(cadWorker, readCadWorkerTimeoutMs());
 
 // Statuses that mean the initial project load has SETTLED. A project whose
 // top-level molecule contains user-authored code that legitimately errors will
