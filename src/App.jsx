@@ -69,7 +69,7 @@ const pool = workerpool.pool(RenderURL, {
 // the worker hangs it is automatically terminated and restarted, so the UI never
 // gets permanently stuck waiting for a computation that will never return.
 const cad = new CadWorkerManager(cadWorker, 90_000);
-
+window._debugWorkerHandle = cad;
 // Statuses that mean the initial project load has SETTLED. A project whose
 // top-level molecule contains user-authored code that legitimately errors will
 // settle to "error"/"upstream_error" rather than "ready"; those are terminal

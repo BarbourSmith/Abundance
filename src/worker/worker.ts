@@ -1,6 +1,14 @@
+import "./replicadInstrument"; // MUST be first — patches FinalizationRegistry before replicad loads
+import {
+  getReplicadLiveCounts,
+  enableCreationStackTracking,
+  disableCreationStackTracking,
+  getTopFinalizedSites,
+} from "./replicadInstrument";
 import { expose } from "comlink";
 import type { AnyShape, Edge, Shape3D } from "replicad";
 import * as replicad from "replicad";
+import { getOC } from "replicad";
 import { drawSVG } from "replicad-decorate";
 import { chamfer, extrude, fillet, move, rotate, scale } from "./actions";
 import { executeCode as code } from "./code";
@@ -39,6 +47,65 @@ import * as util from "./util";
 // --- Type Definitions ---
 const started: Promise<boolean> = util.init();
 void started.then(() => util.startHeapMonitor("geometryWorker"));
+
+// ---------------------------------------------------------------------------
+// Debug serial queue + per-task memory metrics
+// ---------------------------------------------------------------------------
+
+let _debugSerialMode = false;
+let _serialQueue: Promise<unknown> = Promise.resolve();
+
+/** Snapshot of live-object counts + WASM heap size taken around a task. */
+interface TaskSnapshot {
+  live: number;
+  registered: number;
+  wasmHeapBytes: number;
+}
+
+function _takeSnapshot(): TaskSnapshot {
+  const counts = getReplicadLiveCounts();
+  let wasmHeapBytes = 0;
+  try {
+    wasmHeapBytes =
+      (getOC() as unknown as { HEAP8?: { buffer?: { byteLength?: number } } })
+        .HEAP8?.buffer?.byteLength ?? 0;
+  } catch {
+    // getOC() throws before init; ignore
+  }
+  return { live: counts.live, registered: counts.registered, wasmHeapBytes };
+}
+
+function _logTaskMetrics(
+  name: string,
+  before: TaskSnapshot,
+  after: TaskSnapshot,
+): void {
+  const liveDelta = after.live - before.live;
+  const regDelta = after.registered - before.registered;
+  const heapDelta = after.wasmHeapBytes - before.wasmHeapBytes;
+  const heapMB = (after.wasmHeapBytes / 1024 / 1024).toFixed(1);
+  const heapDeltaKB = (heapDelta / 1024).toFixed(0);
+  console.log(
+    `[task] ${name} | created: ${regDelta} | live leak: ${liveDelta >= 0 ? "+" : ""}${liveDelta}` +
+      ` | heap: ${heapMB}MB (${heapDelta >= 0 ? "+" : ""}${heapDeltaKB}KB)`,
+  );
+}
+
+/**
+ * Enable debug serial mode: worker tasks execute one at a time with
+ * live-object and WASM-heap snapshots logged before and after each task.
+ * Disable before production use — serial execution may be noticeably slower
+ * on projects that rely on concurrent atom computation.
+ */
+function enableDebugSerialMode(): void {
+  _debugSerialMode = true;
+  console.log("[worker] debug serial mode ENABLED");
+}
+
+function disableDebugSerialMode(): void {
+  _debugSerialMode = false;
+  console.log("[worker] debug serial mode DISABLED");
+}
 
 /**
  * Returns the z-values of flat faces in the geometry, which can be used for area operations in gcode generation.
@@ -870,6 +937,12 @@ if (
     extractParts,
     sweepCache,
     getAsPoint3D,
+    getReplicadLiveCounts,
+    enableCreationStackTracking,
+    disableCreationStackTracking,
+    getTopFinalizedSites,
+    enableDebugSerialMode,
+    disableDebugSerialMode,
   };
 
   // Gate EVERY exposed worker method on `started` (OCCT WASM init). Until
@@ -886,8 +959,27 @@ if (
   const guardedHandlers = Object.fromEntries(
     Object.entries(handlers).map(([name, fn]) => [
       name,
-      (...args: unknown[]) =>
-        started.then(() => (fn as (...a: unknown[]) => unknown)(...args)),
+      (...args: unknown[]) => {
+        const guarded = () =>
+          started.then(() => (fn as (...a: unknown[]) => unknown)(...args));
+        if (!_debugSerialMode) return guarded();
+        // Serial mode: chain onto the queue, snapshot before+after, log delta.
+        const task = _serialQueue.then(async () => {
+          const before = _takeSnapshot();
+          try {
+            return await guarded();
+          } finally {
+            _logTaskMetrics(name, before, _takeSnapshot());
+          }
+        });
+        // Store the settled tail so the next task chains onto it, not the
+        // current one — prevents a rejected task from blocking the queue.
+        _serialQueue = task.then(
+          () => {},
+          () => {},
+        );
+        return task;
+      },
     ]),
   );
 
