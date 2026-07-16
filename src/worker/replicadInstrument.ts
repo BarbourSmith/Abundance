@@ -35,6 +35,38 @@ const counters: Counters = {
   finalized: 0,
 };
 
+/**
+ * Whether creation-stack tracking is active. Off by default because
+ * capturing a stack trace on every `register()` call (~40k/run) is
+ * measurably expensive. Enable via `enableCreationStackTracking()`.
+ */
+let _trackCreationStacks = false;
+
+/**
+ * Maps held-value (the OC handle object) → the JS stack at creation time.
+ * Only populated when `_trackCreationStacks` is true. We key on the held
+ * value (not the target/wrapper) because the target is GC'd by the time
+ * the finalizer fires, while the held value is still alive at that point.
+ */
+const _creationStacks = new Map<object, string>();
+
+/**
+ * Buckets finalized-object creation stacks by a short fingerprint so the
+ * most common un-deleted code paths float to the top.
+ * key = truncated stack string, value = count of finalizations from that site.
+ */
+const _finalizedBySite = new Map<string, number>();
+
+/** How many frames to keep from the raw stack (strips instrument internals). */
+const STACK_FRAMES_TO_KEEP = 8;
+const STACK_FRAMES_TO_SKIP = 3; // CountingFR.register + Error + this file
+
+function _captureStack(): string {
+  const raw = new Error().stack ?? "";
+  const lines = raw.split("\n");
+  return lines.slice(STACK_FRAMES_TO_SKIP, STACK_FRAMES_TO_SKIP + STACK_FRAMES_TO_KEEP).join("\n");
+}
+
 type FRConstructor = typeof globalThis.FinalizationRegistry;
 
 const OriginalFR: FRConstructor | undefined = (globalThis as any)
@@ -47,6 +79,13 @@ if (OriginalFR) {
     constructor(cb: (heldValue: T) => void) {
       const wrappedCb = (heldValue: T) => {
         counters.finalized++;
+        if (_trackCreationStacks) {
+          const stack = _creationStacks.get(heldValue as object);
+          if (stack) {
+            _creationStacks.delete(heldValue as object);
+            _finalizedBySite.set(stack, (_finalizedBySite.get(stack) ?? 0) + 1);
+          }
+        }
         cb(heldValue);
       };
       this.inner = new OriginalFR!(wrappedCb);
@@ -54,6 +93,9 @@ if (OriginalFR) {
 
     register(target: object, heldValue: T, token?: object): void {
       counters.registered++;
+      if (_trackCreationStacks) {
+        _creationStacks.set(heldValue as object, _captureStack());
+      }
       if (token !== undefined) {
         this.inner.register(target, heldValue, token);
       } else {
@@ -69,6 +111,37 @@ if (OriginalFR) {
   }
 
   (globalThis as any).FinalizationRegistry = CountingFinalizationRegistry;
+}
+
+/**
+ * Enable creation-stack tracking. This captures a stack trace on every
+ * replicad shape construction (~40k/run), so enable it only while
+ * actively diagnosing leaks, then call disableCreationStackTracking().
+ */
+export function enableCreationStackTracking(): void {
+  _creationStacks.clear();
+  _finalizedBySite.clear();
+  _trackCreationStacks = true;
+  console.warn("[replicadInstrument] creation-stack tracking ENABLED");
+}
+
+export function disableCreationStackTracking(): void {
+  _trackCreationStacks = false;
+  _creationStacks.clear();
+  console.warn("[replicadInstrument] creation-stack tracking DISABLED");
+}
+
+/**
+ * Returns the top N call sites (by finalization count) whose shapes were
+ * cleaned up by GC rather than explicit .delete(). Call after a project
+ * reload with stack tracking enabled, then trigger GC in DevTools to
+ * flush pending finalizers before reading results.
+ */
+export function getTopFinalizedSites(topN = 20): Array<{ count: number; stack: string }> {
+  return [..._finalizedBySite.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, topN)
+    .map(([stack, count]) => ({ count, stack }));
 }
 
 /**

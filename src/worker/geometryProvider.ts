@@ -1,5 +1,6 @@
 import * as replicad from "replicad";
 import shrinkWrap from "replicad-shrink-wrap";
+import { getReplicadLiveCounts } from "./replicadInstrument";
 import {
   AbundanceObject,
   asReplicadPlane,
@@ -90,7 +91,8 @@ class GeometryProvider {
 
     if (logMetrics) {
       setInterval(() => {
-        console.warn(this.cacheHitMetrics);
+        console.warn("[GeometryProvider] cache metrics:", this.cacheHitMetrics);
+        console.warn("[GeometryProvider] replicad live shapes:", getReplicadLiveCounts());
       }, 10000);
     }
   }
@@ -1034,6 +1036,28 @@ class GeometryProvider {
   }
 
   /**
+   * Explicitly free every replicad/OC handle stored in a warm-cache bucket.
+   * Without this, handles are freed lazily by the JS GC finalizer — but the GC
+   * fires on JS heap pressure, not WASM heap pressure, so OC memory can grow
+   * unboundedly between collections. Calling .delete() here synchronously
+   * releases the WASM-side allocation before the JS wrapper becomes unreachable.
+   *
+   * Cloned copies handed out by getFromWarmCache() are owned by the callers;
+   * we only delete the canonical copy stored here.
+   */
+  private deleteWarmCacheEntries(operationId: string): void {
+    const bucket = this.warmCache.get(operationId);
+    if (!bucket) return;
+    for (const geom of bucket.values()) {
+      try {
+        geom.delete();
+      } catch (e) {
+        // Ignore double-delete or already-freed handles.
+      }
+    }
+  }
+
+  /**
    * Resolve and remove the in-flight tracking entry for a batch so any
    * concurrent waiters can proceed (and pick up the cached result if the
    * batch succeeded).
@@ -1084,6 +1108,7 @@ class GeometryProvider {
     } finally {
       // Always clear the warm-cache entry so retries cannot get stuck behind
       // stale "already exists" state after a failed end-batch path.
+      this.deleteWarmCacheEntries(context.operationId);
       this.warmCache.delete(context.operationId);
       this.settleInFlightBatch(context.operationId);
     }
@@ -1099,6 +1124,7 @@ class GeometryProvider {
       throw new Error("provided context is not a batch operation " + context);
     }
     this.batchMetrics = [0, 0];
+    this.deleteWarmCacheEntries(context.operationId);
     this.warmCache.delete(context.operationId);
     this.settleInFlightBatch(context.operationId);
   }
