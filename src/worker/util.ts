@@ -82,13 +82,15 @@ const EMPTY_BOUNDS: AbundanceBounds = {
 
 type AbundanceObject = AbundanceLeaf | AbundanceBranch;
 
+type Dimension = "2D" | "3D" | "Wire" | "Point3D" | "Face";
+
 interface AbundanceBranch {
   geometry: AbundanceObject[];
   plane: SimplePlane;
   color: string;
   tags: string[];
   bom: string[];
-  dimension?: "2D" | "3D" | "Wire" | "Point3D";
+  dimension?: Dimension;
   nonReplicadSerialized?: any;
   boundingBox?: AbundanceBounds;
   metadata?: Record<string, any>;
@@ -96,7 +98,7 @@ interface AbundanceBranch {
 
 interface AbundanceLeaf {
   geometry: string;
-  dimension: "2D" | "3D" | "Wire" | "Point3D";
+  dimension: Dimension;
   plane: SimplePlane;
   color: string;
   tags: string[];
@@ -106,15 +108,19 @@ interface AbundanceLeaf {
   metadata?: Record<string, any>;
 }
 
-function dimensionLabel(geom: any): "2D" | "3D" | "Wire" | "Point3D" {
+function dimensionLabel(geom: any): Dimension {
   if (geom instanceof replicad.Drawing) {
     return "2D";
   } else if (geom instanceof replicad.Wire) {
     return "Wire";
   } else if (geom instanceof replicad.Vertex) {
     return "Point3D";
-  } else if (replicad.isShape3D(geom) || geom instanceof replicad.Face) {
+  } else if (geom instanceof replicad.Face) {
+    return "Face";
+  } else if (replicad.isShape3D(geom)) {
     return "3D";
+  } else if (Array.isArray(geom)) {
+    return dimensionLabel(geom[0]); // recurse down the first child of assembly.
   } else {
     throw new Error(
       "Unsupported geometry type: " +
@@ -125,7 +131,7 @@ function dimensionLabel(geom: any): "2D" | "3D" | "Wire" | "Point3D" {
 
 function _checkFirstDimIs(
   part: AbundanceObject,
-  dimension: "2D" | "3D" | "Wire" | "Point3D",
+  dimension: Dimension,
 ): boolean {
   if (isAssembly(part)) {
     return part.geometry.some((input: AbundanceObject) =>
@@ -144,12 +150,43 @@ function is3D(part: AbundanceObject): boolean {
   return _checkFirstDimIs(part, "3D");
 }
 
+function isFace(part: AbundanceObject): boolean {
+  return _checkFirstDimIs(part, "Face");
+}
+
 function isPoint3D(part: AbundanceObject): boolean {
   return _checkFirstDimIs(part, "Point3D");
 }
 
 function isWireGeometry(part: AbundanceObject): boolean {
   return _checkFirstDimIs(part, "Wire");
+}
+
+function validateMixOfTypes(
+  geometries: AbundanceObject[],
+): "2D" | "3D" | "Mixable" | undefined {
+  const dimensions = geometries.map((geom) => {
+    const dims: Dimension[] = []
+    actOnLeafsSync(geom, (leaf: AbundanceLeaf) => {
+      dims.push(leaf.dimension);
+      return leaf
+    });
+    return dims;
+  }).flat();
+  const constraints = dimensions.map((dim) => {
+    if (dim === "Wire" || dim === "Point3D" || dim === "Face") {
+      return "Mixable";
+    }
+    return dim;
+  });
+  const uniqConst = new Set(constraints);
+  if (!(uniqConst.size === 1)) {
+    throw new Error(
+      "Input geometries must be all 2D, all 3D, or mix of faces/wires/points. Found: " +
+        dimensions.join(", "),
+    );
+  }
+  return uniqConst.values().next().value;
 }
 
 async function getBounds(
@@ -601,6 +638,8 @@ export {
   init,
   is2D,
   is3D,
+  isFace,
+  validateMixOfTypes,
   isAbundanceObject,
   isAssembly,
   isLeaf,
