@@ -345,24 +345,10 @@ async function assembly(
 
   // Dimension assertions:
   // Allowed inputs -> all 2d, all 3d, or just wires/points
-  const all3D = geometries.every((geom) => util.is3D(geom));
-  const all2D = geometries.every((geom) => util.is2D(geom));
-  const allWireOrPoint = geometries.every(
-    (geom) => util.isWireGeometry(geom) || util.isPoint3D(geom),
-  );
-  if (!(all2D || all3D || allWireOrPoint)) {
-    throw new Error(
-      "Input geometries must be all 2D, all 3D, or just wires/points.",
-    );
-  }
+  const geomType = util.validateMixOfTypes(geometries);
   // Fast return if all points or wires.
-  if (allWireOrPoint) {
+  if (geomType === "Mixable") {
     return util.assemblyOf(geometries);
-  }
-  if (!(all2D || all3D)) {
-    throw new Error(
-      "Input geometries must be all 2D or all 3D (unless they are wires/points).",
-    );
   }
 
   await util.init();
