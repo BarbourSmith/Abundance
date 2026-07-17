@@ -4,6 +4,7 @@ import {
   AbundanceObject,
   asReplicadPlane,
   flattenAssembly,
+  hashStringWide,
   SimplePlane,
 } from "./util";
 import {
@@ -60,6 +61,10 @@ type BooleanResult = {
  */
 class GeometryProvider {
   public EMPTY_SHAPE_SENTINEL = "emptyshape";
+  // Ids longer than this are collapsed to a fixed-length digest in `_makeId`.
+  // Keeps typical ids human-readable while bounding pathological nested-boolean
+  // recipes (observed at 65-78KB) that otherwise dominate large assemblies.
+  private static MAX_ID_LENGTH = 512;
   private MAX_PROJECTS = 4;
   private projectLRU: string[] = [];
   private cacheHitMetrics: Record<string, [number, number, number]>; // hits, misses, total-miss-duration-ms
@@ -83,7 +88,7 @@ class GeometryProvider {
     }
   }
   private cacheHit(id: string): void {
-    const type = id.split("-")[0];
+    const type = id.split(/[-#]/)[0];
     if (!this.cacheHitMetrics[type]) {
       this.cacheHitMetrics[type] = [0, 0, 0];
     }
@@ -91,7 +96,7 @@ class GeometryProvider {
   }
 
   private cacheMiss(id: string, durationMs: number = 0): void {
-    const type = id.split("-")[0];
+    const type = id.split(/[-#]/)[0];
     if (!this.cacheHitMetrics[type]) {
       this.cacheHitMetrics[type] = [0, 0, 0];
     }
@@ -148,8 +153,19 @@ class GeometryProvider {
     //  add result to the cache
     //  if a no-op return the appropriate input id
     //  if a empty shape return the sentinel
+    // DIAGNOSTIC: `resultId` encodes the op + input ids (e.g. `cut-<toCut>-<cutter>`).
+    // The "starting" line is always logged so a hanging boolean is identifiable as
+    // the last entry in getRecentWorkerLogs with no matching "done" line. The
+    // "done" line is gated to slow ops to bound the worker-log ring buffer.
+    console.warn(`[boolean] ${resultId} starting`);
     const start = performance.now();
     const opResult = await operation(inputs);
+    const durationMs = Math.round(performance.now() - start);
+    if (durationMs > 2000) {
+      console.warn(
+        `[boolean] ${resultId} done in ${durationMs}ms outcome=${BooleanOutcome[opResult.outcome]}`,
+      );
+    }
     switch (opResult.outcome) {
       case BooleanOutcome.EmptyShape:
         this.cacheHit("boolempty" + resultId);
@@ -750,6 +766,12 @@ class GeometryProvider {
           const volumeDiff = Math.abs(initialVolume - resultVolume);
           const tolerance = 1e-5;
           if (volumeDiff < tolerance) {
+            // DIAGNOSTIC: a boolean that removed ~no volume yet ran (bounding
+            // boxes overlapped) is a degenerate/wasted-cut candidate. Paired
+            // with the [boolean] timing line this flags expensive no-op cuts.
+            console.warn(
+              `[boolean] cut near-noop toCut=${toCut} cutter=${cutter} initialVolume=${initialVolume} volumeDiff=${volumeDiff}`,
+            );
             return {
               outcome: BooleanOutcome.InputShape,
               inputIndexAsResult: 0,
@@ -1062,6 +1084,17 @@ class GeometryProvider {
       return typeof arg === "string" ? arg : JSON.stringify(arg);
     });
     const key = [type, ...args].flat(Infinity).join("-");
+    // Boolean recipes nest their inputs' full ids (e.g. a cut result becomes the
+    // input to the next cut), so ids can grow without bound — multi-kilobyte
+    // `cut-cut-cut-...` strings whose building and Map/IndexedDB keying cost
+    // dominates large assemblies. Collapse over-long ids to a fixed-length,
+    // deterministic, collision-resistant digest. The `#` delimiter can never
+    // appear in a plain id (which always has `-` immediately after `type`), so a
+    // collapsed id can never collide with a non-collapsed one, and identical
+    // recipes always collapse identically — preserving cache correctness.
+    if (key.length > GeometryProvider.MAX_ID_LENGTH) {
+      return type + "#" + hashStringWide(key);
+    }
     return key;
   }
 }

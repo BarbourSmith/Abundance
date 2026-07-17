@@ -538,6 +538,42 @@ function hashString(str: string): string {
   return hash.toString(16).padStart(8, "0");
 }
 
+/**
+ * Generates a 128-bit hash for a string, returned as 32 hex characters.
+ *
+ * Uses the well-distributed `cyrb128` mixing function. A 128-bit width is used
+ * (rather than {@link hashString}'s 32 bits) where the hash is a cache key and a
+ * collision would silently return the wrong geometry: at 128 bits the collision
+ * probability is negligible even across millions of shapes. Deterministic and
+ * synchronous, so it is safe to use in hot, synchronous id-building paths.
+ * @param {string} str - The input string to hash.
+ * @returns {string} - 32-character hex hash.
+ */
+function hashStringWide(str: string): string {
+  let h1 = 1779033703,
+    h2 = 3144134277,
+    h3 = 1013904242,
+    h4 = 2773480762;
+  for (let i = 0; i < str.length; i++) {
+    const k = str.charCodeAt(i);
+    h1 = h2 ^ Math.imul(h1 ^ k, 597399067);
+    h2 = h3 ^ Math.imul(h2 ^ k, 2869860233);
+    h3 = h4 ^ Math.imul(h3 ^ k, 951274213);
+    h4 = h1 ^ Math.imul(h4 ^ k, 2716044179);
+  }
+  h1 = Math.imul(h3 ^ (h1 >>> 18), 597399067);
+  h2 = Math.imul(h4 ^ (h2 >>> 22), 2869860233);
+  h3 = Math.imul(h1 ^ (h3 >>> 17), 951274213);
+  h4 = Math.imul(h2 ^ (h4 >>> 19), 2716044179);
+  h1 ^= h2 ^ h3 ^ h4;
+  h2 ^= h1;
+  h3 ^= h1;
+  h4 ^= h1;
+  return [h1, h2, h3, h4]
+    .map((h) => (h >>> 0).toString(16).padStart(8, "0"))
+    .join("");
+}
+
 function assemblyOf(subAssemblies: AbundanceObject[]): AbundanceObject {
   const result: AbundanceBranch = {
     geometry: subAssemblies,
@@ -598,6 +634,7 @@ export {
   hashFileContents,
   hashAssembly,
   hashString,
+  hashStringWide,
   init,
   is2D,
   is3D,
