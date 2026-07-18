@@ -4,6 +4,38 @@ import { AbundanceLeaf, AbundanceObject } from "./util";
 import { RequestContext } from "./geometryProvider";
 import { extractKeepOut } from "./tags";
 import { reportCadProgress } from "./progress";
+
+/** Color used to flag the two parts of a boolean cut that could not be computed. */
+const FAILED_CUT_COLOR = "#ff0000";
+
+/**
+ * Thrown by `recursiveCut` when it reaches a boolean cut that previously hung
+ * the worker (recorded as a known-hanging cut). Rather than re-run the cut and
+ * hang again — or silently omit it and produce subtly-wrong geometry — the
+ * assembly catches this and returns just the two offending leaves in red, making
+ * the failure impossible to miss and pointing exactly at the parts involved.
+ */
+class FailedCutError extends Error {
+  toCutId: string;
+  cutterId: string;
+  toCutLeaf: AbundanceLeaf;
+  cutterLeaf: AbundanceLeaf;
+  constructor(
+    toCutId: string,
+    cutterId: string,
+    toCutLeaf: AbundanceLeaf,
+    cutterLeaf: AbundanceLeaf,
+  ) {
+    super(
+      `Boolean cut is marked as hanging and was skipped: ${toCutId} cut by ${cutterId}`,
+    );
+    this.name = "FailedCutError";
+    this.toCutId = toCutId;
+    this.cutterId = cutterId;
+    this.toCutLeaf = toCutLeaf;
+    this.cutterLeaf = cutterLeaf;
+  }
+}
 /**
  * All methods in this file take multiple geometries and combine them in some way.
  *
@@ -445,6 +477,40 @@ async function assembly(
     }
     return result;
   } catch (error) {
+    if (error instanceof FailedCutError) {
+      // A previously-hanging boolean cut was reached. Replace the entire assembly
+      // result with just the two leaves that could not be cut, in red, so the
+      // problem is obvious and points exactly at the offending parts. The two
+      // input geometries are still live in the warm cache at this point, so the
+      // batch cleanup must happen AFTER computing their bounds.
+      const redToCut: AbundanceLeaf = {
+        ...error.toCutLeaf,
+        geometry: error.toCutId,
+        color: FAILED_CUT_COLOR,
+      };
+      const redCutter: AbundanceLeaf = {
+        ...error.cutterLeaf,
+        geometry: error.cutterId,
+        color: FAILED_CUT_COLOR,
+      };
+      const failedAssembly = util.assemblyOf([redToCut, redCutter]);
+      const withBounds = await util.withAssemblyBoundingBoxes(
+        failedAssembly,
+        context,
+      );
+      if (startedOwnBatch) {
+        try {
+          // Do NOT cache the (never-computed) full assembly under the batch id.
+          util.geometryProvider!.cleanupBatchWithoutCaching(context);
+        } catch (cleanupError) {
+          console.warn(
+            "Failed to cleanup assembly batch after a failed cut",
+            cleanupError,
+          );
+        }
+      }
+      return withBounds;
+    }
     if (startedOwnBatch) {
       try {
         util.geometryProvider!.cleanupBatchWithoutCaching(context);
@@ -605,6 +671,17 @@ async function recursiveCut(
     // single leaf is cut by many parts.
     cutsPerformed++;
     reportCadProgress(`boolean cut ${cutsPerformed}`);
+    // If this exact cut hung the worker before, do not run it again. Signal the
+    // assembly to surface both parts in red instead of hanging or silently
+    // dropping the cut.
+    if (util.geometryProvider!.isBadCut(resultGeomId, cuttingPart.geometry)) {
+      throw new FailedCutError(
+        resultGeomId,
+        cuttingPart.geometry,
+        partToCut,
+        cuttingPart,
+      );
+    }
     resultGeomId = await util.geometryProvider!.cut(
       resultGeomId,
       cuttingPart.geometry,

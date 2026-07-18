@@ -1,5 +1,8 @@
 import { wrap } from "comlink";
-import { CAD_PROGRESS_MESSAGE_TYPE } from "./progress";
+import {
+  CAD_PROGRESS_MESSAGE_TYPE,
+  CAD_BOOLEAN_INFLIGHT_TYPE,
+} from "./progress";
 
 /**
  * Wraps a comlink-based Web Worker with a per-call timeout watchdog.
@@ -58,6 +61,37 @@ export class CadWorkerManager {
      */
     this._workerLogs = [];
 
+    /**
+     * The most recent worker "activity" line (an operation begin- or
+     * phase-marker forwarded from the worker thread). Unlike the bounded ring
+     * buffer, this single value is never scrolled away by a burst of fast ops,
+     * so it still identifies the exact sub-operation that was in flight when the
+     * inactivity watchdog fires — the key to pinpointing a >90s synchronous
+     * OCCT stall.
+     * @type {{message: string, timestamp: string} | null}
+     */
+    this._lastWorkerActivity = null;
+
+    /**
+     * The `(toCut, cutter)` ids of the boolean `.cut()` currently executing in
+     * the worker, or null when no cut is in flight. Set/cleared by the
+     * `cad-boolean-inflight` beacons the worker posts around each `.cut()`. If a
+     * cut hangs, the "clear" beacon never arrives (the worker thread is frozen),
+     * so this stays populated — telling the watchdog exactly which cut hung.
+     * @type {{toCut: string, cutter: string} | null}
+     */
+    this._lastBooleanInflight = null;
+
+    /**
+     * Boolean cuts known to hang the worker, keyed by `toCut\u0000cutter`. When
+     * a `.cut()` times out it is recorded here (and persisted), then injected
+     * into every worker so it is skipped on future runs — the assembly surfaces
+     * the two offending parts in red instead of hanging again.
+     * @type {Map<string, {toCut: string, cutter: string}>}
+     */
+    this._badCuts = new Map();
+    this._loadBadCuts();
+
     this._createWorker();
 
     // Return a Proxy so that `cad.anyMethod(args)` transparently goes through
@@ -88,6 +122,67 @@ export class CadWorkerManager {
     // `cad-worker-task-progress` CustomEvents. Comlink ignores them because
     // they do not match its request/response protocol.
     this._rawWorker.addEventListener("message", this._onWorkerMessage);
+    // Seed the fresh worker with the known-hanging cuts so it skips them
+    // (surfacing the two parts in red) instead of hanging again.
+    this._injectBadCuts();
+  }
+
+  /** localStorage key holding the persisted known-hanging cuts. */
+  static _BAD_CUTS_STORAGE_KEY = "abundance-known-hanging-cuts";
+
+  /** Load persisted known-hanging cuts (best-effort; safe outside a browser). */
+  _loadBadCuts() {
+    try {
+      if (typeof localStorage === "undefined") return;
+      const raw = localStorage.getItem(CadWorkerManager._BAD_CUTS_STORAGE_KEY);
+      if (!raw) return;
+      const pairs = JSON.parse(raw);
+      if (!Array.isArray(pairs)) return;
+      for (const p of pairs) {
+        if (p && p.toCut && p.cutter) {
+          this._badCuts.set(`${p.toCut}\u0000${p.cutter}`, {
+            toCut: p.toCut,
+            cutter: p.cutter,
+          });
+        }
+      }
+    } catch (e) {
+      console.warn("[CadWorkerManager] Failed to load known-hanging cuts:", e);
+    }
+  }
+
+  /** Persist the current known-hanging cuts (best-effort). */
+  _saveBadCuts() {
+    try {
+      if (typeof localStorage === "undefined") return;
+      localStorage.setItem(
+        CadWorkerManager._BAD_CUTS_STORAGE_KEY,
+        JSON.stringify([...this._badCuts.values()]),
+      );
+    } catch (e) {
+      console.warn("[CadWorkerManager] Failed to persist known-hanging cuts:", e);
+    }
+  }
+
+  /** Push the known-hanging cuts to the (current) worker so it skips them. */
+  _injectBadCuts() {
+    if (this._badCuts.size === 0) return;
+    try {
+      // Fire-and-forget; ordering vs. subsequent calls is preserved because
+      // comlink delivers messages in submission order and every handler is
+      // gated on the same `started` init promise in the worker.
+      this._proxy.setBadCuts([...this._badCuts.values()]);
+    } catch (e) {
+      console.warn("[CadWorkerManager] Failed to inject known-hanging cuts:", e);
+    }
+  }
+
+  /** Record a boolean cut that hung the worker, persist it, and remember it. */
+  _recordBadCut(pair) {
+    const key = `${pair.toCut}\u0000${pair.cutter}`;
+    if (this._badCuts.has(key)) return;
+    this._badCuts.set(key, { toCut: pair.toCut, cutter: pair.cutter });
+    this._saveBadCuts();
   }
 
   _onWorkerMessage = (event) => {
@@ -100,15 +195,31 @@ export class CadWorkerManager {
     // because they do not match its request/response protocol.
     if (data.__abundanceWorkerLog) {
       const log = data.__abundanceWorkerLog;
+      const message = String(log.message ?? "");
+      const timestamp = log.timestamp || new Date().toISOString();
       this._workerLogs.push({
         level: log.level || "log",
-        message: String(log.message ?? ""),
-        timestamp: log.timestamp || new Date().toISOString(),
+        message,
+        timestamp,
       });
-      // Bound memory: keep only the most recent 100 lines.
-      if (this._workerLogs.length > 100) {
-        this._workerLogs.splice(0, this._workerLogs.length - 100);
+      // Remember the most recent operation begin-/phase-marker so the stalled
+      // sub-operation is still known even after a burst of fast ops scrolls the
+      // ring buffer past it.
+      if (message.includes(" starting") || message.includes(" phase:")) {
+        this._lastWorkerActivity = { message, timestamp };
       }
+      // Bound memory: keep only the most recent 1000 lines.
+      if (this._workerLogs.length > 1000) {
+        this._workerLogs.splice(0, this._workerLogs.length - 1000);
+      }
+      return;
+    }
+    // Boolean `.cut()` in-flight beacon (see src/worker/progress.ts). Tracks the
+    // exact cut executing right now so a hang can be attributed to it precisely.
+    if (data.type === CAD_BOOLEAN_INFLIGHT_TYPE) {
+      this._lastBooleanInflight = data.active
+        ? { toCut: data.toCut, cutter: data.cutter }
+        : null;
       return;
     }
     if (data.type !== CAD_PROGRESS_MESSAGE_TYPE) {
@@ -216,8 +327,49 @@ export class CadWorkerManager {
       clearInterval(entry.progressIntervalId);
       entry.progressIntervalId = null;
 
+      // If a specific boolean `.cut()` was in flight when the worker went
+      // silent, that cut is the hang. Record it as known-hanging (persisted +
+      // injected into the restarted worker) and re-dispatch this same call
+      // rather than rejecting it: on the re-run the worker skips the cut and the
+      // assembly resolves to the two offending parts in red, so the atom
+      // succeeds (loudly) in this session instead of erroring.
+      const inflightCut = this._lastBooleanInflight;
+      if (inflightCut && inflightCut.toCut && inflightCut.cutter) {
+        this._recordBadCut(inflightCut);
+        this._lastBooleanInflight = null;
+        const degradedMessage = `CAD worker cut timed out; marking as hanging and retrying (parts will show red): ${inflightCut.toCut} cut by ${inflightCut.cutter}`;
+        this._emitCadWorkerEvent("cad-worker-task-error", {
+          taskId: entry.taskId,
+          method: String(entry.method),
+          queuedAt: entry.queuedAt,
+          startedAt: entry.startTime,
+          failedAt: Date.now(),
+          durationMs: entry.startTime ? Date.now() - entry.startTime : null,
+          queueWaitMs: entry.startTime ? entry.startTime - entry.queuedAt : null,
+          queueDepth: this._pendingCalls.length,
+          atomId: entry.taskMeta?.atomId || null,
+          atomType: entry.taskMeta?.atomType || null,
+          moleculeName: entry.taskMeta?.moleculeName || null,
+          displayLabel: this._formatTaskLabel(entry.method, entry.taskMeta),
+          badCut: inflightCut,
+          degraded: true,
+          error: degradedMessage,
+        });
+        // Keep `entry` in `_pendingCalls` so `_restartWorker` re-dispatches it
+        // onto the fresh worker (which now knows the cut is bad and skips it).
+        this._restartWorker();
+        return;
+      }
+
       this._pendingCalls = this._pendingCalls.filter((c) => c !== entry);
-      const message = `CAD worker stalled on "${String(entry.method)}" — no progress for ${this._timeoutMs}ms`;
+      // Fold in the last known worker activity so the stall message pinpoints the
+      // exact sub-operation that hung (e.g. "[op] rotate#... starting"), which is
+      // otherwise invisible once the ring buffer scrolls.
+      const activity = this._lastWorkerActivity;
+      const activitySuffix = activity
+        ? ` — last worker activity: ${activity.message}`
+        : "";
+      const message = `CAD worker stalled on "${String(entry.method)}" — no progress for ${this._timeoutMs}ms${activitySuffix}`;
       this._emitCadWorkerEvent("cad-worker-task-error", {
         taskId: entry.taskId,
         method: String(entry.method),
@@ -231,6 +383,7 @@ export class CadWorkerManager {
         atomType: entry.taskMeta?.atomType || null,
         moleculeName: entry.taskMeta?.moleculeName || null,
         displayLabel: this._formatTaskLabel(entry.method, entry.taskMeta),
+        lastWorkerActivity: activity || null,
         error: message,
       });
       entry.reject(new Error(message));
@@ -414,6 +567,7 @@ export class CadWorkerManager {
       timeoutMs: this._timeoutMs,
       workerEpoch: this._workerEpoch,
       pendingCount: this._pendingCalls.length,
+      lastWorkerActivity: this._lastWorkerActivity,
       activeTask: activeEntry
         ? describe(activeEntry, this._pendingCalls.indexOf(activeEntry))
         : null,

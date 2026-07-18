@@ -1,18 +1,18 @@
 {
-  "generatedAt": "2026-07-17T06:42:47.323Z",
+  "generatedAt": "2026-07-17T23:56:28.180Z",
   "project": {
     "name": "Incident",
     "owner": "BarbourSmith",
     "repoUrl": "https://github.com/BarbourSmith/Incident",
     "isLoading": false,
-    "totalAtomCount": 4248,
-    "pendingAtomCount": 4248,
-    "loadElapsedMs": 395280,
+    "totalAtomCount": 4249,
+    "pendingAtomCount": 4249,
+    "loadElapsedMs": 306102,
     "topLevelMoleculeStatus": "error",
     "completion": {
-      "ready": 3466,
+      "ready": 3465,
       "total": 3485,
-      "remaining": 19
+      "remaining": 20
     }
   },
   "currentMolecule": {
@@ -62,7 +62,7 @@
         "name": "Difference",
         "atomType": "Difference",
         "uniqueID": "id-87169",
-        "status": "ready"
+        "status": "error"
       },
       {
         "name": "Extract Inner Wall",
@@ -98,7 +98,7 @@
         "name": "Assembly",
         "atomType": "Assembly",
         "uniqueID": "id-711329",
-        "status": "error"
+        "status": "upstream_error"
       },
       {
         "name": "Extract Not Keep Out",
@@ -147,103 +147,75 @@
   "topLevelMolecule": null,
   "cadWorker": {
     "timeoutMs": 90000,
-    "workerEpoch": 2,
-    "pendingCount": 6,
+    "workerEpoch": 3,
+    "pendingCount": 4,
     "activeTask": {
       "index": 0,
-      "taskId": "cad-task-1784270449806-fs3h2j",
-      "method": "assembly",
-      "displayLabel": "Incident/Assembly",
-      "atomId": "id-711329",
-      "atomType": "Assembly",
+      "taskId": "cad-task-1784332295554-1dvxyq",
+      "method": "difference",
+      "displayLabel": "Incident/Difference",
+      "atomId": "id-87169",
+      "atomType": "Difference",
       "moleculeName": "Incident",
       "isActive": true,
-      "queuedAt": 1784270449806,
-      "startedAt": 1784270543596,
-      "queueWaitMs": 93790,
-      "runningMs": 23727
+      "queuedAt": 1784332295554,
+      "startedAt": 1784332527529,
+      "queueWaitMs": 231975,
+      "runningMs": 60651
     },
     "queue": [
       {
         "index": 0,
-        "taskId": "cad-task-1784270449806-fs3h2j",
-        "method": "assembly",
-        "displayLabel": "Incident/Assembly",
-        "atomId": "id-711329",
-        "atomType": "Assembly",
+        "taskId": "cad-task-1784332295554-1dvxyq",
+        "method": "difference",
+        "displayLabel": "Incident/Difference",
+        "atomId": "id-87169",
+        "atomType": "Difference",
         "moleculeName": "Incident",
         "isActive": true,
-        "queuedAt": 1784270449806,
-        "startedAt": 1784270543596,
-        "queueWaitMs": 93790,
-        "runningMs": 23727
+        "queuedAt": 1784332295554,
+        "startedAt": 1784332527529,
+        "queueWaitMs": 231975,
+        "runningMs": 60651
       },
       {
         "index": 1,
-        "taskId": "cad-task-1784270449811-9s1ami",
-        "method": "assembly",
-        "displayLabel": "Four Arms/Assembly",
-        "atomId": "id-59744",
-        "atomType": "Assembly",
-        "moleculeName": "Four Arms",
+        "taskId": "cad-task-1784332295555-2mxxz8",
+        "method": "difference",
+        "displayLabel": "Incident/Difference",
+        "atomId": "id-87169",
+        "atomType": "Difference",
+        "moleculeName": "Incident",
         "isActive": false,
-        "queuedAt": 1784270449811,
+        "queuedAt": 1784332295555,
         "startedAt": null,
         "queueWaitMs": null,
         "runningMs": null
       },
       {
         "index": 2,
-        "taskId": "cad-task-1784270449814-7073r0",
+        "taskId": "cad-task-1784332316126-aosh0d",
         "method": "assembly",
-        "displayLabel": "Incident/Assembly",
-        "atomId": "id-711329",
+        "displayLabel": "Four Arms/Assembly",
+        "atomId": "id-59744",
         "atomType": "Assembly",
-        "moleculeName": "Incident",
+        "moleculeName": "Four Arms",
         "isActive": false,
-        "queuedAt": 1784270449814,
+        "queuedAt": 1784332316126,
         "startedAt": null,
         "queueWaitMs": null,
         "runningMs": null
       },
       {
         "index": 3,
-        "taskId": "cad-task-1784270449825-rymf28",
+        "taskId": "cad-task-1784332316154-uvs50g",
         "method": "assembly",
-        "displayLabel": "Incident/Assembly",
-        "atomId": "id-711329",
+        "displayLabel": "Four Arms/Assembly",
+        "atomId": "id-59744",
         "atomType": "Assembly",
-        "moleculeName": "Incident",
+        "moleculeName": "Four Arms",
         "isActive": false,
-        "queuedAt": 1784270449825,
-        "startedAt": null,
-        "queueWaitMs": null,
-        "runningMs": null
-      },
-      {
-        "index": 4,
-        "taskId": "cad-task-1784270449849-tucnng",
-        "method": "assembly",
-        "displayLabel": "Incident/Assembly",
-        "atomId": "id-711329",
-        "atomType": "Assembly",
-        "moleculeName": "Incident",
-        "isActive": false,
-        "queuedAt": 1784270449849,
-        "startedAt": null,
-        "queueWaitMs": null,
-        "runningMs": null
-      },
-      {
-        "index": 5,
-        "taskId": "cad-task-1784270449854-ohcbyw",
-        "method": "assembly",
-        "displayLabel": "Incident/Assembly",
-        "atomId": "id-711329",
-        "atomType": "Assembly",
-        "moleculeName": "Incident",
-        "isActive": false,
-        "queuedAt": 1784270449854,
+        "queuedAt": 1784332316154,
         "startedAt": null,
         "queueWaitMs": null,
         "runningMs": null
@@ -481,24 +453,24 @@
   },
   "erroredAtoms": [
     {
-      "path": "Incident / Assembly",
-      "atomType": "Assembly",
-      "message": "[Incident/Assembly] CAD worker stalled on \"assembly\" — no progress for 90000ms"
+      "path": "Incident / Difference",
+      "atomType": "Difference",
+      "message": "[Incident/Difference] CAD worker stalled on \"difference\" — no progress for 90000ms"
     },
     {
       "path": "Incident / Dust Collector Enclosure / Exterior Wall / Fillet- / Code",
       "atomType": "Code",
-      "message": "[Incident/Dust Collector Enclosure/Exterior Wall/Fillet-/Code] Error: Code execution failed: can't access property \"shouldKeep\", radiusConfigInput.filter is undefined"
+      "message": "[Incident/Dust Collector Enclosure/Exterior Wall/Fillet-/Code] Error: Code execution failed: can't access property \"shouldKeep\", e.filter is undefined"
     },
     {
       "path": "Incident / Dust Collector Enclosure / Exterior Wall / Fillet- / Code",
       "atomType": "Code",
-      "message": "[Incident/Dust Collector Enclosure/Exterior Wall/Fillet-/Code] Error: Code execution failed: can't access property \"shouldKeep\", radiusConfigInput.filter is undefined"
+      "message": "[Incident/Dust Collector Enclosure/Exterior Wall/Fillet-/Code] Error: Code execution failed: can't access property \"shouldKeep\", e.filter is undefined"
     },
     {
       "path": "Incident / Dust Collector Enclosure / Vacuum Motor / Body / Fillet- / Code",
       "atomType": "Code",
-      "message": "[Incident/Dust Collector Enclosure/Vacuum Motor/Body/Fillet-/Code] Error: Code execution failed: can't access property \"shouldKeep\", radiusConfigInput.filter is undefined"
+      "message": "[Incident/Dust Collector Enclosure/Vacuum Motor/Body/Fillet-/Code] Error: Code execution failed: can't access property \"shouldKeep\", e.filter is undefined"
     },
     {
       "path": "Incident / Dust Collector Enclosure / Vacuum Motor / Mounting Bracket / Fillet Lower Edge / Fillet_in_Bounds",
@@ -513,22 +485,22 @@
     {
       "path": "Incident / Dust Collector Enclosure / Vacuum Motor / Mounting Bracket / Plastic / 2D_Slice / Spindle_Driver_Board / Fillet / Filet_Vertical_Edges / Code",
       "atomType": "Code",
-      "message": "[Incident/Dust Collector Enclosure/Vacuum Motor/Mounting Bracket/Plastic/2D_Slice/Spindle_Driver_Board/Fillet/Filet_Vertical_Edges/Code] Error: Code execution failed: can't access property \"geometry\", node is undefined"
+      "message": "[Incident/Dust Collector Enclosure/Vacuum Motor/Mounting Bracket/Plastic/2D_Slice/Spindle_Driver_Board/Fillet/Filet_Vertical_Edges/Code] Error: Code execution failed: can't access property \"geometry\", r is undefined"
     },
     {
       "path": "Incident / Dust Collector Enclosure / Vacuum Motor / Mounting Bracket / Plastic / 2D_Slice / Spindle_Driver_Board / Fillet / Filet_Vertical_Edges / Code",
       "atomType": "Code",
-      "message": "[Incident/Dust Collector Enclosure/Vacuum Motor/Mounting Bracket/Plastic/2D_Slice/Spindle_Driver_Board/Fillet/Filet_Vertical_Edges/Code] Error: Code execution failed: can't access property \"geometry\", node is undefined"
+      "message": "[Incident/Dust Collector Enclosure/Vacuum Motor/Mounting Bracket/Plastic/2D_Slice/Spindle_Driver_Board/Fillet/Filet_Vertical_Edges/Code] Error: Code execution failed: can't access property \"geometry\", r is undefined"
     },
     {
       "path": "Incident / Sled Assembly / Sled5 / Shell / Fillet- / Code",
       "atomType": "Code",
-      "message": "[Incident/Sled Assembly/Sled5/Shell/Fillet-/Code] Error: Code execution failed: can't access property \"shouldKeep\", radiusConfigInput.filter is undefined"
+      "message": "[Incident/Sled Assembly/Sled5/Shell/Fillet-/Code] Error: Code execution failed: can't access property \"shouldKeep\", e.filter is undefined"
     },
     {
       "path": "Incident / Sled Assembly / Sled5 / Shell / Fillet- / Code",
       "atomType": "Code",
-      "message": "[Incident/Sled Assembly/Sled5/Shell/Fillet-/Code] Error: Code execution failed: can't access property \"shouldKeep\", radiusConfigInput.filter is undefined"
+      "message": "[Incident/Sled Assembly/Sled5/Shell/Fillet-/Code] Error: Code execution failed: can't access property \"shouldKeep\", e.filter is undefined"
     },
     {
       "path": "Incident / Sled Assembly / Electronics / Dust Shoot Socket / 2D_Slice / Code",
@@ -538,7 +510,7 @@
     {
       "path": "Incident / Sled Assembly / Electronics / Dust Shoot Socket / 2D_Slice / Spindle_Driver_Board / Fillet / Filet_Vertical_Edges / Code",
       "atomType": "Code",
-      "message": "[Incident/Sled Assembly/Electronics/Dust Shoot Socket/2D_Slice/Spindle_Driver_Board/Fillet/Filet_Vertical_Edges/Code] Error: Code execution failed: can't access property \"geometry\", node is undefined"
+      "message": "[Incident/Sled Assembly/Electronics/Dust Shoot Socket/2D_Slice/Spindle_Driver_Board/Fillet/Filet_Vertical_Edges/Code] Error: Code execution failed: can't access property \"geometry\", r is undefined"
     },
     {
       "path": "Incident / Sled Assembly / Electronics / Dust Shoot / Dust Shoot Wall / 2D_Slice / Code",
@@ -548,62 +520,62 @@
     {
       "path": "Incident / Sled Assembly / Electronics / Dust Shoot / Dust Shoot Wall / 2D_Slice / Spindle_Driver_Board / Fillet / Filet_Vertical_Edges / Code",
       "atomType": "Code",
-      "message": "[Incident/Sled Assembly/Electronics/Dust Shoot/Dust Shoot Wall/2D_Slice/Spindle_Driver_Board/Fillet/Filet_Vertical_Edges/Code] Error: Code execution failed: can't access property \"geometry\", node is undefined"
+      "message": "[Incident/Sled Assembly/Electronics/Dust Shoot/Dust Shoot Wall/2D_Slice/Spindle_Driver_Board/Fillet/Filet_Vertical_Edges/Code] Error: Code execution failed: can't access property \"geometry\", r is undefined"
     },
     {
       "path": "Incident / Four Arms / Arm_Assembly_5 / Arm Assembly / Lower Half / Frame / Base / Fillet / Filet_Vertical_Edges / Code",
       "atomType": "Code",
-      "message": "[Incident/Four Arms/Arm_Assembly_5/Arm Assembly/Lower Half/Frame/Base/Fillet/Filet_Vertical_Edges/Code] Error: Code execution failed: can't access property \"geometry\", node is undefined"
+      "message": "[Incident/Four Arms/Arm_Assembly_5/Arm Assembly/Lower Half/Frame/Base/Fillet/Filet_Vertical_Edges/Code] Error: Code execution failed: can't access property \"geometry\", r is undefined"
     },
     {
       "path": "Incident / Four Arms / Arm_Assembly_5 / Arm Assembly / Lower Half / Walls / 2D_Slice / Spindle_Driver_Board / Fillet / Filet_Vertical_Edges / Code",
       "atomType": "Code",
-      "message": "[Incident/Four Arms/Arm_Assembly_5/Arm Assembly/Lower Half/Walls/2D_Slice/Spindle_Driver_Board/Fillet/Filet_Vertical_Edges/Code] Error: Code execution failed: can't access property \"geometry\", node is undefined"
+      "message": "[Incident/Four Arms/Arm_Assembly_5/Arm Assembly/Lower Half/Walls/2D_Slice/Spindle_Driver_Board/Fillet/Filet_Vertical_Edges/Code] Error: Code execution failed: can't access property \"geometry\", r is undefined"
     },
     {
       "path": "Incident / Four Arms / Arm_Assembly_5 / Arm Assembly / Upper Half / Frame / Base / Fillet / Filet_Vertical_Edges / Code",
       "atomType": "Code",
-      "message": "[Incident/Four Arms/Arm_Assembly_5/Arm Assembly/Upper Half/Frame/Base/Fillet/Filet_Vertical_Edges/Code] Error: Code execution failed: can't access property \"geometry\", node is undefined"
+      "message": "[Incident/Four Arms/Arm_Assembly_5/Arm Assembly/Upper Half/Frame/Base/Fillet/Filet_Vertical_Edges/Code] Error: Code execution failed: can't access property \"geometry\", r is undefined"
     },
     {
       "path": "Incident / Four Arms / Arm_Assembly_5 / Arm Assembly / Upper Half / Circular Mounts / Add_Clearance / 2D_Slice / Spindle_Driver_Board / Fillet / Filet_Vertical_Edges / Code",
       "atomType": "Code",
-      "message": "[Incident/Four Arms/Arm_Assembly_5/Arm Assembly/Upper Half/Circular Mounts/Add_Clearance/2D_Slice/Spindle_Driver_Board/Fillet/Filet_Vertical_Edges/Code] Error: Code execution failed: can't access property \"geometry\", node is undefined"
+      "message": "[Incident/Four Arms/Arm_Assembly_5/Arm Assembly/Upper Half/Circular Mounts/Add_Clearance/2D_Slice/Spindle_Driver_Board/Fillet/Filet_Vertical_Edges/Code] Error: Code execution failed: can't access property \"geometry\", r is undefined"
     },
     {
       "path": "Incident / Four Arms / Arm_Assembly_5 / Arm Assembly / Motor / Bearing and Pocket / Add_Clearance / 2D_Slice / Spindle_Driver_Board / Fillet / Filet_Vertical_Edges / Code",
       "atomType": "Code",
-      "message": "[Incident/Four Arms/Arm_Assembly_5/Arm Assembly/Motor/Bearing and Pocket/Add_Clearance/2D_Slice/Spindle_Driver_Board/Fillet/Filet_Vertical_Edges/Code] Error: Code execution failed: can't access property \"geometry\", node is undefined"
+      "message": "[Incident/Four Arms/Arm_Assembly_5/Arm Assembly/Motor/Bearing and Pocket/Add_Clearance/2D_Slice/Spindle_Driver_Board/Fillet/Filet_Vertical_Edges/Code] Error: Code execution failed: can't access property \"geometry\", r is undefined"
     },
     {
       "path": "Incident / Four Arms / Arm_Assembly_5 / Arm Assembly / Idler Gears / Idler Gear / Bearing and Pocket Lower / Add_Clearance / 2D_Slice / Spindle_Driver_Board / Fillet / Filet_Vertical_Edges / Code",
       "atomType": "Code",
-      "message": "[Incident/Four Arms/Arm_Assembly_5/Arm Assembly/Idler Gears/Idler Gear/Bearing and Pocket Lower/Add_Clearance/2D_Slice/Spindle_Driver_Board/Fillet/Filet_Vertical_Edges/Code] Error: Code execution failed: can't access property \"geometry\", node is undefined"
+      "message": "[Incident/Four Arms/Arm_Assembly_5/Arm Assembly/Idler Gears/Idler Gear/Bearing and Pocket Lower/Add_Clearance/2D_Slice/Spindle_Driver_Board/Fillet/Filet_Vertical_Edges/Code] Error: Code execution failed: can't access property \"geometry\", r is undefined"
     },
     {
       "path": "Incident / Four Arms / Arm_Assembly_5 / Arm Assembly / Idler Gears / Idler Gear / Bearing and Pocket Upper / 2D_Slice / Spindle_Driver_Board / Fillet / Filet_Vertical_Edges / Code",
       "atomType": "Code",
-      "message": "[Incident/Four Arms/Arm_Assembly_5/Arm Assembly/Idler Gears/Idler Gear/Bearing and Pocket Upper/2D_Slice/Spindle_Driver_Board/Fillet/Filet_Vertical_Edges/Code] Error: Code execution failed: can't access property \"geometry\", node is undefined"
+      "message": "[Incident/Four Arms/Arm_Assembly_5/Arm Assembly/Idler Gears/Idler Gear/Bearing and Pocket Upper/2D_Slice/Spindle_Driver_Board/Fillet/Filet_Vertical_Edges/Code] Error: Code execution failed: can't access property \"geometry\", r is undefined"
     },
     {
       "path": "Incident / Four Arms / Arm_Assembly_5 / Arm Assembly / Idler Gears / Idler Gear / Bearing and Pocket Upper / Add_Clearance / 2D_Slice / Spindle_Driver_Board / Fillet / Filet_Vertical_Edges / Code",
       "atomType": "Code",
-      "message": "[Incident/Four Arms/Arm_Assembly_5/Arm Assembly/Idler Gears/Idler Gear/Bearing and Pocket Upper/Add_Clearance/2D_Slice/Spindle_Driver_Board/Fillet/Filet_Vertical_Edges/Code] Error: Code execution failed: can't access property \"geometry\", node is undefined"
+      "message": "[Incident/Four Arms/Arm_Assembly_5/Arm Assembly/Idler Gears/Idler Gear/Bearing and Pocket Upper/Add_Clearance/2D_Slice/Spindle_Driver_Board/Fillet/Filet_Vertical_Edges/Code] Error: Code execution failed: can't access property \"geometry\", r is undefined"
     },
     {
       "path": "Incident / Four Arms / Arm_Assembly_5 / Arm Assembly / Roller / Bearing and Pocket Lower / Add_Clearance / 2D_Slice / Spindle_Driver_Board / Fillet / Filet_Vertical_Edges / Code",
       "atomType": "Code",
-      "message": "[Incident/Four Arms/Arm_Assembly_5/Arm Assembly/Roller/Bearing and Pocket Lower/Add_Clearance/2D_Slice/Spindle_Driver_Board/Fillet/Filet_Vertical_Edges/Code] Error: Code execution failed: can't access property \"geometry\", node is undefined"
+      "message": "[Incident/Four Arms/Arm_Assembly_5/Arm Assembly/Roller/Bearing and Pocket Lower/Add_Clearance/2D_Slice/Spindle_Driver_Board/Fillet/Filet_Vertical_Edges/Code] Error: Code execution failed: can't access property \"geometry\", r is undefined"
     },
     {
       "path": "Incident / Four Arms / Arm_Assembly_5 / Arm Assembly / Roller / Bearing and Pocket Upper / 2D_Slice / Spindle_Driver_Board / Fillet / Filet_Vertical_Edges / Code",
       "atomType": "Code",
-      "message": "[Incident/Four Arms/Arm_Assembly_5/Arm Assembly/Roller/Bearing and Pocket Upper/2D_Slice/Spindle_Driver_Board/Fillet/Filet_Vertical_Edges/Code] Error: Code execution failed: can't access property \"geometry\", node is undefined"
+      "message": "[Incident/Four Arms/Arm_Assembly_5/Arm Assembly/Roller/Bearing and Pocket Upper/2D_Slice/Spindle_Driver_Board/Fillet/Filet_Vertical_Edges/Code] Error: Code execution failed: can't access property \"geometry\", r is undefined"
     },
     {
       "path": "Incident / Four Arms / Arm_Assembly_5 / Arm Assembly / Roller / Bearing and Pocket Upper / Add_Clearance / 2D_Slice / Spindle_Driver_Board / Fillet / Filet_Vertical_Edges / Code",
       "atomType": "Code",
-      "message": "[Incident/Four Arms/Arm_Assembly_5/Arm Assembly/Roller/Bearing and Pocket Upper/Add_Clearance/2D_Slice/Spindle_Driver_Board/Fillet/Filet_Vertical_Edges/Code] Error: Code execution failed: can't access property \"geometry\", node is undefined"
+      "message": "[Incident/Four Arms/Arm_Assembly_5/Arm Assembly/Roller/Bearing and Pocket Upper/Add_Clearance/2D_Slice/Spindle_Driver_Board/Fillet/Filet_Vertical_Edges/Code] Error: Code execution failed: can't access property \"geometry\", r is undefined"
     },
     {
       "path": "Incident / Four Arms / Arm_Assembly_5 / Arm Assembly / Roller / Encoder Assembly / Encoder PCB / Import",
@@ -613,345 +585,345 @@
     {
       "path": "Incident / Four Arms / Arm_Assembly_5 / Arm Assembly / Roller / Encoder Assembly / Encoder PCB / Runner / Outline / Filet_Vertical_Edges / Code",
       "atomType": "Code",
-      "message": "[Incident/Four Arms/Arm_Assembly_5/Arm Assembly/Roller/Encoder Assembly/Encoder PCB/Runner/Outline/Filet_Vertical_Edges/Code] Error: Code execution failed: can't access property \"geometry\", node is undefined"
+      "message": "[Incident/Four Arms/Arm_Assembly_5/Arm Assembly/Roller/Encoder Assembly/Encoder PCB/Runner/Outline/Filet_Vertical_Edges/Code] Error: Code execution failed: can't access property \"geometry\", r is undefined"
     },
     {
       "path": "Incident / Four Arms / Arm_Assembly_5 / Arm Assembly / Roller / Encoder Assembly / Encoder PCB / Bolt and Standoff / M3 / Add_Clearance / 2D_Slice / Spindle_Driver_Board / Fillet / Filet_Vertical_Edges / Code",
       "atomType": "Code",
-      "message": "[Incident/Four Arms/Arm_Assembly_5/Arm Assembly/Roller/Encoder Assembly/Encoder PCB/Bolt and Standoff/M3/Add_Clearance/2D_Slice/Spindle_Driver_Board/Fillet/Filet_Vertical_Edges/Code] Error: Code execution failed: can't access property \"geometry\", node is undefined"
+      "message": "[Incident/Four Arms/Arm_Assembly_5/Arm Assembly/Roller/Encoder Assembly/Encoder PCB/Bolt and Standoff/M3/Add_Clearance/2D_Slice/Spindle_Driver_Board/Fillet/Filet_Vertical_Edges/Code] Error: Code execution failed: can't access property \"geometry\", r is undefined"
     }
   ],
   "workerLogs": [
     {
-      "level": "warn",
-      "message": "[boolean] cut-rotate-move-cut#a3fe20ae5b08cc1bb27c3a33484e5af3-0-0-13-0-0-90-rotate-move-rotate-move-cut-88b91cf4-12-fuse-move-extrude-cut-circle-89.5-circle-67-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}-10-0-0--13-move-extrude-cut-circle-89.5-circle-67-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}-10-0-0-10-0-0-13-0-0-90-0-0-13-0-0-90 starting",
-      "timestamp": "2026-07-17T06:40:52.029Z"
+      "level": "error",
+      "message": "An error occurred: can't access property \"geometry\", r is undefined",
+      "timestamp": "2026-07-17T23:51:24.528Z"
+    },
+    {
+      "level": "error",
+      "message": "Stack trace: Zo@https://abundance.maslowcnc.com/assets/worker-BlRa3-By.js:39:42671\nt@https://abundance.maslowcnc.com/assets/worker-BlRa3-By.js:39:41524\ndE@https://abundance.maslowcnc.com/assets/worker-BlRa3-By.js:39:41775\nanonymous/<@https://abundance.maslowcnc.com/assets/worker-BlRa3-By.js line 39 > Function:10:14\nanonymous@https://abundance.maslowcnc.com/assets/worker-BlRa3-By.js line 39 > Function:15:4\npE@https://abundance.maslowcnc.com/assets/worker-BlRa3-By.js:39:40785\n",
+      "timestamp": "2026-07-17T23:51:24.528Z"
+    },
+    {
+      "level": "error",
+      "message": "Line number: 39",
+      "timestamp": "2026-07-17T23:51:24.528Z"
+    },
+    {
+      "level": "error",
+      "message": "Column number: 42671",
+      "timestamp": "2026-07-17T23:51:24.528Z"
+    },
+    {
+      "level": "error",
+      "message": "full error:",
+      "timestamp": "2026-07-17T23:51:24.528Z"
+    },
+    {
+      "level": "error",
+      "message": "Zo@https://abundance.maslowcnc.com/assets/worker-BlRa3-By.js:39:42671\nt@https://abundance.maslowcnc.com/assets/worker-BlRa3-By.js:39:41524\ndE@https://abundance.maslowcnc.com/assets/worker-BlRa3-By.js:39:41775\nanonymous/<@https://abundance.maslowcnc.com/assets/worker-BlRa3-By.js line 39 > Function:10:14\nanonymous@https://abundance.maslowcnc.com/assets/worker-BlRa3-By.js line 39 > Function:15:4\npE@https://abundance.maslowcnc.com/assets/worker-BlRa3-By.js:39:40785\n",
+      "timestamp": "2026-07-17T23:51:24.528Z"
+    },
+    {
+      "level": "error",
+      "message": "Code execution error: Zo@https://abundance.maslowcnc.com/assets/worker-BlRa3-By.js:39:42671\nt@https://abundance.maslowcnc.com/assets/worker-BlRa3-By.js:39:41524\ndE@https://abundance.maslowcnc.com/assets/worker-BlRa3-By.js:39:41775\nanonymous/<@https://abundance.maslowcnc.com/assets/worker-BlRa3-By.js line 39 > Function:10:14\nanonymous@https://abundance.maslowcnc.com/assets/worker-BlRa3-By.js line 39 > Function:15:4\npE@https://abundance.maslowcnc.com/assets/worker-BlRa3-By.js:39:40785\n",
+      "timestamp": "2026-07-17T23:51:24.528Z"
+    },
+    {
+      "level": "error",
+      "message": "Code execution error: run@blob:https://abundance.maslowcnc.com/80778406-ef61-4ad4-93a7-ec37577605b9:141:15\n@blob:https://abundance.maslowcnc.com/80778406-ef61-4ad4-93a7-ec37577605b9:168:22\n",
+      "timestamp": "2026-07-17T23:51:24.544Z"
+    },
+    {
+      "level": "error",
+      "message": "Code execution error: run@blob:https://abundance.maslowcnc.com/250c2b24-3e05-4e0b-afb9-99bb1d45a046:138:18\n@blob:https://abundance.maslowcnc.com/250c2b24-3e05-4e0b-afb9-99bb1d45a046:197:22\n",
+      "timestamp": "2026-07-17T23:51:24.545Z"
+    },
+    {
+      "level": "error",
+      "message": "Code execution error: run@blob:https://abundance.maslowcnc.com/a029092e-3b7d-42ef-871a-5cc2eac9cfcb:141:15\n@blob:https://abundance.maslowcnc.com/a029092e-3b7d-42ef-871a-5cc2eac9cfcb:168:22\n",
+      "timestamp": "2026-07-17T23:51:24.570Z"
+    },
+    {
+      "level": "error",
+      "message": "Code execution error: run@blob:https://abundance.maslowcnc.com/259c6338-69bd-42b3-8b7c-0aed623f45e5:138:18\n@blob:https://abundance.maslowcnc.com/259c6338-69bd-42b3-8b7c-0aed623f45e5:197:22\n",
+      "timestamp": "2026-07-17T23:51:24.572Z"
     },
     {
       "level": "warn",
-      "message": "[boolean] cut near-noop toCut=rotate-move-cut#a3fe20ae5b08cc1bb27c3a33484e5af3-0-0-13-0-0-90 cutter=rotate-move-rotate-move-cut-88b91cf4-12-fuse-move-extrude-cut-circle-89.5-circle-67-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}-10-0-0--13-move-extrude-cut-circle-89.5-circle-67-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}-10-0-0-10-0-0-13-0-0-90-0-0-13-0-0-90 initialVolume=60655.24070270208 volumeDiff=7.275957614183426e-12",
-      "timestamp": "2026-07-17T06:40:52.182Z"
+      "message": "{\"circle\":[404,0,0],\"rectangle\":[176,0,0],\"polysides\":[4,0,0],\"extrude\":[153,0,0],\"intersect\":[1,0,0],\"move\":[80,0,0],\"cut\":[20,0,0]}",
+      "timestamp": "2026-07-17T23:51:26.202Z"
     },
     {
       "level": "warn",
-      "message": "[boolean] cut near-noop toCut=cut-cut-cut-cut-cut-cut-cut#0f0828bc2573f2a859941917c1229117-move-rotate#ad16380754dfdb456eb65cb099bad2f8-0-0-147-move-rotate-7453b2f8-0-0-0-60-0-0-147-move-rotate-7453b2f8-2-0-0-60-0-0-147-move-rotate-7453b2f8-4-0-0-60-0-0-147-move-rotate-7453b2f8-6-0-0-60-0-0-147-cut-cut-cut-cut-cut#0e0b8b75b74458953fe25a06892aec21-move-rotate-7453b2f8-1-0-0-60-0-0-147-move-rotate-7453b2f8-3-0-0-60-0-0-147-move-rotate-7453b2f8-5-0-0-60-0-0-147-move-rotate-7453b2f8-7-0-0-60-0-0-147 cutter=cut-move-rotate-rotate-move-extrude-28d0097e-0-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}-1.8-0-29-0-0-0--83-0-0--120-0-0-137-rotate-move-rotate-move-fuse-extrude-circle-1.75-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}--25-extrude-circle-3-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}-2.2-23.5-0-0-0-0-240-0-0-159-0-0-17 initialVolume=153670.61329614572 volumeDiff=0",
-      "timestamp": "2026-07-17T06:40:52.259Z"
+      "message": "[wasm-heap:geometryWorker] 16.0 MB (peak 16.0 MB, delta +0.0 MB)",
+      "timestamp": "2026-07-17T23:51:26.202Z"
+    },
+    {
+      "level": "error",
+      "message": "Code execution error: s@https://abundance.maslowcnc.com/assets/worker-BlRa3-By.js:6:19613\n_builderIter@https://abundance.maslowcnc.com/assets/worker-BlRa3-By.js:6:19775\nfillet@https://abundance.maslowcnc.com/assets/worker-BlRa3-By.js:6:20002\nfillet/<@https://abundance.maslowcnc.com/assets/worker-BlRa3-By.js:39:15021\n",
+      "timestamp": "2026-07-17T23:51:27.751Z"
+    },
+    {
+      "level": "error",
+      "message": "Code execution error: s@https://abundance.maslowcnc.com/assets/worker-BlRa3-By.js:6:19613\n_builderIter@https://abundance.maslowcnc.com/assets/worker-BlRa3-By.js:6:19775\nfillet@https://abundance.maslowcnc.com/assets/worker-BlRa3-By.js:6:20002\nfillet/<@https://abundance.maslowcnc.com/assets/worker-BlRa3-By.js:39:15021\n",
+      "timestamp": "2026-07-17T23:51:27.754Z"
+    },
+    {
+      "level": "error",
+      "message": "Code execution error: s@https://abundance.maslowcnc.com/assets/worker-BlRa3-By.js:6:19613\n_builderIter@https://abundance.maslowcnc.com/assets/worker-BlRa3-By.js:6:19775\nfillet@https://abundance.maslowcnc.com/assets/worker-BlRa3-By.js:6:20002\nfillet/<@https://abundance.maslowcnc.com/assets/worker-BlRa3-By.js:39:15021\n",
+      "timestamp": "2026-07-17T23:51:27.792Z"
+    },
+    {
+      "level": "error",
+      "message": "Code execution error: s@https://abundance.maslowcnc.com/assets/worker-BlRa3-By.js:6:19613\n_builderIter@https://abundance.maslowcnc.com/assets/worker-BlRa3-By.js:6:19775\nfillet@https://abundance.maslowcnc.com/assets/worker-BlRa3-By.js:6:20002\nfillet/<@https://abundance.maslowcnc.com/assets/worker-BlRa3-By.js:39:15021\n",
+      "timestamp": "2026-07-17T23:51:27.941Z"
+    },
+    {
+      "level": "error",
+      "message": "Code execution error: s@https://abundance.maslowcnc.com/assets/worker-BlRa3-By.js:6:19613\n_builderIter@https://abundance.maslowcnc.com/assets/worker-BlRa3-By.js:6:19775\nfillet@https://abundance.maslowcnc.com/assets/worker-BlRa3-By.js:6:20002\nfillet/<@https://abundance.maslowcnc.com/assets/worker-BlRa3-By.js:39:15021\n",
+      "timestamp": "2026-07-17T23:51:27.944Z"
     },
     {
       "level": "warn",
-      "message": "[boolean] cut-rotate-move-cut#a3fe20ae5b08cc1bb27c3a33484e5af3-0-0-13-0-0-90-rotate-move-rotate-move-cut-88b91cf4-18-fuse-move-extrude-cut-circle-89.5-circle-67-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}-10-0-0--13-move-extrude-cut-circle-89.5-circle-67-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}-10-0-0-10-0-0-13-0-0-90-0-0-13-0-0-90 starting",
-      "timestamp": "2026-07-17T06:40:52.259Z"
+      "message": "Attempting to retrieve empty sentinel from the cache",
+      "timestamp": "2026-07-17T23:51:30.736Z"
     },
     {
       "level": "warn",
-      "message": "[boolean] cut#c8104d331ad5192864fc77393fb097d4 starting",
-      "timestamp": "2026-07-17T06:40:52.260Z"
+      "message": "error from context:  AssemblyMap",
+      "timestamp": "2026-07-17T23:51:31.909Z"
+    },
+    {
+      "level": "error",
+      "message": "An error occurred: undefined",
+      "timestamp": "2026-07-17T23:51:31.910Z"
+    },
+    {
+      "level": "error",
+      "message": "Code execution error: gE@https://abundance.maslowcnc.com/assets/worker-BlRa3-By.js:39:42241\ndE@https://abundance.maslowcnc.com/assets/worker-BlRa3-By.js:39:41799\n",
+      "timestamp": "2026-07-17T23:51:31.910Z"
     },
     {
       "level": "warn",
-      "message": "[boolean] cut near-noop toCut=rotate-move-cut#a3fe20ae5b08cc1bb27c3a33484e5af3-0-0-13-0-0-90 cutter=rotate-move-rotate-move-cut-88b91cf4-18-fuse-move-extrude-cut-circle-89.5-circle-67-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}-10-0-0--13-move-extrude-cut-circle-89.5-circle-67-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}-10-0-0-10-0-0-13-0-0-90-0-0-13-0-0-90 initialVolume=60655.24070270208 volumeDiff=7.275957614183426e-12",
-      "timestamp": "2026-07-17T06:40:52.424Z"
+      "message": "Attempting to retrieve empty sentinel from the cache",
+      "timestamp": "2026-07-17T23:51:33.247Z"
     },
     {
       "level": "warn",
-      "message": "[boolean] cut near-noop toCut=cut-cut-cut-cut-cut-cut-cut#0f0828bc2573f2a859941917c1229117-move-rotate#ad16380754dfdb456eb65cb099bad2f8-0-0-147-move-rotate-7453b2f8-0-0-0-60-0-0-147-move-rotate-7453b2f8-2-0-0-60-0-0-147-move-rotate-7453b2f8-4-0-0-60-0-0-147-move-rotate-7453b2f8-6-0-0-60-0-0-147-cut-cut-cut-cut-cut#0e0b8b75b74458953fe25a06892aec21-move-rotate-7453b2f8-1-0-0-60-0-0-147-move-rotate-7453b2f8-3-0-0-60-0-0-147-move-rotate-7453b2f8-5-0-0-60-0-0-147-move-rotate-7453b2f8-7-0-0-60-0-0-147 cutter=move-rotate-rotate-move-extrude-rectangle-8-5-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}--6-0-29-0-0-0--83-0-0--120-0-0-137 initialVolume=153670.61329614572 volumeDiff=0",
-      "timestamp": "2026-07-17T06:40:52.499Z"
+      "message": "Attempting to retrieve empty sentinel from the cache",
+      "timestamp": "2026-07-17T23:51:33.247Z"
     },
     {
       "level": "warn",
-      "message": "[boolean] cut-rotate-move-cut#a3fe20ae5b08cc1bb27c3a33484e5af3-0-0-13-0-0-90-rotate-move-rotate-move-cut-88b91cf4-24-fuse-move-extrude-cut-circle-89.5-circle-67-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}-10-0-0--13-move-extrude-cut-circle-89.5-circle-67-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}-10-0-0-10-0-0-13-0-0-90-0-0-13-0-0-90 starting",
-      "timestamp": "2026-07-17T06:40:52.499Z"
+      "message": "Attempting to retrieve empty sentinel from the cache",
+      "timestamp": "2026-07-17T23:51:33.247Z"
     },
     {
       "level": "warn",
-      "message": "[boolean] cut#f137f086199b161c839d68d3f811f059 starting",
-      "timestamp": "2026-07-17T06:40:52.500Z"
+      "message": "Attempting to retrieve empty sentinel from the cache",
+      "timestamp": "2026-07-17T23:51:33.247Z"
+    },
+    {
+      "level": "error",
+      "message": "Failed to get bounds for geometry ID emptyshape 40174864",
+      "timestamp": "2026-07-17T23:51:33.248Z"
+    },
+    {
+      "level": "error",
+      "message": "Failed to get bounds for geometry ID emptyshape 40174984",
+      "timestamp": "2026-07-17T23:51:33.248Z"
+    },
+    {
+      "level": "error",
+      "message": "Failed to get bounds for geometry ID emptyshape 40175104",
+      "timestamp": "2026-07-17T23:51:33.248Z"
+    },
+    {
+      "level": "error",
+      "message": "Failed to get bounds for geometry ID emptyshape 40175224",
+      "timestamp": "2026-07-17T23:51:33.248Z"
     },
     {
       "level": "warn",
-      "message": "[boolean] cut near-noop toCut=rotate-move-cut#a3fe20ae5b08cc1bb27c3a33484e5af3-0-0-13-0-0-90 cutter=rotate-move-rotate-move-cut-88b91cf4-24-fuse-move-extrude-cut-circle-89.5-circle-67-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}-10-0-0--13-move-extrude-cut-circle-89.5-circle-67-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}-10-0-0-10-0-0-13-0-0-90-0-0-13-0-0-90 initialVolume=60655.24070270208 volumeDiff=2.1827872842550278e-11",
-      "timestamp": "2026-07-17T06:40:52.663Z"
+      "message": "Attempting to retrieve empty sentinel from the cache",
+      "timestamp": "2026-07-17T23:51:33.330Z"
     },
     {
       "level": "warn",
-      "message": "[boolean] cut-rotate-move-cut#a3fe20ae5b08cc1bb27c3a33484e5af3-0-0-13-0-0-90-rotate-move-rotate-move-cut-88b91cf4-30-fuse-move-extrude-cut-circle-89.5-circle-67-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}-10-0-0--13-move-extrude-cut-circle-89.5-circle-67-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}-10-0-0-10-0-0-13-0-0-90-0-0-13-0-0-90 starting",
-      "timestamp": "2026-07-17T06:40:52.940Z"
+      "message": "Attempting to retrieve empty sentinel from the cache",
+      "timestamp": "2026-07-17T23:51:33.330Z"
+    },
+    {
+      "level": "error",
+      "message": "Failed to get bounds for geometry ID emptyshape 42579352",
+      "timestamp": "2026-07-17T23:51:33.330Z"
+    },
+    {
+      "level": "error",
+      "message": "Failed to get bounds for geometry ID emptyshape 42587664",
+      "timestamp": "2026-07-17T23:51:33.330Z"
+    },
+    {
+      "level": "error",
+      "message": "Failed to get bounds for geometry ID intersect-extrude-7a06cb7a-1-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}-9.6-rotate-extrude-intersect-cut-circle-78-circle-68.5-rotate-cut-cut-circle-78-move-rectangle-156-156-78-0-0-rotate-move-rectangle-156-156--78-0-0-0-0-60-0-0--120-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}-22-0-0--98 48723328",
+      "timestamp": "2026-07-17T23:51:33.621Z"
+    },
+    {
+      "level": "error",
+      "message": "Failed to get bounds for geometry ID intersect-extrude-7a06cb7a-1-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}-9.6-rotate-extrude-intersect-cut-circle-78-circle-68.5-rotate-cut-cut-circle-78-move-rectangle-156-156-78-0-0-rotate-move-rectangle-156-156--78-0-0-0-0-60-0-0--120-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}-22-0-0--98 48792848",
+      "timestamp": "2026-07-17T23:51:33.627Z"
+    },
+    {
+      "level": "error",
+      "message": "Failed to get bounds for geometry ID move-rotate-intersect-extrude-7a06cb7a-1-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}-9.6-rotate-extrude-intersect-cut-circle-78-circle-68.5-rotate-cut-cut-circle-78-move-rectangle-156-156-78-0-0-rotate-move-rectangle-156-156--78-0-0-0-0-60-0-0--120-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}-22-0-0--98-0-0--120-0-0-137 71388136",
+      "timestamp": "2026-07-17T23:51:35.451Z"
+    },
+    {
+      "level": "error",
+      "message": "Failed to get bounds for geometry ID move-rotate-intersect-extrude-7a06cb7a-1-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}-9.6-rotate-extrude-intersect-cut-circle-78-circle-68.5-rotate-cut-cut-circle-78-move-rectangle-156-156-78-0-0-rotate-move-rectangle-156-156--78-0-0-0-0-60-0-0--120-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}-22-0-0--98-0-0--120-0-0-137 73036864",
+      "timestamp": "2026-07-17T23:51:35.499Z"
     },
     {
       "level": "warn",
-      "message": "[boolean] cut near-noop toCut=rotate-move-cut#a3fe20ae5b08cc1bb27c3a33484e5af3-0-0-13-0-0-90 cutter=rotate-move-rotate-move-cut-88b91cf4-30-fuse-move-extrude-cut-circle-89.5-circle-67-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}-10-0-0--13-move-extrude-cut-circle-89.5-circle-67-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}-10-0-0-10-0-0-13-0-0-90-0-0-13-0-0-90 initialVolume=60655.24070270208 volumeDiff=1.4551915228366852e-11",
-      "timestamp": "2026-07-17T06:40:53.104Z"
+      "message": "{\"circle\":[404,0,0],\"rectangle\":[176,0,0],\"polysides\":[4,0,0],\"extrude\":[415,0,0],\"intersect\":[60,0,0],\"move\":[827,0,0],\"cut\":[286,0,0],\"rotate\":[364,0,0],\"fuse\":[171,0,0],\"deserialize\":[6,1246,0],\"shrinkWrap\":[24,0,0],\"code\":[0,6,0],\"loft\":[10,0,0],\"assemblyFuse\":[41,0,0],\"boolnoopcut\":[255,0,0],\"export\":[11,0,0],\"boolemptycut\":[4,0,0]}",
+      "timestamp": "2026-07-17T23:51:36.276Z"
     },
     {
       "level": "warn",
-      "message": "[boolean] cut-cut#f137f086199b161c839d68d3f811f059-move-rotate-move-rotate-move-extrude-aa74b0d8-0-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}-1.8-0-35-0-0-0--57-0-0-7.8-0-0--120-0-0-137 starting",
-      "timestamp": "2026-07-17T06:40:53.109Z"
+      "message": "[wasm-heap:geometryWorker] 99.7 MB (peak 99.7 MB, delta +83.7 MB)",
+      "timestamp": "2026-07-17T23:51:36.276Z"
     },
     {
       "level": "warn",
-      "message": "[boolean] cut-rotate-move-cut#a3fe20ae5b08cc1bb27c3a33484e5af3-0-0-13-0-0-90-rotate-move-rotate-move-88b91cf4-31-0-0-13-0-0-90-0-0-13-0-0-90 starting",
-      "timestamp": "2026-07-17T06:40:53.110Z"
+      "message": "{\"circle\":[404,0,0],\"rectangle\":[176,0,0],\"polysides\":[4,0,0],\"extrude\":[415,0,0],\"intersect\":[60,0,0],\"move\":[827,0,0],\"cut\":[374,0,0],\"rotate\":[364,0,0],\"fuse\":[171,0,0],\"deserialize\":[6,1741,0],\"shrinkWrap\":[24,0,0],\"code\":[0,6,0],\"loft\":[10,0,0],\"assemblyFuse\":[41,0,0],\"boolnoopcut\":[539,0,0],\"export\":[11,0,0],\"boolemptycut\":[6,0,0]}",
+      "timestamp": "2026-07-17T23:51:46.411Z"
     },
     {
       "level": "warn",
-      "message": "[boolean] cut near-noop toCut=rotate-move-cut#a3fe20ae5b08cc1bb27c3a33484e5af3-0-0-13-0-0-90 cutter=rotate-move-rotate-move-88b91cf4-31-0-0-13-0-0-90-0-0-13-0-0-90 initialVolume=60655.24070270208 volumeDiff=0",
-      "timestamp": "2026-07-17T06:40:53.244Z"
+      "message": "[wasm-heap:geometryWorker] 143.6 MB (peak 143.6 MB, delta +43.9 MB)",
+      "timestamp": "2026-07-17T23:51:46.411Z"
     },
     {
       "level": "warn",
-      "message": "[boolean] cut near-noop toCut=cut#f137f086199b161c839d68d3f811f059 cutter=move-rotate-move-rotate-move-extrude-aa74b0d8-0-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}-1.8-0-35-0-0-0--57-0-0-7.8-0-0--120-0-0-137 initialVolume=152884.97383774928 volumeDiff=0",
-      "timestamp": "2026-07-17T06:40:53.319Z"
+      "message": "{\"circle\":[404,0,0],\"rectangle\":[176,0,0],\"polysides\":[4,0,0],\"extrude\":[415,0,0],\"intersect\":[60,0,0],\"move\":[1079,0,0],\"cut\":[474,0,0],\"rotate\":[616,0,0],\"fuse\":[171,0,0],\"deserialize\":[6,3626,0],\"shrinkWrap\":[24,0,0],\"code\":[0,6,0],\"loft\":[10,0,0],\"assemblyFuse\":[46,0,0],\"boolnoopcut\":[1368,0,0],\"export\":[11,0,0],\"boolemptycut\":[176,0,0]}",
+      "timestamp": "2026-07-17T23:51:56.681Z"
     },
     {
       "level": "warn",
-      "message": "[boolean] cut-rotate-move-cut#a3fe20ae5b08cc1bb27c3a33484e5af3-0-0-13-0-0-90-rotate-move-rotate-move-88b91cf4-35-0-0-13-0-0-90-0-0-13-0-0-90 starting",
-      "timestamp": "2026-07-17T06:40:53.319Z"
+      "message": "[wasm-heap:geometryWorker] 248.2 MB (peak 248.2 MB, delta +104.6 MB)",
+      "timestamp": "2026-07-17T23:51:56.681Z"
     },
     {
       "level": "warn",
-      "message": "[boolean] cut-cut#f137f086199b161c839d68d3f811f059-move-rotate-move-rotate-move-extrude-rectangle-16-8-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}--16-0-35-0-0-0--57-0-0-7.8-0-0--120-0-0-137 starting",
-      "timestamp": "2026-07-17T06:40:53.321Z"
+      "message": "{\"circle\":[404,0,0],\"rectangle\":[176,0,0],\"polysides\":[4,0,0],\"extrude\":[415,0,0],\"intersect\":[60,0,0],\"move\":[1079,0,0],\"cut\":[479,0,0],\"rotate\":[616,0,0],\"fuse\":[171,0,0],\"deserialize\":[63,3950,0],\"shrinkWrap\":[24,0,0],\"code\":[0,6,0],\"loft\":[10,0,0],\"assemblyFuse\":[46,0,0],\"boolnoopcut\":[1588,0,0],\"export\":[11,0,0],\"boolemptycut\":[176,0,0],\"expand\":[0,13,0]}",
+      "timestamp": "2026-07-17T23:52:06.880Z"
     },
     {
       "level": "warn",
-      "message": "[boolean] cut near-noop toCut=cut#f137f086199b161c839d68d3f811f059 cutter=move-rotate-move-rotate-move-extrude-rectangle-16-8-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}--16-0-35-0-0-0--57-0-0-7.8-0-0--120-0-0-137 initialVolume=152884.97383774928 volumeDiff=0",
-      "timestamp": "2026-07-17T06:40:53.589Z"
+      "message": "[wasm-heap:geometryWorker] 248.2 MB (peak 248.2 MB, delta +0.0 MB)",
+      "timestamp": "2026-07-17T23:52:06.880Z"
     },
     {
       "level": "warn",
-      "message": "[boolean] cut-cut#f137f086199b161c839d68d3f811f059-move-rotate-move-cut#0c242515fc9ffc461946676eaacb2f0b-0-0-1.8-0-0--120-0-0-137 starting",
-      "timestamp": "2026-07-17T06:40:53.596Z"
+      "message": "{\"boolnoopcut\":[182,0,0],\"deserialize\":[59,465,0],\"cut\":[75,0,0],\"expand\":[0,15,0]}",
+      "timestamp": "2026-07-17T23:53:54.540Z"
     },
     {
       "level": "warn",
-      "message": "[boolean] cut-cut-rotate-move-cut#a3fe20ae5b08cc1bb27c3a33484e5af3-0-0-13-0-0-90-rotate-move-rotate-move-88b91cf4-35-0-0-13-0-0-90-0-0-13-0-0-90-rotate-move-rotate-move-88b91cf4-36-0-0-13-0-0-90-0-0-13-0-0-90 starting",
-      "timestamp": "2026-07-17T06:40:53.602Z"
+      "message": "[wasm-heap:geometryWorker] 119.6 MB (peak 119.6 MB, delta +0.0 MB)",
+      "timestamp": "2026-07-17T23:53:54.540Z"
     },
     {
       "level": "warn",
-      "message": "[boolean] cut#522f5fa0188c91f4e3802a63c2e04618 starting",
-      "timestamp": "2026-07-17T06:42:24.321Z"
+      "message": "{\"boolnoopcut\":[159,0,0],\"deserialize\":[71,453,0],\"cut\":[54,0,0],\"expand\":[0,24,0]}",
+      "timestamp": "2026-07-17T23:55:37.806Z"
     },
     {
       "level": "warn",
-      "message": "[boolean] cut-rotate-move-cut#a3fe20ae5b08cc1bb27c3a33484e5af3-0-0-13-0-0-90-173940b0-15 starting",
-      "timestamp": "2026-07-17T06:42:24.324Z"
-    },
-    {
-      "level": "warn",
-      "message": "[boolean] cut near-noop toCut=cut-cut-cut-cut-cut-cut#0f0828bc2573f2a859941917c1229117-move-rotate#ad16380754dfdb456eb65cb099bad2f8-0-0-147-move-rotate-7453b2f8-0-0-0-60-0-0-147-move-rotate-7453b2f8-2-0-0-60-0-0-147-move-rotate-7453b2f8-4-0-0-60-0-0-147-move-rotate-7453b2f8-6-0-0-60-0-0-147 cutter=cut-cut-cut-cut-move-rotate-rotate-cut-cut-cut-cut-cut#95b62f20bbfeab5df27c840f7fb24be0-rotate#6b6707a8524bdaea4da3e8894cbc46d5-rotate#63dd0996ed241d38f4c5c12ecce9a76b-rotate#91ffdbedf9b4ede8591fb17c282d4bdd-rotate#604dd29493281f503805d06fc65b4a69-0-0-90-0-0-150-0-0-8-move-rotate-7453b2f8-1-0-0-60-0-0-147-move-rotate-7453b2f8-3-0-0-60-0-0-147-move-rotate-7453b2f8-5-0-0-60-0-0-147-move-rotate-7453b2f8-7-0-0-60-0-0-147 initialVolume=154409.5881698625 volumeDiff=0",
-      "timestamp": "2026-07-17T06:42:24.433Z"
-    },
-    {
-      "level": "warn",
-      "message": "[boolean] cut near-noop toCut=rotate-move-cut#a3fe20ae5b08cc1bb27c3a33484e5af3-0-0-13-0-0-90 cutter=173940b0-15 initialVolume=60655.24070270208 volumeDiff=0",
-      "timestamp": "2026-07-17T06:42:24.592Z"
-    },
-    {
-      "level": "warn",
-      "message": "[boolean] cut#024a0a9c78101e26832cc5e0628715fd starting",
-      "timestamp": "2026-07-17T06:42:24.605Z"
-    },
-    {
-      "level": "warn",
-      "message": "[boolean] cut-rotate-move-cut#a3fe20ae5b08cc1bb27c3a33484e5af3-0-0-13-0-0-90-rotate-move-rotate-move-cut-cut-cut-cut-cut-cut-cut-cut-cut-cut-cut-cut-cut-cut-cut-cut-cut-cut-cut-cut-cut-88b91cf4-0-173940b0-9-173940b0-10-173940b0-12-173940b0-14-173940b0-15-887e4390-0-887e4390-7-887e4390-8-887e4390-10-887e4390-11-887e4390-12-887e4390-19-887e4390-20-887e4390-22-887e4390-23-887e4390-24-887e4390-34-887e4390-35-887e4390-36-887e4390-42-887e4390-45-0-0-13-0-0-90-0-0-13-0-0-90 starting",
-      "timestamp": "2026-07-17T06:42:24.606Z"
-    },
-    {
-      "level": "warn",
-      "message": "[boolean] cut near-noop toCut=cut-cut-cut-cut-cut-cut#0f0828bc2573f2a859941917c1229117-move-rotate#ad16380754dfdb456eb65cb099bad2f8-0-0-147-move-rotate-7453b2f8-0-0-0-60-0-0-147-move-rotate-7453b2f8-2-0-0-60-0-0-147-move-rotate-7453b2f8-4-0-0-60-0-0-147-move-rotate-7453b2f8-6-0-0-60-0-0-147 cutter=cut-move-rotate-rotate-rotate-move-extrude-intersect-move-rectangle-100-20-50-0-0-cut-circle-20.5-circle-17-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}-80-0-0-49-0-0-120-0-0-90-0-0-150-0-0-8-move-cut-cut#764f0a29bac63398261836104856b4a4-move-rotate-move-fuse-extrude-circle-3-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}-2.2-loft-move-circle-1-0-0-0-circle-1.75-{\"origin\":[0,0,-25],\"xDir\":[1,0,0],\"normal\":[0,0,1]}-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}---23.5-0-0-0-0-17-0-0-127-0-0-10 initialVolume=154409.5881698625 volumeDiff=0",
-      "timestamp": "2026-07-17T06:42:24.684Z"
-    },
-    {
-      "level": "warn",
-      "message": "[boolean] cut near-noop toCut=rotate-move-cut#a3fe20ae5b08cc1bb27c3a33484e5af3-0-0-13-0-0-90 cutter=rotate-move-rotate-move-cut-cut-cut-cut-cut-cut-cut-cut-cut-cut-cut-cut-cut-cut-cut-cut-cut-cut-cut-cut-cut-88b91cf4-0-173940b0-9-173940b0-10-173940b0-12-173940b0-14-173940b0-15-887e4390-0-887e4390-7-887e4390-8-887e4390-10-887e4390-11-887e4390-12-887e4390-19-887e4390-20-887e4390-22-887e4390-23-887e4390-24-887e4390-34-887e4390-35-887e4390-36-887e4390-42-887e4390-45-0-0-13-0-0-90-0-0-13-0-0-90 initialVolume=60655.24070270208 volumeDiff=2.9103830456733704e-11",
-      "timestamp": "2026-07-17T06:42:25.509Z"
-    },
-    {
-      "level": "warn",
-      "message": "[boolean] cut-rotate-move-cut#a3fe20ae5b08cc1bb27c3a33484e5af3-0-0-13-0-0-90-rotate-move-rotate-move-cut-88b91cf4-6-fuse-move-extrude-cut-circle-89.5-circle-67-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}-10-0-0--13-move-extrude-cut-circle-89.5-circle-67-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}-10-0-0-10-0-0-13-0-0-90-0-0-13-0-0-90 starting",
-      "timestamp": "2026-07-17T06:42:25.511Z"
-    },
-    {
-      "level": "warn",
-      "message": "[boolean] cut#7582df21ba45ca36e44d890980a63501 starting",
-      "timestamp": "2026-07-17T06:42:25.512Z"
-    },
-    {
-      "level": "warn",
-      "message": "[boolean] cut near-noop toCut=rotate-move-cut#a3fe20ae5b08cc1bb27c3a33484e5af3-0-0-13-0-0-90 cutter=rotate-move-rotate-move-cut-88b91cf4-6-fuse-move-extrude-cut-circle-89.5-circle-67-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}-10-0-0--13-move-extrude-cut-circle-89.5-circle-67-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}-10-0-0-10-0-0-13-0-0-90-0-0-13-0-0-90 initialVolume=60655.24070270208 volumeDiff=7.275957614183426e-12",
-      "timestamp": "2026-07-17T06:42:25.642Z"
-    },
-    {
-      "level": "warn",
-      "message": "[boolean] cut-rotate-move-cut#a3fe20ae5b08cc1bb27c3a33484e5af3-0-0-13-0-0-90-rotate-move-rotate-move-cut-88b91cf4-12-fuse-move-extrude-cut-circle-89.5-circle-67-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}-10-0-0--13-move-extrude-cut-circle-89.5-circle-67-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}-10-0-0-10-0-0-13-0-0-90-0-0-13-0-0-90 starting",
-      "timestamp": "2026-07-17T06:42:25.649Z"
-    },
-    {
-      "level": "warn",
-      "message": "[boolean] cut near-noop toCut=cut-cut-cut-cut-cut-cut-cut#0f0828bc2573f2a859941917c1229117-move-rotate#ad16380754dfdb456eb65cb099bad2f8-0-0-147-move-rotate-7453b2f8-0-0-0-60-0-0-147-move-rotate-7453b2f8-2-0-0-60-0-0-147-move-rotate-7453b2f8-4-0-0-60-0-0-147-move-rotate-7453b2f8-6-0-0-60-0-0-147-cut-cut-cut-cut-cut#0e0b8b75b74458953fe25a06892aec21-move-rotate-7453b2f8-1-0-0-60-0-0-147-move-rotate-7453b2f8-3-0-0-60-0-0-147-move-rotate-7453b2f8-5-0-0-60-0-0-147-move-rotate-7453b2f8-7-0-0-60-0-0-147 cutter=cut-move-rotate-rotate-move-extrude-28d0097e-0-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}-1.8-0-29-0-0-0--83-0-0--120-0-0-137-rotate-move-rotate-move-fuse-extrude-circle-1.75-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}--25-extrude-circle-3-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}-2.2-23.5-0-0-0-0-240-0-0-159-0-0-17 initialVolume=153670.61329614572 volumeDiff=0",
-      "timestamp": "2026-07-17T06:42:25.706Z"
-    },
-    {
-      "level": "warn",
-      "message": "[boolean] cut near-noop toCut=rotate-move-cut#a3fe20ae5b08cc1bb27c3a33484e5af3-0-0-13-0-0-90 cutter=rotate-move-rotate-move-cut-88b91cf4-12-fuse-move-extrude-cut-circle-89.5-circle-67-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}-10-0-0--13-move-extrude-cut-circle-89.5-circle-67-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}-10-0-0-10-0-0-13-0-0-90-0-0-13-0-0-90 initialVolume=60655.24070270208 volumeDiff=7.275957614183426e-12",
-      "timestamp": "2026-07-17T06:42:25.821Z"
-    },
-    {
-      "level": "warn",
-      "message": "[boolean] cut#c8104d331ad5192864fc77393fb097d4 starting",
-      "timestamp": "2026-07-17T06:42:25.821Z"
-    },
-    {
-      "level": "warn",
-      "message": "[boolean] cut-rotate-move-cut#a3fe20ae5b08cc1bb27c3a33484e5af3-0-0-13-0-0-90-rotate-move-rotate-move-cut-88b91cf4-18-fuse-move-extrude-cut-circle-89.5-circle-67-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}-10-0-0--13-move-extrude-cut-circle-89.5-circle-67-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}-10-0-0-10-0-0-13-0-0-90-0-0-13-0-0-90 starting",
-      "timestamp": "2026-07-17T06:42:25.822Z"
-    },
-    {
-      "level": "warn",
-      "message": "[boolean] cut near-noop toCut=cut-cut-cut-cut-cut-cut-cut#0f0828bc2573f2a859941917c1229117-move-rotate#ad16380754dfdb456eb65cb099bad2f8-0-0-147-move-rotate-7453b2f8-0-0-0-60-0-0-147-move-rotate-7453b2f8-2-0-0-60-0-0-147-move-rotate-7453b2f8-4-0-0-60-0-0-147-move-rotate-7453b2f8-6-0-0-60-0-0-147-cut-cut-cut-cut-cut#0e0b8b75b74458953fe25a06892aec21-move-rotate-7453b2f8-1-0-0-60-0-0-147-move-rotate-7453b2f8-3-0-0-60-0-0-147-move-rotate-7453b2f8-5-0-0-60-0-0-147-move-rotate-7453b2f8-7-0-0-60-0-0-147 cutter=move-rotate-rotate-move-extrude-rectangle-8-5-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}--6-0-29-0-0-0--83-0-0--120-0-0-137 initialVolume=153670.61329614572 volumeDiff=0",
-      "timestamp": "2026-07-17T06:42:25.875Z"
-    },
-    {
-      "level": "warn",
-      "message": "[boolean] cut near-noop toCut=rotate-move-cut#a3fe20ae5b08cc1bb27c3a33484e5af3-0-0-13-0-0-90 cutter=rotate-move-rotate-move-cut-88b91cf4-18-fuse-move-extrude-cut-circle-89.5-circle-67-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}-10-0-0--13-move-extrude-cut-circle-89.5-circle-67-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}-10-0-0-10-0-0-13-0-0-90-0-0-13-0-0-90 initialVolume=60655.24070270208 volumeDiff=7.275957614183426e-12",
-      "timestamp": "2026-07-17T06:42:26.003Z"
-    },
-    {
-      "level": "warn",
-      "message": "[boolean] cut-rotate-move-cut#a3fe20ae5b08cc1bb27c3a33484e5af3-0-0-13-0-0-90-rotate-move-rotate-move-cut-88b91cf4-24-fuse-move-extrude-cut-circle-89.5-circle-67-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}-10-0-0--13-move-extrude-cut-circle-89.5-circle-67-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}-10-0-0-10-0-0-13-0-0-90-0-0-13-0-0-90 starting",
-      "timestamp": "2026-07-17T06:42:26.005Z"
-    },
-    {
-      "level": "warn",
-      "message": "[boolean] cut-cut#f137f086199b161c839d68d3f811f059-move-rotate-move-rotate-move-extrude-aa74b0d8-0-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}-1.8-0-35-0-0-0--57-0-0-7.8-0-0--120-0-0-137 starting",
-      "timestamp": "2026-07-17T06:42:26.005Z"
-    },
-    {
-      "level": "warn",
-      "message": "[boolean] cut near-noop toCut=rotate-move-cut#a3fe20ae5b08cc1bb27c3a33484e5af3-0-0-13-0-0-90 cutter=rotate-move-rotate-move-cut-88b91cf4-24-fuse-move-extrude-cut-circle-89.5-circle-67-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}-10-0-0--13-move-extrude-cut-circle-89.5-circle-67-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}-10-0-0-10-0-0-13-0-0-90-0-0-13-0-0-90 initialVolume=60655.24070270208 volumeDiff=2.1827872842550278e-11",
-      "timestamp": "2026-07-17T06:42:26.132Z"
-    },
-    {
-      "level": "warn",
-      "message": "[boolean] cut-rotate-move-cut#a3fe20ae5b08cc1bb27c3a33484e5af3-0-0-13-0-0-90-rotate-move-rotate-move-cut-88b91cf4-30-fuse-move-extrude-cut-circle-89.5-circle-67-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}-10-0-0--13-move-extrude-cut-circle-89.5-circle-67-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}-10-0-0-10-0-0-13-0-0-90-0-0-13-0-0-90 starting",
-      "timestamp": "2026-07-17T06:42:26.138Z"
-    },
-    {
-      "level": "warn",
-      "message": "[boolean] cut near-noop toCut=cut#f137f086199b161c839d68d3f811f059 cutter=move-rotate-move-rotate-move-extrude-aa74b0d8-0-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}-1.8-0-35-0-0-0--57-0-0-7.8-0-0--120-0-0-137 initialVolume=152884.97383774928 volumeDiff=0",
-      "timestamp": "2026-07-17T06:42:26.196Z"
-    },
-    {
-      "level": "warn",
-      "message": "[boolean] cut near-noop toCut=rotate-move-cut#a3fe20ae5b08cc1bb27c3a33484e5af3-0-0-13-0-0-90 cutter=rotate-move-rotate-move-cut-88b91cf4-30-fuse-move-extrude-cut-circle-89.5-circle-67-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}-10-0-0--13-move-extrude-cut-circle-89.5-circle-67-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}-10-0-0-10-0-0-13-0-0-90-0-0-13-0-0-90 initialVolume=60655.24070270208 volumeDiff=1.4551915228366852e-11",
-      "timestamp": "2026-07-17T06:42:26.324Z"
-    },
-    {
-      "level": "warn",
-      "message": "[boolean] cut-cut#f137f086199b161c839d68d3f811f059-move-rotate-move-rotate-move-extrude-rectangle-16-8-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}--16-0-35-0-0-0--57-0-0-7.8-0-0--120-0-0-137 starting",
-      "timestamp": "2026-07-17T06:42:26.324Z"
-    },
-    {
-      "level": "warn",
-      "message": "[boolean] cut-rotate-move-cut#a3fe20ae5b08cc1bb27c3a33484e5af3-0-0-13-0-0-90-rotate-move-rotate-move-88b91cf4-31-0-0-13-0-0-90-0-0-13-0-0-90 starting",
-      "timestamp": "2026-07-17T06:42:26.325Z"
-    },
-    {
-      "level": "warn",
-      "message": "[boolean] cut near-noop toCut=cut#f137f086199b161c839d68d3f811f059 cutter=move-rotate-move-rotate-move-extrude-rectangle-16-8-{\"origin\":[0,0,0],\"xDir\":[1,0,0],\"normal\":[0,0,1]}--16-0-35-0-0-0--57-0-0-7.8-0-0--120-0-0-137 initialVolume=152884.97383774928 volumeDiff=0",
-      "timestamp": "2026-07-17T06:42:26.380Z"
-    },
-    {
-      "level": "warn",
-      "message": "[boolean] cut near-noop toCut=rotate-move-cut#a3fe20ae5b08cc1bb27c3a33484e5af3-0-0-13-0-0-90 cutter=rotate-move-rotate-move-88b91cf4-31-0-0-13-0-0-90-0-0-13-0-0-90 initialVolume=60655.24070270208 volumeDiff=0",
-      "timestamp": "2026-07-17T06:42:26.479Z"
-    },
-    {
-      "level": "warn",
-      "message": "[boolean] cut-cut#f137f086199b161c839d68d3f811f059-move-rotate-move-cut#0c242515fc9ffc461946676eaacb2f0b-0-0-1.8-0-0--120-0-0-137 starting",
-      "timestamp": "2026-07-17T06:42:26.479Z"
+      "message": "[wasm-heap:geometryWorker] 119.6 MB (peak 119.6 MB, delta +0.0 MB)",
+      "timestamp": "2026-07-17T23:55:37.806Z"
     }
   ],
   "recentErrors": [
     {
-      "timestamp": "2026-07-17T06:36:27.663Z",
-      "message": "Error in atom: Incident/Sled Assembly/Electronics/Dust Shoot/Dust Shoot Wall/2D_Slice/Code"
-    },
-    {
-      "timestamp": "2026-07-17T06:36:27.663Z",
-      "message": "{\"name\":\"TypeError\",\"stack\":\"run@blob:http://localhost:4444/5d0ee3b8-7e14-4796-925c-392f8129d5af:138:18\\n@blob:http://localhost:4444/5d0ee3b8-7e14-4796-925c-392f8129d5af:197:22\\n\"}"
-    },
-    {
-      "timestamp": "2026-07-17T06:36:27.669Z",
+      "timestamp": "2026-07-17T23:51:27.338Z",
       "message": "Error in atom: Incident/Sled Assembly/Vertical Dust Shoot/Profile/Dust Passage/Twist_Extrude/Code"
     },
     {
-      "timestamp": "2026-07-17T06:36:27.669Z",
-      "message": "{\"name\":\"Error\",\"stack\":\"run@blob:http://localhost:4444/6d51c413-d896-4dac-a91b-9307c175ae1d:141:15\\n@blob:http://localhost:4444/6d51c413-d896-4dac-a91b-9307c175ae1d:168:22\\n\"}"
+      "timestamp": "2026-07-17T23:51:27.338Z",
+      "message": "{\"name\":\"Error\",\"stack\":\"run@blob:https://abundance.maslowcnc.com/a029092e-3b7d-42ef-871a-5cc2eac9cfcb:141:15\\n@blob:https://abundance.maslowcnc.com/a029092e-3b7d-42ef-871a-5cc2eac9cfcb:168:22\\n\"}"
     },
     {
-      "timestamp": "2026-07-17T06:36:27.681Z",
+      "timestamp": "2026-07-17T23:51:27.346Z",
       "message": "Error in atom: Incident/Sled Assembly/Electronics/Dust Shoot Socket/2D_Slice/Code"
     },
     {
-      "timestamp": "2026-07-17T06:36:27.681Z",
-      "message": "{\"name\":\"TypeError\",\"stack\":\"run@blob:http://localhost:4444/25e8310d-18fa-4e48-a0ba-1e2765819547:138:18\\n@blob:http://localhost:4444/25e8310d-18fa-4e48-a0ba-1e2765819547:197:22\\n\"}"
+      "timestamp": "2026-07-17T23:51:27.346Z",
+      "message": "{\"name\":\"TypeError\",\"stack\":\"run@blob:https://abundance.maslowcnc.com/259c6338-69bd-42b3-8b7c-0aed623f45e5:138:18\\n@blob:https://abundance.maslowcnc.com/259c6338-69bd-42b3-8b7c-0aed623f45e5:197:22\\n\"}"
     },
     {
-      "timestamp": "2026-07-17T06:36:29.364Z",
+      "timestamp": "2026-07-17T23:51:28.460Z",
       "message": "Error in atom: Incident/Dust Collector Enclosure/Exterior Wall/Fillet-/Code"
     },
     {
-      "timestamp": "2026-07-17T06:36:29.364Z",
-      "message": "{\"name\":\"Error\",\"stack\":\"executeCode@http://localhost:4444/src/worker/code-legacy.ts?t=1784269954837:284:11\\n\"}"
+      "timestamp": "2026-07-17T23:51:28.460Z",
+      "message": "{\"name\":\"Error\",\"stack\":\"pE@https://abundance.maslowcnc.com/assets/worker-BlRa3-By.js:39:41160\\n\"}"
     },
     {
-      "timestamp": "2026-07-17T06:36:29.364Z",
+      "timestamp": "2026-07-17T23:51:28.461Z",
       "message": "Error in atom: Incident/Dust Collector Enclosure/Exterior Wall/Fillet-/Code"
     },
     {
-      "timestamp": "2026-07-17T06:36:29.364Z",
-      "message": "{\"name\":\"Error\",\"stack\":\"executeCode@http://localhost:4444/src/worker/code-legacy.ts?t=1784269954837:284:11\\n\"}"
+      "timestamp": "2026-07-17T23:51:28.461Z",
+      "message": "{\"name\":\"Error\",\"stack\":\"pE@https://abundance.maslowcnc.com/assets/worker-BlRa3-By.js:39:41160\\n\"}"
     },
     {
-      "timestamp": "2026-07-17T06:36:29.395Z",
+      "timestamp": "2026-07-17T23:51:28.492Z",
       "message": "Error in atom: Incident/Dust Collector Enclosure/Vacuum Motor/Body/Fillet-/Code"
     },
     {
-      "timestamp": "2026-07-17T06:36:29.395Z",
-      "message": "{\"name\":\"Error\",\"stack\":\"executeCode@http://localhost:4444/src/worker/code-legacy.ts?t=1784269954837:284:11\\n\"}"
+      "timestamp": "2026-07-17T23:51:28.492Z",
+      "message": "{\"name\":\"Error\",\"stack\":\"pE@https://abundance.maslowcnc.com/assets/worker-BlRa3-By.js:39:41160\\n\"}"
     },
     {
-      "timestamp": "2026-07-17T06:36:29.574Z",
+      "timestamp": "2026-07-17T23:51:28.593Z",
       "message": "Error in atom: Incident/Sled Assembly/Sled5/Shell/Fillet-/Code"
     },
     {
-      "timestamp": "2026-07-17T06:36:29.574Z",
-      "message": "{\"name\":\"Error\",\"stack\":\"executeCode@http://localhost:4444/src/worker/code-legacy.ts?t=1784269954837:284:11\\n\"}"
+      "timestamp": "2026-07-17T23:51:28.593Z",
+      "message": "{\"name\":\"Error\",\"stack\":\"pE@https://abundance.maslowcnc.com/assets/worker-BlRa3-By.js:39:41160\\n\"}"
     },
     {
-      "timestamp": "2026-07-17T06:36:29.574Z",
+      "timestamp": "2026-07-17T23:51:28.596Z",
       "message": "Error in atom: Incident/Sled Assembly/Sled5/Shell/Fillet-/Code"
     },
     {
-      "timestamp": "2026-07-17T06:36:29.574Z",
-      "message": "{\"name\":\"Error\",\"stack\":\"executeCode@http://localhost:4444/src/worker/code-legacy.ts?t=1784269954837:284:11\\n\"}"
+      "timestamp": "2026-07-17T23:51:28.596Z",
+      "message": "{\"name\":\"Error\",\"stack\":\"pE@https://abundance.maslowcnc.com/assets/worker-BlRa3-By.js:39:41160\\n\"}"
     },
     {
-      "timestamp": "2026-07-17T06:36:52.549Z",
+      "timestamp": "2026-07-17T23:51:31.912Z",
       "message": "Error in atom: Incident/Dust Collector Enclosure/Vacuum Motor/Mounting Bracket/Fillet Lower Edge/Fillet_in_Bounds/Code"
     },
     {
-      "timestamp": "2026-07-17T06:36:52.549Z",
-      "message": "{\"name\":\"Error\",\"stack\":\"executeCode@http://localhost:4444/src/worker/code-legacy.ts?t=1784269954837:284:11\\n\"}"
+      "timestamp": "2026-07-17T23:51:31.912Z",
+      "message": "{\"name\":\"Error\",\"stack\":\"pE@https://abundance.maslowcnc.com/assets/worker-BlRa3-By.js:39:41160\\n\"}"
     },
     {
-      "timestamp": "2026-07-17T06:42:23.596Z",
-      "message": "Error in atom: Incident/Assembly"
+      "timestamp": "2026-07-17T23:53:44.195Z",
+      "message": "Error in atom: Incident/Difference"
     },
     {
-      "timestamp": "2026-07-17T06:42:23.596Z",
+      "timestamp": "2026-07-17T23:53:44.195Z",
+      "message": "{}"
+    },
+    {
+      "timestamp": "2026-07-17T23:55:27.529Z",
+      "message": "Error in atom: Incident/Difference"
+    },
+    {
+      "timestamp": "2026-07-17T23:55:27.529Z",
       "message": "{}"
     }
   ],

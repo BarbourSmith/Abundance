@@ -41,6 +41,15 @@ const started: Promise<boolean> = util.init();
 void started.then(() => util.startHeapMonitor("geometryWorker"));
 
 /**
+ * Replace this worker's set of known-hanging boolean cuts. Called from the main
+ * thread on every (re)start so a fresh worker skips cuts that previously hung
+ * (surfacing the two offending parts in red) instead of hanging again.
+ */
+function setBadCuts(pairs: Array<{ toCut: string; cutter: string }>): void {
+  util.geometryProvider!.setBadCuts(pairs);
+}
+
+/**
  * Returns the z-values of flat faces in the geometry, which can be used for area operations in gcode generation.
  * @param {AbundanceObject} input - The geometry to export
  * @returns {Promise<number[]>} A promise that resolves to an array of z-values corresponding to flat faces in the geometry
@@ -870,6 +879,7 @@ if (
     extractParts,
     sweepCache,
     getAsPoint3D,
+    setBadCuts,
   };
 
   // Gate EVERY exposed worker method on `started` (OCCT WASM init). Until

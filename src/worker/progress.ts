@@ -36,3 +36,44 @@ export function reportCadProgress(label: string): void {
     }
   }
 }
+
+/**
+ * Message type posted by the worker immediately before and after each OCCT
+ * boolean `.cut()` call, carrying the two input geometry ids.
+ *
+ * A synchronous `.cut()` can hang indefinitely and freeze the worker thread; it
+ * can only be stopped by terminating the worker. This beacon lets the main
+ * thread know *which* cut is executing at any instant, so when the inactivity
+ * watchdog fires it can record that exact `(toCut, cutter)` pair as a
+ * known-hanging cut (see CadWorkerManager).
+ */
+export const CAD_BOOLEAN_INFLIGHT_TYPE = "cad-boolean-inflight";
+
+/**
+ * Announce that a boolean `.cut(toCut, cutter)` is about to run (`active=true`)
+ * or has just finished (`active=false`). If the cut hangs, the `active=false`
+ * message never sends (the thread is frozen), so the main thread still sees the
+ * cut as in-flight — exactly what we want for pinpointing the hang.
+ */
+export function reportBooleanInflight(
+  toCut: string,
+  cutter: string,
+  active: boolean,
+): void {
+  if (
+    typeof self !== "undefined" &&
+    typeof (self as any).postMessage === "function" &&
+    typeof (self as any).document === "undefined"
+  ) {
+    try {
+      (self as any).postMessage({
+        type: CAD_BOOLEAN_INFLIGHT_TYPE,
+        toCut,
+        cutter,
+        active,
+      });
+    } catch {
+      // Best-effort; never let it break the operation.
+    }
+  }
+}
