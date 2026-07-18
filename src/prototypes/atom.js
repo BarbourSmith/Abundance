@@ -1219,27 +1219,59 @@ export default class Atom extends ObservableEntity {
     }
 
     if (this.inputsAreReady()) {
-      const argsDict = Object.fromEntries(
-        this.inputs.map((input) => [input.name, input.getState().value]),
-      );
-      this.setProcessing();
-
-      this.compute(argsDict)
-        .then((value) => {
-          this.buildNonReplicadGeom(value);
-          this.setReady(value);
-
-          if (
-            this.setInputChanged &&
-            typeof this.setInputChanged === "function"
-          ) {
-            this.setInputChanged(this.status);
-          }
-        })
-        .catch(this.alertingErrorHandler());
+      // Coalesce overlapping computes. Each `onUpstreamChange` edge would
+      // otherwise start a brand-new `compute()` (e.g. a fresh `cad.assembly`
+      // worker dispatch). During load churn a single atom can receive many
+      // edges in quick succession, queueing many identical, expensive worker
+      // calls for the same atom. Instead, if a compute is already running, just
+      // record that inputs changed again and run exactly one follow-up compute
+      // (with fresh inputs) when the current one settles.
+      if (this._isComputing) {
+        this._recomputeQueued = true;
+        return;
+      }
+      this._runCompute();
     } else {
       this.setWaiting();
     }
+  }
+
+  /**
+   * Read the current input values, set this atom to processing, and run its
+   * `compute()`. Guarded by `_isComputing` so only one computation runs at a
+   * time; any upstream edges that arrive mid-compute set `_recomputeQueued` and
+   * trigger a single fresh follow-up via `onUpstreamChange` once this settles.
+   */
+  _runCompute() {
+    const argsDict = Object.fromEntries(
+      this.inputs.map((input) => [input.name, input.getState().value]),
+    );
+    this.setProcessing();
+    this._isComputing = true;
+
+    this.compute(argsDict)
+      .then((value) => {
+        this.buildNonReplicadGeom(value);
+        this.setReady(value);
+
+        if (
+          this.setInputChanged &&
+          typeof this.setInputChanged === "function"
+        ) {
+          this.setInputChanged(this.status);
+        }
+      })
+      .catch(this.alertingErrorHandler())
+      .finally(() => {
+        this._isComputing = false;
+        if (this._recomputeQueued) {
+          this._recomputeQueued = false;
+          // Inputs changed while we were computing; re-evaluate from scratch so
+          // errored/not-ready inputs are handled correctly and a single fresh
+          // compute runs with the latest values.
+          this.onUpstreamChange();
+        }
+      });
   }
 
   /**
