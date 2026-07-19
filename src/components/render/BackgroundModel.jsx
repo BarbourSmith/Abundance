@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
-import * as THREE from "three";
 import { Octokit } from "octokit";
 import GlobalVariables from "../../js/globalvariables.js";
+import { prepareBackgroundModelScene } from "./backgroundModelTransform.js";
 
 /**
  * BackgroundModel component renders a 3D model (GLB/GLTF format) as background context
@@ -57,41 +57,10 @@ export default function BackgroundModel({
         const loader = new GLTFLoader();
         loader.load(url, (gltf) => {
           if (gltf.scene) {
-            const clonedScene = gltf.scene.clone();
-
-            // Scale based on project units (assume model is in meters)
-            let scaleFactor = 1;
-            if (GlobalVariables.topLevelMolecule?.unitsKey === "MM") {
-              scaleFactor = 1000; // meters to millimeters
-            } else if (
-              GlobalVariables.topLevelMolecule?.unitsKey === "Inches"
-            ) {
-              scaleFactor = 39.3701; // meters to inches
-            }
-            clonedScene.scale.set(scaleFactor, scaleFactor, scaleFactor);
-
-            // Center and position the model
-            const box = new THREE.Box3().setFromObject(clonedScene);
-            const center = box.getCenter(new THREE.Vector3());
-            clonedScene.position.set(-center.x, -center.y, -center.z);
-
-            // Rotate 90 degrees around X-axis
-            clonedScene.rotation.x = Math.PI / 2;
-
-            // Position entirely in positive Z-axis, centered in Y
-            const rotatedBox = new THREE.Box3().setFromObject(clonedScene);
-            const minZ = rotatedBox.min.z;
-            const centerY = rotatedBox.getCenter(new THREE.Vector3()).y;
-            clonedScene.position.z -= minZ;
-            clonedScene.position.y -= centerY;
-
-            // Ensure materials are visible
-            clonedScene.traverse((child) => {
-              if (child.material) {
-                child.material.transparent = false;
-                child.material.opacity = 1.0;
-              }
-            });
+            const clonedScene = prepareBackgroundModelScene(
+              gltf.scene,
+              GlobalVariables.topLevelMolecule?.unitsKey,
+            );
 
             setModel(clonedScene);
           }
