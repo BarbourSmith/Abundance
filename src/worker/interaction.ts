@@ -292,8 +292,8 @@ async function fusion(
   if (filteredShapes.length === 0) {
     throw new Error("No shapes provided for fusion");
   }
-  const fuseAssemblyd = await fuseAssembly(filteredShapes[0], context);
-  let fusedGeometry = fuseAssemblyd.geometry;
+  const fusedAssembly = await fuseAssembly(filteredShapes[0], context);
+  let fusedGeometry = fusedAssembly.geometry;
   const bomAssembly = filteredShapes[0].bom
     ? filteredShapes[0].bom.slice()
     : [];
@@ -321,7 +321,7 @@ async function fusion(
     bom: bomAssembly,
     plane: util.XYPlane,
     color: util.defaultColor,
-    dimension: fuseAssemblyd.dimension,
+    dimension: fusedAssembly.dimension,
   };
 }
 
@@ -332,7 +332,7 @@ async function fusion(
  */
 async function assembly(
   geometries: AbundanceObject[],
-  context: RequestContext,
+  context: RequestContext
 ): Promise<AbundanceObject> {
   if (!Array.isArray(geometries) || geometries.length === 0) {
     throw new Error("inputIDs must be a non-empty array");
@@ -347,7 +347,7 @@ async function assembly(
   // Allowed inputs -> all 2d, all 3d, or just wires/points
   const geomType = util.validateMixOfTypes(geometries);
   // Fast return if all points or wires.
-  if (geomType === "Mixable") {
+  if (geomType === "Mixable" || geomType === "Face") {
     return util.assemblyOf(geometries);
   }
 

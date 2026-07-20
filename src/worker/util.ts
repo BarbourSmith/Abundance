@@ -164,17 +164,19 @@ function isWireGeometry(part: AbundanceObject): boolean {
 
 function validateMixOfTypes(
   geometries: AbundanceObject[],
-): "2D" | "3D" | "Mixable" | undefined {
-  const dimensions = geometries.map((geom) => {
-    const dims: Dimension[] = []
-    actOnLeafsSync(geom, (leaf: AbundanceLeaf) => {
-      dims.push(leaf.dimension);
-      return leaf
-    });
-    return dims;
-  }).flat();
+): "2D" | "3D" | "Face" | "Mixable" | undefined {
+  const dimensions = geometries
+    .map((geom) => {
+      const dims: Dimension[] = [];
+      actOnLeafsSync(geom, (leaf: AbundanceLeaf) => {
+        dims.push(leaf.dimension);
+        return leaf;
+      });
+      return dims;
+    })
+    .flat();
   const constraints = dimensions.map((dim) => {
-    if (dim === "Wire" || dim === "Point3D" || dim === "Face") {
+    if (dim === "Wire" || dim === "Point3D") {
       return "Mixable";
     }
     return dim;
@@ -182,7 +184,7 @@ function validateMixOfTypes(
   const uniqConst = new Set(constraints);
   if (!(uniqConst.size === 1)) {
     throw new Error(
-      "Input geometries must be all 2D, all 3D, or mix of faces/wires/points. Found: " +
+      "Input geometries must be all 2D, all 3D, all Faces, or mix of wires/points. Found: " +
         dimensions.join(", "),
     );
   }
