@@ -24,21 +24,40 @@ async function extrude(
     throw new Error("Cannot extrude a Point3D.");
   }
   await util.init();
-  return util.actOnLeafs(toExtrude, async (leaf: AbundanceLeaf) => {
-    const transformed = {
-      ...leaf,
-      geometry: await util.geometryProvider!.extrude(
-        leaf.geometry,
-        leaf.plane,
-        height,
-        context,
-      ),
-      dimension: "3D",
-    };
-    // Delete boundingBox - extrude creates entirely new geometry with different bounds
-    delete transformed.boundingBox;
-    return transformed;
-  });
+  if (util.is2D(toExtrude)) {
+    return util.actOnLeafs(toExtrude, async (leaf: AbundanceLeaf) => {
+      const transformed = {
+        ...leaf,
+        geometry: await util.geometryProvider!.extrude(
+          leaf.geometry,
+          leaf.plane,
+          height,
+          context,
+        ),
+        dimension: "3D",
+      };
+      // Delete boundingBox - extrude creates entirely new geometry with different bounds
+      delete transformed.boundingBox;
+      return transformed;
+    });
+  } else if (util.isFace(toExtrude)) {
+    return util.actOnLeafs(toExtrude, async (leaf: AbundanceLeaf) => {
+      const transformed = {
+        ...leaf,
+        geometry: await util.geometryProvider!.extrudeFace(
+          leaf.geometry,
+          height,
+          context,
+        ),
+        dimension: "3D",
+      };
+      // Delete boundingBox - extrude creates entirely new geometry with different bounds
+      delete transformed.boundingBox;
+      return transformed;
+    });
+  } else {
+    throw new Error("Unknown Geometry Type: " + toExtrude.dimension);
+  }
 }
 
 function handleNonReplicadMove(

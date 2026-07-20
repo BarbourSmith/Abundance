@@ -21,7 +21,8 @@ type ReplicadObject =
   | replicad.Shape3D
   | replicad.Drawing
   | replicad.Wire
-  | replicad.Vertex;
+  | replicad.Vertex
+  | replicad.Face;
 
 type RequestContext = {
   project: string;
@@ -464,6 +465,35 @@ class GeometryProvider {
     return extrudedId;
   }
 
+  /**
+   * Extrudes a 2D shape into a 3D volume.
+   * @param inputId - The ID of the 2D geometry to extrude
+   * @param plane - The plane to sketch the shape on
+   * @param height - The height of the extrusion
+   * @returns The ID of the created extruded geometry
+   */
+  async extrudeFace(
+    inputId: string,
+    height: number,
+    context: RequestContext,
+  ): Promise<string> {
+    const extrudedId = this._makeId("extrudeFace", inputId, height);
+    await this.createIfAbsent(extrudedId, context, async () => {
+      const geometry = (await this.get(inputId, context)) as replicad.Face;
+      const midpoint = [
+        geometry.UVBounds.uMin + geometry.UVBounds.uMax,
+        geometry.UVBounds.vMin + geometry.UVBounds.vMax,
+      ].map((v) => v / 2) as [number, number];
+      const extVec = geometry.normalAt(midpoint).normalize().multiply(height);
+      const result = replicad.basicFaceExtrusion(geometry, extVec);
+      if (!replicad.isShape3D(result)) {
+        throw new Error("Face Extrude did not produce a Shape3D");
+      }
+      return result;
+    });
+    return extrudedId;
+  }
+
   async move(
     id: string,
     dx: number,
@@ -811,7 +841,9 @@ class GeometryProvider {
     if (existing) {
       // Prevent self-deadlock if a batch tries to start itself again before settling.
       if (context.operationId === batchId) {
-        throw new Error("Batch operation with id " + batchId + " is already in flight");
+        throw new Error(
+          "Batch operation with id " + batchId + " is already in flight",
+        );
       }
       await existing.promise;
       const afterWait = await this.getAssembly(batchId, context);
@@ -1003,7 +1035,8 @@ class GeometryProvider {
           ? (await this._getAsPoint(endPoint, context)).asTuple()
           : undefined,
       };
-      return replicad.loft(wires, config);
+      const result = replicad.loft(wires, config);
+      return result;
     });
     return loftId;
   }
