@@ -74,13 +74,14 @@ declare global {
        */
       metadata?: Record<string, any>;
       /**
-       * Selection state set by a `partselect` Input atom. Present on leaf nodes
-       * only; `undefined` on branches and on assemblies that have not passed
-       * through a partselect input.
+       * Selection state set by a `partselect`, `edgeselect`, or `faceselect` Input
+       * atom. Present on leaf nodes only; `undefined` on branches and on
+       * assemblies that have not passed through a selection input.
        */
       selection?: {
-          type: 'part';
-          selected: boolean;
+          part?: boolean;
+          edges?: number[];
+          faces?: number[];
       };
       constructor(other?: Partial<Assembly>);
       /**
@@ -103,6 +104,22 @@ declare global {
        * ```
        */
       getSelectedLeafs(): Assembly[];
+      /**
+       * Returns all leaf nodes that have at least one selected edge, along with
+       * their selected edge IDs.
+       */
+      getSelectedEdges(): Array<{
+          leaf: Assembly;
+          edgeIds: number[];
+      }>;
+      /**
+       * Returns all leaf nodes that have at least one selected face, along with
+       * their selected face IDs.
+       */
+      getSelectedFaces(): Array<{
+          leaf: Assembly;
+          faceIds: number[];
+      }>;
       onLeafs(fn: (leaf: Assembly<LeafGeom>) => Assembly<LeafGeom> | null): Assembly | null;
       /**
        * True when this assembly is (or contains, for branches) 2D geometry —

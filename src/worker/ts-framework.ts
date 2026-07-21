@@ -73,11 +73,15 @@ export class Assembly<G = any> {
    */
   metadata?: Record<string, any>;
   /**
-   * Selection state set by a `partselect` Input atom. Present on leaf nodes
-   * only; `undefined` on branches and on assemblies that have not passed
-   * through a partselect input.
+   * Selection state set by a `partselect`, `edgeselect`, or `faceselect` Input
+   * atom. Present on leaf nodes only; `undefined` on branches and on
+   * assemblies that have not passed through a selection input.
    */
-  selection?: { type: 'part'; selected: boolean };
+  selection?: {
+    part?: boolean;
+    edges?: number[]; // selected edge indexes (0-based position in edgeGroups)
+    faces?: number[]; // selected face indexes (0-based position in faceGroups)
+  };
 
   constructor(other?: Partial<Assembly>) {
     if (other) {
@@ -129,8 +133,48 @@ export class Assembly<G = any> {
     const result: Assembly[] = [];
     const collect = (node: Assembly) => {
       if (!Array.isArray(node.geometry)) {
-        if (node.selection?.type === 'part' && node.selection.selected) {
+        if (node.selection?.part === true) {
           result.push(node);
+        }
+      } else {
+        (node.geometry as Assembly[]).forEach(collect);
+      }
+    };
+    collect(this);
+    return result;
+  }
+
+  /**
+   * Returns all leaf nodes that have at least one selected edge, along with
+   * their selected edge IDs.
+   */
+  getSelectedEdges(): Array<{ leaf: Assembly; edgeIds: number[] }> {
+    const result: Array<{ leaf: Assembly; edgeIds: number[] }> = [];
+    const collect = (node: Assembly) => {
+      if (!Array.isArray(node.geometry)) {
+        const edges = node.selection?.edges;
+        if (edges && edges.length > 0) {
+          result.push({ leaf: node, edgeIds: edges });
+        }
+      } else {
+        (node.geometry as Assembly[]).forEach(collect);
+      }
+    };
+    collect(this);
+    return result;
+  }
+
+  /**
+   * Returns all leaf nodes that have at least one selected face, along with
+   * their selected face IDs.
+   */
+  getSelectedFaces(): Array<{ leaf: Assembly; faceIds: number[] }> {
+    const result: Array<{ leaf: Assembly; faceIds: number[] }> = [];
+    const collect = (node: Assembly) => {
+      if (!Array.isArray(node.geometry)) {
+        const faces = node.selection?.faces;
+        if (faces && faces.length > 0) {
+          result.push({ leaf: node, faceIds: faces });
         }
       } else {
         (node.geometry as Assembly[]).forEach(collect);

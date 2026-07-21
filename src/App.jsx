@@ -578,6 +578,7 @@ function AppContent() {
       filteredMeshCache.current.clear(); // Clear mesh cache when resetting view
     };
     GlobalVariables.setSelectionModeAtom = setSelectionModeAtom;
+    GlobalVariables.setOutdatedMesh = setOutdatedMesh;
     GlobalVariables._bumpSelectionVersion = setSelectionVersion;
     GlobalVariables.writeToDisplay = (
       moleculeValue,

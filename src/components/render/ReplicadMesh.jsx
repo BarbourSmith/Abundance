@@ -26,7 +26,7 @@ import { useRendering } from "../../contexts/index.js";
 
 export default React.memo(
   forwardRef(function ShapeMeshes({ isSolid, cameraZoom, setProcessing }, ref) {
-    const { mesh, setOutdatedMesh, plane, selectionModeAtom } = useRendering();
+    const { mesh, setOutdatedMesh, plane, selectionModeAtom, selectionVersion } = useRendering();
     const { invalidate } = useThree();
 
     const [fullMesh, setFullMesh] = useState([]);
@@ -88,6 +88,8 @@ export default React.memo(
             solid: false,
             isWire: isWireType,
             hasVertexColors: !!m.vertexColors,
+            rawFaces: m.faces || null,
+            rawEdges: m.edges || null,
           });
         } else {
           meshArray.push({
@@ -97,6 +99,8 @@ export default React.memo(
             solid: isSolid,
             isWire: isWireType,
             hasVertexColors: !!m.vertexColors,
+            rawFaces: m.faces || null,
+            rawEdges: m.edges || null,
           });
         }
       });
@@ -347,10 +351,53 @@ export default React.memo(
       <>
         {fullMesh.map((m, index) => {
           const isInSelectionMode = selectionModeAtom != null;
-          const isSelected =
-            isInSelectionMode &&
+          const selectionType = selectionModeAtom?.type;
+
+          // Part selection: dim unselected, full opacity for selected
+          const isPartMode = isInSelectionMode && selectionType === "partselect";
+          const isPartSelected =
+            isPartMode &&
+            selectionVersion >= 0 &&
             selectionModeAtom.selectedLeafIndexes.includes(index);
-          const selectionOpacity = isSelected ? 1.0 : 0.2;
+          const partOpacity = isPartMode ? (isPartSelected ? 1.0 : 0.2) : 1.0;
+
+          // Edge/face modes read selected IDs for this leaf
+          const isEdgeMode = isInSelectionMode && selectionType === "edgeselect";
+          const isFaceMode = isInSelectionMode && selectionType === "faceselect";
+          const selectedEdgeIds =
+            isEdgeMode && selectionVersion >= 0
+              ? selectionModeAtom.selectedEdgeData?.[index] || []
+              : [];
+          const selectedFaceIds =
+            isFaceMode && selectionVersion >= 0
+              ? selectionModeAtom.selectedFaceData?.[index] || []
+              : [];
+
+          // Per-element meshes loaded asynchronously by enterSelectionMode.
+          // When ready, render one mesh per topological face / edge so
+          // clicks map directly to shape.faces[i] / shape.edges[i].
+          const perElement = selectionModeAtom?._perElementMeshes?.[index];
+
+          // Build per-face BufferGeometries when in face-select mode
+          const perFaceGeoms =
+            isFaceMode && Array.isArray(perElement)
+              ? perElement.map((entry) => {
+                  const g = new BufferGeometry();
+                  syncFaces(g, entry.faces);
+                  return { index: entry.index, geom: g };
+                })
+              : null;
+
+          // Build per-edge BufferGeometries when in edge-select mode
+          const perEdgeGeoms =
+            isEdgeMode && Array.isArray(perElement)
+              ? perElement.map((entry) => {
+                  const g = new BufferGeometry();
+                  syncLines(g, entry.edges);
+                  return { index: entry.index, geom: g };
+                })
+              : null;
+
           return (
             <group key={index}>
               {m.pointPosition ? (
@@ -386,16 +433,67 @@ export default React.memo(
               ) : (
                 // Normal solid / 2D geometry
                 <>
-                  {!isSolid ? (
-                    <mesh
-                      geometry={m.body}
-                      key={"mesh" + index}
-                      onPointerDown={
-                        isInSelectionMode
-                          ? (e) => {
+                  {isFaceMode && perFaceGeoms ? (
+                    // Face select mode with per-element meshes loaded:
+                    // Render one mesh per topological face. Selected → opaque,
+                    // unselected → translucent. Two-sided so back-faces are visible.
+                    <>
+                      {perFaceGeoms.map(({ index: faceIdx, geom }) => {
+                        const sel = selectedFaceIds.includes(faceIdx);
+                        return (
+                          <mesh
+                            key={"face" + index + "-" + faceIdx}
+                            geometry={geom}
+                            onPointerDown={(e) => {
                               e.stopPropagation();
-                              selectionModeAtom.toggleLeafIndex(index);
-                            }
+                              selectionModeAtom.toggleFaceForLeaf(index, faceIdx);
+                            }}
+                          >
+                            <meshMatcapMaterial
+                              color={sel ? "#ffdd00" : m.color}
+                              side={DoubleSide}
+                              transparent={true}
+                              opacity={sel ? 1.0 : 0.25}
+                              polygonOffset
+                              polygonOffsetFactor={2.0}
+                              polygonOffsetUnits={1.0}
+                            />
+                          </mesh>
+                        );
+                      })}
+                      {/* Show edge wireframe for topology reference */}
+                      <lineSegments key={"lines-facemode" + index} geometry={m.lines}>
+                        <lineBasicMaterial color={"#3c5a6e"} />
+                      </lineSegments>
+                    </>
+                  ) : isEdgeMode && perEdgeGeoms ? (
+                    // Edge select mode with per-element meshes: wireframe only,
+                    // each edge is its own lineSegments, selected → yellow, else black.
+                    <>
+                      {perEdgeGeoms.map(({ index: edgeIdx, geom }) => {
+                        const sel = selectedEdgeIds.includes(edgeIdx);
+                        return (
+                          <lineSegments
+                            key={"edge" + index + "-" + edgeIdx}
+                            geometry={geom}
+                            onPointerDown={(e) => {
+                              e.stopPropagation();
+                              selectionModeAtom.toggleEdgeForLeaf(index, edgeIdx);
+                            }}
+                          >
+                            <lineBasicMaterial
+                              color={sel ? "#ffdd00" : "#000000"}
+                              linewidth={sel ? 3 : 1}
+                            />
+                          </lineSegments>
+                        );
+                      })}
+                    </>
+                  ) : !isSolid ? (
+                    <mesh geometry={m.body} key={"mesh" + index}
+                      onPointerDown={
+                        isPartMode
+                          ? (e) => { e.stopPropagation(); selectionModeAtom.toggleLeafIndex(index); }
                           : undefined
                       }
                     >
@@ -406,8 +504,7 @@ export default React.memo(
                           vertexColors
                           side={DoubleSide}
                           transparent={true}
-                          opacity={isInSelectionMode ? selectionOpacity : 1}
-                         // depthWrite={isInSelectionMode ? false : true}
+                          opacity={isPartMode ? partOpacity : 1}
                           polygonOffset
                           polygonOffsetFactor={2.0}
                           polygonOffsetUnits={1.0}
@@ -417,8 +514,7 @@ export default React.memo(
                           color={m.color}
                           key={"material" + index}
                           transparent={true}
-                          opacity={isInSelectionMode ? selectionOpacity : 1}
-                       //   depthWrite={isInSelectionMode ? false : true}
+                          opacity={isPartMode ? partOpacity : 1}
                           polygonOffset
                           polygonOffsetFactor={2.0}
                           polygonOffsetUnits={1.0}
@@ -427,7 +523,7 @@ export default React.memo(
                         <meshPhysicalMaterial
                           color={m.color}
                           transparent={true}
-                          opacity={isInSelectionMode ? selectionOpacity * 0.5 : 0.5}
+                          opacity={isPartMode ? partOpacity * 0.5 : 0.5}
                           transmission={0.6}
                           roughness={0}
                           metalness={0}
@@ -439,7 +535,7 @@ export default React.memo(
                         <meshBasicMaterial
                           geometry={m.body}
                           transparent={true}
-                          opacity={isInSelectionMode ? selectionOpacity * 0.3 : 0.3}
+                          opacity={isPartMode ? partOpacity * 0.3 : 0.3}
                           color={m.color}
                         >
                           <Wireframe geometry={m.body} {...wireframeProps} />
@@ -456,17 +552,15 @@ export default React.memo(
                       <Wireframe geometry={m.body} {...wireframeProps} />
                     </meshBasicMaterial>
                   )}
-                  <lineSegments
-                    key={"lines" + m.color}
-                    geometry={m.lines}
-                  ></lineSegments>
-                  <lineSegments key={"linesmesh" + m.color} geometry={m.lines}>
-                    <lineBasicMaterial
-                      color={"#3c5a6e"}
-                      opacity={"1"}
-                      linewidth={8}
-                    />
-                  </lineSegments>
+                  {/* Normal edge lines when not in face/edge select modes */}
+                  {!isFaceMode && !isEdgeMode && (
+                    <>
+                      <lineSegments key={"lines" + index} geometry={m.lines} />
+                      <lineSegments key={"linesmesh" + index} geometry={m.lines}>
+                        <lineBasicMaterial color={"#3c5a6e"} opacity={"1"} linewidth={8} />
+                      </lineSegments>
+                    </>
+                  )}
                 </>
               )}
             </group>
