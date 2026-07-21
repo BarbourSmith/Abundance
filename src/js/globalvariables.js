@@ -310,6 +310,13 @@ class GlobalVariables {
     this.idCounter = 1;
 
     /**
+     * The Input atom currently in part-selection mode, or null.
+     * Set via enterSelectionMode() / exitSelectionMode().
+     * @type {object|null}
+     */
+    this.selectionModeAtom = null;
+
+    /**
      * A ring buffer of recent console errors captured for debugging.
      * Stores up to 50 entries, each with a timestamp and message string.
      * @type {Array<{timestamp: string, message: string}>}
@@ -330,7 +337,10 @@ class GlobalVariables {
             }
           })
           .join(" ");
-        self.recentErrors.push({ timestamp: new Date().toISOString(), message });
+        self.recentErrors.push({
+          timestamp: new Date().toISOString(),
+          message,
+        });
         if (self.recentErrors.length > 50) {
           self.recentErrors.shift();
         }
@@ -515,6 +525,64 @@ class GlobalVariables {
    */
   resetView() {
     // Placeholder function - implementation is set in App.jsx
+  }
+
+  /**
+   * Enter part-selection mode for a partselect Input atom.
+   * The React setter is wired in by App.jsx on mount.
+   * @param {object} inputAtom - The Input atom instance entering selection mode
+   */
+  enterSelectionMode(inputAtom) {
+    this.selectionModeAtom = inputAtom;
+    if (typeof this.setSelectionModeAtom === "function") {
+      this.setSelectionModeAtom(inputAtom);
+    }
+    // Push the raw connected geometry to the renderer so the user sees
+    // exactly the assembly they are selecting parts from
+    const rawGeom = inputAtom.parentAP?.getState().value;
+    if (rawGeom && typeof this.writeToDisplay === "function") {
+      this.writeToDisplay(rawGeom, inputAtom.getContext());
+    }
+  }
+
+  /**
+   * Exit part-selection mode.
+   */
+  exitSelectionMode() {
+    const prev = this.selectionModeAtom;
+    this.selectionModeAtom = null;
+    if (typeof this.setSelectionModeAtom === "function") {
+      this.setSelectionModeAtom(null);
+    }
+    // Now propagate the final selection downstream
+    if (prev && typeof prev.onUpstreamChange === "function") {
+      prev.onUpstreamChange();
+    }
+    // Restore the molecule's rendered output
+    if (prev?.parent && typeof prev.parent.sendToRender === "function") {
+      prev.parent.sendToRender();
+    }
+    // Refresh the control panel so the button label reverts to "Select Parts"
+    if (prev && typeof prev.setInputChanged === "function") {
+      prev.setInputChanged(String(Date.now()));
+    }
+  }
+
+  /**
+   * Placeholder wired by App.jsx — call enterSelectionMode / exitSelectionMode instead.
+   */
+  setSelectionModeAtom(atom) {
+    // Placeholder function - implementation is set in App.jsx
+  }
+
+  /**
+   * Notify React that the part selection has changed, triggering a re-render.
+   * Wired by App.jsx on mount.
+   */
+  bumpSelectionVersion() {
+    if (typeof this._bumpSelectionVersion === "function") {
+      this._bumpSelectionVersion((v) => v + 1);
+    }
   }
 
   /**
@@ -929,9 +997,7 @@ class GlobalVariables {
         isLoading: this.projectIsLoading,
         totalAtomCount: this.totalAtomCount,
         pendingAtomCount: this.numberOfAtomsToLoad,
-        loadElapsedMs: this.startTime
-          ? Date.now() - this.startTime
-          : null,
+        loadElapsedMs: this.startTime ? Date.now() - this.startTime : null,
         topLevelMoleculeStatus: (topMol ?? currentMol)?.status ?? null,
         completion: (() => {
           const mol = topMol ?? currentMol;
@@ -1007,9 +1073,7 @@ class GlobalVariables {
       report.browser = { userAgent: navigator.userAgent };
       if (typeof performance !== "undefined" && performance.memory) {
         report.browser.memoryMB = {
-          usedJSHeap: Math.round(
-            performance.memory.usedJSHeapSize / 1_048_576,
-          ),
+          usedJSHeap: Math.round(performance.memory.usedJSHeapSize / 1_048_576),
           totalJSHeap: Math.round(
             performance.memory.totalJSHeapSize / 1_048_576,
           ),

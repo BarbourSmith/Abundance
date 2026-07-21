@@ -77,6 +77,12 @@ export default class Input extends Atom {
     this.localFileContent = null;
 
     /**
+     * Leaf indexes selected in partselect mode.
+     * @type {number[]}
+     */
+    this.selectedLeafIndexes = [];
+
+    /**
      * Flag indicating if the name text is currently truncated
      * @type {boolean}
      */
@@ -101,8 +107,11 @@ export default class Input extends Atom {
       this.importIndex = this.importOptions.indexOf(this.fileType);
     }
 
-    // Determine the output valueType (import type outputs geometry)
-    const outputValueType = this.type === "import" ? "geometry" : this.type;
+    // Determine the output valueType (import and partselect types output geometry)
+    const outputValueType =
+      this.type === "import" || this.type === "partselect"
+        ? "geometry"
+        : this.type;
     this.addIO("number or geometry", outputValueType, this.value, "output");
 
     /**
@@ -128,12 +137,20 @@ export default class Input extends Atom {
               SVGwidth: this.SVGwidth,
               inputAtom: this, // Reference to the Input atom for file operations
             }
-          : this.options;
+          : this.type === "partselect"
+            ? {
+                ...this.options,
+                partSelectType: true,
+                inputAtom: this, // Reference to the Input atom for selection operations
+              }
+            : this.options;
 
       // parent should subscribe so it can manage it's ready/processing/etc state
       this.parentAP = this.parent.addIO(
         this.name,
-        this.type === "import" ? "geometry" : this.type,
+        this.type === "import" || this.type === "partselect"
+          ? "geometry"
+          : this.type,
         this.value,
         "input",
         inputOptions,
@@ -317,6 +334,22 @@ export default class Input extends Atom {
         return;
       }
 
+      // For partselect type, transform the incoming geometry with selection flags
+      if (this.type === "partselect") {
+        console.log(this.selectedLeafIndexes);
+        if (parentState.status === Status.READY && parentState.value != null) {
+          const transformed = this.applyPartSelection(
+            parentState.value,
+            this.selectedLeafIndexes,
+          );
+          this.setReady(transformed);
+          this.value = transformed;
+        } else {
+          this.setWaiting();
+        }
+        return;
+      }
+
       this.setStatus(parentState.status, parentState.value);
 
       // Update our internal value if status is READY
@@ -359,6 +392,56 @@ export default class Input extends Atom {
       typeof this.parent.propagateInputChange === "function"
     ) {
       this.parent.propagateInputChange(this.name);
+    }
+  }
+
+  /**
+   * Walk an AbundanceObject tree in the same order as flattenAssembly,
+   * stamping selection flags onto leaf nodes.
+   * @param {object} node - AbundanceObject (branch or leaf)
+   * @param {number[]} selectedIndexes - Leaf indexes that are selected
+   * @returns {{ node: object, counter: number }}
+   */
+  applyPartSelection(assembly, selectedIndexes) {
+    let leafCounter = 0;
+    const walk = (node) => {
+      if (!Array.isArray(node.geometry)) {
+        // Leaf node
+        const selected = selectedIndexes.includes(leafCounter);
+        leafCounter++;
+        return { ...node, selection: { type: "part", selected } };
+      } else {
+        // Branch node
+        return {
+          ...node,
+          geometry: node.geometry.map((child) => walk(child)),
+        };
+      }
+    };
+    return walk(assembly);
+  }
+
+  /**
+   * Toggle a leaf index in the partselect selection, then recompute the output.
+   * @param {number} index - Leaf index from the flat render array
+   */
+  toggleLeafIndex(index) {
+    console.log("Toggling leaf index:", index);
+    console.log("Current selected leaf indexes:", this.selectedLeafIndexes);
+    const idx = this.selectedLeafIndexes.indexOf(index);
+    if (idx === -1) {
+      this.selectedLeafIndexes = [...this.selectedLeafIndexes, index];
+    } else {
+      this.selectedLeafIndexes = this.selectedLeafIndexes.filter(
+        (i) => i !== index,
+      );
+    }
+    // Don't propagate downstream yet — only update the 3D highlight and panel count.
+    // The final selection is propagated when the user clicks Done (exitSelectionMode).
+    GlobalVariables.bumpSelectionVersion();
+    // Refresh the control panel so the selection count updates
+    if (this.parent && typeof this.parent.setInputChanged === "function") {
+      this.parent.setInputChanged(String(Date.now()));
     }
   }
 
@@ -987,6 +1070,16 @@ export default class Input extends Atom {
   /**
    * Update the parent attachment point's options with current import metadata
    */
+  updateParentAPPartSelectOptions() {
+    if (this.parentAP && this.type === "partselect") {
+      this.parentAP.options = {
+        ...this.parentAP.options,
+        partSelectType: true,
+        inputAtom: this,
+      };
+    }
+  }
+
   updateParentAPOptions() {
     if (this.parentAP && this.type === "import") {
       this.parentAP.options = {
@@ -1073,6 +1166,7 @@ export default class Input extends Atom {
         "range",
         "point3d",
         "import",
+        "partselect",
       ],
       onChange: (newType) => {
         if (this.type !== newType) {
@@ -1106,20 +1200,32 @@ export default class Input extends Atom {
             );
           }
           this.type = newType;
-          // Import type should output geometry
-          const outputType = newType === "import" ? "geometry" : newType;
+          // Import and partselect types should output geometry
+          const outputType =
+            newType === "import" || newType === "partselect"
+              ? "geometry"
+              : newType;
           this.output.valueType = outputType;
 
           //Add a new input to the current molecule
           if (this.parentAP) {
             this.parentAP.valueType = outputType;
-            // Update parent AP options if switching to/from import type
+            // Update parent AP options if switching to/from import or partselect type
             if (newType === "import") {
               this.updateParentAPOptions();
-            } else if (this.parentAP.options?.importType) {
-              // Clear import metadata if switching away from import type
+            } else if (newType === "partselect") {
+              this.updateParentAPPartSelectOptions();
+            } else if (
+              this.parentAP.options?.importType ||
+              this.parentAP.options?.partSelectType
+            ) {
+              // Clear import/partselect metadata if switching away
               this.parentAP.options = {};
             }
+          }
+          // Reset partselect state when switching away from partselect
+          if (newType !== "partselect") {
+            this.selectedLeafIndexes = [];
           }
         }
       },
@@ -1307,6 +1413,7 @@ export default class Input extends Atom {
         },
       };
     }
+
     return inputParams;
   }
 
@@ -1346,6 +1453,11 @@ export default class Input extends Atom {
       superSerialObject.repoOwner = this.repoOwner;
       superSerialObject.repoName = this.repoName;
       superSerialObject.SVGwidth = this.SVGwidth;
+    }
+
+    // Save selected leaf indexes if type is partselect
+    if (this.type === "partselect") {
+      superSerialObject.selectedLeafIndexes = this.selectedLeafIndexes;
     }
 
     return superSerialObject;

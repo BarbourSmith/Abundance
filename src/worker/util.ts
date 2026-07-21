@@ -106,6 +106,7 @@ interface AbundanceLeaf {
   nonReplicadSerialized?: any;
   boundingBox?: AbundanceBounds;
   metadata?: Record<string, any>;
+  selection?: { type: "part"; selected: boolean };
 }
 
 function dimensionLabel(geom: any): Dimension {

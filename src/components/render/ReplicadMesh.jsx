@@ -26,7 +26,7 @@ import { useRendering } from "../../contexts/index.js";
 
 export default React.memo(
   forwardRef(function ShapeMeshes({ isSolid, cameraZoom, setProcessing }, ref) {
-    const { mesh, setOutdatedMesh, plane } = useRendering();
+    const { mesh, setOutdatedMesh, plane, selectionModeAtom } = useRendering();
     const { invalidate } = useThree();
 
     const [fullMesh, setFullMesh] = useState([]);
@@ -346,8 +346,13 @@ export default React.memo(
     return (
       <>
         {fullMesh.map((m, index) => {
+          const isInSelectionMode = selectionModeAtom != null;
+          const isSelected =
+            isInSelectionMode &&
+            selectionModeAtom.selectedLeafIndexes.includes(index);
+          const selectionOpacity = isSelected ? 1.0 : 0.2;
           return (
-            <group key={"group" + m.color + index}>
+            <group key={index}>
               {m.pointPosition ? (
                 // Point3D — render as a fixed screen-space sprite point
                 <points key={"point" + JSON.stringify(m.pointPosition) + index}>
@@ -382,13 +387,27 @@ export default React.memo(
                 // Normal solid / 2D geometry
                 <>
                   {!isSolid ? (
-                    <mesh geometry={m.body} key={"mesh" + m.color}>
+                    <mesh
+                      geometry={m.body}
+                      key={"mesh" + index}
+                      onPointerDown={
+                        isInSelectionMode
+                          ? (e) => {
+                              e.stopPropagation();
+                              selectionModeAtom.toggleLeafIndex(index);
+                            }
+                          : undefined
+                      }
+                    >
                       {/*the offsets are here to avoid z fighting between the mesh and the lines*/}
                       {m.hasVertexColors ? (
                         <meshBasicMaterial
-                          key={"material-heatmap" + m.color}
+                          key={"material-heatmap" + index}
                           vertexColors
                           side={DoubleSide}
+                          transparent={true}
+                          opacity={isInSelectionMode ? selectionOpacity : 1}
+                         // depthWrite={isInSelectionMode ? false : true}
                           polygonOffset
                           polygonOffsetFactor={2.0}
                           polygonOffsetUnits={1.0}
@@ -396,7 +415,10 @@ export default React.memo(
                       ) : m.color != "#D9544D" && m.color != "#E6F3FF" ? (
                         <meshMatcapMaterial
                           color={m.color}
-                          key={"material" + m.color}
+                          key={"material" + index}
+                          transparent={true}
+                          opacity={isInSelectionMode ? selectionOpacity : 1}
+                       //   depthWrite={isInSelectionMode ? false : true}
                           polygonOffset
                           polygonOffsetFactor={2.0}
                           polygonOffsetUnits={1.0}
@@ -405,7 +427,7 @@ export default React.memo(
                         <meshPhysicalMaterial
                           color={m.color}
                           transparent={true}
-                          opacity={0.5}
+                          opacity={isInSelectionMode ? selectionOpacity * 0.5 : 0.5}
                           transmission={0.6}
                           roughness={0}
                           metalness={0}
@@ -417,7 +439,7 @@ export default React.memo(
                         <meshBasicMaterial
                           geometry={m.body}
                           transparent={true}
-                          opacity={0.3}
+                          opacity={isInSelectionMode ? selectionOpacity * 0.3 : 0.3}
                           color={m.color}
                         >
                           <Wireframe geometry={m.body} {...wireframeProps} />
