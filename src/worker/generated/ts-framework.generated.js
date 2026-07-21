@@ -25,12 +25,19 @@ export function makeAbundanceFramework(replicad) {
        * other atoms' payloads.
        */
       __publicField(this, "metadata");
+      /**
+       * Selection state set by a `partselect` Input atom. Present on leaf nodes
+       * only; `undefined` on branches and on assemblies that have not passed
+       * through a partselect input.
+       */
+      __publicField(this, "selection");
       if (other) {
         this.color = other.color ?? this.color;
         this.tags = other.tags?.slice() ?? this.tags;
         this.bom = other.bom?.slice() ?? this.bom;
         this.plane = other.plane?.clone() ?? this.plane;
         if (other.metadata !== void 0) this.metadata = other.metadata;
+        if (other.selection !== void 0) this.selection = other.selection;
         if (other && other.isLeaf && other.isLeaf()) {
           this.geometry = other.geometry.clone();
         } else if (other && Array.isArray(other.geometry)) {
@@ -49,6 +56,33 @@ export function makeAbundanceFramework(replicad) {
      */
     isLeaf() {
       return !Array.isArray(this.geometry);
+    }
+    /**
+     * Returns all leaf nodes in this assembly (depth-first) where a
+     * `partselect` input has marked the part as selected.
+     *
+     * Example:
+     * ```js
+     * const parts = myAssembly.getSelectedLeafs();
+     * parts.forEach(leaf => {
+     *   // leaf.geometry is the replicad shape
+     *   // leaf.color, leaf.tags, etc. are available
+     * });
+     * ```
+     */
+    getSelectedLeafs() {
+      const result = [];
+      const collect = (node) => {
+        if (!Array.isArray(node.geometry)) {
+          if (node.selection?.type === "part" && node.selection.selected) {
+            result.push(node);
+          }
+        } else {
+          node.geometry.forEach(collect);
+        }
+      };
+      collect(this);
+      return result;
     }
     // Apply function to all leafs in this assembly. Modifies this Assembly
     // in place. If fn returns null that leaf is dropped from the assembly.
