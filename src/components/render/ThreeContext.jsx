@@ -68,6 +68,7 @@ export default function ext({ children, cameraZoom, ...otherProps }) {
         dpr={dpr}
         frameloop="always"
         shadows={true}
+        raycaster={{ params: { Line: { threshold: 0.02 } } }}
         onCreated={({ scene, camera, gl }) => {
           // Canvas initialization complete
         }}
