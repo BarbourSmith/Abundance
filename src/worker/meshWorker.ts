@@ -401,10 +401,7 @@ async function generatePerFaceMeshes(
         const mesh = face.mesh({ tolerance: 0.1, angularTolerance: 0.5 });
         faceMeshes.push({ index: faceIdx, faces: mesh });
       } catch (e) {
-        console.error(
-          `Error meshing face ${faceIdx} of leaf ${leafIndex}:`,
-          e,
-        );
+        console.error(`Error meshing face ${faceIdx} of leaf ${leafIndex}:`, e);
       }
     });
     result[leafIndex] = faceMeshes;
@@ -454,10 +451,7 @@ async function generatePerEdgeMeshes(
         });
         edgeMeshes.push({ index: edgeIdx, edges: meshed });
       } catch (e) {
-        console.error(
-          `Error meshing edge ${edgeIdx} of leaf ${leafIndex}:`,
-          e,
-        );
+        console.error(`Error meshing edge ${edgeIdx} of leaf ${leafIndex}:`, e);
       }
     });
     result[leafIndex] = edgeMeshes;

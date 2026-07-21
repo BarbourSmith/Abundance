@@ -467,8 +467,10 @@ export default React.memo(
                       </lineSegments>
                     </>
                   ) : isEdgeMode && perEdgeGeoms ? (
-                    // Edge select mode with per-element meshes: wireframe only,
-                    // each edge is its own lineSegments, selected → yellow, else black.
+                    // Edge select mode: wireframe only, each edge is its own
+                    // <lineSegments>, selected → yellow, else black.
+                    // On click, toggle ALL edges within pointer tolerance so
+                    // overlapping edges (shared between adjacent leaves) both flip.
                     <>
                       {perEdgeGeoms.map(({ index: edgeIdx, geom }) => {
                         const sel = selectedEdgeIds.includes(edgeIdx);
@@ -476,9 +478,33 @@ export default React.memo(
                           <lineSegments
                             key={"edge" + index + "-" + edgeIdx}
                             geometry={geom}
+                            userData={{
+                              abundanceEdge: true,
+                              leafIndex: index,
+                              edgeIdx,
+                            }}
                             onPointerDown={(e) => {
+                              const pxTolerance = 2;
+                              const worldTolerance = e.camera?.zoom
+                                ? pxTolerance / e.camera.zoom
+                                : 1;
+                              // Find all edge hits within tolerance across the
+                              // scene so overlapping edges from adjacent leaves
+                              // both toggle on a single click.
+                              const hits = e.intersections || [];
+                              if (hits.length === 0) return;
                               e.stopPropagation();
-                              selectionModeAtom.toggleEdgeForLeaf(index, edgeIdx);
+                              const seen = new Set();
+                              hits.forEach((int) => {
+                                const meta = int.object.userData;
+                                const key = meta.leafIndex + ":" + meta.edgeIdx;
+                                if (seen.has(key)) return;
+                                seen.add(key);
+                                selectionModeAtom.toggleEdgeForLeaf(
+                                  meta.leafIndex,
+                                  meta.edgeIdx,
+                                );
+                              });
                             }}
                           >
                             <lineBasicMaterial
