@@ -358,6 +358,115 @@ async function generateDisplayMesh(
   }
 }
 
+/**
+ * Generate one mesh per topological Face of each leaf shape, keyed by
+ * leaf index. Used by faceselect mode so that clicking a rendered mesh
+ * directly identifies which `shape.faces[i]` was picked (as opposed to
+ * relying on faceGroups inside a combined mesh).
+ *
+ * Returns `{ [leafIndex]: Array<{ index: number; faces: ShapeMesh }> }`.
+ */
+async function generatePerFaceMeshes(
+  id: AbundanceObject,
+  context: RequestContext,
+): Promise<Record<number, { index: number; faces: ShapeMesh }[]>> {
+  await started;
+  const result: Record<number, { index: number; faces: ShapeMesh }[]> = {};
+  if (!util.isAbundanceObject(id) || id.geometry.length === 0) {
+    return result;
+  }
+  const flattened = util.flattenAssembly(id).filter((part) => {
+    return part.geometry !== util.geometryProvider?.EMPTY_SHAPE_SENTINEL;
+  });
+  for (let leafIndex = 0; leafIndex < flattened.length; leafIndex++) {
+    const displayObject = flattened[leafIndex];
+    const shape = await util.geometryProvider!.get(
+      displayObject.geometry,
+      context,
+    );
+    // Only Shape (3D solids, faces) have a `.faces` accessor.
+    if (
+      !shape ||
+      shape instanceof replicad.Vertex ||
+      shape instanceof replicad.Wire ||
+      shape instanceof replicad.Drawing
+    ) {
+      result[leafIndex] = [];
+      continue;
+    }
+    const faces = (shape as replicad.Shape<any>).faces;
+    const faceMeshes: { index: number; faces: ShapeMesh }[] = [];
+    faces.forEach((face, faceIdx) => {
+      try {
+        const mesh = face.mesh({ tolerance: 0.1, angularTolerance: 0.5 });
+        faceMeshes.push({ index: faceIdx, faces: mesh });
+      } catch (e) {
+        console.error(
+          `Error meshing face ${faceIdx} of leaf ${leafIndex}:`,
+          e,
+        );
+      }
+    });
+    result[leafIndex] = faceMeshes;
+  }
+  return result;
+}
+
+/**
+ * Generate one line mesh per topological Edge of each leaf shape, keyed
+ * by leaf index. Used by edgeselect mode.
+ *
+ * Returns `{ [leafIndex]: Array<{ index: number; edges: {lines, edgeGroups} }> }`.
+ */
+async function generatePerEdgeMeshes(
+  id: AbundanceObject,
+  context: RequestContext,
+): Promise<Record<number, { index: number; edges: any }[]>> {
+  await started;
+  const result: Record<number, { index: number; edges: any }[]> = {};
+  if (!util.isAbundanceObject(id) || id.geometry.length === 0) {
+    return result;
+  }
+  const flattened = util.flattenAssembly(id).filter((part) => {
+    return part.geometry !== util.geometryProvider?.EMPTY_SHAPE_SENTINEL;
+  });
+  for (let leafIndex = 0; leafIndex < flattened.length; leafIndex++) {
+    const displayObject = flattened[leafIndex];
+    const shape = await util.geometryProvider!.get(
+      displayObject.geometry,
+      context,
+    );
+    if (
+      !shape ||
+      shape instanceof replicad.Vertex ||
+      shape instanceof replicad.Drawing
+    ) {
+      result[leafIndex] = [];
+      continue;
+    }
+    const edges = (shape as replicad.Shape<any>).edges;
+    const edgeMeshes: { index: number; edges: any }[] = [];
+    edges.forEach((edge, edgeIdx) => {
+      try {
+        const meshed = (edge as any).meshEdges({
+          tolerance: 0.03,
+          angularTolerance: 0.1,
+        });
+        edgeMeshes.push({ index: edgeIdx, edges: meshed });
+      } catch (e) {
+        console.error(
+          `Error meshing edge ${edgeIdx} of leaf ${leafIndex}:`,
+          e,
+        );
+      }
+    });
+    result[leafIndex] = edgeMeshes;
+  }
+  return result;
+}
+
 workerpool.worker({
   generateDisplayMesh: generateDisplayMesh,
+  generatePerFaceMeshes: generatePerFaceMeshes,
+  generatePerEdgeMeshes: generatePerEdgeMeshes,
 });

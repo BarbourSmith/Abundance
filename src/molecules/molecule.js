@@ -1598,7 +1598,7 @@ export default class Molecule extends Atom {
               lastReloadedFromGithubAt: Date.now(),
             };
           }
-
+          // TODO: Tristan debug
           GlobalVariables.currentMolecule
             .placeAtom(
               rawFileWithNewIds,

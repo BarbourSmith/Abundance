@@ -543,6 +543,42 @@ class GlobalVariables {
     if (rawGeom && typeof this.writeToDisplay === "function") {
       this.writeToDisplay(rawGeom, inputAtom.getContext());
     }
+
+    // For edge/face select modes, kick off async per-element mesh generation.
+    // Show outdatedMesh state during the async load so the user gets feedback.
+    if (
+      rawGeom &&
+      (inputAtom.type === "edgeselect" || inputAtom.type === "faceselect") &&
+      this.pool
+    ) {
+      inputAtom._perElementMeshes = null;
+      if (typeof this.setOutdatedMesh === "function") {
+        this.setOutdatedMesh(true);
+      }
+      const workerFn =
+        inputAtom.type === "faceselect"
+          ? "generatePerFaceMeshes"
+          : "generatePerEdgeMeshes";
+      this.pool
+        .proxy()
+        .then((worker) => worker[workerFn](rawGeom, inputAtom.getContext()))
+        .then((meshes) => {
+          // Only apply if still in this selection mode
+          if (this.selectionModeAtom === inputAtom) {
+            inputAtom._perElementMeshes = meshes;
+            if (typeof this.setOutdatedMesh === "function") {
+              this.setOutdatedMesh(false);
+            }
+            this.bumpSelectionVersion();
+          }
+        })
+        .catch((err) => {
+          console.error("Failed to generate per-element meshes:", err);
+          if (typeof this.setOutdatedMesh === "function") {
+            this.setOutdatedMesh(false);
+          }
+        });
+    }
   }
 
   /**
@@ -553,6 +589,10 @@ class GlobalVariables {
     this.selectionModeAtom = null;
     if (typeof this.setSelectionModeAtom === "function") {
       this.setSelectionModeAtom(null);
+    }
+    // Clean up cached per-element meshes
+    if (prev) {
+      prev._perElementMeshes = null;
     }
     // Now propagate the final selection downstream
     if (prev && typeof prev.onUpstreamChange === "function") {
