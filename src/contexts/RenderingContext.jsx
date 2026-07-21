@@ -46,6 +46,11 @@ export function RenderingProvider({ children }) {
   // Currently computing atom label (e.g. "myMolecule/rotate")
   const [computingLabel, setComputingLabel] = useState(null);
 
+  // Part selection mode — non-null when a partselect Input atom is active
+  const [selectionModeAtom, setSelectionModeAtom] = useState(null);
+  // Increments each time the selection changes, forcing ReplicadMesh to re-read selectedLeafIndexes
+  const [selectionVersion, setSelectionVersion] = useState(0);
+
   const value = {
     // Mesh state
     mesh,
@@ -106,6 +111,12 @@ export function RenderingProvider({ children }) {
     // Currently computing atom label
     computingLabel,
     setComputingLabel,
+
+    // Part selection mode
+    selectionModeAtom,
+    setSelectionModeAtom,
+    selectionVersion,
+    setSelectionVersion,
 
     // GCode group
     gcodeParts,

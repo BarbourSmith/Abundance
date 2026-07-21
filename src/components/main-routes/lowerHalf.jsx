@@ -8,7 +8,7 @@ import { useRendering } from "../../contexts/index.js";
 import NonReplicadMesh from "../render/NonReplicadMesh.jsx";
 
 const LowerHalf = forwardRef(function LowerHalf({ windowSize }, ref) {
-  const { mesh, wireMesh, wireParam, solidParam, isViewingOutputMesh, computingLabel } =
+  const { mesh, wireMesh, wireParam, solidParam, isViewingOutputMesh, computingLabel, selectionModeAtom } =
     useRendering();
 
   const [cameraZoom, setCameraZoom] = useState(1);
@@ -42,6 +42,26 @@ const LowerHalf = forwardRef(function LowerHalf({ windowSize }, ref) {
             position: "relative",
           }}
         >
+          {selectionModeAtom && (
+            <div
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                zIndex: 1,
+                background: "#1a73e8",
+                color: "#fff",
+                padding: "6px 12px",
+                fontSize: "13px",
+                textAlign: "center",
+                pointerEvents: "none",
+                userSelect: "none",
+              }}
+            >
+              Click parts to select them
+            </div>
+          )}
           {computingLabel && (
             <div
               style={{

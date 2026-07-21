@@ -233,7 +233,12 @@ function AppContent() {
     activeTags,
     setActiveTags,
     setComputingLabel,
+    selectionModeAtom,
+    setSelectionModeAtom,
+    setSelectionVersion,
   } = useRendering();
+
+  // selectionModeAtom is consumed by lowerHalf/ReplicadMesh via context
 
   const {
     isAuthorized,
@@ -572,6 +577,8 @@ function AppContent() {
       setNonReplicadGeometry(null);
       filteredMeshCache.current.clear(); // Clear mesh cache when resetting view
     };
+    GlobalVariables.setSelectionModeAtom = setSelectionModeAtom;
+    GlobalVariables._bumpSelectionVersion = setSelectionVersion;
     GlobalVariables.writeToDisplay = (
       moleculeValue,
       context,
@@ -704,6 +711,8 @@ function AppContent() {
     setIsViewingOutputMesh,
     setErrorNotification,
     activeTags,
+    setSelectionModeAtom,
+    setSelectionVersion,
   ]);
 
   // TAG FILTERING - Apply tag filtering when tags change
