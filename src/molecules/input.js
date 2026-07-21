@@ -440,8 +440,8 @@ export default class Input extends Atom {
     // The final selection is propagated when the user clicks Done (exitSelectionMode).
     GlobalVariables.bumpSelectionVersion();
     // Refresh the control panel so the selection count updates
-    if (this.parent && typeof this.parent.setInputChanged === "function") {
-      this.parent.setInputChanged(String(Date.now()));
+    if (typeof this._panelSetInputChanged === "function") {
+      this._panelSetInputChanged(String(Date.now()));
     }
   }
 

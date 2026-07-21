@@ -1446,6 +1446,9 @@ export default class Atom extends ObservableEntity {
           // Handle partselect type inputs — show selection count + button
           const inputAtom = input.options.inputAtom;
           if (inputAtom) {
+            // Stash the panel refresh callback directly on the inputAtom so
+            // toggleLeafIndex can use the exact same reference as the button onclick
+            inputAtom._panelSetInputChanged = setInputChanged;
             const count = inputAtom.selectedLeafIndexes?.length ?? 0;
             inputParams[this.uniqueID + input.name + "_partselect_count"] = {
               type: "string",
