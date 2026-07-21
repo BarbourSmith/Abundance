@@ -72,6 +72,12 @@ export class Assembly<G = any> {
    * other atoms' payloads.
    */
   metadata?: Record<string, any>;
+  /**
+   * Selection state set by a `partselect` Input atom. Present on leaf nodes
+   * only; `undefined` on branches and on assemblies that have not passed
+   * through a partselect input.
+   */
+  selection?: { type: 'part'; selected: boolean };
 
   constructor(other?: Partial<Assembly>) {
     if (other) {
@@ -80,6 +86,7 @@ export class Assembly<G = any> {
       this.bom = other.bom?.slice() ?? this.bom;
       this.plane = other.plane?.clone() ?? this.plane;
       if (other.metadata !== undefined) this.metadata = other.metadata;
+      if (other.selection !== undefined) this.selection = other.selection;
       // Deep clone
       if (other && other.isLeaf && other.isLeaf()) {
         this.geometry = other.geometry.clone();
@@ -103,6 +110,34 @@ export class Assembly<G = any> {
    */
   isLeaf(): this is Assembly<any> {
     return !Array.isArray(this.geometry);
+  }
+
+  /**
+   * Returns all leaf nodes in this assembly (depth-first) where a
+   * `partselect` input has marked the part as selected.
+   *
+   * Example:
+   * ```js
+   * const parts = myAssembly.getSelectedLeafs();
+   * parts.forEach(leaf => {
+   *   // leaf.geometry is the replicad shape
+   *   // leaf.color, leaf.tags, etc. are available
+   * });
+   * ```
+   */
+  getSelectedLeafs(): Assembly[] {
+    const result: Assembly[] = [];
+    const collect = (node: Assembly) => {
+      if (!Array.isArray(node.geometry)) {
+        if (node.selection?.type === 'part' && node.selection.selected) {
+          result.push(node);
+        }
+      } else {
+        (node.geometry as Assembly[]).forEach(collect);
+      }
+    };
+    collect(this);
+    return result;
   }
 
   // Apply function to all leafs in this assembly. Modifies this Assembly
