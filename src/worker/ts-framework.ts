@@ -188,8 +188,9 @@ export class Assembly<G = any> {
     return result;
   }
 
-  // Apply function to all leafs in this assembly. Modifies this Assembly
-  // in place. If fn returns null that leaf is dropped from the assembly.
+  // Apply function to all leafs in this assembly. Returns a new assembly.
+  // Result is structurally identical to this except where fn returns null,
+  // in which case the corresponding leaf is dropped from the assembly.
   // Empty branches are recursively dropped as well.
   //
   // The callback's `leaf` parameter is typed `Assembly<LeafGeom>` in the
@@ -200,18 +201,17 @@ export class Assembly<G = any> {
     fn: (leaf: Assembly<LeafGeom>) => Assembly<LeafGeom> | null,
   ): Assembly | null {
     if (Array.isArray(this.geometry)) {
-      this.geometry = this.geometry
+      const children = this.geometry
         .map((child: Assembly) => {
-          child.onLeafs(fn);
-          return child;
+          return child.onLeafs(fn);
         })
-        .filter((child: Assembly) => {
-          return child !== null;
+        .filter((child: Assembly | null) => {
+          return child !== null && child !== undefined;
         });
-      if (this.geometry.length === 0) {
+      if (children.length === 0) {
         return null;
       }
-      return this;
+      return new Assembly({ ...this, geometry: children });
     } else {
       return fn(this);
     }

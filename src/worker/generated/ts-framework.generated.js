@@ -124,8 +124,9 @@ export function makeAbundanceFramework(replicad) {
       collect(this);
       return result;
     }
-    // Apply function to all leafs in this assembly. Modifies this Assembly
-    // in place. If fn returns null that leaf is dropped from the assembly.
+    // Apply function to all leafs in this assembly. Returns a new assembly.
+    // Result is structurally identical to this except where fn returns null,
+    // in which case the corresponding leaf is dropped from the assembly.
     // Empty branches are recursively dropped as well.
     //
     // The callback's `leaf` parameter is typed `Assembly<LeafGeom>` in the
@@ -133,16 +134,15 @@ export function makeAbundanceFramework(replicad) {
     // replicad union without having to handle the array branch.
     onLeafs(fn) {
       if (Array.isArray(this.geometry)) {
-        this.geometry = this.geometry.map((child) => {
-          child.onLeafs(fn);
-          return child;
+        const children = this.geometry.map((child) => {
+          return child.onLeafs(fn);
         }).filter((child) => {
-          return child !== null;
+          return child !== null && child !== void 0;
         });
-        if (this.geometry.length === 0) {
+        if (children.length === 0) {
           return null;
         }
-        return this;
+        return new Assembly({ ...this, geometry: children });
       } else {
         return fn(this);
       }
