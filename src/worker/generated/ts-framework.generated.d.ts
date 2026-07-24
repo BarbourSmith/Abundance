@@ -108,19 +108,14 @@ declare global {
        * Returns all leaf nodes that have at least one selected edge, along with
        * their selected edge IDs.
        */
-      getSelectedEdges(): Array<{
-          leaf: Assembly;
-          edgeIds: number[];
-      }>;
+      getSelectedEdges(): replicad.Edge[];
       /**
        * Returns all leaf nodes that have at least one selected face, along with
        * their selected face IDs.
        */
-      getSelectedFaces(): Array<{
-          leaf: Assembly;
-          faceIds: number[];
-      }>;
+      getSelectedFaces(): replicad.Face[];
       onLeafs(fn: (leaf: Assembly<LeafGeom>) => Assembly<LeafGeom> | null): Assembly | null;
+      filterLeafs(filterFn: (leaf: Assembly<LeafGeom>) => boolean): Assembly[];
       /**
        * True when this assembly is (or contains, for branches) 2D geometry —
        * i.e. a replicad `Drawing`. For a branch node this defers to the first

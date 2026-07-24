@@ -88,13 +88,14 @@ export function makeAbundanceFramework(replicad) {
      * Returns all leaf nodes that have at least one selected edge, along with
      * their selected edge IDs.
      */
+    //@ts-ignore
     getSelectedEdges() {
       const result = [];
       const collect = (node) => {
         if (!Array.isArray(node.geometry)) {
           const edges = node.selection?.edges;
-          if (edges && edges.length > 0) {
-            result.push({ leaf: node, edgeIds: edges });
+          if (edges) {
+            result.push(...edges.map((id) => node.geometry.edges[id]));
           }
         } else {
           node.geometry.forEach(collect);
@@ -107,13 +108,14 @@ export function makeAbundanceFramework(replicad) {
      * Returns all leaf nodes that have at least one selected face, along with
      * their selected face IDs.
      */
+    //@ts-ignore
     getSelectedFaces() {
       const result = [];
       const collect = (node) => {
         if (!Array.isArray(node.geometry)) {
           const faces = node.selection?.faces;
           if (faces && faces.length > 0) {
-            result.push({ leaf: node, faceIds: faces });
+            result.push(...faces.map((id) => node.geometry.faces[id]));
           }
         } else {
           node.geometry.forEach(collect);
@@ -144,6 +146,17 @@ export function makeAbundanceFramework(replicad) {
       } else {
         return fn(this);
       }
+    }
+    //@ts-ignore
+    filterLeafs(filterFn) {
+      const result = [];
+      this.onLeafs((leaf) => {
+        if (filterFn(leaf)) {
+          result.push(leaf);
+        }
+        return leaf;
+      });
+      return result;
     }
     /**
      * True when this assembly is (or contains, for branches) 2D geometry —
