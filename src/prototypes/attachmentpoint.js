@@ -592,6 +592,21 @@ export default class AttachmentPoint extends ObservableEntity {
           otherAP.deleteConnector(connector, silent);
         }
         this.connectors = [];
+
+        // The upstream connection was removed, so any previously selected
+        // parts/edges/faces may no longer correspond to valid indexes.
+        // Reset selection state to avoid stuck/unselectable stale indexes.
+        // Skip while a project is being loaded/torn down or during undo, since
+        // those disconnects are transient/mechanical rather than a user
+        // deliberately removing a connection.
+        if (
+          !GlobalVariables.projectIsLoading &&
+          !GlobalVariables.isUndoing &&
+          typeof this.options?.inputAtom?.resetSelectionState === "function"
+        ) {
+          this.options.inputAtom.resetSelectionState();
+        }
+
         if (!silent) {
           // Try to re-establish name-based subscriptions if the current equation contains variables
           const currentValue = this.currentEquation || this.value;
@@ -952,6 +967,20 @@ export default class AttachmentPoint extends ObservableEntity {
       upstream.subscribe(() => {
         this.onUpstreamChange();
       }, this.uniqueID);
+
+      // A new upstream connection means any previously selected parts/edges/faces
+      // may no longer correspond to valid indexes on the newly connected geometry.
+      // Reset selection state so stale indexes can't get stuck as unselectable.
+      // Skip this while a project is being loaded/deserialized, or while undoing,
+      // since those connections are being restored rather than newly made by
+      // the user — the saved selection state should be preserved in that case.
+      if (
+        !GlobalVariables.projectIsLoading &&
+        !GlobalVariables.isUndoing &&
+        typeof this.options?.inputAtom?.resetSelectionState === "function"
+      ) {
+        this.options.inputAtom.resetSelectionState();
+      }
     } else {
       this.connectors.push(connector);
     }

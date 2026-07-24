@@ -508,6 +508,22 @@ export default class Input extends Atom {
   }
 
   /**
+   * Reset all selection state for this input. Called whenever the upstream
+   * connection is established or removed, since previously selected leaf
+   * indexes / edge indexes / face indexes may no longer correspond to valid
+   * elements on the newly (dis)connected geometry.
+   */
+  resetSelectionState() {
+    this.selectedLeafIndexes = [];
+    this.selectedEdgeData = {};
+    this.selectedFaceData = {};
+    GlobalVariables.bumpSelectionVersion();
+    if (typeof this._panelSetInputChanged === "function") {
+      this._panelSetInputChanged(String(Date.now()));
+    }
+  }
+
+  /**
    * Toggle a leaf index in the partselect selection, then recompute the output.
    * @param {number} index - Leaf index from the flat render array
    */
