@@ -5,7 +5,7 @@ import React, {
   useState,
   forwardRef,
 } from "react";
-import { useThree } from "@react-three/fiber";
+import { useThree, useFrame } from "@react-three/fiber";
 import { BufferGeometry, BufferAttribute, DoubleSide } from "three";
 import {
   Scene,
@@ -24,10 +24,28 @@ import {
 import { Wireframe } from "@react-three/drei";
 import { useRendering } from "../../contexts/index.js";
 
+// Pixel-space tolerance for edge-select clicks (see edge onPointerDown below).
+// Kept as a module constant so the raycaster's Line.threshold (which must be
+// generous enough to generate an intersection in the first place) and the
+// precise per-click distance filter agree on the same target tolerance.
+const EDGE_SELECT_PX_TOLERANCE = 5;
+
 export default React.memo(
   forwardRef(function ShapeMeshes({ isSolid, cameraZoom, setProcessing }, ref) {
     const { mesh, setOutdatedMesh, plane, selectionModeAtom, selectionVersion } = useRendering();
-    const { invalidate } = useThree();
+    const { invalidate, raycaster, camera } = useThree();
+
+    // Keep the raycaster's line-picking threshold in sync with the current
+    // orthographic zoom so a ~5px click tolerance is generated consistently
+    // regardless of zoom level. Without this, a fixed world-unit threshold
+    // would make edge-selection far too strict when zoomed out and/or overly
+    // loose when zoomed in.
+    useFrame(() => {
+      if (raycaster?.params?.Line && camera?.zoom) {
+        raycaster.params.Line.threshold =
+          EDGE_SELECT_PX_TOLERANCE / camera.zoom;
+      }
+    });
 
     const [fullMesh, setFullMesh] = useState([]);
 
@@ -484,14 +502,20 @@ export default React.memo(
                               edgeIdx,
                             }}
                             onPointerDown={(e) => {
-                              const pxTolerance = 2;
-                              const worldTolerance = e.camera?.zoom
-                                ? pxTolerance / e.camera.zoom
-                                : 1;
-                              // Find all edge hits within tolerance across the
-                              // scene so overlapping edges from adjacent leaves
-                              // both toggle on a single click.
-                              const hits = e.intersections || [];
+                              // Three.js's Line raycast already rejects hits
+                              // farther than raycaster.params.Line.threshold
+                              // (perpendicular ray-to-segment distance), and
+                              // that threshold is kept in sync with a ~5px
+                              // screen tolerance every frame (see useFrame
+                              // above). So any lineSegments intersection that
+                              // shows up here already passed that check —
+                              // Line intersections don't expose a distance
+                              // field we could re-filter by anyway (unlike
+                              // Points, `distanceToRay` isn't populated for
+                              // Line/LineSegments raycasts).
+                              const hits = (e.intersections || []).filter(
+                                (i) => i.object?.userData?.abundanceEdge === true,
+                              );
                               if (hits.length === 0) return;
                               e.stopPropagation();
                               const seen = new Set();
