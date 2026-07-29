@@ -108,6 +108,22 @@ interface AbundanceLeaf {
   metadata?: Record<string, any>;
 }
 
+const EMPTY_ASSEMBLY: AbundanceObject = {
+  geometry: [],
+  plane: {
+    origin: [0, 0, 0],
+    xDir: [1, 0, 0],
+    normal: [0, 0, 1],
+  },
+  color: defaultColor,
+  tags: [],
+  bom: [],
+  dimension: "3D",
+  nonReplicadSerialized: undefined,
+  boundingBox: EMPTY_BOUNDS,
+  metadata: {},
+};
+
 function dimensionLabel(geom: any): Dimension {
   if (geom instanceof replicad.Drawing) {
     return "2D";
@@ -419,9 +435,9 @@ function actOnLeafsSync(
   if (isLeaf(assembly)) {
     return action(assembly);
   } else {
-    const newChildren = (assembly.geometry as AbundanceObject[]).map((child) =>
-      actOnLeafsSync(child, action),
-    );
+    const newChildren = (assembly.geometry as AbundanceObject[])
+      .map((child) => actOnLeafsSync(child, action))
+      .filter((child) => child !== undefined);
     // Preserve nonReplicadGeom if present
     return {
       ...assembly,
@@ -493,7 +509,6 @@ async function actOnLeafs(
 function flattenAssembly(assembly: AbundanceObject): AbundanceLeaf[] {
   const flattened: AbundanceLeaf[] = [];
   if (assembly == undefined || assembly.geometry == undefined) {
-    console.trace("attempted to flatten empty assembly");
     return flattened;
   }
 
@@ -691,4 +706,5 @@ export {
   withAssemblyBoundingBoxes,
   XYPlane,
   startHeapMonitor,
+  EMPTY_ASSEMBLY,
 };

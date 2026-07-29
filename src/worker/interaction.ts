@@ -266,8 +266,31 @@ async function intersect(
     );
   }
 
+  shape2 = await util.withAssemblyBoundingBoxes(shape2, context);
+  shape1 = await util.withAssemblyBoundingBoxes(shape1, context);
+
+  const shape1Targets = util.flattenAssembly(shape1);
+
+  const filteredShape2Leafs = await util
+    .flattenAssembly(shape2)
+    .filter((intersector) => {
+      return shape1Targets.some((target) =>
+        util.boundsOverlap(target.boundingBox, intersector.boundingBox),
+      );
+    });
+
+  if (filteredShape2Leafs.length === 0) {
+    return util.EMPTY_ASSEMBLY;
+  }
+  const shapeToIntersectWith =
+    filteredShape2Leafs.length == 1
+      ? filteredShape2Leafs[0]
+      : await fuseAssembly(
+          { ...shape2, geometry: filteredShape2Leafs },
+          context,
+        );
+
   return util.actOnLeafs(shape1, async (leaf: AbundanceLeaf) => {
-    const shapeToIntersectWith = await fuseAssembly(shape2, context);
     const resultGeom = await util.geometryProvider!.intersect(
       leaf.geometry,
       shapeToIntersectWith.geometry,
@@ -364,7 +387,7 @@ async function fusion(
  */
 async function assembly(
   geometries: AbundanceObject[],
-  context: RequestContext
+  context: RequestContext,
 ): Promise<AbundanceObject> {
   if (!Array.isArray(geometries) || geometries.length === 0) {
     throw new Error("inputIDs must be a non-empty array");
