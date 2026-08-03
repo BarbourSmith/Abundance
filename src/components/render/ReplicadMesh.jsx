@@ -539,22 +539,37 @@ export default React.memo(
                         );
                       })}
                     </>
-                  ) : !isSolid ? (
-                    <mesh geometry={m.body} key={"mesh" + index}
-                      onPointerDown={
-                        isPartMode
-                          ? (e) => { e.stopPropagation(); selectionModeAtom.toggleLeafIndex(index); }
-                          : undefined
-                      }
+                  ) : isPartMode ? (
+                    // Part select mode: mirrors face-select's rendering —
+                    // unselected parts at moderate opacity + original color,
+                    // selected parts fully opaque + yellow highlight.
+                    <mesh
+                      geometry={m.body}
+                      key={"mesh-part" + index}
+                      onPointerDown={(e) => {
+                        e.stopPropagation();
+                        selectionModeAtom.toggleLeafIndex(index);
+                      }}
                     >
+                      <meshMatcapMaterial
+                        key={"material-part" + index}
+                        color={isPartSelected ? "#ffdd00" : m.color}
+                        side={DoubleSide}
+                        transparent={true}
+                        opacity={isPartSelected ? 1.0 : 0.25}
+                        polygonOffset
+                        polygonOffsetFactor={2.0}
+                        polygonOffsetUnits={1.0}
+                      />
+                    </mesh>
+                  ) : !isSolid ? (
+                    <mesh geometry={m.body} key={"mesh" + index}>
                       {/*the offsets are here to avoid z fighting between the mesh and the lines*/}
                       {m.hasVertexColors ? (
                         <meshBasicMaterial
                           key={"material-heatmap" + index}
                           vertexColors
                           side={DoubleSide}
-                          transparent={true}
-                          opacity={isPartMode ? partOpacity : 1}
                           polygonOffset
                           polygonOffsetFactor={2.0}
                           polygonOffsetUnits={1.0}
@@ -563,8 +578,6 @@ export default React.memo(
                         <meshMatcapMaterial
                           color={m.color}
                           key={"material" + index}
-                          transparent={true}
-                          opacity={isPartMode ? partOpacity : 1}
                           polygonOffset
                           polygonOffsetFactor={2.0}
                           polygonOffsetUnits={1.0}
@@ -573,7 +586,7 @@ export default React.memo(
                         <meshPhysicalMaterial
                           color={m.color}
                           transparent={true}
-                          opacity={isPartMode ? partOpacity * 0.5 : 0.5}
+                          opacity={0.5}
                           transmission={0.6}
                           roughness={0}
                           metalness={0}
@@ -585,7 +598,7 @@ export default React.memo(
                         <meshBasicMaterial
                           geometry={m.body}
                           transparent={true}
-                          opacity={isPartMode ? partOpacity * 0.3 : 0.3}
+                          opacity={0.3}
                           color={m.color}
                         >
                           <Wireframe geometry={m.body} {...wireframeProps} />
