@@ -1,4 +1,4 @@
-export type DataType = "ReplicadObject" | "AbundanceObject";
+export type DataType = "ReplicadObject" | "AbundanceObject" | "PairCache";
 export type StoredGeometryRecord = {
   projectId: string;
   shapeKey: string;
@@ -136,6 +136,60 @@ export async function deleteShape(
   });
 }
 
+/**
+ * Stores a serialized blob (eg: a JSON-encoded array of known disjoint/occlusion
+ * pairs) under the "PairCache" type. Blob stored as a single record keyed by
+ * project and blobkey.
+ */
+export async function putPairCache(
+  projectId: string,
+  blobKey: string,
+  serialized: string,
+): Promise<void> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    const store = tx.objectStore(STORE_NAME);
+    store.put({
+      projectId: projectId,
+      shapeKey: blobKey,
+      type: "PairCache",
+      serialized: serialized,
+    });
+    tx.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+    tx.onerror = () => {
+      db.close();
+      reject(tx.error);
+    };
+  });
+}
+
+/**
+ * Retrieves a previously-stored "PairCache" blob, or undefined if absent.
+ */
+export async function getPairCache(
+  projectId: string,
+  blobKey: string,
+): Promise<StoredGeometryRecord | undefined> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readonly");
+    const store = tx.objectStore(STORE_NAME);
+    const req = store.get([projectId, blobKey]);
+    req.onsuccess = () => {
+      db.close();
+      resolve(req.result);
+    };
+    req.onerror = () => {
+      db.close();
+      reject(req.error);
+    };
+  });
+}
+
 export async function shapeExists(
   projectId: string,
   shapeKey: string,
@@ -232,5 +286,6 @@ export async function filter(
 export async function deleteProjectCache(projectId: string): Promise<void> {
   await filter(projectId, "ReplicadObject", () => false, false);
   await filter(projectId, "AbundanceObject", () => false, false);
+  await filter(projectId, "PairCache", () => false, false);
   return;
 }

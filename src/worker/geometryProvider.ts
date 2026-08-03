@@ -19,6 +19,7 @@ import {
   filter,
 } from "./indexeddbUtils";
 import { reportBooleanInflight } from "./progress";
+import { BooleanOpCache } from "./booleanOpCache";
 
 type ReplicadObject =
   | replicad.Shape3D
@@ -50,7 +51,7 @@ enum BooleanOutcome {
 type BooleanResult = {
   outcome: BooleanOutcome;
   inputIndexAsResult?: number; // if outcome is InputShape, which input shape is it.
-  result?: replicad.Shape3D | replicad.Drawing; // it outcome is NewShape, include that here.
+  resultId: string; // id string of the result
 };
 
 /**
@@ -68,6 +69,10 @@ class GeometryProvider {
   // Keeps typical ids human-readable while bounding pathological nested-boolean
   // recipes (observed at 65-78KB) that otherwise dominate large assemblies.
   private static MAX_ID_LENGTH = 512;
+  // tolerance under which a boolean result is considered to be equivalent to
+  // an input. Ie, indicator of a boolean no-op.
+  private static BOOLEAN_TOLERANCE = 1e-5;
+
   // Set of `toCut\u0000cutter` keys for boolean cuts that previously hung the
   // worker (>watchdog). `recursiveCut` consults `isBadCut` and, rather than
   // re-running a cut that will hang again, surfaces the two failing parts in red.
@@ -77,7 +82,12 @@ class GeometryProvider {
   private projectLRU: string[] = [];
   private cacheHitMetrics: Record<string, [number, number, number]>; // hits, misses, total-miss-duration-ms
   private warmCache: Map<string, Map<string, ReplicadObject>> = new Map();
-  private noOpCache: Map<string, string> = new Map();
+
+  // Persistent (per-project) cache of shape-id pairs with known special
+  // boolean outcomes (disjoint / occlusion). Since such outcomes don't create
+  // a new shape in the cache they get special handling here to avoid eternally
+  // recomputing booleans with no-op outcomes.
+  private booleanOpCache: BooleanOpCache = new BooleanOpCache();
 
   // Tracks batch operations that are currently running so that concurrent
   // requests for an identical batch (same content-hashed id) share the first
@@ -146,6 +156,7 @@ class GeometryProvider {
     }
     this.projectLRU.push(projectId);
     if (newProject) {
+      this.booleanOpCache.loadProject(projectId);
       if (this.projectLRU.length > this.MAX_PROJECTS) {
         this.projectLRU.shift();
       }
@@ -157,124 +168,127 @@ class GeometryProvider {
   }
 
   private evictProjectsBesides(projectIds: Set<string>) {
-    return getAllProjectIds().then(async (allIds) => {
-      if (allIds.size <= this.MAX_PROJECTS) {
-        return;
-      }
-      const evictIds = Array.from(allIds).filter((id) => !projectIds.has(id));
-      for (const evictId of evictIds) {
-        await deleteProjectCache(evictId);
-      }
-    });
+    return getAllProjectIds()
+      .then(async (allIds) => {
+        if (allIds.size <= this.MAX_PROJECTS) {
+          return;
+        }
+        const evictIds = Array.from(allIds).filter((id) => !projectIds.has(id));
+        for (const evictId of evictIds) {
+          await deleteProjectCache(evictId);
+          this.booleanOpCache.forgetProject(evictId);
+        }
+      })
+      .catch((error) => {
+        console.error("Evict projects failed.");
+        console.error(error);
+      });
   }
 
-  private async booleanOperation(
+  /**
+   * An alternative to createIfAbsent which allows for the case where
+   * this operation is a no-op and in fact doesn't need to put a
+   * new entry into the cache. Generally should be used for boolean
+   * operations.
+   *
+   * @param resultId
+   * @param args
+   * @param context
+   * @param operation
+   * @returns
+   */
+  private async maybeOp(
     resultId: string,
-    inputs: string[],
+    args: string[],
     context: RequestContext,
     operation: (
-      inputs: string[],
-      phase: (name: string) => void,
-    ) => Promise<BooleanResult>,
-  ): Promise<string> {
-    // Always use cache result if it's available
+      inputs: replicad.Shape3D[] | replicad.Drawing[],
+    ) => replicad.Shape3D | replicad.Drawing,
+  ): Promise<BooleanResult> {
+    // check shape cache
     if (
       this.getFromWarmCache(resultId, context) ||
       (await shapeExists(context.project, resultId))
     ) {
       this.cacheHit(resultId);
-      return resultId;
+      return { outcome: BooleanOutcome.NewShape, resultId: resultId };
     }
 
-    if (this.noOpCache.has(resultId)) {
-      const result = this.noOpCache.get(resultId)!;
-      if (this.EMPTY_SHAPE_SENTINEL == result) {
-        this.cacheHit("boolempty");
-      } else {
-        this.cacheHit("boolnoop");
-      }
-      return result;
-    }
-
-    // Cache miss. Compute the operation then either:
-    //  add result to the cache
-    //  if a no-op return the appropriate input id
-    //  if a empty shape return the sentinel
-    // DIAGNOSTIC: `resultId` encodes the op + input ids (e.g. `cut-<toCut>-<cutter>`).
-    // The "starting" line is always logged so a hanging boolean is identifiable as
-    // the last entry in getRecentWorkerLogs with no matching "done" line. The
-    // "done" line is gated to slow ops to bound the worker-log ring buffer.
-    console.warn(`[boolean] ${resultId} starting`);
+    // Start actual computation of the op. No cache had the result ready for us.
     const start = performance.now();
-    // Begin-marker for a sub-step. A single synchronous OCCT step (deserialize,
-    // .cut(), measureVolume, serialize) can block the worker for >90s, at which
-    // point the inactivity watchdog kills it before any "done" line is logged.
-    // The LAST phase marker before the log gap therefore pinpoints exactly which
-    // sub-step hung.
-    const phase = (name: string): void => {
+    console.warn(`[boolean] ${resultId.split("-")[0]} starting at ${start}`);
+    // deserialize args
+    const geoms = await Promise.all(
+      args.map((shapeid) => this.get(shapeid, context)),
+    );
+    console.warn(
+      `[boolean] ${resultId.split("-")[0]} deserialize finished at ${performance.now() - start}`,
+    );
+
+    // case 2D
+    if (this.areAllDrawings(geoms)) {
+      const result = operation(geoms);
+      await putShape(context.project, resultId, result.serialize());
+      this.cacheMiss(resultId, start - performance.now());
       console.warn(
-        `[boolean] ${resultId} phase:${name} @${Math.round(
-          performance.now() - start,
-        )}ms`,
+        `[boolean] ${resultId.split("-")[0]} drawings. done at ${performance.now() - start}`,
       );
-    };
-    let opResult: BooleanResult;
-    try {
-      opResult = await operation(inputs, phase);
-    } catch (err) {
-      // Surface the real error — comlink otherwise collapses a worker-thread
-      // throw to an opaque "{}" on the main thread.
-      const e = err as any;
-      const stackHead = e?.stack
-        ? " | " + String(e.stack).split("\n").slice(0, 3).join(" ")
-        : "";
-      console.warn(
-        `[boolean] ${resultId} threw: ${e?.name || "Error"}: ${
-          e?.message ?? String(e)
-        }${stackHead}`,
-      );
-      throw err;
+      return { outcome: BooleanOutcome.NewShape, resultId: resultId };
     }
-    const durationMs = Math.round(performance.now() - start);
-    if (durationMs > 2000) {
+
+    // case 3D
+    if (this.areAll3DShapes(geoms)) {
+      const volumes = geoms.map(replicad.measureVolume);
       console.warn(
-        `[boolean] ${resultId} done in ${durationMs}ms outcome=${BooleanOutcome[opResult.outcome]}`,
+        `[boolean] ${resultId.split("-")[0]} arg volumes measured at: ${performance.now() - start}`,
       );
-    }
-    switch (opResult.outcome) {
-      case BooleanOutcome.EmptyShape:
-        this.cacheMiss("boolempty" + resultId, performance.now() - start);
-        this.noOpCache.set(resultId, this.EMPTY_SHAPE_SENTINEL);
-        return this.EMPTY_SHAPE_SENTINEL;
-      case BooleanOutcome.InputShape:
-        if (opResult.inputIndexAsResult === undefined) {
-          throw new Error(
-            "Boolean operation returned InputShape without index: " +
-              JSON.stringify(opResult),
+      const result = this.as3dShapeOrThrow(
+        operation(geoms) as replicad.AnyShape,
+      );
+      console.warn(
+        `[boolean] ${resultId.split("-")[0]} operation finished at: ${performance.now() - start}`,
+      );
+
+      // use volume measurements to identify possible no-op conditions.
+      const resVol = replicad.measureVolume(result);
+      let toReturn = undefined;
+      if (resVol < GeometryProvider.BOOLEAN_TOLERANCE) {
+        toReturn = {
+          outcome: BooleanOutcome.EmptyShape,
+          resultId: this.EMPTY_SHAPE_SENTINEL,
+        };
+      } else {
+        const volumeMatchIndex = volumes.findIndex(
+          (inputVol) =>
+            Math.abs(resVol - inputVol) < GeometryProvider.BOOLEAN_TOLERANCE,
+        );
+        if (volumeMatchIndex >= 0) {
+          toReturn = {
+            outcome: BooleanOutcome.InputShape,
+            inputIndexAsResult: volumeMatchIndex,
+            resultId: args[volumeMatchIndex],
+          };
+        } else {
+          await putShape(context.project, resultId, result.serialize());
+          console.warn(
+            `[boolean] ${resultId.split("-")[0]} new shape serialized at: ${performance.now() - start}`,
           );
+          toReturn = {
+            outcome: BooleanOutcome.NewShape,
+            resultId: resultId,
+          };
         }
-        this.cacheMiss("boolnoop" + resultId, performance.now() - start);
-        this.noOpCache.set(resultId, inputs[opResult.inputIndexAsResult]);
-        return inputs[opResult.inputIndexAsResult];
-      case BooleanOutcome.NewShape:
-        this.cacheMiss(resultId, performance.now() - start);
-        if (opResult.result) {
-          phase("serialize+persist");
-          const serializeStart = performance.now();
-          await putShape(
-            context.project,
-            resultId,
-            opResult.result.serialize(),
-          );
-          const serializeMs = Math.round(performance.now() - serializeStart);
-          if (serializeMs > 1000) {
-            console.warn(
-              `[boolean] ${resultId} serialize+persist took ${serializeMs}ms`,
-            );
-          }
-        }
-        return resultId;
+      }
+      this.cacheMiss(resultId, performance.now() - start);
+      console.warn(
+        `[boolean] ${resultId.split("-")[0]} outcome: ${BooleanOutcome[toReturn.outcome]}. done at: ${performance.now() - start}`,
+      );
+
+      return toReturn;
     }
+
+    // no mix matching for boolean operations
+    throw new Error("Boolean args were not all 2D nor all 3D");
   }
 
   // Returns the id of the geometry once it's been added to the cache.
@@ -424,6 +438,7 @@ class GeometryProvider {
   async clearCache(context: RequestContext): Promise<boolean> {
     this.projectLRU = this.projectLRU.filter((id) => id !== context.project);
     await deleteProjectCache(context.project);
+    this.booleanOpCache.forgetProject(context.project);
     return true;
   }
 
@@ -473,6 +488,16 @@ class GeometryProvider {
       },
       true,
     );
+
+    const prunedPairs = await this.booleanOpCache.sweep(
+      idsToRetain,
+      context.project,
+    );
+    if (prunedPairs > 0) {
+      console.warn(
+        `[GeometryProvider] sweepCache pruned ${prunedPairs} stale disjoint/occlusion pairs for project ${context.project}`,
+      );
+    }
 
     return deletedGeoms + deletedAssemblies;
   }
@@ -749,79 +774,109 @@ class GeometryProvider {
   }
 
   async intersect(
-    input1ID: string,
-    inputID2: string,
+    inputId1: string,
+    inputId2: string,
     context: RequestContext,
   ): Promise<string | undefined> {
     if (
-      input1ID === this.EMPTY_SHAPE_SENTINEL ||
-      inputID2 === this.EMPTY_SHAPE_SENTINEL
+      inputId1 === this.EMPTY_SHAPE_SENTINEL ||
+      inputId2 === this.EMPTY_SHAPE_SENTINEL
     ) {
       return this.EMPTY_SHAPE_SENTINEL;
     }
-    const id = this._makeId("intersect", input1ID, inputID2);
-    return await this.createIfAbsent(id, context, async () => {
-      const args = [
-        await this.get(input1ID, context),
-        await this.get(inputID2, context),
-      ];
-      // Intersect only allowed between matching types. 2 drawings or 2 3d shapes.
 
-      if (this.areAllDrawings(args)) {
-        const result = args[0].intersect(args[1]);
-        //@ts-ignore - no other way to check if the generated shape is nonexistent
-        if (!result.innerShape) {
-          return undefined;
-        }
-        return result;
-      } else if (this.areAll3DShapes(args)) {
-        return this.as3dShapeOrThrow(args[0].intersect(args[1]));
-      } else {
-        throw new Error(
-          "Invalid types for intersection: " +
-            typeof args[0] +
-            " and " +
-            typeof args[1],
+    const id = this._makeId("intersect", inputId1, inputId2);
+    if (this.booleanOpCache.isDisjoint(inputId1, inputId2, context.project)) {
+      this.cacheHit("disjoint" + id);
+      return this.EMPTY_SHAPE_SENTINEL;
+    }
+    if (this.booleanOpCache.isOccluded(inputId1, inputId2, context.project)) {
+      this.cacheHit("occluded" + id);
+      return inputId1;
+    }
+    if (this.booleanOpCache.isOccluded(inputId2, inputId1, context.project)) {
+      this.cacheHit("occluded" + id);
+      return inputId2;
+    }
+
+    const boolResult = await this.maybeOp(
+      id,
+      [inputId1, inputId2],
+      context,
+      (args) => {
+        // @ts-expect-error Type coercion happens inside of maybeOp.
+        return args[0].intersect(args[1]);
+      },
+    );
+    if (boolResult.outcome == BooleanOutcome.EmptyShape) {
+      this.booleanOpCache.recordDisjoint(inputId1, inputId2, context.project);
+    }
+    if (boolResult.outcome == BooleanOutcome.InputShape) {
+      if (boolResult.inputIndexAsResult == 0) {
+        this.booleanOpCache.recordOcclusion(
+          inputId1,
+          inputId2,
+          context.project,
+        );
+      } else if (boolResult.inputIndexAsResult == 1) {
+        // Flip args since inputId2 was identical to result.
+        this.booleanOpCache.recordOcclusion(
+          inputId2,
+          inputId1,
+          context.project,
         );
       }
-    });
+    }
+    return boolResult.resultId;
   }
 
   // Fuse 1 or more geometries together.
   async fuse(
-    input1ID: string,
-    inputID2: string,
+    inputId1: string,
+    inputId2: string,
     context: RequestContext,
   ): Promise<string> {
-    if (input1ID === this.EMPTY_SHAPE_SENTINEL) {
-      return inputID2;
+    if (inputId1 === this.EMPTY_SHAPE_SENTINEL) {
+      return inputId2;
     }
-    if (inputID2 === this.EMPTY_SHAPE_SENTINEL) {
-      return input1ID;
+    if (inputId2 === this.EMPTY_SHAPE_SENTINEL) {
+      return inputId1;
     }
-    const sortedArgs = [input1ID, inputID2].sort();
+    const sortedArgs = [inputId1, inputId2].sort();
     const resultId = this._makeId("fuse", sortedArgs[0], sortedArgs[1]);
 
-    await this.createIfAbsent(resultId, context, async () => {
-      const args = [
-        await this.get(input1ID, context),
-        await this.get(inputID2, context),
-      ];
-      // Fuse only allowed between matching types. 2 drawings or 2 3d shapes.
-      if (this.areAllDrawings(args)) {
-        return args[0].fuse(args[1]);
-      } else if (this.areAll3DShapes(args)) {
-        return this.as3dShapeOrThrow(args[0].fuse(args[1]));
-      } else {
-        throw new Error(
-          "Invalid types for fusion: " +
-            typeof args[0] +
-            " and " +
-            typeof args[1],
+    if (this.booleanOpCache.isOccluded(inputId1, inputId2, context.project)) {
+      this.cacheHit("occluded" + resultId);
+      return inputId2;
+    }
+    if (this.booleanOpCache.isOccluded(inputId2, inputId1, context.project)) {
+      this.cacheHit("occluded" + resultId);
+      return inputId1;
+    }
+
+    const boolResult = await this.maybeOp(
+      resultId,
+      sortedArgs,
+      context,
+      //@ts-expect-error type coercion done in maybeop.
+      (args) => args[0].fuse(args[1]),
+    );
+    if (boolResult.outcome == BooleanOutcome.InputShape) {
+      if (boolResult.inputIndexAsResult == 0) {
+        this.booleanOpCache.recordOcclusion(
+          sortedArgs[1],
+          sortedArgs[0],
+          context.project,
+        );
+      } else if (boolResult.inputIndexAsResult == 1) {
+        this.booleanOpCache.recordOcclusion(
+          sortedArgs[0],
+          sortedArgs[1],
+          context.project,
         );
       }
-    });
-    return resultId;
+    }
+    return boolResult.resultId;
   }
 
   async assemblyFuse(
@@ -871,152 +926,48 @@ class GeometryProvider {
     cutter: string,
     context: RequestContext,
   ): Promise<string | undefined> {
-    console.warn(
-      `cut toCut is: ${hashString(toCut)} being cut with: ${hashString(cutter)}`,
-    );
+    if (
+      toCut === this.EMPTY_SHAPE_SENTINEL ||
+      cutter === this.EMPTY_SHAPE_SENTINEL
+    ) {
+      return toCut;
+    }
+    const resultId = this._makeId("cut", toCut, cutter);
 
-    // Don't deserialize if it's a cache hit. Move checks inside the
-    // cache check operation.
-    return await this.booleanOperation(
-      this._makeId("cut", toCut, cutter),
+    // Fast no op checks
+    if (this.booleanOpCache.isDisjoint(toCut, cutter, context.project)) {
+      this.cacheHit("disjoint" + resultId);
+      return toCut;
+    }
+    if (this.booleanOpCache.isOccluded(toCut, cutter, context.project)) {
+      this.cacheHit("occluded" + resultId);
+      return this.EMPTY_SHAPE_SENTINEL;
+    }
+
+    const boolResult = await this.maybeOp(
+      resultId,
       [toCut, cutter],
       context,
-      async (_inputs, phase) => {
-        // Empty shape special cases
-        if (toCut === this.EMPTY_SHAPE_SENTINEL) {
-          return { outcome: BooleanOutcome.EmptyShape };
-        } else if (cutter === this.EMPTY_SHAPE_SENTINEL) {
-          return {
-            outcome: BooleanOutcome.InputShape,
-            inputIndexAsResult: 0,
-          };
-        }
-        console.warn(
-          `cut no cache hits. computing cut: ${hashString(toCut)} with: ${hashString(cutter)}`,
-        );
-
-        phase("deserialize toCut");
-        const getToCutStart = performance.now();
-        const toCutGeom = await this.get(toCut, context);
-        const toCutMs = Math.round(performance.now() - getToCutStart);
-        if (toCutMs > 1000) {
-          console.warn(
-            `[boolean] cut deserialize toCut took ${toCutMs}ms (${toCut.length}-char id)`,
-          );
-        }
-
-        phase("deserialize cutter");
-        const getCutterStart = performance.now();
-        const cutterGeom = await this.get(cutter, context);
-        const cutterMs = Math.round(performance.now() - getCutterStart);
-        if (cutterMs > 1000) {
-          console.warn(
-            `[boolean] cut deserialize cutter took ${cutterMs}ms (${cutter.length}-char id)`,
-          );
-        }
-
-        const args = [toCutGeom, cutterGeom];
-        if (this.areAllDrawings(args)) {
-          phase("2D cut()");
-          reportBooleanInflight(toCut, cutter, true);
-          const drawingResult = args[0].cut(args[1]);
-          reportBooleanInflight(toCut, cutter, false);
-          return {
-            outcome: BooleanOutcome.NewShape,
-            result: drawingResult,
-          };
-        } else if (this.areAll3DShapes(args)) {
-          phase("measureVolume(initial)");
-          const mv1Start = performance.now();
-          const initialVolume = replicad.measureVolume(args[0]);
-          const mv1Ms = Math.round(performance.now() - mv1Start);
-          if (mv1Ms > 1000) {
-            console.warn(
-              `[boolean] cut measureVolume(initial) took ${mv1Ms}ms`,
-            );
-          }
-
-          /*          phase("manifold preview");
-          const manifoldPreviewStart = performance.now();
-          const manifoldToCut = (toCutGeom as replicad.Shape3D).meshShape({
-            tolerance: 0.01,
-          });
-          const manifoldCutter = (cutterGeom as replicad.Shape3D).meshShape();
-          const prepDone = performance.now();
-          /*          // manifold generation took a long time to compute try it with some different tolerances
-          // to see if performance scales with tolerance
-          const timings = [0.1, 0.01].map((tolerance) => {
-            const s = performance.now();
-            const c1 = (toCutGeom as replicad.Shape3D).meshShape({
-              tolerance,
-            });
-            return [tolerance, performance.now() - s];
-          });
-          timings.push([1e-6, prepDone - manifoldPreviewStart]);
-          console.log(`meshshape generation against tolerance: ${timings}`);
-          console.warn(
-            `[boolean] cut manifold generation took ${Math.round(prepDone - manifoldPreviewStart)}ms`,
-          );
-          const intersection = manifoldToCut.intersect(manifoldCutter);
-          console.warn(
-            `[boolean] manifold intersect took ${Math.round(performance.now() - prepDone)}ms. Vol: ${intersection.volume()}`,
-          );*/
-
-          phase("3D cut()");
-          // Announce the exact cut about to run. If `.cut()` hangs, the worker
-          // thread freezes and the matching `false` beacon below never sends, so
-          // the main thread still sees this cut as in-flight and can record it as
-          // a known-hanging cut when the watchdog fires.
-          reportBooleanInflight(toCut, cutter, true);
-          const cutStart = performance.now();
-          const result = args[0].cut(args[1]);
-          reportBooleanInflight(toCut, cutter, false);
-          const cutMs = Math.round(performance.now() - cutStart);
-          if (cutMs > 1000) {
-            console.warn(`[boolean] cut .cut() took ${cutMs}ms`);
-          }
-
-          phase("measureVolume(result)");
-          const mv2Start = performance.now();
-          const resultVolume = replicad.measureVolume(result);
-          const mv2Ms = Math.round(performance.now() - mv2Start);
-          if (mv2Ms > 1000) {
-            console.warn(
-              `[boolean] cut measureVolume(result) took ${mv2Ms}ms`,
-            );
-          }
-
-          const volumeDiff = Math.abs(initialVolume - resultVolume);
-          const tolerance = 1e-5;
-          if (volumeDiff < tolerance) {
-            // DIAGNOSTIC: a boolean that removed ~no volume yet ran (bounding
-            // boxes overlapped) is a degenerate/wasted-cut candidate. Paired
-            // with the [boolean] timing line this flags expensive no-op cuts.
-            console.warn(
-              `[boolean] cut near-noop toCut=${toCut} cutter=${cutter} initialVolume=${initialVolume} volumeDiff=${volumeDiff}`,
-            );
-            return {
-              outcome: BooleanOutcome.InputShape,
-              inputIndexAsResult: 0,
-            };
-          } else if (resultVolume < tolerance) {
-            return { outcome: BooleanOutcome.EmptyShape };
-          } else {
-            return {
-              outcome: BooleanOutcome.NewShape,
-              result: this.as3dShapeOrThrow(result),
-            };
-          }
-        } else {
-          throw new Error(
-            "Invalid types for cut: " +
-              typeof args[0] +
-              " and " +
-              typeof args[1],
-          );
-        }
-      },
+      //@ts-expect-error type checking happens in maybeop
+      (args) => args[0].cut(args[1]),
     );
+
+    if (boolResult.outcome == BooleanOutcome.EmptyShape) {
+      this.booleanOpCache.recordOcclusion(toCut, cutter, context.project);
+    }
+    if (boolResult.outcome == BooleanOutcome.InputShape) {
+      if (boolResult.inputIndexAsResult == 0) {
+        this.booleanOpCache.recordDisjoint(toCut, cutter, context.project);
+      } else if (boolResult.inputIndexAsResult == 1) {
+        // Special case. This volume-match is erronious since the cutter
+        // cannot be the result. Return resultId instead.
+        return resultId;
+      }
+    }
+    if (boolResult.outcome == BooleanOutcome.NewShape) {
+      this.booleanOpCache.recordDisjoint(resultId, cutter, context.project);
+    }
+    return boolResult.resultId;
   }
 
   /**
