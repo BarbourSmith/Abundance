@@ -6,6 +6,7 @@ import {
   asReplicadPlane,
   flattenAssembly,
   hashStringWide,
+  hashString,
   SimplePlane,
 } from "./util";
 import {
@@ -17,7 +18,6 @@ import {
   StoredGeometryRecord,
   filter,
 } from "./indexeddbUtils";
-import { GCWithScope } from "replicad";
 import { reportBooleanInflight } from "./progress";
 
 type ReplicadObject =
@@ -77,6 +77,8 @@ class GeometryProvider {
   private projectLRU: string[] = [];
   private cacheHitMetrics: Record<string, [number, number, number]>; // hits, misses, total-miss-duration-ms
   private warmCache: Map<string, Map<string, ReplicadObject>> = new Map();
+  private noOpCache: Map<string, string> = new Map();
+
   // Tracks batch operations that are currently running so that concurrent
   // requests for an identical batch (same content-hashed id) share the first
   // one's result instead of racing and throwing "already exists".
@@ -92,7 +94,10 @@ class GeometryProvider {
     if (logMetrics) {
       setInterval(() => {
         console.warn("[GeometryProvider] cache metrics:", this.cacheHitMetrics);
-        console.warn("[GeometryProvider] replicad live shapes:", getReplicadLiveCounts());
+        console.warn(
+          "[GeometryProvider] replicad live shapes:",
+          getReplicadLiveCounts(),
+        );
       }, 10000);
     }
   }
@@ -181,6 +186,16 @@ class GeometryProvider {
       return resultId;
     }
 
+    if (this.noOpCache.has(resultId)) {
+      const result = this.noOpCache.get(resultId)!;
+      if (this.EMPTY_SHAPE_SENTINEL == result) {
+        this.cacheHit("boolempty");
+      } else {
+        this.cacheHit("boolnoop");
+      }
+      return result;
+    }
+
     // Cache miss. Compute the operation then either:
     //  add result to the cache
     //  if a no-op return the appropriate input id
@@ -228,7 +243,8 @@ class GeometryProvider {
     }
     switch (opResult.outcome) {
       case BooleanOutcome.EmptyShape:
-        this.cacheHit("boolempty" + resultId);
+        this.cacheMiss("boolempty" + resultId, performance.now() - start);
+        this.noOpCache.set(resultId, this.EMPTY_SHAPE_SENTINEL);
         return this.EMPTY_SHAPE_SENTINEL;
       case BooleanOutcome.InputShape:
         if (opResult.inputIndexAsResult === undefined) {
@@ -237,7 +253,8 @@ class GeometryProvider {
               JSON.stringify(opResult),
           );
         }
-        this.cacheHit("boolnoop" + resultId);
+        this.cacheMiss("boolnoop" + resultId, performance.now() - start);
+        this.noOpCache.set(resultId, inputs[opResult.inputIndexAsResult]);
         return inputs[opResult.inputIndexAsResult];
       case BooleanOutcome.NewShape:
         this.cacheMiss(resultId, performance.now() - start);
@@ -854,6 +871,10 @@ class GeometryProvider {
     cutter: string,
     context: RequestContext,
   ): Promise<string | undefined> {
+    console.warn(
+      `cut toCut is: ${hashString(toCut)} being cut with: ${hashString(cutter)}`,
+    );
+
     // Don't deserialize if it's a cache hit. Move checks inside the
     // cache check operation.
     return await this.booleanOperation(
@@ -870,6 +891,9 @@ class GeometryProvider {
             inputIndexAsResult: 0,
           };
         }
+        console.warn(
+          `cut no cache hits. computing cut: ${hashString(toCut)} with: ${hashString(cutter)}`,
+        );
 
         phase("deserialize toCut");
         const getToCutStart = performance.now();
@@ -911,6 +935,32 @@ class GeometryProvider {
               `[boolean] cut measureVolume(initial) took ${mv1Ms}ms`,
             );
           }
+
+          /*          phase("manifold preview");
+          const manifoldPreviewStart = performance.now();
+          const manifoldToCut = (toCutGeom as replicad.Shape3D).meshShape({
+            tolerance: 0.01,
+          });
+          const manifoldCutter = (cutterGeom as replicad.Shape3D).meshShape();
+          const prepDone = performance.now();
+          /*          // manifold generation took a long time to compute try it with some different tolerances
+          // to see if performance scales with tolerance
+          const timings = [0.1, 0.01].map((tolerance) => {
+            const s = performance.now();
+            const c1 = (toCutGeom as replicad.Shape3D).meshShape({
+              tolerance,
+            });
+            return [tolerance, performance.now() - s];
+          });
+          timings.push([1e-6, prepDone - manifoldPreviewStart]);
+          console.log(`meshshape generation against tolerance: ${timings}`);
+          console.warn(
+            `[boolean] cut manifold generation took ${Math.round(prepDone - manifoldPreviewStart)}ms`,
+          );
+          const intersection = manifoldToCut.intersect(manifoldCutter);
+          console.warn(
+            `[boolean] manifold intersect took ${Math.round(performance.now() - prepDone)}ms. Vol: ${intersection.volume()}`,
+          );*/
 
           phase("3D cut()");
           // Announce the exact cut about to run. If `.cut()` hangs, the worker
@@ -1293,7 +1343,7 @@ class GeometryProvider {
     // collapsed id can never collide with a non-collapsed one, and identical
     // recipes always collapse identically — preserving cache correctness.
     if (key.length > GeometryProvider.MAX_ID_LENGTH) {
-      return type + "#" + hashStringWide(key);
+      return type + "-#" + hashStringWide(key);
     }
     return key;
   }
