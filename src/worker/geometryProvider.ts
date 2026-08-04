@@ -17,7 +17,7 @@ import {
   StoredGeometryRecord,
   filter,
 } from "./indexeddbUtils";
-import { BooleanOpCache } from "./booleanOpCache";
+import { BooleanOpPrefilter } from "./booleanOpPrefilter";
 
 type ReplicadObject =
   | replicad.Shape3D
@@ -81,11 +81,11 @@ class GeometryProvider {
   private cacheHitMetrics: Record<string, [number, number, number]>; // hits, misses, total-miss-duration-ms
   private warmCache: Map<string, Map<string, ReplicadObject>> = new Map();
 
-  // Persistent (per-project) cache of shape-id pairs with known special
-  // boolean outcomes (disjoint / occlusion). Since such outcomes don't create
-  // a new shape in the cache they get special handling here to avoid eternally
-  // recomputing booleans with no-op outcomes.
-  private booleanOpCache: BooleanOpCache = new BooleanOpCache();
+  // Prefilters boolean operations: consults (and populates) a persistent
+  // (per-project) cache of shape-id pairs with known special outcomes
+  // (disjoint / occlusion), plus in-memory bounding boxes/manifold meshes,
+  // to avoid eternally recomputing booleans with no-op or empty outcomes.
+  private booleanOpPrefilter: BooleanOpPrefilter = new BooleanOpPrefilter();
 
   // Tracks batch operations that are currently running so that concurrent
   // requests for an identical batch (same content-hashed id) share the first
@@ -154,7 +154,6 @@ class GeometryProvider {
     }
     this.projectLRU.push(projectId);
     if (newProject) {
-      this.booleanOpCache.loadProject(projectId);
       if (this.projectLRU.length > this.MAX_PROJECTS) {
         this.projectLRU.shift();
       }
@@ -174,13 +173,30 @@ class GeometryProvider {
         const evictIds = Array.from(allIds).filter((id) => !projectIds.has(id));
         for (const evictId of evictIds) {
           await deleteProjectCache(evictId);
-          this.booleanOpCache.forgetProject(evictId);
+          this.booleanOpPrefilter.dropProject(evictId);
         }
       })
       .catch((error) => {
         console.error("Evict projects failed.");
         console.error(error);
       });
+  }
+
+  /**
+   * Persists a replicad shape to the cache and
+   * registers it with the boolean-op prefilter so its bounding box/manifold
+   * mesh are memoized for future disjoint/occlusion checks.
+   */
+  private async _putShapeAndRegister(
+    context: RequestContext,
+    id: string,
+    geometry: ReplicadObject,
+  ): Promise<void> {
+    const indexeddbWrite = putShape(context.project, id, geometry.serialize());
+    this.booleanOpPrefilter.registerShape(id, geometry, context);
+    // Start the await after registerShape is done since register can work in
+    // parallel with the I/O write of the serialized shape in putShape.
+    await indexeddbWrite;
   }
 
   /**
@@ -258,7 +274,7 @@ class GeometryProvider {
       // drawings are smaller in the cache so the more complicated logic we use for 3d operations
       // isn't worthwhile.
       const result = operation(geoms);
-      await putShape(context.project, resultId, result.serialize());
+      await this._putShapeAndRegister(context, resultId, result);
       this.cacheMiss(resultId, start - performance.now());
       console.warn(
         `[boolean] ${resultId.split("-")[0]} drawings. done at ${performance.now() - start}`,
@@ -299,7 +315,7 @@ class GeometryProvider {
             resultId: args[volumeMatchIndex],
           };
         } else {
-          await putShape(context.project, resultId, result.serialize());
+          await this._putShapeAndRegister(context, resultId, result);
           console.warn(
             `[boolean] ${resultId.split("-")[0]} new shape serialized at: ${performance.now() - start}`,
           );
@@ -363,11 +379,11 @@ class GeometryProvider {
       if (context.operationId) {
         this.putInWarmCache(id, context.operationId, geometry);
         if (context.persistIntermediates) {
-          await putShape(context.project, id, geometry.serialize());
+          await this._putShapeAndRegister(context, id, geometry);
         }
       } else {
         const serializeStart = performance.now();
-        await putShape(context.project, id, geometry.serialize());
+        await this._putShapeAndRegister(context, id, geometry);
         const serializeMs = Math.round(performance.now() - serializeStart);
         if (serializeMs > 1000) {
           console.warn(`[op] ${id} serialize+persist took ${serializeMs}ms`);
@@ -429,6 +445,7 @@ class GeometryProvider {
     const warmCached = this.getFromWarmCache(id, context);
     if (warmCached) {
       this.cacheHit("deserialize");
+      this.booleanOpPrefilter.registerShape(id, warmCached, context);
       return Promise.resolve(warmCached);
     }
 
@@ -462,13 +479,14 @@ class GeometryProvider {
       // stash in warm cache to avoid repeated deserialization
       this.putInWarmCache(id, context.operationId, result);
     }
+    this.booleanOpPrefilter.registerShape(id, result, context);
     return Promise.resolve(result);
   }
 
   async clearCache(context: RequestContext): Promise<boolean> {
     this.projectLRU = this.projectLRU.filter((id) => id !== context.project);
     await deleteProjectCache(context.project);
-    this.booleanOpCache.forgetProject(context.project);
+    this.booleanOpPrefilter.dropProject(context.project);
     return true;
   }
 
@@ -519,9 +537,9 @@ class GeometryProvider {
       true,
     );
 
-    const prunedPairs = await this.booleanOpCache.sweep(
+    const prunedPairs = await this.booleanOpPrefilter.sweep(
       idsToRetain,
-      context.project,
+      context,
     );
     if (prunedPairs > 0) {
       console.warn(
@@ -592,18 +610,18 @@ class GeometryProvider {
    *  - if bounding boxes also follow this pattern we'll remove them from external context.
    *  - manifold's aren't available outside of geometryprovider context (is this actually bad?)
    *
-   * 
+   *
    * what if we don't handle the cache hit problem.
    *  then we end up in a state where AbundanceObject has bbox and manifold which are sometimes present but often
    *  not. We can prefilter outside the context of geometryprovider and we can prefilter at higher levels in the
    *  tree (but do we actually benefit from this? manifold is probably more costly at higher levels.)
-   * 
+   *
    * passing the manifold to the frontend is a problem.
-   *  
-   * 
-   * 
-   * 
-   * 
+   *
+   *
+   *
+   *
+   *
    */
 
   /**
@@ -890,15 +908,21 @@ class GeometryProvider {
     }
 
     const id = this._makeId("intersect", inputId1, inputId2);
-    if (this.booleanOpCache.isDisjoint(inputId1, inputId2, context.project)) {
+    if (
+      this.booleanOpPrefilter.fastDisjointCheck(inputId1, inputId2, context)
+    ) {
       this.cacheHit("disjoint" + id);
       return this.EMPTY_SHAPE_SENTINEL;
     }
-    if (this.booleanOpCache.isOccluded(inputId1, inputId2, context.project)) {
+    if (
+      this.booleanOpPrefilter.fastOcclusionCheck(inputId1, inputId2, context)
+    ) {
       this.cacheHit("occluded" + id);
       return inputId1;
     }
-    if (this.booleanOpCache.isOccluded(inputId2, inputId1, context.project)) {
+    if (
+      this.booleanOpPrefilter.fastOcclusionCheck(inputId2, inputId1, context)
+    ) {
       this.cacheHit("occluded" + id);
       return inputId2;
     }
@@ -913,22 +937,14 @@ class GeometryProvider {
       },
     );
     if (boolResult.outcome == BooleanOutcome.EmptyShape) {
-      this.booleanOpCache.recordDisjoint(inputId1, inputId2, context.project);
+      this.booleanOpPrefilter.registerDisjoint(inputId1, inputId2, context);
     }
     if (boolResult.outcome == BooleanOutcome.InputShape) {
       if (boolResult.inputIndexAsResult == 0) {
-        this.booleanOpCache.recordOcclusion(
-          inputId1,
-          inputId2,
-          context.project,
-        );
+        this.booleanOpPrefilter.registerOccluded(inputId1, inputId2, context);
       } else if (boolResult.inputIndexAsResult == 1) {
         // Flip args since inputId2 was identical to result.
-        this.booleanOpCache.recordOcclusion(
-          inputId2,
-          inputId1,
-          context.project,
-        );
+        this.booleanOpPrefilter.registerOccluded(inputId2, inputId1, context);
       }
     }
     return boolResult.resultId;
@@ -949,11 +965,15 @@ class GeometryProvider {
     const sortedArgs = [inputId1, inputId2].sort();
     const resultId = this._makeId("fuse", sortedArgs[0], sortedArgs[1]);
 
-    if (this.booleanOpCache.isOccluded(inputId1, inputId2, context.project)) {
+    if (
+      this.booleanOpPrefilter.fastOcclusionCheck(inputId1, inputId2, context)
+    ) {
       this.cacheHit("occluded" + resultId);
       return inputId2;
     }
-    if (this.booleanOpCache.isOccluded(inputId2, inputId1, context.project)) {
+    if (
+      this.booleanOpPrefilter.fastOcclusionCheck(inputId2, inputId1, context)
+    ) {
       this.cacheHit("occluded" + resultId);
       return inputId1;
     }
@@ -967,16 +987,16 @@ class GeometryProvider {
     );
     if (boolResult.outcome == BooleanOutcome.InputShape) {
       if (boolResult.inputIndexAsResult == 0) {
-        this.booleanOpCache.recordOcclusion(
+        this.booleanOpPrefilter.registerOccluded(
           sortedArgs[1],
           sortedArgs[0],
-          context.project,
+          context,
         );
       } else if (boolResult.inputIndexAsResult == 1) {
-        this.booleanOpCache.recordOcclusion(
+        this.booleanOpPrefilter.registerOccluded(
           sortedArgs[0],
           sortedArgs[1],
-          context.project,
+          context,
         );
       }
     }
@@ -1039,11 +1059,11 @@ class GeometryProvider {
     const resultId = this._makeId("cut", toCut, cutter);
 
     // Fast no op checks
-    if (this.booleanOpCache.isDisjoint(toCut, cutter, context.project)) {
+    if (this.booleanOpPrefilter.fastDisjointCheck(toCut, cutter, context)) {
       this.cacheHit("disjoint" + resultId);
       return toCut;
     }
-    if (this.booleanOpCache.isOccluded(toCut, cutter, context.project)) {
+    if (this.booleanOpPrefilter.fastOcclusionCheck(toCut, cutter, context)) {
       this.cacheHit("occluded" + resultId);
       return this.EMPTY_SHAPE_SENTINEL;
     }
@@ -1057,11 +1077,11 @@ class GeometryProvider {
     );
 
     if (boolResult.outcome == BooleanOutcome.EmptyShape) {
-      this.booleanOpCache.recordOcclusion(toCut, cutter, context.project);
+      this.booleanOpPrefilter.registerOccluded(toCut, cutter, context);
     }
     if (boolResult.outcome == BooleanOutcome.InputShape) {
       if (boolResult.inputIndexAsResult == 0) {
-        this.booleanOpCache.recordDisjoint(toCut, cutter, context.project);
+        this.booleanOpPrefilter.registerDisjoint(toCut, cutter, context);
       } else if (boolResult.inputIndexAsResult == 1) {
         // Special case. This volume-match is erronious since the cutter
         // cannot be the result. Return resultId instead.
@@ -1069,7 +1089,7 @@ class GeometryProvider {
       }
     }
     if (boolResult.outcome == BooleanOutcome.NewShape) {
-      this.booleanOpCache.recordDisjoint(resultId, cutter, context.project);
+      this.booleanOpPrefilter.registerDisjoint(resultId, cutter, context);
     }
     return boolResult.resultId;
   }
@@ -1193,11 +1213,7 @@ class GeometryProvider {
           }
           const geom = this.getFromWarmCache(leaf.geometry, context);
           if (geom) {
-            await putShape(
-              context.project,
-              leaf.geometry,
-              this.getFromWarmCache(leaf.geometry, context)!.serialize(),
-            );
+            await this._putShapeAndRegister(context, leaf.geometry, geom);
           } else {
             // check that it's already in the serialized cache
             const exists = await shapeExists(context.project, leaf.geometry);
