@@ -90,7 +90,7 @@ class BooleanOpPrefilter {
       return true;
     }
     console.warn(
-      `[prefilter] not disjoint. in memcache? ${mesh1 && mesh2}. took: ${performance.now() - start}`,
+      `[prefilter] not disjoint. in memcache? ${mesh1 != undefined && mesh2 != undefined}. took: ${performance.now() - start}`,
     );
     return false;
   }
@@ -147,12 +147,19 @@ class BooleanOpPrefilter {
       this.manifoldMeshes.set(context.project, meshes);
     }
     if (!meshes.has(shapeId)) {
-      meshes.set(
-        shapeId,
-        shapeInstance.meshShape({
-          tolerance: BooleanOpPrefilter.MESH_TOLERANCE,
-        }),
-      );
+      try {
+        meshes.set(
+          shapeId,
+          shapeInstance.meshShape({
+            tolerance: BooleanOpPrefilter.MESH_TOLERANCE,
+          }),
+        );
+      } catch (error) {
+        console.error(
+          "Tried and failed to generate manifold for shape: ",
+          replicad.shapeType(shapeInstance.wrapped),
+        );
+      }
       console.warn(
         `[prefilter] register shape took ${performance.now() - start}`,
       );

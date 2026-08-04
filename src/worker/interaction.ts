@@ -1,4 +1,4 @@
-import { BoundingBox, Drawing } from "replicad";
+import { Drawing } from "replicad";
 import * as util from "./util";
 import { AbundanceLeaf, AbundanceObject } from "./util";
 import { RequestContext } from "./geometryProvider";
@@ -408,12 +408,6 @@ async function assembly(
 
   await util.init();
 
-  // Pre-emptively compute bounding boxes for all input geometries.
-  geometries = await Promise.all(
-    geometries.map((geometry) =>
-      util.withAssemblyBoundingBoxes(geometry, context),
-    ),
-  );
   const insideOtherBatch = !!context.operationId;
   let startedOwnBatch = false;
   if (!insideOtherBatch) {
@@ -423,9 +417,6 @@ async function assembly(
 
     // Full assembly cache hit. No work to do, but update nonReplicadSerialized if needed.
     if (util.isAbundanceObject(batch)) {
-      const batchWithBounds = batch.boundingBox
-        ? batch
-        : await util.withAssemblyBoundingBoxes(batch, context);
       // Gather all nonReplicadSerialized and bom from input geometries
       const nonReplicadGeoms: any[] = [];
       const bomAssembly: any[] = [];
@@ -441,9 +432,9 @@ async function assembly(
         }
       }
       // Always update to reflect current state, even if empty
-      batchWithBounds.nonReplicadSerialized = nonReplicadGeoms;
-      batchWithBounds.bom = bomAssembly;
-      return batchWithBounds;
+      batch.nonReplicadSerialized = nonReplicadGeoms;
+      batch.bom = bomAssembly;
+      return batch;
     }
 
     // cache miss on the batch operation.
@@ -472,19 +463,11 @@ async function assembly(
       await Promise.all(assembly),
     );
 
-    // Safety check with recursive validation disabled (forceRecompute=false)
-    // Since we've already computed bounds eagerly, this will detect our computed bounds
-    // and return immediately without recursive traversal
-    const result = await util.withAssemblyBoundingBoxes(
-      assemblyObject,
-      context,
-      false, // forceRecompute=false, so it skips unnecessary recursion
-    );
     if (!insideOtherBatch) {
       console.trace("Ending batch operation with id " + context.operationId);
-      await util.geometryProvider!.endBatchOperation(context, result);
+      await util.geometryProvider!.endBatchOperation(context, assemblyObject);
     }
-    return result;
+    return assemblyObject;
   } catch (error) {
     if (error instanceof FailedCutError) {
       // A previously-hanging boolean cut was reached. Replace the entire assembly
@@ -503,10 +486,6 @@ async function assembly(
         color: FAILED_CUT_COLOR,
       };
       const failedAssembly = util.assemblyOf([redToCut, redCutter]);
-      const withBounds = await util.withAssemblyBoundingBoxes(
-        failedAssembly,
-        context,
-      );
       if (startedOwnBatch) {
         try {
           // Do NOT cache the (never-computed) full assembly under the batch id.
@@ -518,7 +497,7 @@ async function assembly(
           );
         }
       }
-      return withBounds;
+      return failedAssembly;
     }
     if (startedOwnBatch) {
       try {
@@ -609,17 +588,7 @@ async function cutAssembly(
     // Part to cut is a single leaf.
     let partCutCopy = partToCut;
     for (const cuttingPart of cuttingParts) {
-      // Check if bounding boxes overlap before attempting cut
-      // If they don't overlap, skip the cut operation entirely
-      if (util.boundsOverlap(partToCut.boundingBox, cuttingPart.boundingBox)) {
-        // for each cutting part cut the part
-        partCutCopy = await recursiveCut(partCutCopy, cuttingPart, context);
-      } else {
-        // Bounding boxes don't overlap - skipping cut operation
-        console.log(
-          "⏭️ Skipping cut operation (non-overlapping bounding boxes)",
-        );
-      }
+      partCutCopy = await recursiveCut(partCutCopy, cuttingPart, context);
     }
     // return new cut part, expand compound solid if it was cut into disconnected
     // parts
@@ -668,11 +637,6 @@ async function recursiveCut(
       if (!util.coPlanar(partToCut.plane, cuttingPart.plane)) {
         continue; // skip: not coplanar
       }
-    }
-
-    // Bounding box check.
-    if (!util.boundsOverlap(partToCut.boundingBox, cuttingPart.boundingBox)) {
-      continue; // skip: bounding boxes don't overlap
     }
 
     // Heartbeat before each real boolean cut — this is the expensive atomic

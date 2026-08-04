@@ -44,6 +44,7 @@ enum BooleanOutcome {
   EmptyShape,
   InputShape,
   NewShape,
+  CachedHit,
 }
 
 type BooleanResult = {
@@ -215,10 +216,16 @@ class GeometryProvider {
     resultId: string,
     args: string[],
     context: RequestContext,
+    precheck: () => string | false,
     operation: (
       inputs: replicad.Shape3D[] | replicad.Drawing[],
     ) => replicad.Shape3D | replicad.Drawing,
   ): Promise<BooleanResult> {
+    const precheckResult = precheck();
+    if (precheckResult) {
+      return { outcome: BooleanOutcome.CachedHit, resultId: precheckResult };
+    }
+
     // check shape cache
     if (
       this.getFromWarmCache(resultId, context) ||
@@ -227,33 +234,6 @@ class GeometryProvider {
       this.cacheHit(resultId);
       return { outcome: BooleanOutcome.NewShape, resultId: resultId };
     }
-    /*
- phase("manifold preview");
-+          const manifoldPreviewStart = performance.now();
-+          const manifoldToCut = (toCutGeom as replicad.Shape3D).meshShape({
-+            tolerance: 0.01,
-+          });
-+          const manifoldCutter = (cutterGeom as replicad.Shape3D).meshShape();
-+          const prepDone = performance.now();
-+          /*          // manifold generation took a long time to compute try it with some different tolerances
-+          // to see if performance scales with tolerance
-+          const timings = [0.1, 0.01].map((tolerance) => {
-+            const s = performance.now();
-+            const c1 = (toCutGeom as replicad.Shape3D).meshShape({
-+              tolerance,
-+            });
-+            return [tolerance, performance.now() - s];
-+          });
-+          timings.push([1e-6, prepDone - manifoldPreviewStart]);
-+          console.log(`meshshape generation against tolerance: ${timings}`);
-+          console.warn(
-+            `[boolean] cut manifold generation took ${Math.round(prepDone - manifoldPreviewStart)}ms`,
-+          );
-+          const intersection = manifoldToCut.intersect(manifoldCutter);
-+          console.warn(
-+            `[boolean] manifold intersect took ${Math.round(performance.now() - prepDone)}ms. Vol: ${intersection.volume()}`,
-+          );
-*/
 
     // Start actual computation of the op. No cache had the result ready for us.
     const start = performance.now();
@@ -266,6 +246,12 @@ class GeometryProvider {
     );
     console.warn(
       `[boolean] ${resultId.split("-")[0]} deserialize finished at ${performance.now() - start}`,
+    );
+    for (let i = 0; i < args.length; i++) {
+      this.booleanOpPrefilter.registerShape(args[i], geoms[i], context);
+    }
+    console.warn(
+      `[boolean] ${resultId.split("-")[0]} mesh registration finished at ${performance.now() - start}`,
     );
 
     // case 2D
@@ -284,6 +270,13 @@ class GeometryProvider {
 
     // case 3D
     if (this.areAll3DShapes(geoms)) {
+      // Rerun the precheck since we've instantiated the shapes they may now be available for
+      // precheck when they weren't before
+      const precheckResult = precheck();
+      if (precheckResult) {
+        return { outcome: BooleanOutcome.CachedHit, resultId: precheckResult };
+      }
+
       const volumes = geoms.map(replicad.measureVolume);
       console.warn(
         `[boolean] ${resultId.split("-")[0]} arg volumes measured at: ${performance.now() - start}`,
@@ -445,7 +438,6 @@ class GeometryProvider {
     const warmCached = this.getFromWarmCache(id, context);
     if (warmCached) {
       this.cacheHit("deserialize");
-      this.booleanOpPrefilter.registerShape(id, warmCached, context);
       return Promise.resolve(warmCached);
     }
 
@@ -479,7 +471,6 @@ class GeometryProvider {
       // stash in warm cache to avoid repeated deserialization
       this.putInWarmCache(id, context.operationId, result);
     }
-    this.booleanOpPrefilter.registerShape(id, result, context);
     return Promise.resolve(result);
   }
 
@@ -908,29 +899,33 @@ class GeometryProvider {
     }
 
     const id = this._makeId("intersect", inputId1, inputId2);
-    if (
-      this.booleanOpPrefilter.fastDisjointCheck(inputId1, inputId2, context)
-    ) {
-      this.cacheHit("disjoint" + id);
-      return this.EMPTY_SHAPE_SENTINEL;
-    }
-    if (
-      this.booleanOpPrefilter.fastOcclusionCheck(inputId1, inputId2, context)
-    ) {
-      this.cacheHit("occluded" + id);
-      return inputId1;
-    }
-    if (
-      this.booleanOpPrefilter.fastOcclusionCheck(inputId2, inputId1, context)
-    ) {
-      this.cacheHit("occluded" + id);
-      return inputId2;
-    }
+    const preCheck = () => {
+      if (
+        this.booleanOpPrefilter.fastDisjointCheck(inputId1, inputId2, context)
+      ) {
+        this.cacheHit("disjoint" + id);
+        return this.EMPTY_SHAPE_SENTINEL;
+      }
+      if (
+        this.booleanOpPrefilter.fastOcclusionCheck(inputId1, inputId2, context)
+      ) {
+        this.cacheHit("occluded" + id);
+        return inputId1;
+      }
+      if (
+        this.booleanOpPrefilter.fastOcclusionCheck(inputId2, inputId1, context)
+      ) {
+        this.cacheHit("occluded" + id);
+        return inputId2;
+      }
+      return false;
+    };
 
     const boolResult = await this.maybeOp(
       id,
       [inputId1, inputId2],
       context,
+      preCheck,
       (args) => {
         // @ts-expect-error Type coercion happens inside of maybeOp.
         return args[0].intersect(args[1]);
@@ -965,23 +960,27 @@ class GeometryProvider {
     const sortedArgs = [inputId1, inputId2].sort();
     const resultId = this._makeId("fuse", sortedArgs[0], sortedArgs[1]);
 
-    if (
-      this.booleanOpPrefilter.fastOcclusionCheck(inputId1, inputId2, context)
-    ) {
-      this.cacheHit("occluded" + resultId);
-      return inputId2;
-    }
-    if (
-      this.booleanOpPrefilter.fastOcclusionCheck(inputId2, inputId1, context)
-    ) {
-      this.cacheHit("occluded" + resultId);
-      return inputId1;
-    }
+    const preCheck = () => {
+      if (
+        this.booleanOpPrefilter.fastOcclusionCheck(inputId1, inputId2, context)
+      ) {
+        this.cacheHit("occluded" + resultId);
+        return inputId2;
+      }
+      if (
+        this.booleanOpPrefilter.fastOcclusionCheck(inputId2, inputId1, context)
+      ) {
+        this.cacheHit("occluded" + resultId);
+        return inputId1;
+      }
+      return false;
+    };
 
     const boolResult = await this.maybeOp(
       resultId,
       sortedArgs,
       context,
+      preCheck,
       //@ts-expect-error type coercion done in maybeop.
       (args) => args[0].fuse(args[1]),
     );
@@ -1049,7 +1048,7 @@ class GeometryProvider {
     toCut: string,
     cutter: string,
     context: RequestContext,
-  ): Promise<string | undefined> {
+  ): Promise<string> {
     if (
       toCut === this.EMPTY_SHAPE_SENTINEL ||
       cutter === this.EMPTY_SHAPE_SENTINEL
@@ -1058,24 +1057,30 @@ class GeometryProvider {
     }
     const resultId = this._makeId("cut", toCut, cutter);
 
-    // Fast no op checks
-    if (this.booleanOpPrefilter.fastDisjointCheck(toCut, cutter, context)) {
-      this.cacheHit("disjoint" + resultId);
-      return toCut;
-    }
-    if (this.booleanOpPrefilter.fastOcclusionCheck(toCut, cutter, context)) {
-      this.cacheHit("occluded" + resultId);
-      return this.EMPTY_SHAPE_SENTINEL;
-    }
+    const preCheck = () => {
+      // Fast no op checks
+      if (this.booleanOpPrefilter.fastDisjointCheck(toCut, cutter, context)) {
+        this.cacheHit("disjoint" + resultId);
+        return toCut;
+      }
+      if (this.booleanOpPrefilter.fastOcclusionCheck(toCut, cutter, context)) {
+        this.cacheHit("occluded" + resultId);
+        return this.EMPTY_SHAPE_SENTINEL;
+      }
+      return false;
+    };
 
     const boolResult = await this.maybeOp(
       resultId,
       [toCut, cutter],
       context,
-      //@ts-expect-error type checking happens in maybeop
-      (args) => args[0].cut(args[1]),
+      preCheck,
+      (args) => {
+        // Recheck on bounds in case this was the first time args have been deserialized
+        //@ts-expect-error type checking happens in maybeop
+        return args[0].cut(args[1]);
+      },
     );
-
     if (boolResult.outcome == BooleanOutcome.EmptyShape) {
       this.booleanOpPrefilter.registerOccluded(toCut, cutter, context);
     }
