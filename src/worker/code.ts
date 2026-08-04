@@ -347,12 +347,7 @@ function composeCacheKey(code: string, args: { [key: string]: any }) {
   const argString = Object.entries(args)
     .map(([k, v]) => `${k}:${JSON.stringify(v)}`)
     .join("-");
-  const result = util.hashString(code + "-" + argString);
-  console.log("composing cache key for code atom. code, args, result");
-  console.log("hashtest - ", code);
-  console.log("hashtest - ", argString);
-  console.log("hashtest - ", result);
-  return result;
+  return util.hashString(code + "-" + argString);
 }
 
 async function executeTsCode(
