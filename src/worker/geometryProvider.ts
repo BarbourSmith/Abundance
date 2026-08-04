@@ -216,7 +216,9 @@ class GeometryProvider {
 
     // Start actual computation of the op. No cache had the result ready for us.
     const start = performance.now();
-    console.warn(`[boolean] ${resultId.split("-")[0]} starting at ${start}`);
+    console.warn(
+      `[boolean] ${resultId.split("-")[0]} starting for ${resultId}`,
+    );
     // deserialize args
     const geoms = await Promise.all(
       args.map((shapeid) => this.get(shapeid, context)),
@@ -227,6 +229,9 @@ class GeometryProvider {
 
     // case 2D
     if (this.areAllDrawings(geoms)) {
+      // Skip all no-op style optimizations here. Boolean operations on drawings are faster and
+      // drawings are smaller in the cache so the more complicated logic we use for 3d operations
+      // isn't worthwhile.
       const result = operation(geoms);
       await putShape(context.project, resultId, result.serialize());
       this.cacheMiss(resultId, start - performance.now());
