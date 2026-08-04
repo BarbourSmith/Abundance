@@ -569,7 +569,7 @@ async function fuseAssembly(
     if (result == undefined) {
       throw Error("got undefined shape from fuse.");
     }
-    reportCadProgress(`fuseAssembly ${i}/${flat.length}`);
+    reportCadProgress(`fuseAssembly ${i}/${flat.length - 1}`);
     result = await util.geometryProvider?.fuse(
       result,
       flat[i].geometry,
