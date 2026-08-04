@@ -6,7 +6,6 @@ import {
   asReplicadPlane,
   flattenAssembly,
   hashStringWide,
-  hashString,
   SimplePlane,
 } from "./util";
 import {
@@ -18,7 +17,6 @@ import {
   StoredGeometryRecord,
   filter,
 } from "./indexeddbUtils";
-import { reportBooleanInflight } from "./progress";
 import { BooleanOpCache } from "./booleanOpCache";
 
 type ReplicadObject =
@@ -213,6 +211,33 @@ class GeometryProvider {
       this.cacheHit(resultId);
       return { outcome: BooleanOutcome.NewShape, resultId: resultId };
     }
+    /*
+ phase("manifold preview");
++          const manifoldPreviewStart = performance.now();
++          const manifoldToCut = (toCutGeom as replicad.Shape3D).meshShape({
++            tolerance: 0.01,
++          });
++          const manifoldCutter = (cutterGeom as replicad.Shape3D).meshShape();
++          const prepDone = performance.now();
++          /*          // manifold generation took a long time to compute try it with some different tolerances
++          // to see if performance scales with tolerance
++          const timings = [0.1, 0.01].map((tolerance) => {
++            const s = performance.now();
++            const c1 = (toCutGeom as replicad.Shape3D).meshShape({
++              tolerance,
++            });
++            return [tolerance, performance.now() - s];
++          });
++          timings.push([1e-6, prepDone - manifoldPreviewStart]);
++          console.log(`meshshape generation against tolerance: ${timings}`);
++          console.warn(
++            `[boolean] cut manifold generation took ${Math.round(prepDone - manifoldPreviewStart)}ms`,
++          );
++          const intersection = manifoldToCut.intersect(manifoldCutter);
++          console.warn(
++            `[boolean] manifold intersect took ${Math.round(performance.now() - prepDone)}ms. Vol: ${intersection.volume()}`,
++          );
+*/
 
     // Start actual computation of the op. No cache had the result ready for us.
     const start = performance.now();
@@ -506,6 +531,80 @@ class GeometryProvider {
 
     return deletedGeoms + deletedAssemblies;
   }
+  /**
+   * thinking about manifold mesh for prefilters
+   *
+   * case cache miss:
+   *  on a translation or other op which has a cache miss return a
+   *  tuple of id, bounding box, mesh
+   *    this is easy because on a cache miss we'll have the instantiated
+   *    instance to generate these values from
+   *
+   * case cache hit:
+   *  problems
+   *    if there's a cache hit then we don't have the instantiated geometry
+   *    so we can:
+   *      1) instantiate the result and generate the bbox and mesh
+   *          bad because this slows down cache hits a ton esp for times we don't even
+   *          expect there to be usage of these things downstream
+   *      2) keep a parallel cache for bboxes and meshes
+   *          this would work but is so much maintenance and probably has to have
+   *          failover support anyways
+   *
+   * who get's access to the meshes?
+   *
+   * current model for bbox:
+   *  before an operation we do a pass to generate bounding boxes. This is necessary because
+   *  we might be working with inputs that haven't been instantiated this session, and therefore
+   *  we never had a chance to precompute their bbox.
+   *    downside with this approach is that it forces instantiation before we check the cache.
+   *
+   *  one advantage (which we're not currently utilizing) of tree-structured bbox is that we
+   *  can skip branches of an assembly structure
+   *
+   * Open question:
+   *  do we need bounding box outside of geometryProvider context?
+   *  do we need manifolds outside of geometryProvider context?
+   *
+   * impl option 1:
+   *   - keep an in-memory cache of manifolds
+   *   - every instantiated object gets added to the in-memory cache
+   *      - importantly this includes all 3d results on a cache miss
+   *      - every arg that get's instantiated as part of a cache miss computation too
+   *   - using the cache:
+   *      - during a boolean op, before deserialization
+   *      - try to retrieve manifolds for all args
+   *      - if present do an op filter with the args. If provably no-op, return early.
+   * - a mirrored structure for bounding boxes is also an option.
+   * - consolidate this check with the noop cache check since the result is the same.
+   *   eg into a "fastDisjointCheck" helper or similar
+   * - sweep the mem cache on the same schedule as other cache sweeps.
+   *
+   * pros:
+   *  - don't repeat instantiate manifolds
+   *  - check manifold without deserializing shapes (when possible)
+   *  - expect improved performance as the system warms up
+   *  - no overhead for cache hits
+   *
+   * cons:
+   *  - unknown memory usage for the live cache
+   *  - cache is empty at startup, first time we see a shape each session we're adding overhead.
+   *  - if bounding boxes also follow this pattern we'll remove them from external context.
+   *  - manifold's aren't available outside of geometryprovider context (is this actually bad?)
+   *
+   * 
+   * what if we don't handle the cache hit problem.
+   *  then we end up in a state where AbundanceObject has bbox and manifold which are sometimes present but often
+   *  not. We can prefilter outside the context of geometryprovider and we can prefilter at higher levels in the
+   *  tree (but do we actually benefit from this? manifold is probably more costly at higher levels.)
+   * 
+   * passing the manifold to the frontend is a problem.
+   *  
+   * 
+   * 
+   * 
+   * 
+   */
 
   /**
    * Draws a rectangle with the given dimensions.

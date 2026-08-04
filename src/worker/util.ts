@@ -7,6 +7,8 @@ import {
   ReplicadObject,
   RequestContext,
 } from "./geometryProvider";
+import { getManifoldModule, setWasmUrl } from "manifold-3d/lib/wasm.js";
+import manifoldWasmUrl from "manifold-3d/manifold.wasm?url";
 
 const defaultColor: string = "#aad7f2";
 let loaded: boolean = false;
@@ -16,16 +18,35 @@ let ocModule: any = undefined;
 const init = async (logMetrics: boolean = true): Promise<boolean> => {
   if (loaded) return Promise.resolve(true);
   //@ts-expect-error - opencascade doesn't have types
-  const OC = await opencascade({
+  const OC = opencascade({
     locateFile: () => opencascadeWasm,
   });
 
-  loaded = true;
-  ocModule = OC;
-  replicad.setOC(OC);
+  const MANIFOLD = loadManifold();
+
+  const [oc, manifold] = await Promise.all([OC, MANIFOLD]);
+  ocModule = oc;
+  replicad.setOC(oc);
+  if (manifold?.Manifold) {
+    manifold.setup();
+    replicad.setManifold(manifold);
+  }
   geometryProvider = new GeometryProvider(logMetrics);
+  loaded = true;
 
   return true;
+};
+
+let manifoldModulePromise: Promise<any> | null = null;
+
+const loadManifold = async () => {
+  setWasmUrl(manifoldWasmUrl);
+  // Cache the promise itself (not just the result) to avoid concurrent
+  // instantiation during the await window where manifoldwasm is still null
+  if (!manifoldModulePromise) {
+    manifoldModulePromise = getManifoldModule();
+  }
+  return manifoldModulePromise;
 };
 
 /**
