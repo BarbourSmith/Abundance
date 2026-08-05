@@ -108,6 +108,76 @@ export function ThumbnailDialogProvider({ children }) {
         // Don't throw here - file was uploaded successfully even if AWS update fails
       }
 
+      // Generate and commit preview.html for social media previews
+      try {
+        console.log("Generating preview.html for social media...");
+        const description =
+          GlobalVariables.currentAWSnode.description ||
+          `Check out ${repo} in Abundance`;
+        const previewUrl = `https://abundance.maslowcnc.com/run/${owner}/${repo}`;
+
+        // Generate preview.html with OpenGraph meta tags
+        const previewHtml = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta property="og:title" content="${projectName || repo}" />
+  <meta property="og:description" content="${description.substring(0, 160)}" />
+  <meta property="og:image" content="${downloadUrl}" />
+  <meta property="og:url" content="${previewUrl}" />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="${projectName || repo}" />
+  <meta name="twitter:description" content="${description.substring(0, 160)}" />
+  <meta name="twitter:image" content="${downloadUrl}" />
+  <title>${projectName || repo}</title>
+</head>
+<body>
+  <p>Loading project...</p>
+</body>
+</html>`;
+
+        // Convert to base64
+        const base64Html = btoa(previewHtml);
+
+        // Get existing SHA if file exists
+        let previewSha = null;
+        try {
+          const existingPreview =
+            await authorizedUserOcto.rest.repos.getContent({
+              owner,
+              repo,
+              path: "preview.html",
+            });
+          previewSha = existingPreview.data.sha;
+        } catch (err) {
+          if (err.status !== 404) {
+            throw err;
+          }
+        }
+
+        // Commit preview.html to GitHub
+        const previewParams = {
+          owner,
+          repo,
+          path: "preview.html",
+          message: "Update project preview metadata",
+          content: base64Html,
+        };
+
+        if (previewSha) {
+          previewParams.sha = previewSha;
+        }
+
+        await authorizedUserOcto.rest.repos.createOrUpdateFileContents(
+          previewParams,
+        );
+        console.log("Preview.html committed to GitHub successfully");
+      } catch (err) {
+        console.error("Error generating preview.html:", err);
+        // Non-critical failure - continue anyway
+      }
+
       // Call the original callback if provided
       if (onSetAsThumbnailCallback) {
         await onSetAsThumbnailCallback(imageDataUrl);
