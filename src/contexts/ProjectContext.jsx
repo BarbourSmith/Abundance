@@ -313,7 +313,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
 
     // Generate and commit preview.html for social media previews
     try {
-      const projectName = currentName || currentRepoName;
+      const projectName = currentRepoName;
       const projectDescription =
         description || `Check out ${currentRepoName} in Abundance`;
 
