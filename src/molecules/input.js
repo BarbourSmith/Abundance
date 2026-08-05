@@ -570,8 +570,10 @@ export default class Input extends Atom {
       if (!Array.isArray(node.geometry)) {
         const idx = leafCounter++;
         if (node.selection?.part) leafIndexes.push(idx);
-        if (node.selection?.edges?.length) edgeData[idx] = [...node.selection.edges];
-        if (node.selection?.faces?.length) faceData[idx] = [...node.selection.faces];
+        if (node.selection?.edges?.length)
+          edgeData[idx] = [...node.selection.edges];
+        if (node.selection?.faces?.length)
+          faceData[idx] = [...node.selection.faces];
       } else {
         node.geometry.forEach(walk);
       }
