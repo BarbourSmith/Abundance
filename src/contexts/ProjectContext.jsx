@@ -53,6 +53,46 @@ export function ProjectProvider({ children, cad, loadProject }) {
    * @param {boolean} exporting - If exporting a molecule
    *
    */
+  /**
+   * Generate preview.html content for social media previews
+   * @param {string} projectName - Name of the project
+   * @param {string} projectDescription - Project description
+   * @param {string} owner - GitHub owner
+   * @param {string} repo - GitHub repo name
+   * @returns {string} Base64-encoded HTML string
+   */
+  const generatePreviewHtml = (
+    projectName,
+    projectDescription,
+    owner,
+    repo,
+  ) => {
+    const previewUrl = `https://abundance.maslowcnc.com/run/${owner}/${repo}`;
+    const projectImageUrl = `https://raw.githubusercontent.com/${owner}/${repo}/main/project.png`;
+
+    const previewHtml = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta property="og:title" content="${projectName}" />
+  <meta property="og:description" content="${projectDescription.substring(0, 160)}" />
+  <meta property="og:image" content="${projectImageUrl}" />
+  <meta property="og:url" content="${previewUrl}" />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="${projectName}" />
+  <meta name="twitter:description" content="${projectDescription.substring(0, 160)}" />
+  <meta name="twitter:image" content="${projectImageUrl}" />
+  <title>${projectName}</title>
+</head>
+<body>
+  <p>Loading project...</p>
+</body>
+</html>`;
+
+    return window.btoa(previewHtml);
+  };
+
   const createProject = async (
     authorizedUserOcto,
     [name, topics, description, license, units],
@@ -270,6 +310,33 @@ export function ProjectProvider({ children, cad, loadProject }) {
       content: window.btoa(GlobalVariables.toBinaryStr(licenses[license])),
     });
     setNewProjectBar(90);
+
+    // Generate and commit preview.html for social media previews
+    try {
+      const projectName = currentName || currentRepoName;
+      const projectDescription =
+        description || `Check out ${currentRepoName} in Abundance`;
+
+      // Generate base64-encoded preview.html
+      const base64PreviewHtml = generatePreviewHtml(
+        projectName,
+        projectDescription,
+        currentUser,
+        currentRepoName,
+      );
+
+      await authorizedUserOcto.rest.repos.createOrUpdateFileContents({
+        owner: currentUser,
+        repo: currentRepoName,
+        path: "preview.html",
+        message: "Initialize project preview metadata",
+        content: base64PreviewHtml,
+      });
+      console.log("preview.html created successfully");
+    } catch (err) {
+      console.error("Error creating preview.html:", err);
+      // Non-critical failure - continue anyway
+    }
 
     // Set topics with error handling
     try {
@@ -1174,8 +1241,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
 
             processed += 1;
             updateSaveProgress(
-              50 +
-                Math.floor((processed / Math.max(files.length, 1)) * 20),
+              50 + Math.floor((processed / Math.max(files.length, 1)) * 20),
             );
           }
 
@@ -1323,7 +1389,8 @@ export function ProjectProvider({ children, cad, loadProject }) {
           return;
         }
 
-        const message = "Save already in progress. Please wait for it to finish.";
+        const message =
+          "Save already in progress. Please wait for it to finish.";
         setNotification(message, "warning");
         setTimeout(() => setNotification(null), 3000);
         return;
