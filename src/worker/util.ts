@@ -433,6 +433,14 @@ function isLeaf(obj: AbundanceObject): obj is AbundanceLeaf {
   return obj !== undefined && !Array.isArray(obj.geometry);
 }
 
+function leafCount(assembly: AbundanceObject) {
+  if (isLeaf(assembly)) {
+    return 1;
+  } else {
+    return assembly.geometry.map(leafCount).reduce((acc, i) => acc + i, 0);
+  }
+}
+
 function actOnLeafsSync(
   assembly: AbundanceObject,
   action: (leaf: AbundanceLeaf) => AbundanceObject,
@@ -704,6 +712,7 @@ export {
   isLeaf,
   isPoint3D,
   isWireGeometry,
+  leafCount,
   mergeBounds,
   replicad,
   SimplePlane,

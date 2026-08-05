@@ -177,9 +177,15 @@ async function difference(
     (util.is3D(target) && util.is3D(cutter)) ||
     (!util.is3D(target) && !util.is3D(cutter))
   ) {
+    const totalCuts = util.leafCount(target) * util.leafCount(cutter);
+    let completedCuts = 0;
+    const progressCallback = () => {
+      completedCuts++;
+      reportCadProgress(`boolean cut ${completedCuts} / ${totalCuts}`);
+    };
     // Process each leaf of target independently
     return util.actOnLeafs(target, async (leaf: AbundanceLeaf) => {
-      return await recursiveCut(leaf, cutter, context);
+      return await recursiveCut(leaf, cutter, context, progressCallback);
     });
   } else {
     throw new Error("Both inputs must be either 3D or 2D");
@@ -455,13 +461,32 @@ async function assembly(
     // The general case of a cache miss assembly operation.
     const assembly: AbundanceObject[] = [];
 
+    const leafcounts = geometries
+      .map(util.leafCount)
+    let temp = leafcounts[leafcounts.length - 1];
+    let totalCuts = 0;
+    for (let i = leafcounts.length - 1; i >= 0; i++) {
+      totalCuts += leafcounts[i] * temp;
+      temp += leafcounts[i]
+    }
+    let completedCuts = 0;
+    const progressCallback = () => {
+      completedCuts++;
+      reportCadProgress(`boolean cut ${completedCuts} / ${totalCuts}`);
+    };
+
     // Each geometry is cut by all following geometries.
     // TODO: test if this is faster working back-to-front or front-to-back.
     for (let i = 0; i < geometries.length - 1; i++) {
       const geometry = geometries[i];
       reportCadProgress(`cutting part ${i + 1}/${geometries.length}`);
       assembly.push(
-        await cutAssembly(geometry, geometries.slice(i + 1), context),
+        await cutAssembly(
+          geometry,
+          geometries.slice(i + 1),
+          context,
+          progressCallback,
+        ),
       );
     }
     assembly.push(geometries[geometries.length - 1]); // Final entry is always unmodified.
@@ -583,8 +608,17 @@ async function cutAssembly(
   partToCut: AbundanceObject,
   cuttingParts: AbundanceObject[],
   context: RequestContext,
+  progressCallback: (() => void) | undefined = undefined,
 ): Promise<AbundanceObject> {
   await util.init();
+
+  if (progressCallback == undefined) {
+    let cutscount = 0;
+    progressCallback = () => {
+      cutscount++;
+      reportCadProgress(`boolean cut ${cutscount}`);
+    };
+  }
 
   //If the partToCut is an assembly pass each part back into cutAssembly function to be cut separately
   if (util.isAssembly(partToCut)) {
@@ -597,7 +631,9 @@ async function cutAssembly(
       // deeply-nested assembly is cut part-by-part.
       reportCadProgress(`cutting subpart ${subIndex}/${subParts.length}`);
       // make new assembly from cut parts
-      partsAfterCut.push(await cutAssembly(part, cuttingParts, context));
+      partsAfterCut.push(
+        await cutAssembly(part, cuttingParts, context, progressCallback),
+      );
     }
 
     const newAssembly = util.computeAssemblyBounds({
@@ -613,7 +649,12 @@ async function cutAssembly(
       // If they don't overlap, skip the cut operation entirely
       if (util.boundsOverlap(partToCut.boundingBox, cuttingPart.boundingBox)) {
         // for each cutting part cut the part
-        partCutCopy = await recursiveCut(partCutCopy, cuttingPart, context);
+        partCutCopy = await recursiveCut(
+          partCutCopy,
+          cuttingPart,
+          context,
+          progressCallback,
+        );
       } else {
         // Bounding boxes don't overlap - skipping cut operation
         console.log(
@@ -648,6 +689,7 @@ async function recursiveCut(
   partToCut: AbundanceLeaf,
   cuttingParts: AbundanceObject,
   context: RequestContext,
+  progressCallback: () => void,
 ): Promise<AbundanceLeaf> {
   let resultGeomId: string = partToCut.geometry;
 
@@ -655,7 +697,6 @@ async function recursiveCut(
   // checks since we could find an entire branch of the assembly which doesn't
   // intersect bounding box. This is simpler implemenation but may someday warrant
   // a change.
-  let cutsPerformed = 0;
   for (const cuttingPart of util.flattenAssembly(cuttingParts)) {
     // --- Coplanarity check for 2D shapes ---
     if (
@@ -678,8 +719,7 @@ async function recursiveCut(
     // Heartbeat before each real boolean cut — this is the expensive atomic
     // operation, so reporting here resets the inactivity watchdog even when a
     // single leaf is cut by many parts.
-    cutsPerformed++;
-    reportCadProgress(`boolean cut ${cutsPerformed}`);
+    progressCallback();
     // If this exact cut hung the worker before, do not run it again. Signal the
     // assembly to surface both parts in red instead of hanging or silently
     // dropping the cut.
