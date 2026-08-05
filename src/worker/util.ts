@@ -1,6 +1,6 @@
 import * as replicad from "replicad";
-import opencascade from "replicad-opencascadejs/src/replicad_single.js";
-import opencascadeWasm from "replicad-opencascadejs/src/replicad_single.wasm?url";
+import opencascade from "replicad-opencascadejs";
+import opencascadeWasm from "replicad-opencascadejs/wasm?url";
 import { v4 as uuidv4 } from "uuid";
 import {
   GeometryProvider,

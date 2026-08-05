@@ -6,7 +6,7 @@ import App from "./App.jsx";
 import { BrowserRouter } from "react-router-dom";
 
 // This is here to compensate for a bug in vite
-import "replicad-opencascadejs/src/replicad_single.wasm?url";
+import "replicad-opencascadejs/wasm?url";
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(

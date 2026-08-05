@@ -15,6 +15,15 @@ export default defineConfig({
   },
 
   optimizeDeps: {
-    exclude: ["polygon-packer", "geometry-utils"],
+    // replicad-shrink-wrap/replicad-decorate must not be pre-bundled: esbuild
+    // would inline their own copy of "replicad", creating a second OC/replicad
+    // module instance whose setOC() singleton is never initialized.
+    exclude: [
+      "polygon-packer",
+      "geometry-utils",
+      "replicad",
+      "replicad-shrink-wrap",
+      "replicad-decorate",
+    ],
   },
 });
