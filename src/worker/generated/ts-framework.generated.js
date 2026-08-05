@@ -199,7 +199,7 @@ export function makeAbundanceFramework(replicad) {
         geomString = this.geometry.constructor.name;
       }
       const planeString = this.plane ? "replicad.plane" : "null";
-      return `{__isRawAbundanceObj: true, color: ${this.color}, tags: ${JSON.stringify(this.tags)}, bom: ${JSON.stringify(this.bom)}, plane: ${planeString}, geometry: ${geomString}}`;
+      return `{__isRawAbundanceObj: true, color: ${this.color}, tags: ${JSON.stringify(this.tags)}, bom: ${JSON.stringify(this.bom)}, plane: ${planeString}, selection: ${JSON.stringify(this.selection)}, geometry: ${geomString}}`;
     }
   }
   Assembly.prototype.__abundance = "Assembly";
