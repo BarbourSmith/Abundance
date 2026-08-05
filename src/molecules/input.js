@@ -96,6 +96,10 @@ export default class Input extends Atom {
      */
     this.selectedFaceData = {};
 
+    // True when a new upstream connection is awaiting its first READY value
+    // so its existing selection flags can be inherited.
+    this._pendingSelectionInheritance = false;
+
     /**
      * Flag indicating if the name text is currently truncated
      * @type {boolean}
@@ -356,8 +360,11 @@ export default class Input extends Atom {
 
       // For partselect type, transform the incoming geometry with selection flags
       if (this.type === "partselect") {
-        console.log(this.selectedLeafIndexes);
         if (parentState.status === Status.READY && parentState.value != null) {
+          if (this._pendingSelectionInheritance) {
+            this.inheritSelectionFromAssembly(parentState.value);
+            this._pendingSelectionInheritance = false;
+          }
           const transformed = this.applyPartSelection(
             parentState.value,
             this.selectedLeafIndexes,
@@ -373,6 +380,10 @@ export default class Input extends Atom {
       // For edgeselect type
       if (this.type === "edgeselect") {
         if (parentState.status === Status.READY && parentState.value != null) {
+          if (this._pendingSelectionInheritance) {
+            this.inheritSelectionFromAssembly(parentState.value);
+            this._pendingSelectionInheritance = false;
+          }
           const transformed = this.applyEdgeSelection(
             parentState.value,
             this.selectedEdgeData,
@@ -388,6 +399,10 @@ export default class Input extends Atom {
       // For faceselect type
       if (this.type === "faceselect") {
         if (parentState.status === Status.READY && parentState.value != null) {
+          if (this._pendingSelectionInheritance) {
+            this.inheritSelectionFromAssembly(parentState.value);
+            this._pendingSelectionInheritance = false;
+          }
           const transformed = this.applyFaceSelection(
             parentState.value,
             this.selectedFaceData,
@@ -508,19 +523,63 @@ export default class Input extends Atom {
   }
 
   /**
-   * Reset all selection state for this input. Called whenever the upstream
-   * connection is established or removed, since previously selected leaf
-   * indexes / edge indexes / face indexes may no longer correspond to valid
-   * elements on the newly (dis)connected geometry.
+   * Reset all selection state for this input. Used when the upstream
+   * connection is removed entirely (no assembly left to inherit from).
    */
   resetSelectionState() {
     this.selectedLeafIndexes = [];
     this.selectedEdgeData = {};
     this.selectedFaceData = {};
+    this._pendingSelectionInheritance = false;
     GlobalVariables.bumpSelectionVersion();
     if (typeof this._panelSetInputChanged === "function") {
       this._panelSetInputChanged(String(Date.now()));
     }
+  }
+
+  /**
+   * Called when a new upstream connection is made. Clears current selection
+   * and marks it to be re-derived from the newly connected assembly's own
+   * selection.part/.edges/.faces flags (e.g. set upstream by a code atom)
+   * once that assembly's first READY value arrives in onUpstreamChange.
+   */
+  markPendingSelectionInheritance() {
+    this.selectedLeafIndexes = [];
+    this.selectedEdgeData = {};
+    this.selectedFaceData = {};
+    this._pendingSelectionInheritance = true;
+    GlobalVariables.bumpSelectionVersion();
+    if (typeof this._panelSetInputChanged === "function") {
+      this._panelSetInputChanged(String(Date.now()));
+    }
+  }
+
+  /**
+   * Walk an assembly in flattenAssembly order and copy any existing
+   * selection.part/.edges/.faces flags into this input's local selection
+   * state, so a selector input linked to an already-selected assembly
+   * (e.g. produced by a code atom) starts populated instead of empty.
+   */
+  inheritSelectionFromAssembly(assembly) {
+    const leafIndexes = [];
+    const edgeData = {};
+    const faceData = {};
+    let leafCounter = 0;
+    const walk = (node) => {
+      if (!node) return;
+      if (!Array.isArray(node.geometry)) {
+        const idx = leafCounter++;
+        if (node.selection?.part) leafIndexes.push(idx);
+        if (node.selection?.edges?.length) edgeData[idx] = [...node.selection.edges];
+        if (node.selection?.faces?.length) faceData[idx] = [...node.selection.faces];
+      } else {
+        node.geometry.forEach(walk);
+      }
+    };
+    walk(assembly);
+    this.selectedLeafIndexes = leafIndexes;
+    this.selectedEdgeData = edgeData;
+    this.selectedFaceData = faceData;
   }
 
   /**

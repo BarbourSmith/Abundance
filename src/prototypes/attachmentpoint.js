@@ -970,16 +970,18 @@ export default class AttachmentPoint extends ObservableEntity {
 
       // A new upstream connection means any previously selected parts/edges/faces
       // may no longer correspond to valid indexes on the newly connected geometry.
-      // Reset selection state so stale indexes can't get stuck as unselectable.
+      // Mark for re-derivation from the new assembly's own selection flags (if
+      // any) once its first READY value arrives, instead of just clearing.
       // Skip this while a project is being loaded/deserialized, or while undoing,
       // since those connections are being restored rather than newly made by
       // the user — the saved selection state should be preserved in that case.
       if (
         !GlobalVariables.projectIsLoading &&
         !GlobalVariables.isUndoing &&
-        typeof this.options?.inputAtom?.resetSelectionState === "function"
+        typeof this.options?.inputAtom?.markPendingSelectionInheritance ===
+          "function"
       ) {
-        this.options.inputAtom.resetSelectionState();
+        this.options.inputAtom.markPendingSelectionInheritance();
       }
     } else {
       this.connectors.push(connector);
