@@ -224,7 +224,9 @@ class GeometryProvider {
       args.map((shapeid) => this.get(shapeid, context)),
     );
     console.warn(
-      `[boolean] ${resultId.split("-")[0]} deserialize finished at ${performance.now() - start}`,
+      `[boolean] ${resultId.split("-")[0]} deserialize finished at ${
+        performance.now() - start
+      }`,
     );
 
     // case 2D
@@ -236,7 +238,9 @@ class GeometryProvider {
       await putShape(context.project, resultId, result.serialize());
       this.cacheMiss(resultId, start - performance.now());
       console.warn(
-        `[boolean] ${resultId.split("-")[0]} drawings. done at ${performance.now() - start}`,
+        `[boolean] ${resultId.split("-")[0]} drawings. done at ${
+          performance.now() - start
+        }`,
       );
       return { outcome: BooleanOutcome.NewShape, resultId: resultId };
     }
@@ -245,13 +249,17 @@ class GeometryProvider {
     if (this.areAll3DShapes(geoms)) {
       const volumes = geoms.map(replicad.measureVolume);
       console.warn(
-        `[boolean] ${resultId.split("-")[0]} arg volumes measured at: ${performance.now() - start}`,
+        `[boolean] ${resultId.split("-")[0]} arg volumes measured at: ${
+          performance.now() - start
+        }`,
       );
       const result = this.as3dShapeOrThrow(
         operation(geoms) as replicad.AnyShape,
       );
       console.warn(
-        `[boolean] ${resultId.split("-")[0]} operation finished at: ${performance.now() - start}`,
+        `[boolean] ${resultId.split("-")[0]} operation finished at: ${
+          performance.now() - start
+        }`,
       );
 
       // use volume measurements to identify possible no-op conditions.
@@ -276,7 +284,9 @@ class GeometryProvider {
         } else {
           await putShape(context.project, resultId, result.serialize());
           console.warn(
-            `[boolean] ${resultId.split("-")[0]} new shape serialized at: ${performance.now() - start}`,
+            `[boolean] ${resultId.split("-")[0]} new shape serialized at: ${
+              performance.now() - start
+            }`,
           );
           toReturn = {
             outcome: BooleanOutcome.NewShape,
@@ -286,7 +296,9 @@ class GeometryProvider {
       }
       this.cacheMiss(resultId, performance.now() - start);
       console.warn(
-        `[boolean] ${resultId.split("-")[0]} outcome: ${BooleanOutcome[toReturn.outcome]}. done at: ${performance.now() - start}`,
+        `[boolean] ${resultId.split("-")[0]} outcome: ${
+          BooleanOutcome[toReturn.outcome]
+        }. done at: ${performance.now() - start}`,
       );
 
       return toReturn;
@@ -832,6 +844,18 @@ class GeometryProvider {
         );
       }
     }
+    if (boolResult.outcome == BooleanOutcome.NewShape) {
+      this.booleanOpCache.recordOcclusion(
+        boolResult.resultId,
+        inputId1,
+        context.project,
+      );
+      this.booleanOpCache.recordOcclusion(
+        boolResult.resultId,
+        inputId2,
+        context.project,
+      );
+    }
     return boolResult.resultId;
   }
 
@@ -880,6 +904,18 @@ class GeometryProvider {
           context.project,
         );
       }
+    }
+    if (boolResult.outcome == BooleanOutcome.NewShape) {
+      this.booleanOpCache.recordOcclusion(
+        inputId1,
+        boolResult.resultId,
+        context.project,
+      );
+      this.booleanOpCache.recordOcclusion(
+        inputId2,
+        boolResult.resultId,
+        context.project,
+      );
     }
     return boolResult.resultId;
   }
@@ -971,6 +1007,7 @@ class GeometryProvider {
     }
     if (boolResult.outcome == BooleanOutcome.NewShape) {
       this.booleanOpCache.recordDisjoint(resultId, cutter, context.project);
+      this.booleanOpCache.recordOcclusion(resultId, toCut, context.project);
     }
     return boolResult.resultId;
   }
