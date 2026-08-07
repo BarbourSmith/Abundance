@@ -3,6 +3,7 @@ import GlobalVariables from "../js/globalvariables.js";
 import { Status } from "../prototypes/observableEntity.js";
 import { ValueChangeCommand } from "../js/undoCommands.js";
 import { Octokit } from "octokit";
+import { hashAssembly } from "../worker/util.ts";
 
 // Default values for range type inputs
 const DEFAULT_RANGE_MIN = 0;
@@ -95,10 +96,6 @@ export default class Input extends Atom {
      * @type {Object.<number, number[]>}
      */
     this.selectedFaceData = {};
-
-    // True when a new upstream connection is awaiting its first READY value
-    // so its existing selection flags can be inherited.
-    this._pendingSelectionInheritance = false;
 
     /**
      * Flag indicating if the name text is currently truncated
@@ -361,10 +358,7 @@ export default class Input extends Atom {
       // For partselect type, transform the incoming geometry with selection flags
       if (this.type === "partselect") {
         if (parentState.status === Status.READY && parentState.value != null) {
-          if (this._pendingSelectionInheritance) {
-            this.inheritSelectionFromAssembly(parentState.value);
-            this._pendingSelectionInheritance = false;
-          }
+          this.inheritSelectionFromAssembly(parentState.value);
           const transformed = this.applyPartSelection(
             parentState.value,
             this.selectedLeafIndexes,
@@ -380,10 +374,7 @@ export default class Input extends Atom {
       // For edgeselect type
       if (this.type === "edgeselect") {
         if (parentState.status === Status.READY && parentState.value != null) {
-          if (this._pendingSelectionInheritance) {
-            this.inheritSelectionFromAssembly(parentState.value);
-            this._pendingSelectionInheritance = false;
-          }
+          this.inheritSelectionFromAssembly(parentState.value);
           const transformed = this.applyEdgeSelection(
             parentState.value,
             this.selectedEdgeData,
@@ -399,10 +390,7 @@ export default class Input extends Atom {
       // For faceselect type
       if (this.type === "faceselect") {
         if (parentState.status === Status.READY && parentState.value != null) {
-          if (this._pendingSelectionInheritance) {
-            this.inheritSelectionFromAssembly(parentState.value);
-            this._pendingSelectionInheritance = false;
-          }
+          this.inheritSelectionFromAssembly(parentState.value);
           const transformed = this.applyFaceSelection(
             parentState.value,
             this.selectedFaceData,
@@ -530,7 +518,6 @@ export default class Input extends Atom {
     this.selectedLeafIndexes = [];
     this.selectedEdgeData = {};
     this.selectedFaceData = {};
-    this._pendingSelectionInheritance = false;
     GlobalVariables.bumpSelectionVersion();
     if (typeof this._panelSetInputChanged === "function") {
       this._panelSetInputChanged(String(Date.now()));
@@ -547,7 +534,6 @@ export default class Input extends Atom {
     this.selectedLeafIndexes = [];
     this.selectedEdgeData = {};
     this.selectedFaceData = {};
-    this._pendingSelectionInheritance = true;
     GlobalVariables.bumpSelectionVersion();
     if (typeof this._panelSetInputChanged === "function") {
       this._panelSetInputChanged(String(Date.now()));
@@ -561,6 +547,10 @@ export default class Input extends Atom {
    * (e.g. produced by a code atom) starts populated instead of empty.
    */
   inheritSelectionFromAssembly(assembly) {
+    if (hashAssembly(this.value) == hashAssembly(assembly)) {
+      // no-op if the upstream is identical to prior.
+      return;
+    }
     const leafIndexes = [];
     const edgeData = {};
     const faceData = {};
@@ -579,9 +569,20 @@ export default class Input extends Atom {
       }
     };
     walk(assembly);
-    this.selectedLeafIndexes = leafIndexes;
-    this.selectedEdgeData = edgeData;
-    this.selectedFaceData = faceData;
+    // if upstream doesn't have a selection defer to our existing selection
+    // state
+    if (leafIndexes.length > 0) {
+      this.selectedLeafIndexes = leafIndexes;
+    }
+    if (Object.keys(edgeData).length > 0) {
+      console.log(
+        "updating edge selection with data:  " + JSON.stringify(edgeData),
+      );
+      this.selectedEdgeData = edgeData;
+    }
+    if (Object.keys(faceData).length > 0) {
+      this.selectedFaceData = faceData;
+    }
   }
 
   /**
