@@ -551,15 +551,41 @@ async function fuseAssembly(
   context: RequestContext,
 ): Promise<AbundanceLeaf> {
   await util.init();
-  const flattened = util.flattenAssembly(assembly);
-  if (flattened.length === 0) {
-    throw new Error("No geometries found in assembly");
+  if (util.isFace(assembly)) {
+    throw new Error("Faces cannot be fused.");
   }
-  // TODO: should be union of tags and bom?
+
+  // Exclude wires, points
+  const flat = util.flattenAssembly(assembly).filter((shape) => {
+    return util.is2D(shape) || util.is3D(shape);
+  });
+  if (flat.length == 0) {
+    throw new Error(
+      "No fusable elements in this assembly. Wires and Points cannot be fused",
+    );
+  }
+  let result: string | undefined = flat[0].geometry;
+  for (let i = 1; i < flat.length; i++) {
+    if (result == undefined) {
+      throw Error("got undefined shape from fuse.");
+    }
+    reportCadProgress(`fuseAssembly ${i}/${flat.length - 1}`);
+    result = await util.geometryProvider?.fuse(
+      result,
+      flat[i].geometry,
+      context,
+    );
+  }
+  if (result == undefined) {
+    throw Error("got undefined shape from fuse.");
+  }
   return {
-    ...assembly,
-    geometry: await util.geometryProvider!.assemblyFuse(assembly, context),
-    dimension: flattened[0].dimension,
+    geometry: result,
+    tags: [...new Set(flat.map((s) => s.tags).flat())],
+    bom: [...new Set(flat.map((s) => s.bom).flat())],
+    dimension: flat[0].dimension,
+    plane: flat[0].plane,
+    color: flat[0].color, // TODO consider most common color?
   };
 }
 
