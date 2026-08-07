@@ -461,13 +461,12 @@ async function assembly(
     // The general case of a cache miss assembly operation.
     const assembly: AbundanceObject[] = [];
 
-    const leafcounts = geometries
-      .map(util.leafCount)
+    const leafcounts = geometries.map(util.leafCount);
     let temp = leafcounts[leafcounts.length - 1];
     let totalCuts = 0;
-    for (let i = leafcounts.length - 1; i >= 0; i++) {
+    for (let i = leafcounts.length - 1; i >= 0; i--) {
       totalCuts += leafcounts[i] * temp;
-      temp += leafcounts[i]
+      temp += leafcounts[i];
     }
     let completedCuts = 0;
     const progressCallback = () => {
