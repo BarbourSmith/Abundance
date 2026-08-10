@@ -234,7 +234,14 @@ class GeometryProvider {
       // Skip all no-op style optimizations here. Boolean operations on drawings are faster and
       // drawings are smaller in the cache so the more complicated logic we use for 3d operations
       // isn't worthwhile.
-      const result = operation(geoms);
+      const result = operation(geoms) as replicad.Drawing;
+      //@ts-expect-error - no other way to check if shape is nonexistent
+      if (!result.innerShape) {
+        return {
+          outcome: BooleanOutcome.EmptyShape,
+          resultId: this.EMPTY_SHAPE_SENTINEL,
+        };
+      }
       await putShape(context.project, resultId, result.serialize());
       this.cacheMiss(resultId, start - performance.now());
       console.warn(
@@ -617,6 +624,9 @@ class GeometryProvider {
     height: number,
     context: RequestContext,
   ): Promise<string> {
+    if (inputId === this.EMPTY_SHAPE_SENTINEL) {
+      return this.EMPTY_SHAPE_SENTINEL;
+    }
     const extrudedId = this._makeId("extrude", inputId, plane, height);
     await this.createIfAbsent(extrudedId, context, async () => {
       const geometry = (await this.get(inputId, context)) as replicad.Drawing;
@@ -794,7 +804,7 @@ class GeometryProvider {
     inputId1: string,
     inputId2: string,
     context: RequestContext,
-  ): Promise<string | undefined> {
+  ): Promise<string> {
     if (
       inputId1 === this.EMPTY_SHAPE_SENTINEL ||
       inputId2 === this.EMPTY_SHAPE_SENTINEL
@@ -966,7 +976,7 @@ class GeometryProvider {
     toCut: string,
     cutter: string,
     context: RequestContext,
-  ): Promise<string | undefined> {
+  ): Promise<string> {
     if (
       toCut === this.EMPTY_SHAPE_SENTINEL ||
       cutter === this.EMPTY_SHAPE_SENTINEL
@@ -1217,6 +1227,9 @@ class GeometryProvider {
     await this.createIfAbsent(loftId, context, async () => {
       const sketches = [];
       for (let i = 0; i < sketchIds.length; i++) {
+        if (sketchIds[i] === this.EMPTY_SHAPE_SENTINEL) {
+          continue;
+        }
         const partObj = (await this.get(
           sketchIds[i],
           context,

@@ -1,7 +1,7 @@
 import { BoundingBox, Drawing } from "replicad";
 import * as util from "./util";
 import { AbundanceLeaf, AbundanceObject } from "./util";
-import { RequestContext } from "./geometryProvider";
+import { GeometryProvider, RequestContext } from "./geometryProvider";
 import { extractKeepOut } from "./tags";
 import { reportCadProgress } from "./progress";
 
@@ -302,9 +302,6 @@ async function intersect(
       shapeToIntersectWith.geometry,
       context,
     );
-    if (resultGeom === undefined) {
-      return undefined;
-    }
     return {
       geometry: resultGeom,
       tags: leaf.tags,
