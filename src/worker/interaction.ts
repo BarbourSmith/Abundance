@@ -459,11 +459,11 @@ async function assembly(
     const assembly: AbundanceObject[] = [];
 
     const leafcounts = geometries.map(util.leafCount);
-    let temp = leafcounts[leafcounts.length - 1];
     let totalCuts = 0;
-    for (let i = leafcounts.length - 1; i >= 0; i--) {
-      totalCuts += leafcounts[i] * temp;
-      temp += leafcounts[i];
+    for (let i = 0; i < geometries.length - 1; i++) {
+      // mirrors structure of the cutAssembly calls below
+      totalCuts +=
+        leafcounts[i] * leafcounts.slice(i + 1).reduce((acc, i) => i + acc, 0);
     }
     let completedCuts = 0;
     const progressCallback = () => {

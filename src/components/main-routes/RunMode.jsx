@@ -262,6 +262,12 @@ function runMode({ processing, setProcessing }) {
       GlobalVariables.currentMolecule.selected = true;
       setActiveAtom(GlobalVariables.currentMolecule);
       updateProjectMetaTags(GlobalVariables.currentAWSnode);
+      // The molecule already has a computed value, but nothing has told the
+      // display pipeline to render it yet (targetMesh stays undefined),
+      // leaving the loading overlay stuck forever. Re-trigger the render.
+      if (typeof GlobalVariables.currentMolecule.sendToRender === "function") {
+        GlobalVariables.currentMolecule.sendToRender();
+      }
     } else {
       /*resetting viewport*/
       GlobalVariables.resetView(); // TODO(tristan): possibly also need to writeToDisplay here.
