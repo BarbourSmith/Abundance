@@ -3,7 +3,6 @@ import GlobalVariables from "../js/globalvariables.js";
 import { Status } from "../prototypes/observableEntity.js";
 import { ValueChangeCommand } from "../js/undoCommands.js";
 import { Octokit } from "octokit";
-import { hashAssembly } from "../worker/util.ts";
 
 // Default values for range type inputs
 const DEFAULT_RANGE_MIN = 0;
@@ -357,8 +356,8 @@ export default class Input extends Atom {
 
       // For partselect type, transform the incoming geometry with selection flags
       if (this.type === "partselect") {
+        console.log(this.selectedLeafIndexes);
         if (parentState.status === Status.READY && parentState.value != null) {
-          this.inheritSelectionFromAssembly(parentState.value);
           const transformed = this.applyPartSelection(
             parentState.value,
             this.selectedLeafIndexes,
@@ -374,7 +373,6 @@ export default class Input extends Atom {
       // For edgeselect type
       if (this.type === "edgeselect") {
         if (parentState.status === Status.READY && parentState.value != null) {
-          this.inheritSelectionFromAssembly(parentState.value);
           const transformed = this.applyEdgeSelection(
             parentState.value,
             this.selectedEdgeData,
@@ -390,7 +388,6 @@ export default class Input extends Atom {
       // For faceselect type
       if (this.type === "faceselect") {
         if (parentState.status === Status.READY && parentState.value != null) {
-          this.inheritSelectionFromAssembly(parentState.value);
           const transformed = this.applyFaceSelection(
             parentState.value,
             this.selectedFaceData,
@@ -511,8 +508,10 @@ export default class Input extends Atom {
   }
 
   /**
-   * Reset all selection state for this input. Used when the upstream
-   * connection is removed entirely (no assembly left to inherit from).
+   * Reset all selection state for this input. Called whenever the upstream
+   * connection is established or removed, since previously selected leaf
+   * indexes / edge indexes / face indexes may no longer correspond to valid
+   * elements on the newly (dis)connected geometry.
    */
   resetSelectionState() {
     this.selectedLeafIndexes = [];
@@ -521,67 +520,6 @@ export default class Input extends Atom {
     GlobalVariables.bumpSelectionVersion();
     if (typeof this._panelSetInputChanged === "function") {
       this._panelSetInputChanged(String(Date.now()));
-    }
-  }
-
-  /**
-   * Called when a new upstream connection is made. Clears current selection
-   * and marks it to be re-derived from the newly connected assembly's own
-   * selection.part/.edges/.faces flags (e.g. set upstream by a code atom)
-   * once that assembly's first READY value arrives in onUpstreamChange.
-   */
-  markPendingSelectionInheritance() {
-    this.selectedLeafIndexes = [];
-    this.selectedEdgeData = {};
-    this.selectedFaceData = {};
-    GlobalVariables.bumpSelectionVersion();
-    if (typeof this._panelSetInputChanged === "function") {
-      this._panelSetInputChanged(String(Date.now()));
-    }
-  }
-
-  /**
-   * Walk an assembly in flattenAssembly order and copy any existing
-   * selection.part/.edges/.faces flags into this input's local selection
-   * state, so a selector input linked to an already-selected assembly
-   * (e.g. produced by a code atom) starts populated instead of empty.
-   */
-  inheritSelectionFromAssembly(assembly) {
-    if (hashAssembly(this.value) == hashAssembly(assembly)) {
-      // no-op if the upstream is identical to prior.
-      return;
-    }
-    const leafIndexes = [];
-    const edgeData = {};
-    const faceData = {};
-    let leafCounter = 0;
-    const walk = (node) => {
-      if (!node) return;
-      if (!Array.isArray(node.geometry)) {
-        const idx = leafCounter++;
-        if (node.selection?.part) leafIndexes.push(idx);
-        if (node.selection?.edges?.length)
-          edgeData[idx] = [...node.selection.edges];
-        if (node.selection?.faces?.length)
-          faceData[idx] = [...node.selection.faces];
-      } else {
-        node.geometry.forEach(walk);
-      }
-    };
-    walk(assembly);
-    // if upstream doesn't have a selection defer to our existing selection
-    // state
-    if (leafIndexes.length > 0) {
-      this.selectedLeafIndexes = leafIndexes;
-    }
-    if (Object.keys(edgeData).length > 0) {
-      console.log(
-        "updating edge selection with data:  " + JSON.stringify(edgeData),
-      );
-      this.selectedEdgeData = edgeData;
-    }
-    if (Object.keys(faceData).length > 0) {
-      this.selectedFaceData = faceData;
     }
   }
 
