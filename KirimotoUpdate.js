@@ -166,7 +166,7 @@ const generateGcode = (
               step: stepOver,
               tool: 1000,
               type: "area",
-            },*/
+            },
             {
               disabled: false,
               dogbones: false,
@@ -174,7 +174,7 @@ const generateGcode = (
               inside: true,
               omitthru: false,
               omitvoid: false,
-              outside: false,
+              outside: true,
               ov_botz: -CUT_THROUGH,
               ov_conv: true,
               ov_topz: 0,
@@ -187,7 +187,7 @@ const generateGcode = (
               top: false,
               type: "outline",
               wide: false,
-            },
+            },*/
             {
               disabled: false,
               dogbones: false,
@@ -195,7 +195,7 @@ const generateGcode = (
               inside: false,
               omitthru: false,
               omitvoid: true,
-              outside: true,
+              outside: false,
               ov_botz: -CUT_THROUGH,
               ov_conv: true,
               ov_topz: 0,
