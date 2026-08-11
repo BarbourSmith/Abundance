@@ -313,7 +313,7 @@ return assembly;
     }
     this.setValues(values);
     this.inputs.forEach((input) => {
-      if (input.value) {
+      if (input.value && input.value != "__GEOMETRY_INPUT__") {
         input.setReady(input.value); // mark ready if applicable now that values are loaded from save.
       }
     });

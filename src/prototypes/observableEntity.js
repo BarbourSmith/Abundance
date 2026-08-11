@@ -18,8 +18,11 @@ class ObservableEntity {
   }
 
   setStatus(status, value = null, propagate = true) {
-    if (status == Status.READY && value === null) {
-      throw new Error("Ready status must have a value");
+    if (
+      status == Status.READY &&
+      (value === null || value == "__GEOMETRY_INPUT__")
+    ) {
+      throw new Error("Ready status must have a non-sentinel non-null value");
     } else if (
       status !== Status.READY &&
       status !== Status.DISABLED &&
