@@ -315,7 +315,11 @@ export default class Input extends Atom {
 
       if (this.parentAP) {
         const apState = this.parentAP.getState();
-        if (apState.value !== null && apState.value !== undefined) {
+        if (
+          apState.value !== null &&
+          apState.value !== undefined &&
+          apState.value != "__GEOMETRY_INPUT__"
+        ) {
           this.setStatus(Status.READY, apState.value);
           return true;
         }
