@@ -27,8 +27,22 @@ const ProjectContext = createContext();
  */
 export function ProjectProvider({ children, cad, loadProject }) {
   const [size, setSize] = useState(5);
-  const { authRedirectHandler, authorizedUserOcto } = useAuth();
+  const {
+    authRedirectHandler,
+    authorizedUserOcto,
+    isReauthentication,
+    setIsReauthentication,
+    isReturningFromMode,
+    setIsReturningFromMode,
+  } = useAuth();
   const { setNotification } = useAppState();
+
+  // Phase 2: Loading orchestration state
+  const [loadingProject, setLoadingProject] = useState(false);
+  const [currentProject, setCurrentProject] = useState(null); // AWS node object
+  const [projectSource, setProjectSource] = useState(null); // 'github' | 'localStorage-recovery-failed-save' | 'localStorage-unsaved-work'
+  const [loadError, setLoadError] = useState(null);
+  const previousProjectKey = useRef(null); // Track project changes
 
   // Keep a ref to the current authorizedUserOcto so saveProject always uses the latest value
   const octokitRef = useRef(authorizedUserOcto);
@@ -110,6 +124,125 @@ export function ProjectProvider({ children, cad, loadProject }) {
 
     return window.btoa(previewHtml);
   };
+
+  /**
+   * Phase 3: Load project orchestration
+   * Centralized function for loading projects from any source (GitHub or localStorage)
+   * Detects whether to use localStorage based on reauthentication/return flags
+   * Handles all loading logic in one place
+   */
+  const loadProjectByUrl = useCallback(
+    async (owner, repoName) => {
+      const projectKey = `${owner}/${repoName}`;
+
+      try {
+        setLoadingProject(true);
+        setLoadError(null);
+
+        // Detect load source based on flags set during reauthentication/return
+        let loadSource = "fresh-url"; // Default: always load fresh
+
+        if (isReauthentication) {
+          loadSource = "reauthentication";
+          setIsReauthentication(false); // Clear flag after using
+        } else if (isReturningFromMode) {
+          loadSource = "return";
+          setIsReturningFromMode(false); // Clear flag after using
+        }
+
+        // Try localStorage ONLY if reauthentication or return (not fresh URL)
+        if (loadSource !== "fresh-url") {
+          const savedProjectJson = localStorage.getItem(
+            `unsavedProject_${projectKey}`,
+          );
+          if (savedProjectJson) {
+            try {
+              const savedProject = JSON.parse(savedProjectJson);
+
+              // Determine recovery type for UI display
+              if (savedProject.source === "pending-retry") {
+                setProjectSource("localStorage-recovery-failed-save");
+              } else {
+                setProjectSource("localStorage-unsaved-work");
+              }
+
+              // Update current project state
+              setCurrentProject({ owner, repoName });
+
+              // Deserialize and load the project
+              GlobalVariables.topLevelMolecule = new Molecule({
+                owner: owner,
+                repoName: repoName,
+              });
+
+              // Call the existing loadProject function from App.jsx with saved data
+              loadProject(
+                savedProject.deserializedProject || savedProject,
+                octokitRef.current,
+              );
+
+              setLoadingProject(false);
+              return;
+            } catch (error) {
+              console.error("Error loading from localStorage:", error);
+              // Fall through to GitHub load if localStorage parsing fails
+            }
+          }
+        }
+
+        // Load fresh from GitHub (default for fresh URLs, fallback for localStorage failures)
+        const awsNodeResponse = await fetch(
+          `https://hg5gsgv9te.execute-api.us-east-2.amazonaws.com/abundance-stage/fetchSingleRepo?owner=${owner}&repoName=${repoName}`,
+        );
+
+        if (!awsNodeResponse.ok) {
+          throw new Error(
+            `Failed to fetch project from AWS: ${awsNodeResponse.statusText}`,
+          );
+        }
+
+        const awsData = await awsNodeResponse.json();
+        if (!awsData.item) {
+          throw new Error("Project not found in AWS");
+        }
+
+        // Store AWS node globally
+        GlobalVariables.currentAWSnode = awsData.item;
+        setCurrentProject(awsData.item);
+
+        // Create fresh molecule
+        GlobalVariables.topLevelMolecule = new Molecule({
+          owner: owner,
+          repoName: repoName,
+        });
+
+        // Call existing loadProject from App.jsx
+        loadProject(awsData.item, octokitRef.current);
+
+        // Mark source as GitHub
+        setProjectSource("github");
+
+        // Update previous project key for tracking
+        previousProjectKey.current = projectKey;
+
+        setLoadingProject(false);
+      } catch (error) {
+        console.error("Error loading project:", error);
+        setLoadError(error);
+        setLoadingProject(false);
+        setNotification(`Failed to load project: ${error.message}`, "error");
+        setTimeout(() => setNotification(null, null), 5000);
+      }
+    },
+    [
+      isReauthentication,
+      isReturningFromMode,
+      setIsReauthentication,
+      setIsReturningFromMode,
+      loadProject,
+      setNotification,
+    ],
+  );
 
   const createProject = async (
     authorizedUserOcto,
@@ -1672,12 +1805,25 @@ export function ProjectProvider({ children, cad, loadProject }) {
     setSize,
     cad,
     loadProject,
+    loadProjectByUrl,
     createProject,
     duplicateProject,
     forkProject,
     renameProject,
     searchGithubMolecules,
     saveProject,
+    // Phase 2: Loading orchestration exports
+    loadingProject,
+    setLoadingProject,
+    currentProject,
+    setCurrentProject,
+    projectSource,
+    setProjectSource,
+    loadError,
+    setLoadError,
+    previousProjectKey,
+    setIsReauthentication,
+    setIsReturningFromMode,
   };
   return (
     <ProjectContext.Provider value={value}>{children}</ProjectContext.Provider>
