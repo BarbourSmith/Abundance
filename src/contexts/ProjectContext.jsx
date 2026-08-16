@@ -174,7 +174,10 @@ export function ProjectProvider({ children, cad, loadProject }) {
                 owner: owner,
                 repoName: repoName,
               });
-
+              console.log(
+                "Deserializing project from localStorage:",
+                savedProject,
+              );
               // Call the existing loadProject function from App.jsx with saved data
               loadProject(
                 savedProject.deserializedProject || savedProject,
@@ -189,6 +192,8 @@ export function ProjectProvider({ children, cad, loadProject }) {
             }
           }
         }
+
+        console.log("Loading project from GitHub:", projectKey);
 
         // Load fresh from GitHub (default for fresh URLs, fallback for localStorage failures)
         const awsNodeResponse = await fetch(
@@ -226,6 +231,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
         previousProjectKey.current = projectKey;
 
         setLoadingProject(false);
+        console.log("Project loaded successfully:", projectKey);
       } catch (error) {
         console.error("Error loading project:", error);
         setLoadError(error);

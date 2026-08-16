@@ -776,6 +776,7 @@ function AppContent() {
    * @returns
    */
   const loadProject = function (project, authorizedUser) {
+    console.log("Loading project:", project);
     GlobalVariables.undoCommandStack = [];
     GlobalVariables.totalAtomCount = 0;
     GlobalVariables.numberOfAtomsToLoad = 0;

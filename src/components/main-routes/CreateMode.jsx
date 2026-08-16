@@ -27,8 +27,8 @@ import {
   useAuth,
   useAppState,
   useRendering,
-  useProject,
   useFileImport,
+  useProject,
 } from "../../contexts/index.js";
 import { useDevSettings } from "../../contexts/DevSettingsContext.jsx";
 /**
@@ -55,6 +55,7 @@ function CreateMode() {
     redirectType,
     setNotification,
   } = useAppState();
+
   const { setShowDevModal } = useDevSettings();
   const {
     setMesh,
@@ -81,6 +82,8 @@ function CreateMode() {
     loadProject,
     searchGithubMolecules,
     saveProject: saveProjectFromContext,
+    loadProjectByUrl,
+    loadingProject: contextLoadingProject,
   } = useProject();
   const { uploadFile, deleteFile, fetchFileContent, fetchRawFileContent } =
     useFileImport();
@@ -109,41 +112,17 @@ function CreateMode() {
   // Track if we're still loading the project from AWS
   const [isLoadingProject, setIsLoadingProject] = useState(true);
 
-  // Update GlobalVariables when route params change and fetch full AWS node
-  // Wait for session restoration to complete before loading project
   useEffect(() => {
-    if (owner && repoName && !isRestoringSession) {
-      setIsLoadingProject(true);
-
-      // Fetch the full project metadata from AWS
-      fetch(
-        `https://hg5gsgv9te.execute-api.us-east-2.amazonaws.com/abundance-stage/fetchSingleRepo?owner=${owner}&repoName=${repoName}`,
-      )
-        .then((res) => res.json())
-        .then((data) => {
-          if (data && data.item) {
-            GlobalVariables.currentAWSnode = data.item;
-          } else {
-            console.error("Failed to fetch AWS node for project:", data);
-            // Fallback if we can't fetch from AWS
-            GlobalVariables.currentAWSnode = { owner, repoName };
-          }
-          // Load the project after setting currentAWSnode
-          loadProject(GlobalVariables.currentAWSnode, authorizedUserOcto);
-          setActiveAtom(GlobalVariables.topLevelMolecule);
-          setIsLoadingProject(false);
-        })
-        .catch((err) => {
-          console.warn("Error fetching AWS node for project:", err);
-          // Fallback to partial node
-          GlobalVariables.currentAWSnode = { owner, repoName };
-          // Still try to load project with fallback
-          loadProject(GlobalVariables.currentAWSnode, authorizedUserOcto);
-          setActiveAtom(GlobalVariables.topLevelMolecule);
-          setIsLoadingProject(false);
-        });
+    if (owner && repoName) {
+      console.log("Attempting to load project:", owner, repoName);
+      loadProjectByUrl(owner, repoName);
     }
-  }, [owner, repoName, isRestoringSession]);
+  }, [owner, repoName]);
+
+  // Sync context loading state to local loading state
+  useEffect(() => {
+    setIsLoadingProject(contextLoadingProject);
+  }, [contextLoadingProject]);
 
   /** State for user notification */
   const [userNotification, setUserNotificationRaw] = useState(null);
