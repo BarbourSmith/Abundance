@@ -18,6 +18,8 @@ export function AuthProvider({ children }) {
   const [authorizedUserOcto, setAuthorizedUserOcto] = useState(null);
   const [isRestoringSession, setIsRestoringSession] = useState(true);
   const [userScopes, setUserScopes] = useState([]);
+  const [isReauthentication, setIsReauthentication] = useState(false);
+  const [isReturningFromMode, setIsReturningFromMode] = useState(false);
 
   /**
    * Store access token in localStorage
@@ -191,6 +193,10 @@ export function AuthProvider({ children }) {
     restoreSession,
     userScopes,
     setUserScopes,
+    isReauthentication,
+    setIsReauthentication,
+    isReturningFromMode,
+    setIsReturningFromMode,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

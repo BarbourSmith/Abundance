@@ -15,6 +15,8 @@ const Callback = ({ setRedirectType }) => {
     setAuthorizedUserOcto,
     storeToken,
     setUserScopes,
+    setIsReauthentication,
+    setIsReturningFromMode,
   } = useAuth();
 
   useEffect(() => {
@@ -87,6 +89,14 @@ const Callback = ({ setRedirectType }) => {
 
         const stateParam = params.get("state");
         const state = stateParam ? JSON.parse(stateParam) : {};
+
+        // Detect reauthentication and mode return
+        if (state.authType === "reauth") {
+          setIsReauthentication(true);
+        }
+        if (state.returnTo) {
+          setIsReturningFromMode(true);
+        }
 
         setRedirectType(state.authType);
         if (state.authType === "fork" || state.authType === "like") {
