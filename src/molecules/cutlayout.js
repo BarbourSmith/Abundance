@@ -221,6 +221,17 @@ export default class CutLayout extends Atom {
     ) {
       this.placements = [this.placements];
     }
+    // Placements are keyed by the index of the part within the assembly. Projects
+    // saved while ids were geometry strings can never be matched back to a part,
+    // so drop them rather than silently leaving every part where it is.
+    if (
+      this.placements?.some((sheet) =>
+        sheet.some((placement) => typeof placement.id !== "number"),
+      )
+    ) {
+      this.placements = [];
+      this.placementsFor = "";
+    }
     return this.placements;
   }
 
@@ -343,7 +354,7 @@ export default class CutLayout extends Atom {
 
     // If we have saved placements, try to display them with the current geometry.
     // If the geometry structure has changed, displayLayout will fail and we'll warn the user and reset placements.
-    if (this.placements?.length > 0) {
+    if (this.getPlacements()?.length > 0) {
       this.displayLayout(true).catch(() => {
         console.warn(
           "Failed to display saved placements with new geometry. Clearing placements.",
@@ -487,7 +498,7 @@ export default class CutLayout extends Atom {
         }),
         this.getLayoutConfig(),
         this.getContext(),
-        this.placements,
+        this.getPlacements(),
       )
       .then((layoutAndPositions) => {
         const [layout, positions] = layoutAndPositions;

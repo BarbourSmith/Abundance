@@ -34,7 +34,10 @@ type Placement = {
 };
 
 type ShapeForLayout = {
-  id: number | string;
+  // Index of this shape in the shapesForLayout array. This is the same id space
+  // that the nesting engine reports placements in, and the same one applyLayout
+  // uses to match a placement back to a leaf, so it must stay a sequential index.
+  id: number;
   shape: any; // Replace 'any' with the actual face type if available
 };
 
@@ -293,6 +296,14 @@ function boundingBoxAsBoundary(shape: Shape3D): SimpleXY[] {
   ];
 }
 
+/**
+ * Collect the flat boundary of every placeable leaf in the assembly.
+ *
+ * Leafs which are neither 2D nor 3D are dropped from the returned assembly, so
+ * the nth entry of the returned shape list always corresponds to the nth leaf of
+ * the returned assembly. applyLayout relies on that correspondence to match
+ * placements back to leafs.
+ */
 async function prepShapesForLayout(
   assembly: AbundanceObject,
   context: RequestContext,
@@ -311,7 +322,7 @@ async function prepShapesForLayout(
         sketched instanceof replicad.Sketches
           ? shrinkWrapForBoundary(geom) // if disjoint shapes, shrinkwrap them all
           : faceToPolygon(sketched.face());
-      result.push({ id: leaf.geometry, shape: boundary });
+      result.push({ id: result.length, shape: boundary });
       return leaf;
     } else if (util.is3D(leaf)) {
       const geom = (await util.geometryProvider!.get(
@@ -333,7 +344,7 @@ async function prepShapesForLayout(
           boundary = boundingBoxAsBoundary(geom);
         }
       }
-      result.push({ id: leaf.geometry, shape: boundary }); // Just pick the first one for now.
+      result.push({ id: result.length, shape: boundary }); // Just pick the first one for now.
       return leaf;
     }
   });
