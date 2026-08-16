@@ -151,55 +151,70 @@ export default memo(function FlowCanvas({
         }
       } else {
         // Check for unsaved project state from browsing projects
-        // Note: owner and repoName come from GitHub's API and are validated by GitHub,
-        // so they are safe to use in the localStorage key
-        const projectKey = `unsavedProject_${GlobalVariables.currentAWSnode.owner}_${GlobalVariables.currentAWSnode.repoName}`;
-        const unsavedProject = localStorage.getItem(projectKey);
+        // BUT: Skip this if we're doing a fresh URL navigation to CreateMode
+        // (redirectType undefined and no previous project loaded means fresh navigation)
+        const isFreshUrlNavigation =
+          !redirectType &&
+          (!GlobalVariables.loadedRepo ||
+            GlobalVariables.loadedRepo.name !==
+              GlobalVariables.currentAWSnode.repoName);
 
-        if (unsavedProject) {
-          try {
-            let rawFile = JSON.parse(unsavedProject);
-            // Reset ID counter to avoid collisions with existing IDs
-            GlobalVariables.resetIdCounter(rawFile);
-            // Deserialize the saved project state
-            GlobalVariables.topLevelMolecule.deserialize(rawFile);
-            setActiveAtom(GlobalVariables.currentMolecule);
-            GlobalVariables.currentMolecule.selected = true;
-            GlobalVariables.currentMolecule = GlobalVariables.topLevelMolecule;
-            // Clear the unsaved state from localStorage after restoring
-            localStorage.removeItem(projectKey);
-            // Also load the project metadata from GitHub (without overwriting the molecules)
-            if (authorizedUserOcto) {
-              const octokit = authorizedUserOcto;
-              octokit.rest.repos
-                .get({
-                  owner: GlobalVariables.currentAWSnode.owner,
-                  repo: GlobalVariables.currentAWSnode.repoName,
-                })
-                .then(async (response) => {
-                  GlobalVariables.loadedRepo = response.data;
-                  GlobalVariables.currentRepo = response.data;
-                  GlobalVariables.currentRepoName =
-                    GlobalVariables.currentAWSnode.repoName;
-                })
-                .catch((e) => {
-                  console.error("Error loading repo metadata:", e);
-                  if (setUserNotification) {
-                    setUserNotification(
-                      "Error loading project metadata: " + e.message,
-                      "error",
-                    );
-                    setTimeout(() => setUserNotification(null), 5000);
-                  }
-                });
+        if (isFreshUrlNavigation) {
+          // Fresh URL navigation: load from GitHub, don't use localStorage
+          console.log("Fresh URL navigation detected, loading from GitHub");
+          loadProject(GlobalVariables.currentAWSnode, authorizedUserOcto);
+        } else {
+          // Returning to a previously loaded project: use unsaved state if available
+          // Note: owner and repoName come from GitHub's API and are validated by GitHub,
+          // so they are safe to use in the localStorage key
+          const projectKey = `unsavedProject_${GlobalVariables.currentAWSnode.owner}_${GlobalVariables.currentAWSnode.repoName}`;
+          const unsavedProject = localStorage.getItem(projectKey);
+
+          if (unsavedProject) {
+            try {
+              let rawFile = JSON.parse(unsavedProject);
+              // Reset ID counter to avoid collisions with existing IDs
+              GlobalVariables.resetIdCounter(rawFile);
+              // Deserialize the saved project state
+              GlobalVariables.topLevelMolecule.deserialize(rawFile);
+              setActiveAtom(GlobalVariables.currentMolecule);
+              GlobalVariables.currentMolecule.selected = true;
+              GlobalVariables.currentMolecule =
+                GlobalVariables.topLevelMolecule;
+              // Clear the unsaved state from localStorage after restoring
+              localStorage.removeItem(projectKey);
+              // Also load the project metadata from GitHub (without overwriting the molecules)
+              if (authorizedUserOcto) {
+                const octokit = authorizedUserOcto;
+                octokit.rest.repos
+                  .get({
+                    owner: GlobalVariables.currentAWSnode.owner,
+                    repo: GlobalVariables.currentAWSnode.repoName,
+                  })
+                  .then(async (response) => {
+                    GlobalVariables.loadedRepo = response.data;
+                    GlobalVariables.currentRepo = response.data;
+                    GlobalVariables.currentRepoName =
+                      GlobalVariables.currentAWSnode.repoName;
+                  })
+                  .catch((e) => {
+                    console.error("Error loading repo metadata:", e);
+                    if (setUserNotification) {
+                      setUserNotification(
+                        "Error loading project metadata: " + e.message,
+                        "error",
+                      );
+                      setTimeout(() => setUserNotification(null), 5000);
+                    }
+                  });
+              }
+            } catch (e) {
+              console.error("Error restoring unsaved project:", e);
+              // If restoration fails, load from GitHub
+              loadProject(GlobalVariables.currentAWSnode, authorizedUserOcto);
+              localStorage.removeItem(projectKey);
             }
-          } catch (e) {
-            console.error("Error restoring unsaved project:", e);
-            // If restoration fails, load from GitHub
-            loadProject(GlobalVariables.currentAWSnode, authorizedUserOcto);
-            localStorage.removeItem(projectKey);
           }
-          // Normal case: no unsaved state, CreateMode will handle loading
         }
       }
     } else {

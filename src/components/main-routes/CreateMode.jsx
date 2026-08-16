@@ -40,7 +40,12 @@ import { useDevSettings } from "../../contexts/DevSettingsContext.jsx";
  */
 function CreateMode() {
   // Get context values
-  const { authorizedUserOcto, authRedirectHandler, userScopes } = useAuth();
+  const {
+    authorizedUserOcto,
+    authRedirectHandler,
+    userScopes,
+    isRestoringSession,
+  } = useAuth();
   const {
     activeAtom,
     setActiveAtom,
@@ -105,8 +110,9 @@ function CreateMode() {
   const [isLoadingProject, setIsLoadingProject] = useState(true);
 
   // Update GlobalVariables when route params change and fetch full AWS node
+  // Wait for session restoration to complete before loading project
   useEffect(() => {
-    if (owner && repoName) {
+    if (owner && repoName && !isRestoringSession) {
       setIsLoadingProject(true);
 
       // Fetch the full project metadata from AWS
@@ -137,7 +143,7 @@ function CreateMode() {
           setIsLoadingProject(false);
         });
     }
-  }, [owner, repoName]);
+  }, [owner, repoName, isRestoringSession, authorizedUserOcto]);
 
   /** State for user notification */
   const [userNotification, setUserNotificationRaw] = useState(null);
@@ -170,6 +176,7 @@ function CreateMode() {
       meshRef,
       setUserNotification,
       onSaveStart,
+      authorizedUserOcto,
     );
   };
 

@@ -21,7 +21,7 @@ const ProjectContext = createContext();
  */
 export function ProjectProvider({ children, cad, loadProject }) {
   const [size, setSize] = useState(5);
-  const { authorizedUserOcto, authRedirectHandler } = useAuth();
+  const { authRedirectHandler } = useAuth();
   const { setNotification } = useAppState();
 
   // Track last saved data to avoid unnecessary saves
@@ -1397,6 +1397,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
     meshRef = null,
     setErrorNotification = null,
     onSaveStart = null,
+    authorizedUserOcto = null,
   ) => {
     // Create a wrapper for setSaveProgress that prevents regression
     // This ensures the progress bar never goes backwards
