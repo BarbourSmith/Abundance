@@ -143,7 +143,7 @@ function CreateMode() {
           setIsLoadingProject(false);
         });
     }
-  }, [owner, repoName, isRestoringSession, authorizedUserOcto]);
+  }, [owner, repoName, isRestoringSession]);
 
   /** State for user notification */
   const [userNotification, setUserNotificationRaw] = useState(null);
@@ -176,7 +176,6 @@ function CreateMode() {
       meshRef,
       setUserNotification,
       onSaveStart,
-      authorizedUserOcto,
     );
   };
 

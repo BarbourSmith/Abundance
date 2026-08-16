@@ -1,4 +1,10 @@
-import React, { createContext, useContext, useState, useRef } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useRef,
+  useCallback,
+} from "react";
 import GlobalVariables from "../js/globalvariables.js";
 import { fetchGitHubFileContent } from "../js/githubFileUtils.js";
 import { encodeProjectContentForGitHub } from "../js/projectContentCodec.js";
@@ -21,8 +27,16 @@ const ProjectContext = createContext();
  */
 export function ProjectProvider({ children, cad, loadProject }) {
   const [size, setSize] = useState(5);
-  const { authRedirectHandler } = useAuth();
+  const { authRedirectHandler, authorizedUserOcto } = useAuth();
   const { setNotification } = useAppState();
+
+  // Keep a ref to the current authorizedUserOcto so saveProject always uses the latest value
+  const octokitRef = useRef(authorizedUserOcto);
+
+  // Update ref whenever authorizedUserOcto changes
+  React.useEffect(() => {
+    octokitRef.current = authorizedUserOcto;
+  }, [authorizedUserOcto]);
 
   // Track last saved data to avoid unnecessary saves
   const lastSaveData = useRef({});
@@ -1390,262 +1404,268 @@ export function ProjectProvider({ children, cad, loadProject }) {
    * @param {Function} setErrorNotification - Function to set error notifications (optional)
    * @param {Function} onSaveStart - Callback invoked only if changes are detected and save will proceed
    */
-  const saveProject = async (
-    setSaveProgress,
-    typeSave,
-    forceSave = false,
-    meshRef = null,
-    setErrorNotification = null,
-    onSaveStart = null,
-    authorizedUserOcto = null,
-  ) => {
-    // Create a wrapper for setSaveProgress that prevents regression
-    // This ensures the progress bar never goes backwards
-    // Exception: always allow resetting to 0 (intentional error/reset state)
-    const updateSaveProgress = (newProgress) => {
-      // Always allow explicit reset to 0
-      if (newProgress === 0) {
+  const saveProject = useCallback(
+    async (
+      setSaveProgress,
+      typeSave,
+      forceSave = false,
+      meshRef = null,
+      setErrorNotification = null,
+      onSaveStart = null,
+    ) => {
+      // Create a wrapper for setSaveProgress that prevents regression
+      // This ensures the progress bar never goes backwards
+      // Exception: always allow resetting to 0 (intentional error/reset state)
+      const updateSaveProgress = (newProgress) => {
+        // Always allow explicit reset to 0
+        if (newProgress === 0) {
+          currentSaveProgress.current = 0;
+          setSaveProgress(0);
+          return;
+        }
+        // For normal updates, only allow progression forward
+        if (newProgress >= currentSaveProgress.current) {
+          currentSaveProgress.current = newProgress;
+          setSaveProgress(newProgress);
+        }
+      };
+
+      let saveLockAcquired = false;
+      try {
+        // Reset progress tracker for this save operation
         currentSaveProgress.current = 0;
-        setSaveProgress(0);
-        return;
-      }
-      // For normal updates, only allow progression forward
-      if (newProgress >= currentSaveProgress.current) {
-        currentSaveProgress.current = newProgress;
-        setSaveProgress(newProgress);
-      }
-    };
 
-    let saveLockAcquired = false;
-    try {
-      // Reset progress tracker for this save operation
-      currentSaveProgress.current = 0;
+        if (saveInProgress.current) {
+          if (typeSave === "Auto Save") {
+            return;
+          }
 
-      if (saveInProgress.current) {
-        if (typeSave === "Auto Save") {
+          const message =
+            "Save already in progress. Please wait for it to finish.";
+          setNotification(message, "warning");
+          setTimeout(() => setNotification(null, null), 3000);
           return;
         }
 
-        const message =
-          "Save already in progress. Please wait for it to finish.";
-        setNotification(message, "warning");
-        setTimeout(() => setNotification(null), 3000);
-        return;
-      }
+        saveInProgress.current = true;
+        saveLockAcquired = true;
 
-      saveInProgress.current = true;
-      saveLockAcquired = true;
+        // Block the save if the project is still loading/deserializing to prevent
+        // saving an incomplete project structure that would wipe out atoms on load
+        if (GlobalVariables.projectIsLoading) {
+          if (typeSave !== "Auto Save") {
+            setNotification(
+              "Save blocked: project is still loading. Please wait for the project to finish loading before saving.",
+              "error",
+            );
+            setTimeout(() => setNotification(null, null), 5000);
+          }
+          return;
+        }
 
-      // Block the save if the project is still loading/deserializing to prevent
-      // saving an incomplete project structure that would wipe out atoms on load
-      if (GlobalVariables.projectIsLoading) {
+        //We only want to save if something has actually changed since the last save
+        var jsonRepOfProject = GlobalVariables.topLevelMolecule.serialize();
+
+        // Add filetypeVersion before change detection so it's consistent
+        jsonRepOfProject.filetypeVersion = 1;
+
+        //Don't save again if nothing has changed (unless forceSave is true)
+        const currentSerialized = JSON.stringify(jsonRepOfProject);
+        const lastSerialized = JSON.stringify(lastSaveData.current);
+        const hasChanges = currentSerialized !== lastSerialized;
+        if (!forceSave && !hasChanges) {
+          console.warn("No changes detected since last save. Save skipped.");
+          return;
+        }
+
+        // Invoke the onSaveStart callback if provided - this is called only if we pass the change detection
+        if (onSaveStart && typeof onSaveStart === "function") {
+          onSaveStart();
+        }
+
+        // First validate the GitHub token
+        if (authorizedUserOcto) {
+          const isTokenValid = await validateGitHubToken(authorizedUserOcto);
+          if (!isTokenValid) {
+            handleAuthenticationError(
+              new Error("GitHub token has expired"),
+              typeSave,
+              JSON.stringify(jsonRepOfProject),
+              setErrorNotification,
+            );
+            return;
+          }
+        }
+
+        updateSaveProgress(5); //Set the state to 5% to show the progress bar
+
+        let finalPNG = null;
+        // Generate PNG thumbnail for all saves (except auto saves on first time)
         if (typeSave !== "Auto Save") {
+          finalPNG = await generateProjectThumbnail().catch((error) => {
+            console.error(
+              "Error generating final project thumbnail PNG: ",
+              error,
+            );
+          });
+        }
+        console.log("Final PNG generated for save:", finalPNG);
+
+        updateSaveProgress(10);
+        // Reuse the already serialized project data instead of serializing again
+        const rawProjectContent = JSON.stringify(jsonRepOfProject, null, 2);
+        const encodedProject = encodeProjectContentForGitHub(rawProjectContent);
+        const projectContent = encodedProject.content;
+        // format and compile the BOM
+        let bomContent = GlobalVariables.topLevelMolecule.formatBom();
+        var readmeHeader =
+          "###### Note: Do not edit this file directly, it is automatically generated from the CAD model";
+
+        var readmeContent =
+          readmeHeader +
+          "\n\n" +
+          "# " +
+          GlobalVariables.currentAWSnode.repoName +
+          "\n\n![](/project.svg)\n\n";
+
+        // Automatically document top-level molecule inputs
+        if (
+          GlobalVariables.topLevelMolecule &&
+          GlobalVariables.topLevelMolecule.inputs &&
+          GlobalVariables.topLevelMolecule.inputs.length > 0
+        ) {
+          readmeContent += "## Inputs\n\n";
+          GlobalVariables.topLevelMolecule.inputs.forEach((input) => {
+            readmeContent += `- **${input.name}** (${input.valueType})\n`;
+          });
+          readmeContent += "\n\n";
+        }
+
+        updateSaveProgress(20);
+
+        let readMeRequestResult =
+          await GlobalVariables.topLevelMolecule.requestReadme();
+
+        let readMeTextArray = " ";
+
+        readMeRequestResult.forEach((item) => {
+          readMeTextArray = readMeTextArray.concat(item["readMeText"]) + "\n\n";
+        });
+        readmeContent = readmeContent + "\n\n" + readMeTextArray + "\n\n";
+
+        /** File object to commit */
+        let filesObject = {
+          "BillOfMaterials.md": bomContent,
+          "README.md": readmeContent,
+          "project.abundance": projectContent,
+        };
+
+        /* add any new SVGs to the project change files*/
+        const readmeSVGs = readMeRequestResult;
+        let backupProjectSVG;
+        if (readmeSVGs) {
+          readmeSVGs.forEach((item) => {
+            if (item.svg != null) {
+              filesObject["readme" + item.uniqueID + ".svg"] = item.svg;
+              backupProjectSVG = item.svg;
+            }
+          });
+        }
+
+        // Helper function to check if an SVG is valid and has content
+        const isValidSVG = (svg) => {
+          if (!svg) return false;
+          // Check if SVG is empty (has no paths or other content between svg tags)
+          // An empty SVG looks like: <svg viewBox="..." xmlns="..."></svg>
+          const hasContent =
+            svg.includes("<path") ||
+            svg.includes("<circle") ||
+            svg.includes("<rect") ||
+            svg.includes("<line") ||
+            svg.includes("<polygon") ||
+            svg.includes("<polyline");
+          return hasContent;
+        };
+
+        // Add auto-generated PNG thumbnail if available (unless user has manually set one)
+        if (finalPNG && !GlobalVariables.currentAWSnode.userSetAsThumbnail) {
+          const pngBase64 = extractBase64FromDataURL(finalPNG);
+          filesObject["project.png"] = pngBase64;
+        }
+        // Only update project SVG thumbnail if a valid one has been generated
+        // (keeping existing SVG logic for backwards compatibility)
+        const thumbnailToUse =
+          finalPNG && !GlobalVariables.currentAWSnode.userSetAsThumbnail
+            ? finalPNG
+            : backupProjectSVG && isValidSVG(backupProjectSVG)
+              ? backupProjectSVG
+              : null;
+        if (thumbnailToUse && isValidSVG(thumbnailToUse)) {
+          filesObject["project.svg"] = thumbnailToUse;
+        }
+        // If no valid thumbnail was generated, don't include project.svg in the commit
+        // This preserves the existing thumbnail in the repository
+
+        updateSaveProgress(30);
+
+        // Use the current authorizedUserOcto from ref, not closure or parameter
+        await createCommit(
+          octokitRef.current,
+          {
+            owner: GlobalVariables.currentUser,
+            repo: GlobalVariables.currentAWSnode.repoName,
+            changes: {
+              files: filesObject,
+              commit: typeSave ? typeSave : "Auto Save",
+            },
+          },
+          updateSaveProgress,
+          typeSave,
+          setErrorNotification,
+          finalPNG,
+        );
+
+        // Save snapshot only after a successful remote commit.
+        lastSaveData.current = jsonRepOfProject;
+
+        if (typeSave !== "Auto Save") {
+          const geomIds = GlobalVariables.topLevelMolecule.deepGeomList();
+          // Sweep is best-effort and can take a long time (up to a minute). Don't await, just let it run
+          // in the background and mark save as completed.
+          GlobalVariables.cad
+            .sweepCache(geomIds, GlobalVariables.topLevelMolecule.getContext())
+            .then((count) => {})
+            .catch((error) => {
+              console.error("Error during cache sweep:", error);
+            });
+        }
+
+        updateSaveProgress(100);
+      } catch (error) {
+        console.error("Error during project save:", error);
+        // The createCommit function already handles authentication errors,
+        // so we only need to handle other types of errors here
+        if (
+          !error.message.includes("Bad credentials") &&
+          error.status !== 401
+        ) {
           setNotification(
-            "Save blocked: project is still loading. Please wait for the project to finish loading before saving.",
+            `Save failed: ${error.message || "Unknown error occurred"}`,
             "error",
           );
-          setTimeout(() => setNotification(null), 5000);
+          setTimeout(() => setNotification(null, null), 5000);
         }
-        return;
-      }
 
-      //We only want to save if something has actually changed since the last save
-      var jsonRepOfProject = GlobalVariables.topLevelMolecule.serialize();
-
-      // Add filetypeVersion before change detection so it's consistent
-      jsonRepOfProject.filetypeVersion = 1;
-
-      //Don't save again if nothing has changed (unless forceSave is true)
-      const currentSerialized = JSON.stringify(jsonRepOfProject);
-      const lastSerialized = JSON.stringify(lastSaveData.current);
-      const hasChanges = currentSerialized !== lastSerialized;
-      if (!forceSave && !hasChanges) {
-        console.warn("No changes detected since last save. Save skipped.");
-        return;
-      }
-
-      // Invoke the onSaveStart callback if provided - this is called only if we pass the change detection
-      if (onSaveStart && typeof onSaveStart === "function") {
-        onSaveStart();
-      }
-
-      // First validate the GitHub token
-      if (authorizedUserOcto) {
-        const isTokenValid = await validateGitHubToken(authorizedUserOcto);
-        if (!isTokenValid) {
-          handleAuthenticationError(
-            new Error("GitHub token has expired"),
-            typeSave,
-            JSON.stringify(jsonRepOfProject),
-            setErrorNotification,
-          );
-          return;
+        // Reset progress on error (guard allows 0 anytime as intentional reset)
+        updateSaveProgress(0);
+      } finally {
+        if (saveLockAcquired) {
+          saveInProgress.current = false;
         }
       }
-
-      updateSaveProgress(5); //Set the state to 5% to show the progress bar
-
-      let finalPNG = null;
-      // Generate PNG thumbnail for all saves (except auto saves on first time)
-      if (typeSave !== "Auto Save") {
-        finalPNG = await generateProjectThumbnail().catch((error) => {
-          console.error(
-            "Error generating final project thumbnail PNG: ",
-            error,
-          );
-        });
-      }
-      console.log("Final PNG generated for save:", finalPNG);
-
-      updateSaveProgress(10);
-      // Reuse the already serialized project data instead of serializing again
-      const rawProjectContent = JSON.stringify(jsonRepOfProject, null, 2);
-      const encodedProject = encodeProjectContentForGitHub(rawProjectContent);
-      const projectContent = encodedProject.content;
-      // format and compile the BOM
-      let bomContent = GlobalVariables.topLevelMolecule.formatBom();
-      var readmeHeader =
-        "###### Note: Do not edit this file directly, it is automatically generated from the CAD model";
-
-      var readmeContent =
-        readmeHeader +
-        "\n\n" +
-        "# " +
-        GlobalVariables.currentAWSnode.repoName +
-        "\n\n![](/project.svg)\n\n";
-
-      // Automatically document top-level molecule inputs
-      if (
-        GlobalVariables.topLevelMolecule &&
-        GlobalVariables.topLevelMolecule.inputs &&
-        GlobalVariables.topLevelMolecule.inputs.length > 0
-      ) {
-        readmeContent += "## Inputs\n\n";
-        GlobalVariables.topLevelMolecule.inputs.forEach((input) => {
-          readmeContent += `- **${input.name}** (${input.valueType})\n`;
-        });
-        readmeContent += "\n\n";
-      }
-
-      updateSaveProgress(20);
-
-      let readMeRequestResult =
-        await GlobalVariables.topLevelMolecule.requestReadme();
-
-      let readMeTextArray = " ";
-
-      readMeRequestResult.forEach((item) => {
-        readMeTextArray = readMeTextArray.concat(item["readMeText"]) + "\n\n";
-      });
-      readmeContent = readmeContent + "\n\n" + readMeTextArray + "\n\n";
-
-      /** File object to commit */
-      let filesObject = {
-        "BillOfMaterials.md": bomContent,
-        "README.md": readmeContent,
-        "project.abundance": projectContent,
-      };
-
-      /* add any new SVGs to the project change files*/
-      const readmeSVGs = readMeRequestResult;
-      let backupProjectSVG;
-      if (readmeSVGs) {
-        readmeSVGs.forEach((item) => {
-          if (item.svg != null) {
-            filesObject["readme" + item.uniqueID + ".svg"] = item.svg;
-            backupProjectSVG = item.svg;
-          }
-        });
-      }
-
-      // Helper function to check if an SVG is valid and has content
-      const isValidSVG = (svg) => {
-        if (!svg) return false;
-        // Check if SVG is empty (has no paths or other content between svg tags)
-        // An empty SVG looks like: <svg viewBox="..." xmlns="..."></svg>
-        const hasContent =
-          svg.includes("<path") ||
-          svg.includes("<circle") ||
-          svg.includes("<rect") ||
-          svg.includes("<line") ||
-          svg.includes("<polygon") ||
-          svg.includes("<polyline");
-        return hasContent;
-      };
-
-      // Add auto-generated PNG thumbnail if available (unless user has manually set one)
-      if (finalPNG && !GlobalVariables.currentAWSnode.userSetAsThumbnail) {
-        const pngBase64 = extractBase64FromDataURL(finalPNG);
-        filesObject["project.png"] = pngBase64;
-      }
-      // Only update project SVG thumbnail if a valid one has been generated
-      // (keeping existing SVG logic for backwards compatibility)
-      const thumbnailToUse =
-        finalPNG && !GlobalVariables.currentAWSnode.userSetAsThumbnail
-          ? finalPNG
-          : backupProjectSVG && isValidSVG(backupProjectSVG)
-            ? backupProjectSVG
-            : null;
-      if (thumbnailToUse && isValidSVG(thumbnailToUse)) {
-        filesObject["project.svg"] = thumbnailToUse;
-      }
-      // If no valid thumbnail was generated, don't include project.svg in the commit
-      // This preserves the existing thumbnail in the repository
-
-      updateSaveProgress(30);
-
-      await createCommit(
-        authorizedUserOcto,
-        {
-          owner: GlobalVariables.currentUser,
-          repo: GlobalVariables.currentAWSnode.repoName,
-          changes: {
-            files: filesObject,
-            commit: typeSave ? typeSave : "Auto Save",
-          },
-        },
-        updateSaveProgress,
-        typeSave,
-        setErrorNotification,
-        finalPNG,
-      );
-
-      // Save snapshot only after a successful remote commit.
-      lastSaveData.current = jsonRepOfProject;
-
-      if (typeSave !== "Auto Save") {
-        const geomIds = GlobalVariables.topLevelMolecule.deepGeomList();
-        // Sweep is best-effort and can take a long time (up to a minute). Don't await, just let it run
-        // in the background and mark save as completed.
-        GlobalVariables.cad
-          .sweepCache(geomIds, GlobalVariables.topLevelMolecule.getContext())
-          .then((count) => {})
-          .catch((error) => {
-            console.error("Error during cache sweep:", error);
-          });
-      }
-
-      updateSaveProgress(100);
-    } catch (error) {
-      console.error("Error during project save:", error);
-      // The createCommit function already handles authentication errors,
-      // so we only need to handle other types of errors here
-      if (!error.message.includes("Bad credentials") && error.status !== 401) {
-        setNotification(
-          `Save failed: ${error.message || "Unknown error occurred"}`,
-          "error",
-        );
-        setTimeout(() => setNotification(null), 5000);
-      }
-
-      // Reset progress on error (guard allows 0 anytime as intentional reset)
-      updateSaveProgress(0);
-    } finally {
-      if (saveLockAcquired) {
-        saveInProgress.current = false;
-      }
-    }
-  };
+    },
+    [],
+  );
 
   const value = {
     size,
