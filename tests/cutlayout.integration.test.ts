@@ -134,4 +134,34 @@ describe("cutlayout integration", () => {
     expect(editedLeafIds[0]).not.toEqual(defaultLeafIds[0]);
     expect(editedLeafIds[1]).toEqual(defaultLeafIds[1]);
   }, 90000);
+  it("reports a failure instead of stacking every part when nothing can be nested", async () => {
+    // The nesting engine can fail to place anything (parts larger than the
+    // sheet, or simply no result in the time budget). It used to fall back to
+    // "every part at the centre of the sheet", which looks like a successful
+    // layout and silently overwrites the placements the user already had.
+    const context: RequestContext = {
+      project: `cutlayout-unplaceable-${Date.now()}`,
+    };
+    const rectA = await rectangle(100, 200, context);
+    const rectB = await rectangle(150, 300, context);
+    const inputAssembly = assemblyOf([rectA, rectB]);
+
+    await expect(
+      layout(
+        inputAssembly,
+        () => {
+          // progress callback
+        },
+        () => {
+          // warning callback
+        },
+        () => {
+          // placements callback
+        },
+        // A sheet far smaller than either part, so nothing can ever be placed.
+        { width: 10, height: 10, partPadding: 1, rotations: 4 },
+        context,
+      ),
+    ).rejects.toThrow(/could not place any parts/);
+  }, 180000);
 });

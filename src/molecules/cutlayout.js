@@ -451,22 +451,27 @@ export default class CutLayout extends Atom {
       return;
     }
 
+    // Only checks AP inputs, not the placement values themselves. Check before
+    // flipping `computing`, otherwise an atom whose inputs aren't ready yet is
+    // left showing "Halt Layout" forever with nothing actually running.
+    if (!this.inputsAreReady()) {
+      console.warn("CutLayout inputs are not ready, ignoring compute request");
+      return;
+    }
+
     this.computing = true;
     setInputChanged(this.progress);
-    if (this.inputsAreReady()) {
-      // Only checks AP inputs, not the placement values themselves.
-      if (this.cancelationHandle) {
-        // There's an in-progress nesting worker. Cancel it and start another nesting
-        // computation with the new inputs.
-        this.cancelationHandle();
-        this.cancelationHandle = undefined;
-        // Give the worker a moment to terminate before starting a new one
-        // This prevents accumulation of background workers
-        setTimeout(() => this.startLayout(setInputChanged), 100);
-        return;
-      }
-      this.startLayout(setInputChanged);
+    if (this.cancelationHandle) {
+      // There's an in-progress nesting worker. Cancel it and start another nesting
+      // computation with the new inputs.
+      this.cancelationHandle();
+      this.cancelationHandle = undefined;
+      // Give the worker a moment to terminate before starting a new one
+      // This prevents accumulation of background workers
+      setTimeout(() => this.startLayout(setInputChanged), 100);
+      return;
     }
+    this.startLayout(setInputChanged);
   }
 
   /**

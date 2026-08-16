@@ -4,6 +4,7 @@ import type { DisplayCallback } from "polygon-packer/src/types";
 import { Drawing, Face, Shape3D } from "replicad";
 import { extractKeepOut } from "./tags";
 import { RequestContext } from "./geometryProvider";
+import { reportCadProgress } from "./progress";
 import type { AbundanceLeaf, AbundanceObject } from "./util";
 import * as util from "./util";
 import shrinkWrap from "replicad-shrink-wrap";
@@ -48,6 +49,16 @@ type OrientationCandidate = {
   thickness: number;
   innerWires: number;
 };
+
+// Soft budget: how long we let the nesting engine keep improving on a layout it
+// has already found. Reduced from 120000 (2 min) to 30 sec to prevent
+// long-running workers.
+const NESTING_RUNTIME_MS = 30000;
+// Hard budget: if the engine has not produced a single placement by the soft
+// budget we keep waiting rather than giving up, because the alternative is
+// returning a layout that places nothing. The first result for a large part
+// count regularly arrives after 30s.
+const NESTING_MAX_RUNTIME_MS = 120000;
 
 const rotateMemoCache = new Map<
   string,
@@ -173,6 +184,20 @@ async function layout(
     previousPlacements,
   );
   return positionsPromise.then(async (positions) => {
+    if (positions == undefined) {
+      // The nesting engine never placed a single part. Fail loudly instead of
+      // returning a layout that stacks every part in the middle of the sheet:
+      // that looks like a successful layout, silently replaces whatever
+      // placements the user already had, and gives them nothing to go on.
+      throw new Error(
+        "The nesting engine could not place any parts within " +
+          NESTING_MAX_RUNTIME_MS / 1000 +
+          " seconds. Your current placements have been left alone. Parts must " +
+          "lie flat on the XY plane to be nested - try feeding this atom " +
+          "through an Orient atom first, or check that the sheet is big enough " +
+          "for the largest part.",
+      );
+    }
     //This does the actual layout of the parts.
     const layedOutAssembly = await applyLayout(
       assemblyWithMetadata,
@@ -623,9 +648,10 @@ function computePositions(
   placementsCallback: (placements: Placement[][]) => void,
   layoutConfig: LayoutConfig,
   previousPlacements: Placement[][] | undefined = undefined,
-): Promise<Placement[][]> {
+): Promise<Placement[][] | undefined> {
   const tolerance = 0.2;
-  const runtimeMs = 30000; // Reduced from 120000 (2 min) to 30 sec to prevent long-running workers
+  const runtimeMs = NESTING_RUNTIME_MS;
+  const maxRuntimeMs = NESTING_MAX_RUNTIME_MS;
   const config = {
     curveTolerance: 0.1,
     spacing: layoutConfig.partPadding + tolerance * 2,
@@ -652,13 +678,32 @@ function computePositions(
   const packer = new PolygonPacker();
 
   let progressCallbackCounter = 0;
+  const nestingStartedAt = Date.now();
+  let lastBeaconAt = 0;
   const callbackFunction = (num: any) => {
     // Forward to the UI thread along with a cancelation handle.
     // Expect a call every 0.1 seconds for this method.
     // Unclear what the num argument is supposed to represent
     progressCallbackCounter++;
+    // Nesting can legitimately run for minutes, which is longer than
+    // CadWorkerManager's inactivity watchdog. These beacons reset that watchdog
+    // (see src/worker/progress.ts) so a slow layout isn't mistaken for a hung
+    // worker and killed mid-run.
+    const elapsed = Date.now() - nestingStartedAt;
+    if (elapsed - lastBeaconAt >= 2000) {
+      lastBeaconAt = elapsed;
+      reportCadProgress(
+        "nesting " +
+          polygons.length +
+          " parts (" +
+          Math.round(elapsed / 1000) +
+          "s)",
+      );
+    }
     progressCallback(
-      0.1 + 0.9 * ((progressCallbackCounter * 100) / runtimeMs),
+      // Cap just short of 1 so that a run which is still waiting for its first
+      // placement past the soft budget doesn't report itself as finished.
+      Math.min(0.99, 0.1 + 0.9 * ((progressCallbackCounter * 100) / runtimeMs)),
       proxy(() => {
         packer.stop(true);
       }),
@@ -688,6 +733,24 @@ function computePositions(
       }
     };
 
+    // Once the soft budget is up we take the best layout found so far. If the
+    // engine hasn't placed anything yet we keep checking back until the hard
+    // budget, then give up and report that rather than inventing a layout.
+    const finishWhenReady = () => {
+      const elapsed = Date.now() - nestingStartedAt;
+      if (bestPlacement != undefined) {
+        packer.stop(true);
+        resolve(bestPlacement as Placement[][]);
+        return;
+      }
+      if (elapsed >= maxRuntimeMs) {
+        packer.stop(true);
+        resolve(undefined);
+        return;
+      }
+      setTimeout(finishWhenReady, 1000);
+    };
+
     try {
       packer.start(
         config,
@@ -698,31 +761,15 @@ function computePositions(
         previousPlacements,
       );
 
-      setTimeout(() => {
-        if (bestPlacement != undefined) {
-          packer.stop(true);
-          resolve(bestPlacement as Placement[][]);
-        } else {
-          packer.stop(true);
-          const defaultPlacements = createDefaultPlacements(
-            shapesForLayout,
-            layoutConfig,
-          );
-          resolve(defaultPlacements);
-        }
-      }, runtimeMs);
+      setTimeout(finishWhenReady, runtimeMs);
     } catch (err) {
       console.error("error in nesting engine: " + err);
       packer.stop(true);
-      const defaultPlacements = createDefaultPlacements(
-        shapesForLayout,
-        layoutConfig,
-      );
-      resolve(defaultPlacements);
+      resolve(undefined);
     }
   });
   // TODO: I'm not sure why this cast is required.
-  return result as Promise<Placement[][]>;
+  return result as Promise<Placement[][] | undefined>;
 }
 
 /**
