@@ -649,7 +649,12 @@ async function executeTsCode(
       context,
       cacheId,
     );
-    if (util.isAssembly(abundanceObj)) {
+    // TODO: should we apply this claimsDisjoint check recursively? I feel like no?
+    if (
+      util.isAssembly(abundanceObj) &&
+      !abundanceObj.metadata?.claimsDisjoint == true
+    ) {
+      reportCadProgress("enforcing disjointness");
       const disjointAssembly = await assembly(abundanceObj.geometry, context);
 
       // Copy all properties from abundanceObj except geometry

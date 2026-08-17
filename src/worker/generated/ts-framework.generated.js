@@ -50,6 +50,24 @@ export function makeAbundanceFramework(replicad) {
       }
     }
     /**
+     * Skip the disjoint-ness enforcement on this assembly.
+     *
+     * By default the result of a code atom gets post-processed to enforce
+     * that all leafs are disjoint as is done during an assembly. Calling this
+     * method on a returned assembly or subassembly will cause this
+     * post-process to be skipped.
+     *
+     * The disjointness post processing can be computationally costly, but
+     * many atoms assume that input assemblies are disjoint, so call this
+     * method at your own risk.
+     */
+    skipDisjointPostprocess() {
+      if (!this.metadata) {
+        this.metadata = {};
+      }
+      this.metadata.claimsDisjoint = true;
+    }
+    /**
      * User-defined type guard. Lets callers narrow an `Assembly` to a leaf
      * (where `geometry` is a single replicad shape/drawing rather than an
      * `Assembly[]` branch) without manually checking `Array.isArray(...)`.
