@@ -102,8 +102,8 @@ async function displayOrientation(
   context: RequestContext,
 ): Promise<AbundanceObject> {
   console.log("displayOrientation called.");
-  const getCacheId = (geom: string, index: number) => {
-    return "faceToXY-" + index + "-" + geom;
+  const getCacheId = (geom: string, index: number, xOffset: number) => {
+    return `faceToXY-${index}-${geom}-${xOffset}`;
   };
   const padding = 1; //orientationConfig.units === "MM" ? 25 : 1;
 
@@ -115,7 +115,11 @@ async function displayOrientation(
     }
     let targetFaceIndex = orientations[index].downwardFaceIndex;
     index++;
-    const batchId = getCacheId(leaf.geometry, targetFaceIndex);
+    const batchId = getCacheId(
+      leaf.geometry,
+      targetFaceIndex,
+      bottomLeftTarget.x,
+    );
 
     // Extra batching logic to ensure that we can get cache hits on the "addSingular" operation below.
     const cachedResultOrContext: AbundanceObject | RequestContext =
@@ -151,8 +155,8 @@ async function displayOrientation(
     leaf.geometry = await util.geometryProvider!.addSingularToCache(
       result,
       cachedResultOrContext,
-      "faceToXY-",
-      [targetFaceIndex, leaf.geometry],
+      batchId,
+      [], // args are already integrated into batchId.
     );
     await util.geometryProvider!.endBatchOperation(cachedResultOrContext, leaf);
 
@@ -415,7 +419,7 @@ async function rotateForLayout(
       .map((face, index) => ({
         f: face,
         i: index,
-        area: areaApprox(face.clone().UVBounds),
+        area: replicad.measureArea(face),
       }))
       .sort((a, b) => b.area - a.area);
 
@@ -979,20 +983,6 @@ function moveFaceToCuttingPlane(geom: Shape3D, face: Face): Shape3D {
     .clone()
     .rotate(transform.degrees, transform.point, transform.axis)
     .translate(0, 0, transform.offset);
-}
-
-/**
- * Calculates an approximate area from UV bounds.
- * @param {Object} bounds - The bounds object containing uMin, uMax, vMin, vMax properties
- * @returns {number} The approximate area calculated from the bounds
- */
-function areaApprox(bounds: {
-  uMin: number;
-  uMax: number;
-  vMin: number;
-  vMax: number;
-}): number {
-  return (bounds.uMax - bounds.uMin) * (bounds.vMax - bounds.vMin);
 }
 
 export {
