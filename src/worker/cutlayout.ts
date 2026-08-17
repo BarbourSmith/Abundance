@@ -102,8 +102,8 @@ async function displayOrientation(
   context: RequestContext,
 ): Promise<AbundanceObject> {
   console.log("displayOrientation called.");
-  const getCacheId = (geom: string, index: number) => {
-    return "faceToXY-" + index + "-" + geom;
+  const getCacheId = (geom: string, index: number, xOffset: number) => {
+    return `faceToXY-${index}-${geom}-${xOffset}`;
   };
   const padding = 1; //orientationConfig.units === "MM" ? 25 : 1;
 
@@ -115,7 +115,11 @@ async function displayOrientation(
     }
     let targetFaceIndex = orientations[index].downwardFaceIndex;
     index++;
-    const batchId = getCacheId(leaf.geometry, targetFaceIndex);
+    const batchId = getCacheId(
+      leaf.geometry,
+      targetFaceIndex,
+      bottomLeftTarget.x,
+    );
 
     // Extra batching logic to ensure that we can get cache hits on the "addSingular" operation below.
     const cachedResultOrContext: AbundanceObject | RequestContext =
@@ -151,8 +155,8 @@ async function displayOrientation(
     leaf.geometry = await util.geometryProvider!.addSingularToCache(
       result,
       cachedResultOrContext,
-      "faceToXY-",
-      [targetFaceIndex, leaf.geometry],
+      batchId,
+      [], // args are already integrated into batchId.
     );
     await util.geometryProvider!.endBatchOperation(cachedResultOrContext, leaf);
 
