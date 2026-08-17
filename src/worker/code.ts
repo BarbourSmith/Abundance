@@ -649,11 +649,17 @@ async function executeTsCode(
       context,
       cacheId,
     );
-    // TODO: should we apply this claimsDisjoint check recursively? I feel like no?
-    if (
-      util.isAssembly(abundanceObj) &&
-      !abundanceObj.metadata?.claimsDisjoint == true
-    ) {
+    const shouldSkipDisjoint =
+      abundanceObj.metadata?.claimsDisjoint ||
+      abundanceObj.metadata?.deferDisjoint;
+    if (abundanceObj.metadata?.deferDisjoint) {
+      abundanceObj.deferredOperation = { boolean: "disjoint" };
+    }
+    // clear these metadata fields since they lose relevance downstream
+    delete abundanceObj.metadata?.claimsDisjoint;
+    delete abundanceObj.metadata?.deferDisjoint;
+
+    if (util.isAssembly(abundanceObj) && !shouldSkipDisjoint) {
       reportCadProgress("enforcing disjointness");
       const disjointAssembly = await assembly(abundanceObj.geometry, context);
 

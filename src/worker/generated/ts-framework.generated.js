@@ -50,6 +50,19 @@ export function makeAbundanceFramework(replicad) {
       }
     }
     /**
+     * Defer the disjoint-ness enforcement on this assembly until later. Eg,
+     * the next time this output is sent into an Assembly atom.
+     *
+     * Modifies and returns self.
+     */
+    deferDisjointPostprocess() {
+      if (!this.metadata) {
+        this.metadata = {};
+      }
+      this.metadata.deferDisjoint = true;
+      return this;
+    }
+    /**
      * Skip the disjoint-ness enforcement on this assembly.
      *
      * By default the result of a code atom gets post-processed to enforce
@@ -60,12 +73,15 @@ export function makeAbundanceFramework(replicad) {
      * The disjointness post processing can be computationally costly, but
      * many atoms assume that input assemblies are disjoint, so call this
      * method at your own risk.
+     *
+     * Modifies and returns self.
      */
     skipDisjointPostprocess() {
       if (!this.metadata) {
         this.metadata = {};
       }
       this.metadata.claimsDisjoint = true;
+      return this;
     }
     /**
      * User-defined type guard. Lets callers narrow an `Assembly` to a leaf

@@ -396,6 +396,23 @@ async function assembly(
     throw new Error("inputIDs must be a non-empty array");
   }
 
+  // traverse and explode any inputs which are deferred disjoint. now is the
+  // time to resolve this.
+  const resolveDeferredHelper = (assembly: AbundanceObject) => {
+    if (
+      util.isLeaf(assembly) ||
+      assembly.deferredOperation?.boolean != "disjoint"
+    ) {
+      return assembly;
+    } else {
+      // is deferred non-leaf assembly. Flatten the leafs so they get
+      // disjointness enforced by this assembly operation
+      return util.flattenAssembly(assembly);
+    }
+  };
+
+  geometries = geometries.map((a) => resolveDeferredHelper(a)).flat();
+
   // Assembly of a singleton is a no-op. Return the leaf as the result.
   if (geometries.length == 1) {
     return geometries[0];

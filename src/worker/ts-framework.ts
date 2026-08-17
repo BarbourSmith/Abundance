@@ -108,6 +108,20 @@ export class Assembly<G = any> {
   }
 
   /**
+   * Defer the disjoint-ness enforcement on this assembly until later. Eg,
+   * the next time this output is sent into an Assembly atom.
+   *
+   * Modifies and returns self.
+   */
+  deferDisjointPostprocess(): this {
+    if (!this.metadata) {
+      this.metadata = {};
+    }
+    this.metadata.deferDisjoint = true;
+    return this;
+  }
+
+  /**
    * Skip the disjoint-ness enforcement on this assembly.
    *
    * By default the result of a code atom gets post-processed to enforce
@@ -118,12 +132,15 @@ export class Assembly<G = any> {
    * The disjointness post processing can be computationally costly, but
    * many atoms assume that input assemblies are disjoint, so call this
    * method at your own risk.
+   *
+   * Modifies and returns self.
    */
-  skipDisjointPostprocess() {
+  skipDisjointPostprocess(): this {
     if (!this.metadata) {
       this.metadata = {};
     }
     this.metadata.claimsDisjoint = true;
+    return this;
   }
 
   /**

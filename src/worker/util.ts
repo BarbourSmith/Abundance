@@ -84,6 +84,13 @@ type AbundanceObject = AbundanceLeaf | AbundanceBranch;
 
 type Dimension = "2D" | "3D" | "Wire" | "Point3D" | "Face";
 
+// Type signature for operations which have been deferred to be
+// lazily computed later. Currently a very rudimentary signature
+// but may someday be expanded to rotations and translations.
+interface Operation {
+  boolean: "disjoint";
+}
+
 interface AbundanceBranch {
   geometry: AbundanceObject[];
   plane: SimplePlane;
@@ -94,6 +101,7 @@ interface AbundanceBranch {
   nonReplicadSerialized?: any;
   boundingBox?: AbundanceBounds;
   metadata?: Record<string, any>;
+  deferredOperation?: Operation;
 }
 
 interface AbundanceLeaf {
@@ -106,6 +114,7 @@ interface AbundanceLeaf {
   nonReplicadSerialized?: any;
   boundingBox?: AbundanceBounds;
   metadata?: Record<string, any>;
+  deferredOperation?: Operation;
   selection?: {
     part?: boolean;
     edges?: number[]; // selected edge indexes (0-based position in edgeGroups array)
