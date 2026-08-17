@@ -151,7 +151,7 @@ export default class CutOrient extends Atom {
   saveAndDisplayOrientations(orientations, inputGeom) {
     this.orientations = orientations;
     this.orientationsFor = inputGeom;
-    this.orientationsForHashed = util.hashAssembly(inputGeom);
+    this.orientationsForHashed = util.leafCount(inputGeom);
     return GlobalVariables.cad.displayOrientation(
       inputGeom,
       this.orientations,
@@ -163,7 +163,7 @@ export default class CutOrient extends Atom {
   compute(inputs) {
     const inputGeom = inputs.geometry;
     if (
-      util.hashAssembly(inputGeom) != this.orientationsForHashed ||
+      util.leafCount(inputGeom) != this.orientationsForHashed ||
       this.orientations.length == 0
     ) {
       // No valid cached orientations, so we need to recompute them
@@ -219,7 +219,7 @@ export default class CutOrient extends Atom {
     //Save the readme text to the serial stream
     var valuesObj = super.serialize(values);
     valuesObj.orientations = this.orientations;
-    valuesObj.orientationsForHashed = util.hashAssembly(this.orientationsFor);
+    valuesObj.orientationsForHashed = util.leafCount(this.orientationsFor);
 
     return valuesObj;
   }
