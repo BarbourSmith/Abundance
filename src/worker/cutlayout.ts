@@ -415,7 +415,7 @@ async function rotateForLayout(
       .map((face, index) => ({
         f: face,
         i: index,
-        area: areaApprox(face.clone().UVBounds),
+        area: replicad.measureArea(face),
       }))
       .sort((a, b) => b.area - a.area);
 
@@ -979,20 +979,6 @@ function moveFaceToCuttingPlane(geom: Shape3D, face: Face): Shape3D {
     .clone()
     .rotate(transform.degrees, transform.point, transform.axis)
     .translate(0, 0, transform.offset);
-}
-
-/**
- * Calculates an approximate area from UV bounds.
- * @param {Object} bounds - The bounds object containing uMin, uMax, vMin, vMax properties
- * @returns {number} The approximate area calculated from the bounds
- */
-function areaApprox(bounds: {
-  uMin: number;
-  uMax: number;
-  vMin: number;
-  vMax: number;
-}): number {
-  return (bounds.uMax - bounds.uMin) * (bounds.vMax - bounds.vMin);
 }
 
 export {
