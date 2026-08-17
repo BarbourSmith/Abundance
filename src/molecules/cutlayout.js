@@ -221,6 +221,17 @@ export default class CutLayout extends Atom {
     ) {
       this.placements = [this.placements];
     }
+    // Placements are keyed by the index of the part within the assembly. Projects
+    // saved while ids were geometry strings can never be matched back to a part,
+    // so drop them rather than silently leaving every part where it is.
+    if (
+      this.placements?.some((sheet) =>
+        sheet.some((placement) => typeof placement.id !== "number"),
+      )
+    ) {
+      this.placements = [];
+      this.placementsFor = "";
+    }
     return this.placements;
   }
 
@@ -343,7 +354,7 @@ export default class CutLayout extends Atom {
 
     // If we have saved placements, try to display them with the current geometry.
     // If the geometry structure has changed, displayLayout will fail and we'll warn the user and reset placements.
-    if (this.placements?.length > 0) {
+    if (this.getPlacements()?.length > 0) {
       this.displayLayout(true).catch(() => {
         console.warn(
           "Failed to display saved placements with new geometry. Clearing placements.",
@@ -440,22 +451,27 @@ export default class CutLayout extends Atom {
       return;
     }
 
+    // Only checks AP inputs, not the placement values themselves. Check before
+    // flipping `computing`, otherwise an atom whose inputs aren't ready yet is
+    // left showing "Halt Layout" forever with nothing actually running.
+    if (!this.inputsAreReady()) {
+      console.warn("CutLayout inputs are not ready, ignoring compute request");
+      return;
+    }
+
     this.computing = true;
     setInputChanged(this.progress);
-    if (this.inputsAreReady()) {
-      // Only checks AP inputs, not the placement values themselves.
-      if (this.cancelationHandle) {
-        // There's an in-progress nesting worker. Cancel it and start another nesting
-        // computation with the new inputs.
-        this.cancelationHandle();
-        this.cancelationHandle = undefined;
-        // Give the worker a moment to terminate before starting a new one
-        // This prevents accumulation of background workers
-        setTimeout(() => this.startLayout(setInputChanged), 100);
-        return;
-      }
-      this.startLayout(setInputChanged);
+    if (this.cancelationHandle) {
+      // There's an in-progress nesting worker. Cancel it and start another nesting
+      // computation with the new inputs.
+      this.cancelationHandle();
+      this.cancelationHandle = undefined;
+      // Give the worker a moment to terminate before starting a new one
+      // This prevents accumulation of background workers
+      setTimeout(() => this.startLayout(setInputChanged), 100);
+      return;
     }
+    this.startLayout(setInputChanged);
   }
 
   /**
@@ -487,7 +503,7 @@ export default class CutLayout extends Atom {
         }),
         this.getLayoutConfig(),
         this.getContext(),
-        this.placements,
+        this.getPlacements(),
       )
       .then((layoutAndPositions) => {
         const [layout, positions] = layoutAndPositions;
