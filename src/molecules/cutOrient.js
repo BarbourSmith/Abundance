@@ -219,8 +219,7 @@ export default class CutOrient extends Atom {
     //Save the readme text to the serial stream
     var valuesObj = super.serialize(values);
     valuesObj.orientations = this.orientations;
-    valuesObj.orientationsForHashed = util.leafCount(this.orientationsFor);
-
+    valuesObj.orientationsForHashed = this.orientationsForHashed;
     return valuesObj;
   }
 }
