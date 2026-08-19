@@ -149,12 +149,13 @@ export function ProjectProvider({ children, cad, loadProject }) {
           loadSource = "return";
           setIsReturningFromMode(false); // Clear flag after using
         }
-
+        console.log("Load source determined:", loadSource);
         // Try localStorage ONLY if reauthentication or return (not fresh URL)
         if (loadSource !== "fresh-url") {
           const savedProjectJson = localStorage.getItem(
             `unsavedProject_${projectKey}`,
           );
+
           if (savedProjectJson) {
             try {
               const savedProject = JSON.parse(savedProjectJson);
@@ -168,18 +169,21 @@ export function ProjectProvider({ children, cad, loadProject }) {
 
               // Update current project state
               setCurrentProject({ owner, repoName });
-
+              GlobalVariables.resetView();
               // Deserialize and load the project
               GlobalVariables.topLevelMolecule = new Molecule({
                 owner: owner,
                 repoName: repoName,
               });
+              GlobalVariables.currentMolecule =
+                GlobalVariables.topLevelMolecule;
+
               console.log(
                 "Deserializing project from localStorage:",
                 savedProject,
               );
               // Call the existing loadProject function from App.jsx with saved data
-              loadProject(
+              await loadProject(
                 savedProject.deserializedProject || savedProject,
                 octokitRef.current,
               );
@@ -220,9 +224,10 @@ export function ProjectProvider({ children, cad, loadProject }) {
           owner: owner,
           repoName: repoName,
         });
+        GlobalVariables.currentMolecule = GlobalVariables.topLevelMolecule;
 
         // Call existing loadProject from App.jsx
-        loadProject(awsData.item, octokitRef.current);
+        await loadProject(awsData.item, octokitRef.current);
 
         // Mark source as GitHub
         setProjectSource("github");
