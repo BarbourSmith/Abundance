@@ -701,6 +701,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
         let projectFileContent;
         projectFileContent = await fetchGitHubFileContent(
           projectFileResponse.data,
+          { octokit: authorizedUserOcto },
         );
 
         // Parse the JSON
@@ -764,6 +765,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
         let projectFileContent;
         projectFileContent = await fetchGitHubFileContent(
           projectFileResponse.data,
+          { octokit: authorizedUserOcto },
         );
         // Parse and update topLevelMolecule
         const projectData = JSON.parse(projectFileContent);
@@ -969,6 +971,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
         let projectFileContent;
         projectFileContent = await fetchGitHubFileContent(
           projectFileResponse.data,
+          { octokit: authorizedUserOcto },
         );
 
         // Parse the JSON

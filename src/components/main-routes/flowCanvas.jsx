@@ -6,7 +6,7 @@ import { DeleteAtomsCommand } from "../../js/undoCommands.js";
 import { useNavigate } from "react-router-dom";
 import NavigateToMoleculeDialog from "../secondary/NavigateToMoleculeDialog.jsx";
 import PreviewMoleculeDialog from "../secondary/PreviewMoleculeDialog.jsx";
-import { useRendering } from "../../contexts/index.js";
+import { useRendering, useAuth } from "../../contexts/index.js";
 
 export default memo(function FlowCanvas({
   loadProject,
@@ -56,6 +56,27 @@ export default memo(function FlowCanvas({
   let lastTapPosition = useRef({ x: 0, y: 0 });
   let doubleTapDelay = 300; // milliseconds
   let doubleTapRadius = 20; // pixel radius for considering taps to be at the same position
+
+  const { isRestoringSession } = useAuth();
+
+  /**
+   * Starts a project load, unless the session is still being restored.
+   *
+   * While `isRestoringSession` is true `authorizedUserOcto` is still null, and
+   * loading with it would either 404 on a private project or claim the guard
+   * inside loadProject and turn the authenticated load that follows into a
+   * no-op.  CreateMode (and PreviewCreateMode) load the project once the
+   * session has been restored, so skipping here just defers to them.
+   */
+  const loadProjectWhenAuthReady = () => {
+    if (isRestoringSession) {
+      console.log(
+        "flowCanvas: session still restoring, deferring project load",
+      );
+      return;
+    }
+    loadProject(GlobalVariables.currentAWSnode, authorizedUserOcto);
+  };
 
   // On component mount create a new top level molecule before project load
   useEffect(() => {
@@ -142,12 +163,12 @@ export default memo(function FlowCanvas({
               "Pending project does not match current project. Skipping auto-save.",
             );
             localStorage.removeItem("pendingProjectSave");
-            loadProject(GlobalVariables.currentAWSnode, authorizedUserOcto);
+            loadProjectWhenAuthReady();
           }
         } else {
           console.warn("No pending project found in local storage.");
           // If no pending project found, just load the current project
-          loadProject(GlobalVariables.currentAWSnode, authorizedUserOcto);
+          loadProjectWhenAuthReady();
         }
       } else {
         // Check for unsaved project state from browsing projects
@@ -162,7 +183,7 @@ export default memo(function FlowCanvas({
         if (isFreshUrlNavigation) {
           // Fresh URL navigation: load from GitHub, don't use localStorage
           console.log("Fresh URL navigation detected, loading from GitHub");
-          loadProject(GlobalVariables.currentAWSnode, authorizedUserOcto);
+          loadProjectWhenAuthReady();
         } else {
           // Returning to a previously loaded project: use unsaved state if available
           // Note: owner and repoName come from GitHub's API and are validated by GitHub,
@@ -211,7 +232,7 @@ export default memo(function FlowCanvas({
             } catch (e) {
               console.error("Error restoring unsaved project:", e);
               // If restoration fails, load from GitHub
-              loadProject(GlobalVariables.currentAWSnode, authorizedUserOcto);
+              loadProjectWhenAuthReady();
               localStorage.removeItem(projectKey);
             }
           }

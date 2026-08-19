@@ -376,6 +376,7 @@ export default class Molecule extends Atom {
               GlobalVariables.topLevelMolecule.nodesOnTheScreen = []; // <-- clear the array
               const rawFileContent = await fetchGitHubFileContent(
                 response.data,
+                { octokit },
               );
 
               let rawFile;
@@ -1538,7 +1539,9 @@ export default class Molecule extends Atom {
           repo: gitObj.repoName,
         })
         .then(async (response) => {
-          const rawFileContent = await fetchGitHubFileContent(response.data);
+          const rawFileContent = await fetchGitHubFileContent(response.data, {
+            octokit,
+          });
 
           let rawFile;
           try {

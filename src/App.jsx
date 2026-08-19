@@ -776,12 +776,23 @@ function AppContent() {
    * @returns
    */
   const loadProject = function (project, authorizedUser) {
+    const projectKey = `${project.owner}/${project.repoName}`;
+
+    // An unauthenticated request for a private project can only 404, and it
+    // would claim the loading guard below, turning the authenticated call that
+    // follows it into a no-op.  Bail out and let that caller do the load.
+    if (!authorizedUser && project.privateRepo) {
+      console.warn(
+        "Skipping unauthenticated load of private project:",
+        projectKey,
+      );
+      return Promise.resolve();
+    }
+
     GlobalVariables.undoCommandStack = [];
     GlobalVariables.totalAtomCount = 0;
     GlobalVariables.numberOfAtomsToLoad = 0;
     GlobalVariables.startTime = new Date().getTime();
-
-    const projectKey = `${project.owner}/${project.repoName}`;
 
     // Guard against duplicate loading: add flag BEFORE fetching from GitHub
     // so concurrent calls see it in the Set
@@ -820,7 +831,9 @@ function AppContent() {
         path: "project.abundance",
       })
       .then(async (response) => {
-        let rawFileContent = await fetchGitHubFileContent(response.data);
+        let rawFileContent = await fetchGitHubFileContent(response.data, {
+          octokit,
+        });
         let rawFile;
         try {
           rawFile = JSON.parse(rawFileContent);
@@ -835,6 +848,7 @@ function AppContent() {
           }
           rawFileContent = await fetchGitHubFileContent(response.data, {
             bustCache: true,
+            octokit,
           });
           rawFile = JSON.parse(rawFileContent);
         }
@@ -843,7 +857,6 @@ function AppContent() {
         GlobalVariables.resetIdCounter(rawFile);
 
         const targetMolecule = GlobalVariables.topLevelMolecule;
-        const projectKey = `${project.owner}/${project.repoName}`;
         const currentProjectKey =
           GlobalVariables.currentAWSnode?.owner &&
           GlobalVariables.currentAWSnode?.repoName
@@ -872,19 +885,12 @@ function AppContent() {
         // progress log intervals don't keep running after the switch.
         cad.cancelAll();
 
-        try {
-          if (rawFile.filetypeVersion == 1) {
-            await targetMolecule.deserialize(rawFile);
-          } else {
-            // For older file versions, try to deserialize directly for now
-            await targetMolecule.deserialize(rawFile);
-          }
-        } catch (deserializeError) {
-          GlobalVariables.loadingProjects.delete(projectKey);
-          throw deserializeError;
+        if (rawFile.filetypeVersion == 1) {
+          await targetMolecule.deserialize(rawFile);
+        } else {
+          // For older file versions, try to deserialize directly for now
+          await targetMolecule.deserialize(rawFile);
         }
-        // Clear loading flag after deserialization completes
-        GlobalVariables.loadingProjects.delete(projectKey);
         GlobalVariables.currentMolecule = targetMolecule;
         GlobalVariables.currentMolecule.selected = true;
         setActiveAtom(GlobalVariables.currentMolecule);
@@ -921,8 +927,11 @@ function AppContent() {
           return;
         }
 
-        // If error is 404 (project not found), mark it in AWS
-        if (e?.status === 404) {
+        // If error is 404 (project not found), mark it in AWS.  Only trust a
+        // 404 from an authenticated request: GitHub returns 404 rather than
+        // 403 for repositories the requester isn't allowed to see, so an
+        // unauthenticated miss says nothing about whether the project exists.
+        if (e?.status === 404 && authorizedUser) {
           console.warn(
             "Project not found on GitHub, marking as not found in AWS:",
             project.repoName,
@@ -951,11 +960,15 @@ function AppContent() {
 
         setErrorNotification("Can't load/find project: " + (e.message || e));
         setTimeout(() => setErrorNotification(null), 5000);
-        // Clear loading flag on error
-        GlobalVariables.loadingProjects.delete(projectKey);
         // Navigate back to projects page after error
         navigate("/");
         throw new Error("Can't load/find project " + e);
+      })
+      .finally(() => {
+        // Release the guard on every exit path.  Early returns used to leave
+        // the key in the Set, which made every later load of that project a
+        // silent no-op for the rest of the session.
+        GlobalVariables.loadingProjects.delete(projectKey);
       });
   };
 
