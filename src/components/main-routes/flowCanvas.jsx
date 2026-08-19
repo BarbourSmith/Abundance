@@ -9,7 +9,6 @@ import PreviewMoleculeDialog from "../secondary/PreviewMoleculeDialog.jsx";
 import { useRendering } from "../../contexts/index.js";
 
 export default memo(function FlowCanvas({
-  loadProject,
   setActiveAtom,
   shortCuts,
   authorizedUserOcto,

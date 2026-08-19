@@ -26,6 +26,7 @@ function ChangeMode({
   containerClassName,
   setActiveAtom,
   targetRepo,
+  setIsReturningFromMode,
 }) {
   const [hoveredButton, setHoveredButton] = useState(null);
   const navigate = useNavigate();
@@ -126,6 +127,7 @@ function ChangeMode({
         if (repo) navigateDeferred(`/run/${repo.owner}/${repo.repoName}`);
         break;
       case "create":
+        setIsReturningFromMode(true);
         resetActiveAtom();
         if (repo) navigateDeferred(`/${repo.owner}/${repo.repoName}`);
         break;
