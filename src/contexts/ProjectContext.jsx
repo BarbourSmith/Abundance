@@ -150,6 +150,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
           setIsReturningFromMode(false); // Clear flag after using
         }
         console.log("Load source determined:", loadSource);
+        GlobalVariables.resetView();
 
         // **NEW: If returning but it's a different project, treat as fresh load**
         if (loadSource === "return" && GlobalVariables.currentAWSnode) {
@@ -158,6 +159,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
             // Same project - skip loading entirely
             console.log("Returning to same project, skipping load");
             setLoadingProject(false);
+
             return;
           } else {
             // Different project - convert to fresh load

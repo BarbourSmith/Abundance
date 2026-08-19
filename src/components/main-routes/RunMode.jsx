@@ -257,19 +257,20 @@ function runMode({ processing, setProcessing }) {
     GlobalVariables.canvas = canvasRef;
     GlobalVariables.c = canvasRef.current.getContext("2d");
 
-    /*resetting viewport*/
-    console.log("Resetting viewport before loading new project");
-    GlobalVariables.resetView();
     // Load project using centralized context-based loading
-    loadProjectByUrl(owner, repoName).catch((e) => {
-      console.error("Error loading project:", e);
-      setErrorNotification(
-        "Can't load/find project: " + (e.message || e),
-        "error",
-      );
-      setTimeout(() => setErrorNotification(null, "error"), 5000);
-      navigate("/");
-    });
+    loadProjectByUrl(owner, repoName)
+      .then(() => {
+        setActiveAtom(GlobalVariables.topLevelMolecule);
+      })
+      .catch((e) => {
+        console.error("Error loading project:", e);
+        setErrorNotification(
+          "Can't load/find project: " + (e.message || e),
+          "error",
+        );
+        setTimeout(() => setErrorNotification(null, "error"), 5000);
+        navigate("/");
+      });
 
     if (
       GlobalVariables.currentAWSnode &&
