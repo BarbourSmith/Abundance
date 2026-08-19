@@ -194,7 +194,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
                 savedProject,
               );
               // Call the existing loadProject function from App.jsx with saved data
-              await loadProject(
+              loadProject(
                 savedProject.deserializedProject || savedProject,
                 octokitRef.current,
               );
@@ -238,7 +238,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
         GlobalVariables.currentMolecule = GlobalVariables.topLevelMolecule;
 
         // Call existing loadProject from App.jsx
-        await loadProject(awsData.item, octokitRef.current);
+        loadProject(awsData.item, octokitRef.current);
 
         // Mark source as GitHub
         setProjectSource("github");
