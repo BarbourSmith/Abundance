@@ -143,7 +143,7 @@ function CreateMode() {
           setIsLoadingProject(false);
         });
     }
-  }, [owner, repoName, isRestoringSession]);
+  }, [owner, repoName, isRestoringSession, authorizedUserOcto]);
 
   /** State for user notification */
   const [userNotification, setUserNotificationRaw] = useState(null);

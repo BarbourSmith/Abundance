@@ -107,11 +107,16 @@ export function AuthProvider({ children }) {
       GlobalVariables.currentUser = user.login;
       setIsAuthorized(true);
       setAuthorizedUserOcto(octokit);
+      // Without this the scopes are only known for the session in which the
+      // user signed in: after a reload every "does this token have `repo`?"
+      // check would read an empty list and send the user back through OAuth.
+      setUserScopes(scopes);
       setIsRestoringSession(false);
       return true;
     } else {
       // Token is invalid, clear it
       clearStoredToken();
+      setUserScopes([]);
       setIsRestoringSession(false);
       return false;
     }
@@ -123,11 +128,15 @@ export function AuthProvider({ children }) {
    *   - authType: "fork" | "like" | "reauth" | "save" |undefined
    *   - currentProjectRep: string (optional, for re-auth)
    *   - returnTo: string (optional, for re-auth)
+   *   - repo: {owner, repo} (optional) the project this redirect is for.
+   *     Defaults to the last project that finished loading, which is only
+   *     right when the redirect is about that project.
    */
   const authRedirectHandler = ({
     authType,
     currentProjectRep,
     returnTo,
+    repo,
     privateRepo = false,
   } = {}) => {
     // Helper to build the GitHub OAuth URL
@@ -157,7 +166,9 @@ export function AuthProvider({ children }) {
 
     // Repo for state param: use string for login, object for reauth
     let repoState = null;
-    if (GlobalVariables.currentRepo) {
+    if (repo?.owner && repo?.repo) {
+      repoState = { owner: repo.owner, repo: repo.repo };
+    } else if (GlobalVariables.currentRepo) {
       repoState = {
         owner: GlobalVariables.currentRepo.owner.login,
         repo: GlobalVariables.currentRepo.name,

@@ -96,10 +96,6 @@ const Callback = ({ setRedirectType }) => {
           if (state.authType === "reauth" && state.currentRepo) {
             owner = state.currentRepo.owner;
             repoName = state.currentRepo.repo;
-          } else if (state.authType === "reauth" && !state.currentRepo) {
-            // Handle re-authentication without a current repo
-            navigate("/");
-            return;
           } else {
             // Match /run/owner/repoName or /owner/repoName
             const match = state.returnTo.match(
@@ -110,6 +106,15 @@ const Callback = ({ setRedirectType }) => {
               repoName = match[2];
             }
           }
+
+          // `returnTo` is where the user asked to be; pre-fetching the AWS
+          // node just saves the destination route a round trip.  Every path
+          // out of here has to navigate, or the user is stranded on this
+          // "Logging you in ..." screen.
+          if (!owner || !repoName) {
+            navigate(state.returnTo);
+            return;
+          }
           fetch(
             `https://hg5gsgv9te.execute-api.us-east-2.amazonaws.com/abundance-stage/fetchSingleRepo?owner=${owner}&repoName=${repoName}`,
           )
@@ -117,13 +122,14 @@ const Callback = ({ setRedirectType }) => {
             .then((data) => {
               if (data && data.item) {
                 GlobalVariables.currentAWSnode = data.item;
-                navigate(state.returnTo);
               }
+              navigate(state.returnTo);
             })
             .catch((e) => {
               console.error("Error fetching AWS project data:", e);
-              // If fetch fails, fallback to run mode
-              navigate(`/run/${owner}/${repoName}`);
+              // The destination route fetches the node itself, so a failure
+              // here is not a reason to send the user somewhere else.
+              navigate(state.returnTo);
             });
         } else {
           navigate("/");

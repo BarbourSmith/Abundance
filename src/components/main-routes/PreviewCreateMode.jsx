@@ -31,7 +31,12 @@ import {
  */
 function PreviewCreateMode() {
   // Get context values
-  const { authorizedUserOcto, authRedirectHandler, userScopes } = useAuth();
+  const {
+    authorizedUserOcto,
+    authRedirectHandler,
+    isRestoringSession,
+    userScopes,
+  } = useAuth();
   const {
     activeAtom,
     setActiveAtom,
@@ -96,6 +101,10 @@ function PreviewCreateMode() {
 
   /** Load project when URL params change */
   useEffect(() => {
+    if (isRestoringSession) {
+      return;
+    }
+
     // Check if project is already loaded
     if (
       GlobalVariables.currentAWSnode &&
@@ -137,7 +146,7 @@ function PreviewCreateMode() {
           navigate("/");
         });
     }
-  }, [owner, repoName]);
+  }, [owner, repoName, isRestoringSession, authorizedUserOcto]);
 
   const solidParamRef = useRef(solidParam);
   useEffect(() => {

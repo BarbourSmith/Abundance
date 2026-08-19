@@ -54,7 +54,7 @@ describe('GitHub API Response Handling', () => {
     };
 
     // Mock fetch for download_url
-    global.fetch = vi.fn().mockResolvedValue({
+    globalThis.fetch = vi.fn().mockResolvedValue({
       text: async () => projectJsonString
     });
 
@@ -70,7 +70,7 @@ describe('GitHub API Response Handling', () => {
 
     const rawFile = JSON.parse(rawFileContent);
     expect(rawFile).toEqual(projectData);
-    expect(global.fetch).toHaveBeenCalledWith(response.data.download_url);
+    expect(globalThis.fetch).toHaveBeenCalledWith(response.data.download_url);
   });
 
   it('should handle empty content string using download_url path', async () => {
@@ -91,7 +91,7 @@ describe('GitHub API Response Handling', () => {
     };
 
     // Mock fetch
-    global.fetch = vi.fn().mockResolvedValue({
+    globalThis.fetch = vi.fn().mockResolvedValue({
       text: async () => projectJsonString
     });
 
@@ -145,7 +145,7 @@ describe('GitHub API Response Handling', () => {
     };
 
     // Mock fetch for download_url
-    global.fetch = vi.fn().mockResolvedValue({
+    globalThis.fetch = vi.fn().mockResolvedValue({
       text: async () => projectJsonString
     });
 
@@ -174,6 +174,6 @@ describe('GitHub API Response Handling', () => {
 
     const rawFile = await asyncJsonParse(rawFileContent);
     expect(rawFile).toEqual(projectData);
-    expect(global.fetch).toHaveBeenCalledWith(response.data.download_url);
+    expect(globalThis.fetch).toHaveBeenCalledWith(response.data.download_url);
   });
 });

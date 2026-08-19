@@ -30,7 +30,7 @@ const largeFileResponse = {
 };
 
 beforeEach(() => {
-  global.fetch = vi.fn();
+  globalThis.fetch = vi.fn();
 });
 
 describe("fetchGitHubFileContent", () => {
@@ -42,34 +42,48 @@ describe("fetchGitHubFileContent", () => {
     });
 
     expect(content).toBe(projectJson);
-    expect(global.fetch).not.toHaveBeenCalled();
+    expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
   it("fetches large files through the authenticated API, not download_url", async () => {
-    const octokit = { request: vi.fn().mockResolvedValue({ data: projectJson }) };
+    const octokit = {
+      request: vi.fn().mockResolvedValue({ data: projectJson }),
+    };
 
-    const content = await fetchGitHubFileContent(largeFileResponse, { octokit });
+    const content = await fetchGitHubFileContent(largeFileResponse, {
+      octokit,
+    });
 
     expect(content).toBe(projectJson);
-    expect(octokit.request).toHaveBeenCalledWith(`GET ${largeFileResponse.url}`, {
-      mediaType: { format: "raw" },
-    });
-    expect(global.fetch).not.toHaveBeenCalled();
+    expect(octokit.request).toHaveBeenCalledWith(
+      `GET ${largeFileResponse.url}`,
+      {
+        mediaType: { format: "raw" },
+      },
+    );
+    expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
   it("re-stringifies a body octokit parsed as JSON", async () => {
     const parsed = JSON.parse(projectJson);
     const octokit = { request: vi.fn().mockResolvedValue({ data: parsed }) };
 
-    const content = await fetchGitHubFileContent(largeFileResponse, { octokit });
+    const content = await fetchGitHubFileContent(largeFileResponse, {
+      octokit,
+    });
 
     expect(JSON.parse(content)).toEqual(parsed);
   });
 
   it("busts the cache on the API request when asked", async () => {
-    const octokit = { request: vi.fn().mockResolvedValue({ data: projectJson }) };
+    const octokit = {
+      request: vi.fn().mockResolvedValue({ data: projectJson }),
+    };
 
-    await fetchGitHubFileContent(largeFileResponse, { octokit, bustCache: true });
+    await fetchGitHubFileContent(largeFileResponse, {
+      octokit,
+      bustCache: true,
+    });
 
     const [requestedUrl] = octokit.request.mock.calls[0];
     expect(requestedUrl).toMatch(/[?&]_=\d+/);
@@ -77,7 +91,7 @@ describe("fetchGitHubFileContent", () => {
   });
 
   it("falls back to download_url when there is no octokit", async () => {
-    global.fetch.mockResolvedValue({
+    globalThis.fetch.mockResolvedValue({
       ok: true,
       text: async () => projectJson,
     });
@@ -85,13 +99,14 @@ describe("fetchGitHubFileContent", () => {
     const content = await fetchGitHubFileContent(largeFileResponse);
 
     expect(content).toBe(projectJson);
-    expect(global.fetch).toHaveBeenCalledWith(largeFileResponse.download_url, {
-      cache: "no-store",
-    });
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      largeFileResponse.download_url,
+      { cache: "no-store" },
+    );
   });
 
   it("surfaces a failing download_url status", async () => {
-    global.fetch.mockResolvedValue({
+    globalThis.fetch.mockResolvedValue({
       ok: false,
       status: 404,
       statusText: "Not Found",
@@ -106,19 +121,24 @@ describe("fetchGitHubFileContent", () => {
     const octokit = {
       request: vi.fn().mockRejectedValue(new Error("rate limited")),
     };
-    global.fetch.mockResolvedValue({ ok: true, text: async () => projectJson });
+    globalThis.fetch.mockResolvedValue({
+      ok: true,
+      text: async () => projectJson,
+    });
 
-    const content = await fetchGitHubFileContent(largeFileResponse, { octokit });
+    const content = await fetchGitHubFileContent(largeFileResponse, {
+      octokit,
+    });
 
     expect(content).toBe(projectJson);
-    expect(global.fetch).toHaveBeenCalled();
+    expect(globalThis.fetch).toHaveBeenCalled();
   });
 
   it("reports the API error when both paths fail", async () => {
     const octokit = {
       request: vi.fn().mockRejectedValue(new Error("bad credentials")),
     };
-    global.fetch.mockResolvedValue({
+    globalThis.fetch.mockResolvedValue({
       ok: false,
       status: 404,
       statusText: "Not Found",

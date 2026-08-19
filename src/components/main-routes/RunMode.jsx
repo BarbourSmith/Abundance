@@ -121,7 +121,8 @@ function resetMetaTags() {
 
 function runMode({ processing, setProcessing }) {
   // Get context values
-  const { authorizedUserOcto, authRedirectHandler } = useAuth();
+  const { authorizedUserOcto, authRedirectHandler, isRestoringSession } =
+    useAuth();
   const {
     activeAtom,
     redirectType,
@@ -247,9 +248,25 @@ function runMode({ processing, setProcessing }) {
     GlobalVariables.isMobile() ? "none" : "params",
   );
 
+  // Registering the canvas has nothing to do with auth, so it must not sit
+  // behind the session-restore gate below.  Release it on unmount so nothing
+  // is left holding a detached ref.
   useEffect(() => {
     GlobalVariables.canvas = canvasRef;
     GlobalVariables.c = canvasRef.current.getContext("2d");
+
+    return () => {
+      if (GlobalVariables.canvas === canvasRef) {
+        GlobalVariables.canvas = null;
+        GlobalVariables.c = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (isRestoringSession) {
+      return;
+    }
 
     /** Only run loadproject() if the project is different from what is already loaded and clear screen */
     if (
@@ -313,7 +330,7 @@ function runMode({ processing, setProcessing }) {
     return () => {
       resetMetaTags();
     };
-  }, [owner, repoName]);
+  }, [owner, repoName, isRestoringSession, authorizedUserOcto]);
   const screenHeight = window.innerHeight;
   const screenWidth = window.innerWidth;
 

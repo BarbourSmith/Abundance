@@ -246,6 +246,7 @@ function AppContent() {
     setIsAuthorized,
     setAuthorizedUserOcto,
     authRedirectHandler,
+    isRestoringSession,
     userScopes,
   } = useAuth();
 
@@ -260,6 +261,7 @@ function AppContent() {
   } = useAppState();
 
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [size, setSize] = useState(5);
 
@@ -274,6 +276,7 @@ function AppContent() {
 
   const [processing, setProcessing] = useState(false);
   const activeWorkerTasksRef = useRef(new Map());
+  const privateAuthRedirectInProgressRef = useRef(false);
   const initialProjectLoadRef = useRef(
     Boolean(GlobalVariables.topLevelMolecule),
   );
@@ -770,22 +773,53 @@ function AppContent() {
   }, [activeTags]);
 
   /**
+   * Sends the user through OAuth with the `repo` scope so a private project can
+   * be opened, returning to that project's own URL afterwards.
+   *
+   * The project is named explicitly rather than left to the handler's default
+   * (GlobalVariables.currentRepo), which still points at whatever project was
+   * opened last and would send the user back to the wrong one.
+   */
+  const requestPrivateProjectAuth = (project) => {
+    if (privateAuthRedirectInProgressRef.current) {
+      return;
+    }
+    privateAuthRedirectInProgressRef.current = true;
+
+    console.warn(
+      "Authentication required to load private project:",
+      `${project.owner}/${project.repoName}`,
+    );
+    setErrorNotification(
+      "Authentication is required to load this private repository.",
+    );
+    authRedirectHandler({
+      authType: "reauth",
+      returnTo: `${location.pathname}${location.search}`,
+      repo: { owner: project.owner, repo: project.repoName },
+      privateRepo: true,
+    });
+  };
+
+  /**
    * Load a project from the repository
    * @param {*} project   The project to load as an AWS node
    * @param {*} authorizedUser The authorized user for the request
-   * @returns
+   * @returns {Promise} Resolves when the project has loaded, or when the load
+   *   has failed and been reported to the user.
    */
   const loadProject = function (project, authorizedUser) {
     const projectKey = `${project.owner}/${project.repoName}`;
 
-    // An unauthenticated request for a private project can only 404, and it
-    // would claim the loading guard below, turning the authenticated call that
-    // follows it into a no-op.  Bail out and let that caller do the load.
-    if (!authorizedUser && project.privateRepo) {
-      console.warn(
-        "Skipping unauthenticated load of private project:",
-        projectKey,
-      );
+    // A private project needs credentials before we ask GitHub for anything --
+    // an anonymous request can only 404.  There are two ways to have none:
+    // the session is still being restored, in which case they are seconds away
+    // and the caller's effect will re-run with them; or the user is genuinely
+    // signed out, in which case only OAuth can help.
+    if (project.privateRepo && !authorizedUser) {
+      if (!isRestoringSession) {
+        requestPrivateProjectAuth(project);
+      }
       return Promise.resolve();
     }
 
@@ -794,16 +828,18 @@ function AppContent() {
     GlobalVariables.numberOfAtomsToLoad = 0;
     GlobalVariables.startTime = new Date().getTime();
 
-    // Guard against duplicate loading: add flag BEFORE fetching from GitHub
-    // so concurrent calls see it in the Set
-    if (!GlobalVariables.loadingProjects) {
-      GlobalVariables.loadingProjects = new Set();
+    // Several components can independently ask for the same project during a
+    // single navigation.  Hand every one of them the same promise so they all
+    // see the load finish, rather than telling the later callers "already
+    // loading" and handing back a promise that is already resolved.
+    const inFlight = GlobalVariables.loadingProjects.get(projectKey);
+    if (inFlight) {
+      console.log(
+        "Project already loading, joining in-flight load:",
+        projectKey,
+      );
+      return inFlight;
     }
-    if (GlobalVariables.loadingProjects.has(projectKey)) {
-      console.log("Project already loading, skipping:", projectKey);
-      return Promise.resolve(); // Return resolved promise for consistency
-    }
-    GlobalVariables.loadingProjects.add(projectKey);
 
     if (authorizedUser) {
       var octokit = authorizedUser;
@@ -824,7 +860,7 @@ function AppContent() {
         GlobalVariables.currentRepoName = project.repoName;
       });
 
-    return octokit.rest.repos
+    const loadPromise = octokit.rest.repos
       .getContent({
         owner: project.owner,
         repo: project.repoName,
@@ -891,6 +927,16 @@ function AppContent() {
           // For older file versions, try to deserialize directly for now
           await targetMolecule.deserialize(rawFile);
         }
+        if (GlobalVariables.topLevelMolecule !== targetMolecule) {
+          // A newer navigation swapped the top level molecule out while we
+          // were deserializing.  These atoms belong to a project that is no
+          // longer on screen, so don't make them current.
+          console.warn(
+            "Discarding finished load, project changed during deserialize:",
+            projectKey,
+          );
+          return;
+        }
         GlobalVariables.currentMolecule = targetMolecule;
         GlobalVariables.currentMolecule.selected = true;
         setActiveAtom(GlobalVariables.currentMolecule);
@@ -927,11 +973,12 @@ function AppContent() {
           return;
         }
 
-        // If error is 404 (project not found), mark it in AWS.  Only trust a
-        // 404 from an authenticated request: GitHub returns 404 rather than
-        // 403 for repositories the requester isn't allowed to see, so an
-        // unauthenticated miss says nothing about whether the project exists.
-        if (e?.status === 404 && authorizedUser) {
+        // If error is 404 (project not found), mark it in AWS.  GitHub returns
+        // 404 rather than 403 for repositories the requester isn't allowed to
+        // see, so only a 404 from an authenticated request for a public
+        // project actually means "this project is gone" -- for anything else
+        // we'd be flagging someone else's live project as missing.
+        if (e?.status === 404 && authorizedUser && !project.privateRepo) {
           console.warn(
             "Project not found on GitHub, marking as not found in AWS:",
             project.repoName,
@@ -958,21 +1005,27 @@ function AppContent() {
           }
         }
 
+        console.error("Can't load/find project:", e);
         setErrorNotification("Can't load/find project: " + (e.message || e));
         setTimeout(() => setErrorNotification(null), 5000);
-        // Navigate back to projects page after error
+        // Navigate back to projects page after error.  The error is fully
+        // handled here, so the promise resolves rather than re-throwing into
+        // callers that have no catch of their own.
         navigate("/");
-        throw new Error("Can't load/find project " + e);
       })
       .finally(() => {
         // Release the guard on every exit path.  Early returns used to leave
-        // the key in the Set, which made every later load of that project a
+        // the key in the map, which made every later load of that project a
         // silent no-op for the rest of the session.
-        GlobalVariables.loadingProjects.delete(projectKey);
+        if (GlobalVariables.loadingProjects.get(projectKey) === loadPromise) {
+          GlobalVariables.loadingProjects.delete(projectKey);
+        }
       });
+
+    GlobalVariables.loadingProjects.set(projectKey, loadPromise);
+    return loadPromise;
   };
 
-  const location = useLocation();
   let errorClass = `${notificationType}-notification`;
   if (location.pathname.includes("/run")) {
     errorClass = `${notificationType}-notification-run`;

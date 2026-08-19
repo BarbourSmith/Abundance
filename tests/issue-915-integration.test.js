@@ -18,7 +18,7 @@ describe('Integration Test: Sauna-Trailer Large File', () => {
     };
 
     // Mock fetch to return the actual content
-    global.fetch = vi.fn().mockResolvedValue({
+    globalThis.fetch = vi.fn().mockResolvedValue({
       text: async () => {
         // Return a simplified version of the actual JSON structure
         return JSON.stringify({
@@ -68,7 +68,7 @@ describe('Integration Test: Sauna-Trailer Large File', () => {
     expect(rawFile.filetypeVersion).toBe(1);
     
     // Verify fetch was called with the download URL
-    expect(global.fetch).toHaveBeenCalledWith(mockApiResponse.data.download_url);
+    expect(globalThis.fetch).toHaveBeenCalledWith(mockApiResponse.data.download_url);
     
     console.log('✅ SUCCESS: Large file from issue #915 would now load correctly!');
   });

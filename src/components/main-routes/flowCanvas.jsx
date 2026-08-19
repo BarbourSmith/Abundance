@@ -44,6 +44,7 @@ export default memo(function FlowCanvas({
   });
 
   const canvasRef = useRef(null);
+  const drawErrorReportedRef = useRef(false);
   const circleMenu = useRef(null);
   const navigate = useNavigate();
   let lastTouchMove = null;
@@ -59,34 +60,43 @@ export default memo(function FlowCanvas({
 
   const { isRestoringSession } = useAuth();
 
-  /**
-   * Starts a project load, unless the session is still being restored.
-   *
-   * While `isRestoringSession` is true `authorizedUserOcto` is still null, and
-   * loading with it would either 404 on a private project or claim the guard
-   * inside loadProject and turn the authenticated load that follows into a
-   * no-op.  CreateMode (and PreviewCreateMode) load the project once the
-   * session has been restored, so skipping here just defers to them.
-   */
-  const loadProjectWhenAuthReady = () => {
-    if (isRestoringSession) {
-      console.log(
-        "flowCanvas: session still restoring, deferring project load",
-      );
-      return;
-    }
-    loadProject(GlobalVariables.currentAWSnode, authorizedUserOcto);
-  };
-
-  // On component mount create a new top level molecule before project load
+  // Register this canvas as the one atoms are measured and drawn against.
+  // This has nothing to do with auth or project loading, so it runs on mount
+  // and is undone on unmount -- leaving a detached ref in the global is what
+  // used to make drawing code dereference a null canvas.
   useEffect(() => {
     GlobalVariables.canvas = canvasRef;
     GlobalVariables.c = canvasRef.current.getContext("2d");
+
+    return () => {
+      // Only release it if a later view hasn't already claimed it.
+      if (GlobalVariables.canvas === canvasRef) {
+        GlobalVariables.canvas = null;
+        GlobalVariables.c = null;
+      }
+    };
+  }, []);
+
+  // Decide how to populate the canvas: load from GitHub, restore a pending
+  // save after re-authentication, or restore unsaved local state.  This waits
+  // for session restoration and re-runs when it finishes, so a project is
+  // never loaded with credentials that were only moments away.  The ref keeps
+  // it to a single decision per mount.
+  const projectLoadHandledRef = useRef(false);
+  useEffect(() => {
+    if (isRestoringSession) {
+      return;
+    }
 
     // Wait for CreateMode to set currentAWSnode before initializing
     if (!GlobalVariables.currentAWSnode) {
       return;
     }
+
+    if (projectLoadHandledRef.current) {
+      return;
+    }
+    projectLoadHandledRef.current = true;
 
     // Check if we need to load a project (first load or different project)
     const needsProjectLoad =
@@ -163,12 +173,12 @@ export default memo(function FlowCanvas({
               "Pending project does not match current project. Skipping auto-save.",
             );
             localStorage.removeItem("pendingProjectSave");
-            loadProjectWhenAuthReady();
+            loadProject(GlobalVariables.currentAWSnode, authorizedUserOcto);
           }
         } else {
           console.warn("No pending project found in local storage.");
           // If no pending project found, just load the current project
-          loadProjectWhenAuthReady();
+          loadProject(GlobalVariables.currentAWSnode, authorizedUserOcto);
         }
       } else {
         // Check for unsaved project state from browsing projects
@@ -183,7 +193,7 @@ export default memo(function FlowCanvas({
         if (isFreshUrlNavigation) {
           // Fresh URL navigation: load from GitHub, don't use localStorage
           console.log("Fresh URL navigation detected, loading from GitHub");
-          loadProjectWhenAuthReady();
+          loadProject(GlobalVariables.currentAWSnode, authorizedUserOcto);
         } else {
           // Returning to a previously loaded project: use unsaved state if available
           // Note: owner and repoName come from GitHub's API and are validated by GitHub,
@@ -232,7 +242,7 @@ export default memo(function FlowCanvas({
             } catch (e) {
               console.error("Error restoring unsaved project:", e);
               // If restoration fails, load from GitHub
-              loadProjectWhenAuthReady();
+              loadProject(GlobalVariables.currentAWSnode, authorizedUserOcto);
               localStorage.removeItem(projectKey);
             }
           }
@@ -254,7 +264,7 @@ export default memo(function FlowCanvas({
     GlobalVariables.currentMolecule?.nodesOnTheScreen.forEach((atom) => {
       atom.update();
     });
-  }, []);
+  }, [isRestoringSession, authorizedUserOcto]);
 
   useEffect(() => {
     if (canvasRef.current && windowSize) {
@@ -305,19 +315,20 @@ export default memo(function FlowCanvas({
   }, [GlobalVariables.currentAWSnode]);
 
   const draw = () => {
-    GlobalVariables.c.clearRect(
-      0,
-      0,
-      GlobalVariables.canvas.current.width,
-      GlobalVariables.canvas.current.height,
-    );
+    const canvas = GlobalVariables.canvas?.current;
+    if (!canvas || !GlobalVariables.c) {
+      // The canvas unmounted (or another view claimed the global) between
+      // frames.  Nothing to draw against.
+      return;
+    }
 
-    GlobalVariables.currentMolecule.nodesOnTheScreen.forEach((atom) => {
+    GlobalVariables.c.clearRect(0, 0, canvas.width, canvas.height);
+
+    GlobalVariables.currentMolecule?.nodesOnTheScreen.forEach((atom) => {
       atom.update();
     });
 
-    if (computingLabel && GlobalVariables.canvas?.current) {
-      const canvas = GlobalVariables.canvas.current;
+    if (computingLabel) {
       const paddingRight = 10;
       const paddingBottom = 10;
       const css = getComputedStyle(document.documentElement);
@@ -832,7 +843,18 @@ export default memo(function FlowCanvas({
     //Our draw came here
     const render = () => {
       frameCount++;
-      draw(context, frameCount);
+      try {
+        draw(context, frameCount);
+      } catch (drawError) {
+        // Keep the loop alive: a frame that throws used to stop the canvas
+        // updating for good, because the next frame was never requested.
+        // Report the first failure only, so a persistent one doesn't drown
+        // the console.
+        if (!drawErrorReportedRef.current) {
+          drawErrorReportedRef.current = true;
+          console.error("Error drawing the flow canvas:", drawError);
+        }
+      }
       animationFrameId = window.requestAnimationFrame(render);
     };
     render();

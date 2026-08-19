@@ -480,6 +480,12 @@ function PullMode({ setProcessing }) {
       GlobalVariables.currentAWSnode = null;
       GlobalVariables.currentRepo = null;
       GlobalVariables.loadedRepo = null;
+      // Don't leave the drawing globals pointing at this canvas once it is
+      // detached, unless another view has already claimed them.
+      if (GlobalVariables.canvas === canvasRef) {
+        GlobalVariables.canvas = null;
+        GlobalVariables.c = null;
+      }
 
       // Clear all unsaved project states from localStorage to prevent stale data
       // when user navigates back to a project
