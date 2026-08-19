@@ -150,15 +150,21 @@ export function ProjectProvider({ children, cad, loadProject }) {
           setIsReturningFromMode(false); // Clear flag after using
         }
         console.log("Load source determined:", loadSource);
-        // Try localStorage ONLY if reauthentication or return (not fresh URL)
 
-        // **NEW: If returning to the same project, skip loading entirely**
+        // **NEW: If returning but it's a different project, treat as fresh load**
         if (loadSource === "return" && GlobalVariables.currentAWSnode) {
           const currentProjectKey = `${GlobalVariables.currentAWSnode.owner}/${GlobalVariables.currentAWSnode.repoName}`;
           if (currentProjectKey === projectKey) {
+            // Same project - skip loading entirely
             console.log("Returning to same project, skipping load");
             setLoadingProject(false);
-            return; // ← Just skip it
+            return;
+          } else {
+            // Different project - convert to fresh load
+            console.log(
+              "Returning but project changed, treating as fresh load",
+            );
+            loadSource = "fresh-url";
           }
         }
 

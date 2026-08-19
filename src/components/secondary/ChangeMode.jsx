@@ -122,8 +122,9 @@ function ChangeMode({
 
     switch (button.action) {
       case "run":
+        setIsReturningFromMode(true);
         saveCurrentProjectState(repo);
-        resetActiveAtom();
+        //resetActiveAtom();
         if (repo) navigateDeferred(`/run/${repo.owner}/${repo.repoName}`);
         break;
       case "create":

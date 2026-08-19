@@ -257,38 +257,19 @@ function runMode({ processing, setProcessing }) {
     GlobalVariables.canvas = canvasRef;
     GlobalVariables.c = canvasRef.current.getContext("2d");
 
-    /** Only run loadproject() if the project is different from what is already loaded and clear screen */
-    if (
-      GlobalVariables.currentAWSnode &&
-      GlobalVariables.currentAWSnode.repoName ==
-        GlobalVariables.loadedRepo?.name
-    ) {
-      console.log("Same project, loading from memory");
-      GlobalVariables.currentMolecule = GlobalVariables.topLevelMolecule;
-      GlobalVariables.currentMolecule.selected = true;
-      setActiveAtom(GlobalVariables.currentMolecule);
-      updateProjectMetaTags(GlobalVariables.currentAWSnode);
-      // The molecule already has a computed value, but nothing has told the
-      // display pipeline to render it yet (targetMesh stays undefined),
-      // leaving the loading overlay stuck forever. Re-trigger the render.
-      if (typeof GlobalVariables.currentMolecule.sendToRender === "function") {
-        GlobalVariables.currentMolecule.sendToRender();
-      }
-    } else {
-      /*resetting viewport*/
-      console.log("Resetting viewport before loading new project");
-      GlobalVariables.resetView();
-      // Load project using centralized context-based loading
-      loadProjectByUrl(owner, repoName).catch((e) => {
-        console.error("Error loading project:", e);
-        setErrorNotification(
-          "Can't load/find project: " + (e.message || e),
-          "error",
-        );
-        setTimeout(() => setErrorNotification(null, "error"), 5000);
-        navigate("/");
-      });
-    }
+    /*resetting viewport*/
+    console.log("Resetting viewport before loading new project");
+    GlobalVariables.resetView();
+    // Load project using centralized context-based loading
+    loadProjectByUrl(owner, repoName).catch((e) => {
+      console.error("Error loading project:", e);
+      setErrorNotification(
+        "Can't load/find project: " + (e.message || e),
+        "error",
+      );
+      setTimeout(() => setErrorNotification(null, "error"), 5000);
+      navigate("/");
+    });
 
     if (
       GlobalVariables.currentAWSnode &&
