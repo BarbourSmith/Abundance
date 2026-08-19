@@ -1,16 +1,14 @@
 // Test file for cutlayout.js - default placement functionality
-import { createDefaultPlacements, displayLayoutWithRotatedAssembly } from "../src/worker/cutlayout.ts";
+import { createDefaultPlacements } from "../src/worker/cutlayout.ts";
 
 describe("cutlayout.js", () => {
   describe("createDefaultPlacements", () => {
-    it("should create default placements at origin with zero rotation", () => {
-      const shapesForLayout = [
-        { id: 'shape1' },
-        { id: 'shape2' },
-        { id: 'shape3' }
-      ];
+    const layoutConfig = { width: 100, height: 60, partPadding: 1, rotations: 4 };
 
-      const result = createDefaultPlacements(shapesForLayout);
+    it("should create default placements centered on the sheet with zero rotation", () => {
+      const shapesForLayout = [{ id: 0 }, { id: 1 }, { id: 2 }];
+
+      const result = createDefaultPlacements(shapesForLayout, layoutConfig);
 
       // Should return an array with one sheet
       expect(Array.isArray(result)).toBe(true);
@@ -25,17 +23,28 @@ describe("cutlayout.js", () => {
         expect(placement).toHaveProperty('id');
         expect(placement).toHaveProperty('rotate');
         expect(placement).toHaveProperty('translate');
-        
+
         expect(placement.id).toBe(shapesForLayout[index].id);
         expect(placement.rotate).toBe(0);
-        expect(placement.translate.x).toBe(0);
-        expect(placement.translate.y).toBe(0);
+        expect(placement.translate.x).toBe(layoutConfig.width / 2);
+        expect(placement.translate.y).toBe(layoutConfig.height / 2);
       });
+    });
+
+    it("should key placements by the shape's index so applyLayout can match them to leafs", () => {
+      // applyLayout looks up placements by the index of the leaf within the
+      // assembly. If ids are anything other than that index (a geometry id, for
+      // example) no part ever gets moved. See prepShapesForLayout.
+      const shapesForLayout = [{ id: 0 }, { id: 1 }, { id: 2 }];
+
+      const result = createDefaultPlacements(shapesForLayout, layoutConfig);
+
+      expect(result[0].map((placement) => placement.id)).toEqual([0, 1, 2]);
     });
 
     it("should handle empty shapes array", () => {
       const shapesForLayout = [];
-      const result = createDefaultPlacements(shapesForLayout);
+      const result = createDefaultPlacements(shapesForLayout, layoutConfig);
 
       expect(Array.isArray(result)).toBe(true);
       expect(result.length).toBe(1);
@@ -43,40 +52,15 @@ describe("cutlayout.js", () => {
     });
 
     it("should handle single shape", () => {
-      const shapesForLayout = [{ id: 'single-shape' }];
-      const result = createDefaultPlacements(shapesForLayout);
+      const shapesForLayout = [{ id: 0 }];
+      const result = createDefaultPlacements(shapesForLayout, layoutConfig);
 
       expect(result.length).toBe(1);
       expect(result[0].length).toBe(1);
-      expect(result[0][0].id).toBe('single-shape');
+      expect(result[0][0].id).toBe(0);
       expect(result[0][0].rotate).toBe(0);
-      expect(result[0][0].translate.x).toBe(0);
-      expect(result[0][0].translate.y).toBe(0);
-    });
-  });
-
-  describe("displayLayoutWithRotatedAssembly", () => {
-    it("should exist and be a function", () => {
-      expect(typeof displayLayoutWithRotatedAssembly).toBe('function');
-    });
-
-    it("should work with mock assembly and empty positions", () => {
-      // Create a minimal mock assembly to test the function exists and works
-      const mockRotatedAssembly = {
-        geometry: [],
-        tags: [],
-        color: '#aad7f2',
-        bom: []
-      };
-      
-      const positions = [[]]; // Empty positions
-      const warningCallback = () => {};
-      const layoutConfig = { width: 100, height: 100, partPadding: 1 };
-
-      // This should not throw an error
-      expect(() => {
-        displayLayoutWithRotatedAssembly(mockRotatedAssembly, positions, warningCallback, layoutConfig);
-      }).not.toThrow();
+      expect(result[0][0].translate.x).toBe(layoutConfig.width / 2);
+      expect(result[0][0].translate.y).toBe(layoutConfig.height / 2);
     });
   });
 });
