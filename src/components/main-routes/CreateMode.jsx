@@ -27,8 +27,8 @@ import {
   useAuth,
   useAppState,
   useRendering,
-  useProject,
   useFileImport,
+  useProject,
 } from "../../contexts/index.js";
 import { useDevSettings } from "../../contexts/DevSettingsContext.jsx";
 /**
@@ -45,6 +45,8 @@ function CreateMode() {
     authRedirectHandler,
     userScopes,
     isRestoringSession,
+    isReturningFromMode,
+    setIsReturningFromMode,
   } = useAuth();
   const {
     activeAtom,
@@ -55,6 +57,7 @@ function CreateMode() {
     redirectType,
     setNotification,
   } = useAppState();
+
   const { setShowDevModal } = useDevSettings();
   const {
     setMesh,
@@ -81,6 +84,8 @@ function CreateMode() {
     loadProject,
     searchGithubMolecules,
     saveProject: saveProjectFromContext,
+    loadProjectManager,
+    loadingProject: contextLoadingProject,
   } = useProject();
   const { uploadFile, deleteFile, fetchFileContent, fetchRawFileContent } =
     useFileImport();
@@ -109,41 +114,17 @@ function CreateMode() {
   // Track if we're still loading the project from AWS
   const [isLoadingProject, setIsLoadingProject] = useState(true);
 
-  // Update GlobalVariables when route params change and fetch full AWS node
-  // Wait for session restoration to complete before loading project
   useEffect(() => {
-    if (owner && repoName && !isRestoringSession) {
-      setIsLoadingProject(true);
-
-      // Fetch the full project metadata from AWS
-      fetch(
-        `https://hg5gsgv9te.execute-api.us-east-2.amazonaws.com/abundance-stage/fetchSingleRepo?owner=${owner}&repoName=${repoName}`,
-      )
-        .then((res) => res.json())
-        .then((data) => {
-          if (data && data.item) {
-            GlobalVariables.currentAWSnode = data.item;
-          } else {
-            console.error("Failed to fetch AWS node for project:", data);
-            // Fallback if we can't fetch from AWS
-            GlobalVariables.currentAWSnode = { owner, repoName };
-          }
-          // Load the project after setting currentAWSnode
-          loadProject(GlobalVariables.currentAWSnode, authorizedUserOcto);
-          setActiveAtom(GlobalVariables.topLevelMolecule);
-          setIsLoadingProject(false);
-        })
-        .catch((err) => {
-          console.warn("Error fetching AWS node for project:", err);
-          // Fallback to partial node
-          GlobalVariables.currentAWSnode = { owner, repoName };
-          // Still try to load project with fallback
-          loadProject(GlobalVariables.currentAWSnode, authorizedUserOcto);
-          setActiveAtom(GlobalVariables.topLevelMolecule);
-          setIsLoadingProject(false);
-        });
+    if (owner && repoName) {
+      console.log("Attempting to load project:", owner, repoName);
+      loadProjectManager(owner, repoName);
     }
-  }, [owner, repoName, isRestoringSession]);
+  }, [owner, repoName]);
+
+  // Sync context loading state to local loading state
+  useEffect(() => {
+    setIsLoadingProject(contextLoadingProject);
+  }, [contextLoadingProject]);
 
   /** State for user notification */
   const [userNotification, setUserNotificationRaw] = useState(null);
@@ -659,7 +640,8 @@ function CreateMode() {
   const screenHeight = window.innerHeight;
 
   // Show loading screen while project is being fetched and loaded
-  if (isLoadingProject) {
+  // ALSO check if currentAWSnode is populated - if not, keep loading
+  if (isLoadingProject || !GlobalVariables.currentAWSnode) {
     return (
       <div
         style={{
@@ -678,235 +660,237 @@ function CreateMode() {
     );
   }
 
-  if (authorizedUserOcto) {
-    if (
-      GlobalVariables.currentAWSnode &&
-      GlobalVariables.currentAWSnode.owner === GlobalVariables.currentUser
-    ) {
-      return (
-        <>
-          {isActive ? <TutorialOverlay /> : null}
-          <ParamsMenu
-            position={{ top: screenHeight / 2 - 10, left: 10 }}
-            id={"atom-create-params-panel"}
-            contentCollapsed={expandedMenu !== "params"}
-            setContentCollapsed={() => setExpandedMenu("params")}
-            panelRef={panelRef}
-            closeMenu={() => setExpandedMenu("none")}
-            initialCollapsed={true}
-            collapsedOffset={[45, 0]}
+  if (!authorizedUserOcto) {
+    /** User is not logged in - try to authenticate */
+    console.warn("You are not logged in");
+    authRedirectHandler({
+      authType: "reauth",
+      returnTo: `/${owner && repoName ? `${owner}/${repoName}` : ""}`,
+      privateRepo: GlobalVariables.currentAWSnode?.privateRepo || false,
+    });
+    return null;
+  }
+
+  if (GlobalVariables.currentAWSnode.owner === GlobalVariables.currentUser) {
+    /** User is logged in and owns the project - show CreateMode */
+    return (
+      <>
+        {isActive ? <TutorialOverlay /> : null}
+        <ParamsMenu
+          position={{ top: screenHeight / 2 - 10, left: 10 }}
+          id={"atom-create-params-panel"}
+          contentCollapsed={expandedMenu !== "params"}
+          setContentCollapsed={() => setExpandedMenu("params")}
+          panelRef={panelRef}
+          closeMenu={() => setExpandedMenu("none")}
+          initialCollapsed={true}
+          collapsedOffset={[45, 0]}
+        />
+        <RenderMenu
+          {...{
+            contentCollapsed: expandedMenu !== "render",
+            setContentCollapsed: () => setExpandedMenu("render"),
+            position: { top: screenHeight / 2 + 35, left: 10 },
+            collapsedOffset: [45, -45],
+            closeMenu: () => setExpandedMenu("none"),
+          }}
+          id={"atom-create-render-panel"}
+        />
+        <BomMenu
+          {...{
+            id: "atom-bom-panel",
+            contentCollapsed: expandedMenu !== "bom",
+            setContentCollapsed: () => setExpandedMenu("bom"),
+            closeMenu: () => setExpandedMenu("none"),
+            position: { top: screenHeight / 2 + 80, left: 10 },
+            collapsedOffset: [45, -90],
+          }}
+        />
+        <GitSearchMenu
+          {...{
+            activeAtom,
+            id: "atom-git-search-panel",
+            contentCollapsed: expandedMenu !== "git-search",
+            setContentCollapsed: () => setExpandedMenu("git-search"),
+            closeMenu: () => setExpandedMenu("none"),
+            setParamsMenuExpanded: () => setExpandedMenu("params"),
+            position: { top: screenHeight / 2 + 125, left: 10 },
+            collapsedOffset: [45, -135],
+            gitRef: gitRef,
+            setUserNotification,
+          }}
+        />
+        <div id="headerBar">
+          <img
+            className={
+              "thumnail-logo" +
+              (userScopes.includes("repo") ? " logo-private-scope" : "")
+            }
+            src={
+              import.meta.env.VITE_APP_PATH_FOR_PICS +
+              "/imgs/abundance_logo.png"
+            }
+            alt="logo"
+            onClick={() => navigate("/")}
+            style={{ cursor: "pointer" }}
+            title={
+              userScopes.includes("repo")
+                ? "Authenticated with private repository access"
+                : undefined
+            }
           />
-          <RenderMenu
-            {...{
-              contentCollapsed: expandedMenu !== "render",
-              setContentCollapsed: () => setExpandedMenu("render"),
-              position: { top: screenHeight / 2 + 35, left: 10 },
-              collapsedOffset: [45, -45],
-              closeMenu: () => setExpandedMenu("none"),
+        </div>
+
+        {exportPopUp ? (
+          <div
+            className="login-popup"
+            id="exporting-popup-back"
+            style={{
+              padding: "0",
+              border: "10px solid #3e3d3d",
             }}
-            id={"atom-create-render-panel"}
-          />
-          <BomMenu
-            {...{
-              id: "atom-bom-panel",
-              contentCollapsed: expandedMenu !== "bom",
-              setContentCollapsed: () => setExpandedMenu("bom"),
-              closeMenu: () => setExpandedMenu("none"),
-              position: { top: screenHeight / 2 + 80, left: 10 },
-              collapsedOffset: [45, -90],
-            }}
-          />
-          <GitSearchMenu
-            {...{
-              activeAtom,
-              id: "atom-git-search-panel",
-              contentCollapsed: expandedMenu !== "git-search",
-              setContentCollapsed: () => setExpandedMenu("git-search"),
-              closeMenu: () => setExpandedMenu("none"),
-              setParamsMenuExpanded: () => setExpandedMenu("params"),
-              position: { top: screenHeight / 2 + 125, left: 10 },
-              collapsedOffset: [45, -135],
-              gitRef: gitRef,
-              setUserNotification,
-            }}
-          />
-          <div id="headerBar">
-            <img
-              className={
-                "thumnail-logo" +
-                (userScopes.includes("repo") ? " logo-private-scope" : "")
-              }
-              src={
-                import.meta.env.VITE_APP_PATH_FOR_PICS +
-                "/imgs/abundance_logo.png"
-              }
-              alt="logo"
-              onClick={() => navigate("/")}
-              style={{ cursor: "pointer" }}
-              title={
-                userScopes.includes("repo")
-                  ? "Authenticated with private repository access"
-                  : undefined
-              }
+          >
+            <div>
+              {" "}
+              {GlobalVariables.currentRepo ? (
+                <Link
+                  to={`/${GlobalVariables.currentAWSnode.owner}/${GlobalVariables.currentAWSnode.repoName}`}
+                >
+                  <button className="closeButton">
+                    <img></img>
+                  </button>
+                </Link>
+              ) : null}
+            </div>
+
+            <NewProjectPopUp
+              {...{ setExportPopUp, exporting: true, authorizedUserOcto }}
             />
           </div>
-
-          {exportPopUp ? (
-            <div
-              className="login-popup"
-              id="exporting-popup-back"
-              style={{
-                padding: "0",
-                border: "10px solid #3e3d3d",
-              }}
-            >
-              <div>
-                {" "}
-                {GlobalVariables.currentRepo ? (
-                  <Link
-                    to={`/${GlobalVariables.currentAWSnode.owner}/${GlobalVariables.currentAWSnode.repoName}`}
-                  >
-                    <button className="closeButton">
-                      <img></img>
-                    </button>
-                  </Link>
-                ) : null}
-              </div>
-
-              <NewProjectPopUp
-                {...{ setExportPopUp, exporting: true, authorizedUserOcto }}
-              />
-            </div>
-          ) : null}
-          <ChangeMode
-            setActiveAtom={setActiveAtom}
-            targetRepo={GlobalVariables.currentAWSnode}
-            buttons={[
-              {
-                key: "create-to-run",
-                action: "run",
-                id: "run-mode-btn",
-                title: "Switch to Run Mode",
-                wrapperClassName: "switch runmode-tooltip-container",
-                tooltipText: "RUN MODE",
-                iconRotation: -90,
-              },
-            ]}
-          />
-          {shortCutsOn ? (
-            <div id="shortcutDiv" className="noselect">
-              <li style={{ fontSize: "14px" }}>(CTRL +)</li>
-              {Object.entries(shortCuts).map(([key, value]) => {
-                return (
-                  <li key={key} className="shortcut">
-                    {key} : {value}
-                  </li>
-                );
-              })}
-            </div>
-          ) : null}
-          <TopMenu
-            {...{
-              savePopUp,
-              setSavePopUp,
-              saveProject,
-              saveState,
-              setSaveState,
-              currentMoleculeTop,
-              settingsPopUp,
-              setSettingsPopUp,
-              duplicateDialog,
-              setDuplicateDialog,
-              recomputeVisible,
-              setRecomputeVisible,
-              recomputeProgress,
-              setRecomputeProgress,
-            }}
-          />
-
-          <CodeWindow {...{ activeAtom }} />
-          <input
-            type="file"
-            id="fileLoaderInput"
-            style={{ display: "none" }}
-            onChange={(value) => {
-              let file = value.target.files[0];
-              if (file) {
-                uploadFile(file, activeAtom);
-              }
-            }}
-          />
-          <input
-            type="button"
-            id="fileDeleteInput"
-            style={{ display: "none" }}
-            onClick={() => {
-              deleteFile(activeAtom.fileName, activeAtom.sha);
-            }}
-          />
-          <input
-            type="file"
-            id="backgroundUsdzInput"
-            style={{ display: "none" }}
-            accept=".glb,.gltf"
-            onChange={(event) => {
-              let file = event.target.files[0];
-              if (file) {
-                uploadBackground3D(file);
-              }
-            }}
-          />
-          <input
-            type="button"
-            id="backgroundUsdzDeleteInput"
-            style={{ display: "none" }}
-            onClick={() => {
-              deleteBackground3D();
-            }}
-          />
-          <FlowCanvas
-            key={`${owner}-${repoName}`}
-            {...{
-              activeAtom,
-              authorizedUserOcto,
-              loadProject,
-              setActiveAtom,
-              setSavePopUp,
-              setSaveState,
-              setTop,
-              shortCuts,
-              setMesh,
-              cad,
-              setWireMesh,
-              userNotification,
-              notificationType,
-              setUserNotification,
-              setExpandedMenu,
-              windowSize,
-              redirectType,
-              saveProject,
-            }}
-          />
-          <div className="parent flex-parent" id="lowerHalf">
-            <LowerHalf windowSize={windowSize} ref={meshRef} />
+        ) : null}
+        <ChangeMode
+          setActiveAtom={setActiveAtom}
+          targetRepo={GlobalVariables.currentAWSnode}
+          isReturningFromMode={isReturningFromMode}
+          setIsReturningFromMode={setIsReturningFromMode}
+          buttons={[
+            {
+              key: "create-to-run",
+              action: "run",
+              id: "run-mode-btn",
+              title: "Switch to Run Mode",
+              wrapperClassName: "switch runmode-tooltip-container",
+              tooltipText: "RUN MODE",
+              iconRotation: -90,
+            },
+          ]}
+        />
+        {shortCutsOn ? (
+          <div id="shortcutDiv" className="noselect">
+            <li style={{ fontSize: "14px" }}>(CTRL +)</li>
+            {Object.entries(shortCuts).map(([key, value]) => {
+              return (
+                <li key={key} className="shortcut">
+                  {key} : {value}
+                </li>
+              );
+            })}
           </div>
-        </>
-      );
-    } else {
-      console.warn(
-        "User is not authorized for this repository. Redirecting to run mode.",
-      );
-      // Fallback: navigate to run mode if repo is still missing
-      navigate(`/run/${owner}/${repoName}`);
-    }
+        ) : null}
+        <TopMenu
+          {...{
+            savePopUp,
+            setSavePopUp,
+            saveProject,
+            saveState,
+            setSaveState,
+            currentMoleculeTop,
+            settingsPopUp,
+            setSettingsPopUp,
+            duplicateDialog,
+            setDuplicateDialog,
+            recomputeVisible,
+            setRecomputeVisible,
+            recomputeProgress,
+            setRecomputeProgress,
+          }}
+        />
+
+        <CodeWindow {...{ activeAtom }} />
+        <input
+          type="file"
+          id="fileLoaderInput"
+          style={{ display: "none" }}
+          onChange={(value) => {
+            let file = value.target.files[0];
+            if (file) {
+              uploadFile(file, activeAtom);
+            }
+          }}
+        />
+        <input
+          type="button"
+          id="fileDeleteInput"
+          style={{ display: "none" }}
+          onClick={() => {
+            deleteFile(activeAtom.fileName, activeAtom.sha);
+          }}
+        />
+        <input
+          type="file"
+          id="backgroundUsdzInput"
+          style={{ display: "none" }}
+          accept=".glb,.gltf"
+          onChange={(event) => {
+            let file = event.target.files[0];
+            if (file) {
+              uploadBackground3D(file);
+            }
+          }}
+        />
+        <input
+          type="button"
+          id="backgroundUsdzDeleteInput"
+          style={{ display: "none" }}
+          onClick={() => {
+            deleteBackground3D();
+          }}
+        />
+        <FlowCanvas
+          key={`${owner}-${repoName}`}
+          {...{
+            activeAtom,
+            authorizedUserOcto,
+            loadProject,
+            setActiveAtom,
+            setSavePopUp,
+            setSaveState,
+            setTop,
+            shortCuts,
+            setMesh,
+            cad,
+            setWireMesh,
+            userNotification,
+            notificationType,
+            setUserNotification,
+            setExpandedMenu,
+            windowSize,
+            redirectType,
+            saveProject,
+          }}
+        />
+        <div className="parent flex-parent" id="lowerHalf">
+          <LowerHalf windowSize={windowSize} ref={meshRef} />
+        </div>
+      </>
+    );
   } else {
-    /** get repository from github by the id in the url */
-    console.warn("You are not logged in");
-    //try reauthenticating
-    authRedirectHandler({
-      redirectType: "reauth",
-      returnTo: `/${owner && repoName ? `${owner}/${repoName}` : ""}`,
-    });
+    // User is logged in but doesn't own this project
+    console.warn(
+      "User is not authorized for this repository. Redirecting to run mode.",
+    );
+    console.error("Redirecting to run mode due to unauthorized access.");
+    navigate(`/run/${owner}/${repoName}`);
   }
 }
 

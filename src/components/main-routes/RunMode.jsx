@@ -121,7 +121,13 @@ function resetMetaTags() {
 
 function runMode({ processing, setProcessing }) {
   // Get context values
-  const { authorizedUserOcto, authRedirectHandler } = useAuth();
+  const {
+    authorizedUserOcto,
+    authRedirectHandler,
+    isReturningFromMode,
+    setIsReturningFromMode,
+    isRestoringSession,
+  } = useAuth();
   const {
     activeAtom,
     redirectType,
@@ -147,7 +153,7 @@ function runMode({ processing, setProcessing }) {
     setSolid,
     computingLabel,
   } = useRendering();
-  const { loadProject } = useProject();
+  const { loadProject, loadProjectManager } = useProject();
   const { uploadFile, deleteFile } = useFileImport();
 
   const navigate = useNavigate();
@@ -248,60 +254,37 @@ function runMode({ processing, setProcessing }) {
   );
 
   useEffect(() => {
+    console.log("Initializing canvas and context in RunMode.jsx");
     GlobalVariables.canvas = canvasRef;
     GlobalVariables.c = canvasRef.current.getContext("2d");
 
-    /** Only run loadproject() if the project is different from what is already loaded and clear screen */
-    if (
-      GlobalVariables.currentAWSnode &&
-      GlobalVariables.currentAWSnode.repoName ==
-        GlobalVariables.loadedRepo?.name
-    ) {
-      console.warn("Same project, loading from memory");
-      GlobalVariables.currentMolecule = GlobalVariables.topLevelMolecule;
-      GlobalVariables.currentMolecule.selected = true;
-      setActiveAtom(GlobalVariables.currentMolecule);
-      updateProjectMetaTags(GlobalVariables.currentAWSnode);
-      // The molecule already has a computed value, but nothing has told the
-      // display pipeline to render it yet (targetMesh stays undefined),
-      // leaving the loading overlay stuck forever. Re-trigger the render.
-      if (typeof GlobalVariables.currentMolecule.sendToRender === "function") {
-        GlobalVariables.currentMolecule.sendToRender();
+    return () => {
+      if (GlobalVariables.canvas === canvasRef) {
+        GlobalVariables.canvas = null;
+        GlobalVariables.c = null;
       }
-    } else {
-      /*resetting viewport*/
-      GlobalVariables.resetView(); // TODO(tristan): possibly also need to writeToDisplay here.
-      fetch(
-        `https://hg5gsgv9te.execute-api.us-east-2.amazonaws.com/abundance-stage/fetchSingleRepo?owner=${owner}&repoName=${repoName}`,
-      )
-        .then((res) => res.json())
-        .then((data) => {
-          if (data && data.item) {
-            GlobalVariables.currentAWSnode = data.item;
-            updateProjectMetaTags(data.item);
+    };
+  }, []);
 
-            //Load a blank project
-            GlobalVariables.topLevelMolecule = new Molecule({
-              x: 0,
-              y: 0,
-              topLevel: true,
-              atomType: "Molecule",
-            });
-            GlobalVariables.currentMolecule = GlobalVariables.topLevelMolecule;
-            GlobalVariables.currentMolecule.selected = true;
-            loadProject(GlobalVariables.currentAWSnode, authorizedUserOcto);
-          }
-        })
-        .catch((e) => {
-          console.error("Error fetching AWS project data:", e);
-          setErrorNotification(
-            "Can't load/find project: " + (e.message || e),
-            "error",
-          );
-          setTimeout(() => setErrorNotification(null, "error"), 5000);
-          navigate("/");
-        });
+  useEffect(() => {
+    if (isRestoringSession) {
+      return;
     }
+
+    // Load project using centralized context-based loading
+    loadProjectManager(owner, repoName)
+      .then(() => {
+        setActiveAtom(GlobalVariables.topLevelMolecule);
+      })
+      .catch((e) => {
+        console.error("Error loading project:", e);
+        setErrorNotification(
+          "Can't load/find project: " + (e.message || e),
+          "error",
+        );
+        setTimeout(() => setErrorNotification(null, "error"), 5000);
+        navigate("/");
+      });
 
     if (
       GlobalVariables.currentAWSnode &&
@@ -313,7 +296,8 @@ function runMode({ processing, setProcessing }) {
     return () => {
       resetMetaTags();
     };
-  }, [owner, repoName]);
+  }, [owner, repoName, isRestoringSession]);
+
   const screenHeight = window.innerHeight;
   const screenWidth = window.innerWidth;
 
@@ -404,6 +388,8 @@ function runMode({ processing, setProcessing }) {
       {isActive ? <TutorialOverlay /> : null}
       <ChangeMode
         containerClassName={isItOwned ? undefined : "switch_run_stack"}
+        setIsReturningFromMode={setIsReturningFromMode}
+        isReturningFromMode={isReturningFromMode}
         buttons={
           isItOwned
             ? [

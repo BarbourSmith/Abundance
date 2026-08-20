@@ -682,6 +682,11 @@ export default class Input extends Atom {
    * Draws the atom on the screen.
    */
   draw() {
+    // Guard: skip drawing if canvas context is not available (e.g., during deserialization)
+    if (!GlobalVariables.c) {
+      return;
+    }
+
     // Always lock the inputs to the left side
     /**
      * The x position of the atom

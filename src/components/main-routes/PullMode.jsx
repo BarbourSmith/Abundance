@@ -981,7 +981,7 @@ function PullMode({ setProcessing }) {
           buttons={[
             {
               key: "pull-to-create",
-              action: "create",
+              action: "create-from-pull",
               id: "create-mode-btn",
               title: "Create/Run Mode",
               label: "Create Mode",

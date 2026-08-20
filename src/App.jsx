@@ -776,6 +776,7 @@ function AppContent() {
    * @returns
    */
   const loadProject = function (project, authorizedUser) {
+    console.log("Loading project:", project);
     GlobalVariables.undoCommandStack = [];
     GlobalVariables.totalAtomCount = 0;
     GlobalVariables.numberOfAtomsToLoad = 0;
@@ -820,7 +821,9 @@ function AppContent() {
         path: "project.abundance",
       })
       .then(async (response) => {
-        let rawFileContent = await fetchGitHubFileContent(response.data);
+        let rawFileContent = await fetchGitHubFileContent(response.data, {
+          octokit,
+        });
         let rawFile;
         try {
           rawFile = JSON.parse(rawFileContent);
@@ -835,6 +838,7 @@ function AppContent() {
           }
           rawFileContent = await fetchGitHubFileContent(response.data, {
             bustCache: true,
+            octokit,
           });
           rawFile = JSON.parse(rawFileContent);
         }
@@ -914,8 +918,8 @@ function AppContent() {
           );
           authRedirectHandler({
             authType: "reauth",
-            currentProjectRep: undefined,
-            returnTo: `/`,
+            repo: { owner: project.owner, repo: project.repoName },
+            returnTo: `/${project.owner}/${project.repoName}`,
             privateRepo: true,
           });
           return;

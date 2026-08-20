@@ -26,6 +26,7 @@ function ChangeMode({
   containerClassName,
   setActiveAtom,
   targetRepo,
+  setIsReturningFromMode,
 }) {
   const [hoveredButton, setHoveredButton] = useState(null);
   const navigate = useNavigate();
@@ -71,18 +72,6 @@ function ChangeMode({
     button.title ??
     `button-${index}`;
 
-  // Preserve unsaved project edits when a transition leaves the editable view.
-  const saveCurrentProjectState = (repo) => {
-    if (!GlobalVariables.topLevelMolecule || !repo?.owner || !repo?.repoName) {
-      return;
-    }
-
-    const projectState = GlobalVariables.topLevelMolecule.serialize();
-    projectState.filetypeVersion = 1;
-    const projectKey = `unsavedProject_${repo.owner}_${repo.repoName}`;
-    localStorage.setItem(projectKey, JSON.stringify(projectState));
-  };
-
   // Defer route changes until the current render cycle has completed.
   const navigateDeferred = (path, options) => {
     setTimeout(() => {
@@ -116,28 +105,36 @@ function ChangeMode({
     const repo = findFirstValidRepo(button.targetRepo);
 
     if (typeof button.beforeNavigate === "function") {
-      button.beforeNavigate({ repo, resetActiveAtom, saveCurrentProjectState });
+      button.beforeNavigate({ repo, resetActiveAtom });
     }
 
     switch (button.action) {
       case "run":
-        saveCurrentProjectState(repo);
-        resetActiveAtom();
+        setIsReturningFromMode(true);
+        //resetActiveAtom();
         if (repo) navigateDeferred(`/run/${repo.owner}/${repo.repoName}`);
         break;
       case "create":
+        setIsReturningFromMode(true);
+        resetActiveAtom();
+        if (repo) navigateDeferred(`/${repo.owner}/${repo.repoName}`);
+        break;
+      case "create-from-pull":
+        // Returning from pull request - don't try localStorage, just load fresh from GitHub
         resetActiveAtom();
         if (repo) navigateDeferred(`/${repo.owner}/${repo.repoName}`);
         break;
       case "preview":
+        setIsReturningFromMode(true);
         if (repo) navigateDeferred(`/preview/${repo.owner}/${repo.repoName}`);
+
         break;
       case "browse":
-        saveCurrentProjectState(repo);
         resetActiveAtom();
         navigateDeferred("/", { state: { fromRunMode: true } });
         break;
       case "preview-back":
+        setIsReturningFromMode(true);
         resetActiveAtom();
         if (restorePreviewOriginProject()) {
           break;

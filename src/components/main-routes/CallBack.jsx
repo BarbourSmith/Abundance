@@ -15,6 +15,8 @@ const Callback = ({ setRedirectType }) => {
     setAuthorizedUserOcto,
     storeToken,
     setUserScopes,
+    setIsReauthentication,
+    setIsReturningFromMode,
   } = useAuth();
 
   useEffect(() => {
@@ -88,6 +90,14 @@ const Callback = ({ setRedirectType }) => {
         const stateParam = params.get("state");
         const state = stateParam ? JSON.parse(stateParam) : {};
 
+        // Detect reauthentication and mode return
+        if (state.authType === "reauth") {
+          setIsReauthentication(true);
+        }
+        if (state.returnTo) {
+          setIsReturningFromMode(true);
+        }
+
         setRedirectType(state.authType);
         if (state.authType === "fork" || state.authType === "like") {
           navigate(`/run/${state.currentRepo.owner}/${state.currentRepo.repo}`);
@@ -96,10 +106,6 @@ const Callback = ({ setRedirectType }) => {
           if (state.authType === "reauth" && state.currentRepo) {
             owner = state.currentRepo.owner;
             repoName = state.currentRepo.repo;
-          } else if (state.authType === "reauth" && !state.currentRepo) {
-            // Handle re-authentication without a current repo
-            navigate("/");
-            return;
           } else {
             // Match /run/owner/repoName or /owner/repoName
             const match = state.returnTo.match(
@@ -110,6 +116,14 @@ const Callback = ({ setRedirectType }) => {
               repoName = match[2];
             }
           }
+
+          // Validate that we extracted owner and repoName before fetching
+          if (!owner || !repoName) {
+            navigate(state.returnTo);
+            return;
+          }
+
+          // Pre-fetch the AWS node to save the destination route a round trip
           fetch(
             `https://hg5gsgv9te.execute-api.us-east-2.amazonaws.com/abundance-stage/fetchSingleRepo?owner=${owner}&repoName=${repoName}`,
           )
@@ -117,13 +131,13 @@ const Callback = ({ setRedirectType }) => {
             .then((data) => {
               if (data && data.item) {
                 GlobalVariables.currentAWSnode = data.item;
-                navigate(state.returnTo);
               }
+              navigate(state.returnTo);
             })
             .catch((e) => {
               console.error("Error fetching AWS project data:", e);
-              // If fetch fails, fallback to run mode
-              navigate(`/run/${owner}/${repoName}`);
+              // Destination route fetches the node itself, so a failure here is not a reason to redirect
+              navigate(state.returnTo);
             });
         } else {
           navigate("/");

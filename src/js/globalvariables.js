@@ -210,6 +210,13 @@ class GlobalVariables {
      * @type {object}
      */
     this._topLevelMolecule;
+    /**
+     * Tracks which projects are currently in-flight during `loadProject()`.
+     * Used to prevent duplicate concurrent loads for the same "owner/repoName".
+     *
+     * @type {Set<string>}
+     */
+    this.loadingProjects = new Set();
 
     /**
      * A flag to indicate if the program is running with a touch interface. Set in flowDraw.js.
@@ -440,10 +447,25 @@ class GlobalVariables {
    * @return a tuple of [snapped x position, snapped y position], both in pixels
    */
   constrainToCanvasBordersPixels(xPixels, yPixels) {
+    const canvas = this.canvasElement;
+    if (!canvas) {
+      return [Math.max(0, xPixels), Math.max(0, yPixels)];
+    }
     return [
-      Math.max(0, Math.min(this.canvas.current.width, xPixels)),
-      Math.max(0, Math.min(this.canvas.current.height, yPixels)),
+      Math.max(0, Math.min(canvas.width, xPixels)),
+      Math.max(0, Math.min(canvas.height, yPixels)),
     ];
+  }
+
+  /**
+   * The canvas element currently being drawn to, or null when no canvas is
+   * mounted.  `this.canvas` is a React ref owned by whichever view mounted
+   * last, so `.current` goes null the moment that view unmounts -- everything
+   * that measures the canvas has to cope with that.
+   * @return {object|null}
+   */
+  get canvasElement() {
+    return this.canvas?.current ?? null;
   }
 
   /**
@@ -473,7 +495,11 @@ class GlobalVariables {
    * @param {number} width
    */
   widthToPixels(width) {
-    let pixels = this.canvas.current.width * width;
+    const canvas = this.canvasElement;
+    if (!canvas) {
+      return 0;
+    }
+    let pixels = canvas.width * width;
     return pixels;
   }
   /**
@@ -481,7 +507,11 @@ class GlobalVariables {
    * @param {number} width
    */
   pixelsToWidth(pixels) {
-    let width = 1 / (this.canvas.current.width / pixels);
+    const canvas = this.canvasElement;
+    if (!canvas) {
+      return 0;
+    }
+    let width = 1 / (canvas.width / pixels);
     return width;
   }
   /**
@@ -489,7 +519,11 @@ class GlobalVariables {
    * @param {number} width
    */
   heightToPixels(height) {
-    let pixels = this.canvas.current.height * height;
+    const canvas = this.canvasElement;
+    if (!canvas) {
+      return 0;
+    }
+    let pixels = canvas.height * height;
     return pixels;
   }
 
@@ -498,7 +532,11 @@ class GlobalVariables {
    * @param {number} width
    */
   pixelsToHeight(pixels) {
-    let height = 1 / (this.canvas.current.height / pixels);
+    const canvas = this.canvasElement;
+    if (!canvas) {
+      return 0;
+    }
+    let height = 1 / (canvas.height / pixels);
     return height;
   }
 

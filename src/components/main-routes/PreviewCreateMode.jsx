@@ -31,7 +31,13 @@ import {
  */
 function PreviewCreateMode() {
   // Get context values
-  const { authorizedUserOcto, authRedirectHandler, userScopes } = useAuth();
+  const {
+    authorizedUserOcto,
+    authRedirectHandler,
+    userScopes,
+    setIsReturningFromMode,
+    isRestoringSession,
+  } = useAuth();
   const {
     activeAtom,
     setActiveAtom,
@@ -51,7 +57,7 @@ function PreviewCreateMode() {
     setShowTopLevelWireframe,
   } = useRendering();
 
-  const { cad, loadProject } = useProject();
+  const { cad, loadProject, loadProjectManager } = useProject();
   const { fetchFileContent, fetchRawFileContent } = useFileImport();
   const meshRef = useRef();
 
@@ -96,48 +102,25 @@ function PreviewCreateMode() {
 
   /** Load project when URL params change */
   useEffect(() => {
-    // Check if project is already loaded
-    if (
-      GlobalVariables.currentAWSnode &&
-      GlobalVariables.currentAWSnode.repoName === repoName &&
-      GlobalVariables.loadedRepo?.name === repoName
-    ) {
-      // Project already loaded, just set up the view
-      GlobalVariables.currentMolecule = GlobalVariables.topLevelMolecule;
-      GlobalVariables.currentMolecule.selected = true;
-      setActiveAtom(GlobalVariables.currentMolecule);
-    } else {
-      // Project not loaded - fetch from AWS and load it
-      GlobalVariables.resetView();
-      fetch(
-        `https://hg5gsgv9te.execute-api.us-east-2.amazonaws.com/abundance-stage/fetchSingleRepo?owner=${owner}&repoName=${repoName}`,
-      )
-        .then((res) => res.json())
-        .then((data) => {
-          if (data && data.item) {
-            GlobalVariables.currentAWSnode = data.item;
-
-            // Load a blank project
-            GlobalVariables.topLevelMolecule = new Molecule({
-              x: 0,
-              y: 0,
-              topLevel: true,
-              atomType: "Molecule",
-            });
-            GlobalVariables.currentMolecule = GlobalVariables.topLevelMolecule;
-            GlobalVariables.currentMolecule.selected = true;
-            loadProject(GlobalVariables.currentAWSnode, authorizedUserOcto);
-            setActiveAtom(GlobalVariables.currentMolecule);
-          }
-        })
-        .catch((e) => {
-          console.error("Error loading preview project:", e);
-          setNotification("Can't load project: " + (e.message || e), "error");
-          setTimeout(() => setNotification(null), 5000);
-          navigate("/");
-        });
+    if (isRestoringSession) {
+      return;
     }
-  }, [owner, repoName]);
+
+    // Load project using centralized context-based loading
+    loadProjectManager(owner, repoName)
+      .then(() => {
+        setActiveAtom(GlobalVariables.topLevelMolecule);
+      })
+      .catch((e) => {
+        console.error("Error loading project:", e);
+        setErrorNotification(
+          "Can't load/find project: " + (e.message || e),
+          "error",
+        );
+        setTimeout(() => setErrorNotification(null, "error"), 5000);
+        navigate("/");
+      });
+  }, [owner, repoName, isRestoringSession]);
 
   const solidParamRef = useRef(solidParam);
   useEffect(() => {
@@ -325,14 +308,14 @@ function PreviewCreateMode() {
             iconRotation: -90,
           },
         ]}
+        setIsReturningFromMode={setIsReturningFromMode}
       />
       <CodeWindow {...{ activeAtom }} />
-      {!GlobalVariables.currentMolecule.topLevel ? <GoUpLevelButton /> : null}
+      {!GlobalVariables.currentMolecule?.topLevel ? <GoUpLevelButton /> : null}
       <FlowCanvas
         {...{
           activeAtom,
           authorizedUserOcto,
-          loadProject,
           setActiveAtom,
           setSavePopUp: () => {},
           setSaveState: () => {},

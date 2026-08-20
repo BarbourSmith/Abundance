@@ -420,6 +420,10 @@ jobs:
 
             console.log(withDiffs);
 
+            // First build markdown without detailed diffs
+            const maxCommentLength = 65500; // GitHub limit is 65536, leave buffer
+            const detailedDiffsSections = [];
+
             Object.keys(withDiffs).forEach((projectName) => {
               const projDiffs = withDiffs[projectName];
               const prM = prMetrics[projectName];
@@ -429,16 +433,26 @@ jobs:
               console.log(baseM);
 
               if (projDiffs.indexOf("projectFileSize") !== -1) {
-                markdown += '### Detailed Project File contents diff in project ' + projectName + '\n\n';
-                markdown += "```"
-                markdown += diff(
-                  (typeof baseM.projectFileRawJson === "string" ? baseM.projectFileRawJson : JSON.stringify(baseM.projectFileRawJson, null, 2)),
-                  (typeof prM.projectFileRawJson === "string" ? prM.projectFileRawJson : JSON.stringify(prM.projectFileRawJson, null, 2)),
-                  { expand: false, aAnnotation: 'Base branch', bAnnotation: 'PR branch' }
-                );
-                markdown += "```"
+                const diffSection = '### Detailed Project File contents diff in project ' + projectName + '\n\n' +
+                  "```\n" +
+                  diff(
+                    (typeof baseM.projectFileRawJson === "string" ? baseM.projectFileRawJson : JSON.stringify(baseM.projectFileRawJson, null, 2)),
+                    (typeof prM.projectFileRawJson === "string" ? prM.projectFileRawJson : JSON.stringify(prM.projectFileRawJson, null, 2)),
+                    { expand: false, aAnnotation: 'Base branch', bAnnotation: 'PR branch' }
+                  ) + "\n```\n";
+                detailedDiffsSections.push(diffSection);
               }
             });
+
+            // Check if we need to truncate
+            let fullMarkdown = markdown + '\n' + detailedDiffsSections.join('\n');
+            if (fullMarkdown.length > maxCommentLength) {
+              console.log(`Comment too long (${fullMarkdown.length} chars). Omitting detailed diffs.`);
+              markdown += '\n\n⚠️ **Detailed project file diffs omitted** - Comment would exceed GitHub\'s 65536 character limit. Check the workflow artifacts for full metrics and diffs.';
+            } else {
+              markdown = fullMarkdown;
+            }
+
             console.log(markdown);
 
             const prNumber = context.issue.number;
