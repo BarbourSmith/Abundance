@@ -119,11 +119,12 @@ export class Assembly<G = any> {
    * many atoms assume that input assemblies are disjoint, so call this
    * method at your own risk.
    */
-  skipDisjointPostprocess() {
+  skipDisjointPostprocess(): this {
     if (!this.metadata) {
       this.metadata = {};
     }
     this.metadata.claimsDisjoint = true;
+    return this;
   }
 
   /**

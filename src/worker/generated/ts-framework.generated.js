@@ -66,6 +66,7 @@ export function makeAbundanceFramework(replicad) {
         this.metadata = {};
       }
       this.metadata.claimsDisjoint = true;
+      return this;
     }
     /**
      * User-defined type guard. Lets callers narrow an `Assembly` to a leaf

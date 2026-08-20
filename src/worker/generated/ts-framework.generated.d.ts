@@ -96,7 +96,7 @@ declare global {
        * many atoms assume that input assemblies are disjoint, so call this
        * method at your own risk.
        */
-      skipDisjointPostprocess(): void;
+      skipDisjointPostprocess(): this;
       /**
        * User-defined type guard. Lets callers narrow an `Assembly` to a leaf
        * (where `geometry` is a single replicad shape/drawing rather than an
