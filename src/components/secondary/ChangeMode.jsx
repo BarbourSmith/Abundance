@@ -119,6 +119,11 @@ function ChangeMode({
         resetActiveAtom();
         if (repo) navigateDeferred(`/${repo.owner}/${repo.repoName}`);
         break;
+      case "create-from-pull":
+        // Returning from pull request - don't try localStorage, just load fresh from GitHub
+        resetActiveAtom();
+        if (repo) navigateDeferred(`/${repo.owner}/${repo.repoName}`);
+        break;
       case "preview":
         setIsReturningFromMode(true);
         if (repo) navigateDeferred(`/preview/${repo.owner}/${repo.repoName}`);

@@ -198,8 +198,12 @@ export function ProjectProvider({ children, cad, loadProject }) {
             try {
               const savedProject = JSON.parse(savedProjectJson);
 
-              // Recovered from localStorage during reauthentication
-              setProjectSource("localStorage-recovery-reauthentication");
+              // Determine recovery type for UI display
+              if (savedProject.source === "reauthentication-recovery") {
+                setProjectSource("localStorage-recovery-reauthentication");
+              } else {
+                setProjectSource("localStorage-unsaved-work");
+              }
 
               console.log(
                 "Deserializing project from localStorage:",
@@ -239,8 +243,8 @@ export function ProjectProvider({ children, cad, loadProject }) {
                 console.warn("Error cleaning up localStorage:", error);
               }
 
-              setLoadingProject(false);
-              return;
+              // Continue to fetch AWS node and call loadProject to populate currentRepo and metadata
+              // (don't return early - fall through to GitHub load path)
             } catch (error) {
               console.error("Error loading from localStorage:", error);
               // Fall through to GitHub load if localStorage parsing fails
@@ -250,25 +254,37 @@ export function ProjectProvider({ children, cad, loadProject }) {
 
         console.log("Loading project from GitHub:", projectKey);
 
-        // Load fresh from GitHub (default for fresh URLs, fallback for localStorage failures)
-        const awsNodeResponse = await fetch(
-          `https://hg5gsgv9te.execute-api.us-east-2.amazonaws.com/abundance-stage/fetchSingleRepo?owner=${owner}&repoName=${repoName}`,
-        );
-
-        if (!awsNodeResponse.ok) {
-          throw new Error(
-            `Failed to fetch project from AWS: ${awsNodeResponse.statusText}`,
+        // For reauthentication recovery, we already have the AWS node in memory
+        // Just use it instead of fetching again
+        let awsNode = null;
+        if (
+          loadSource === "reauthentication" &&
+          GlobalVariables.currentAWSnode
+        ) {
+          awsNode = GlobalVariables.currentAWSnode;
+          console.log("Using cached AWS node for reauthentication recovery");
+        } else {
+          // Load fresh from GitHub (default for fresh URLs, fallback for localStorage failures)
+          const awsNodeResponse = await fetch(
+            `https://hg5gsgv9te.execute-api.us-east-2.amazonaws.com/abundance-stage/fetchSingleRepo?owner=${owner}&repoName=${repoName}`,
           );
-        }
 
-        const awsData = await awsNodeResponse.json();
-        if (!awsData.item) {
-          throw new Error("Project not found in AWS");
+          if (!awsNodeResponse.ok) {
+            throw new Error(
+              `Failed to fetch project from AWS: ${awsNodeResponse.statusText}`,
+            );
+          }
+
+          const awsData = await awsNodeResponse.json();
+          if (!awsData.item) {
+            throw new Error("Project not found in AWS");
+          }
+          awsNode = awsData.item;
         }
 
         // Store AWS node globally
-        GlobalVariables.currentAWSnode = awsData.item;
-        setCurrentProject(awsData.item);
+        GlobalVariables.currentAWSnode = awsNode;
+        setCurrentProject(awsNode);
 
         // Create fresh molecule
         GlobalVariables.topLevelMolecule = new Molecule({
@@ -278,7 +294,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
         GlobalVariables.currentMolecule = GlobalVariables.topLevelMolecule;
 
         // Call existing loadProject from App.jsx
-        loadProject(awsData.item, octokitRef.current);
+        loadProject(awsNode, octokitRef.current);
 
         // Mark source as GitHub
         setProjectSource("github");

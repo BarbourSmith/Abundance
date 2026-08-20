@@ -292,6 +292,10 @@ function TopMenu({
         buttonFunc: () => {
           // Get repo information
           const repo = GlobalVariables.currentRepo;
+          if (!repo) {
+            console.warn("Repository information not yet loaded");
+            return;
+          }
           const parent = repo.parent;
 
           // Determine base (parent if fork, otherwise current)
