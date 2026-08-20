@@ -108,6 +108,26 @@ export class Assembly<G = any> {
   }
 
   /**
+   * Skip the disjoint-ness enforcement on this assembly.
+   *
+   * By default the result of a code atom gets post-processed to enforce
+   * that all leafs are disjoint as is done during an assembly. Calling this
+   * method on a returned assembly or subassembly will cause this
+   * post-process to be skipped.
+   *
+   * The disjointness post processing can be computationally costly, but
+   * many atoms assume that input assemblies are disjoint, so call this
+   * method at your own risk.
+   */
+  skipDisjointPostprocess(): this {
+    if (!this.metadata) {
+      this.metadata = {};
+    }
+    this.metadata.claimsDisjoint = true;
+    return this;
+  }
+
+  /**
    * User-defined type guard. Lets callers narrow an `Assembly` to a leaf
    * (where `geometry` is a single replicad shape/drawing rather than an
    * `Assembly[]` branch) without manually checking `Array.isArray(...)`.
@@ -215,6 +235,15 @@ export class Assembly<G = any> {
     } else {
       return fn(this);
     }
+  }
+
+  leafCount(): number {
+    let i = 0;
+    this.onLeafs((leaf) => {
+      i++;
+      return leaf;
+    });
+    return i;
   }
 
   //@ts-ignore
