@@ -126,10 +126,16 @@ export function ProjectProvider({ children, cad, loadProject }) {
   };
 
   /**
-   * Phase 3: Load project orchestration
    * Centralized function for loading projects from any source (GitHub or localStorage)
    * Detects whether to use localStorage based on reauthentication/return flags
    * Handles all loading logic in one place
+   *
+   * FLOW:
+   * 1. Determine load source (fresh URL vs recovery from localStorage)
+   * 2. If recovering from localStorage, deserialize atoms into memory
+   * 3. Fetch project metadata from AWS (or use cached copy for reauthentication)
+   * 4. Call App.jsx loadProject() to fetch project.abundance from GitHub
+   * 5. Clean up localStorage after successful load
    */
   const loadProjectByUrl = useCallback(
     async (owner, repoName) => {
@@ -139,39 +145,48 @@ export function ProjectProvider({ children, cad, loadProject }) {
         setLoadingProject(true);
         setLoadError(null);
 
-        // Detect load source based on flags set during reauthentication/return
+        // ===== STEP 1: Determine load source =====
+        // When users navigate back from edit/create mode or reauthenticate,
+        // we want to restore their unsaved work from localStorage instead of
+        // fetching fresh from GitHub. This check detects that scenario.
         let loadSource = "fresh-url"; // Default: always load fresh
 
         if (isReauthentication) {
+          // After reauthentication completes, load a saved version of the project
+          // that was stored before the auth redirect (atoms are serialized in memory)
           loadSource = "reauthentication";
           setIsReauthentication(false); // Clear flag after using
           setIsReturningFromMode(false); // Also clear return flag since reauthentication supersedes it
         } else if (isReturningFromMode) {
+          // User returned from edit/create mode back to this project
+          // Project should already be loaded in memory from the previous edit/create mode
           loadSource = "return";
           setIsReturningFromMode(false); // Clear flag after using
         }
-        console.log("Load source determined:", loadSource);
 
-        // **NEW: If returning but it's a different project, treat as fresh load**
+        // ===== STEP 1b: Handle project switching during return =====
+        // If user is returning but the project URL changed (e.g., /run/A/B → /run/C/D),
+        // treat it as a fresh load, not a recovery of unsaved work from project A.
+        // Only skip loading entirely if we're returning to the exact same project.
         if (loadSource === "return" && GlobalVariables.currentAWSnode) {
           const currentProjectKey = `${GlobalVariables.currentAWSnode.owner}/${GlobalVariables.currentAWSnode.repoName}`;
           if (currentProjectKey === projectKey) {
             // Same project - skip loading entirely
-            console.log("Returning to same project, skipping load");
             setLoadingProject(false);
 
             return;
           } else {
             // Different project - convert to fresh load
-            console.log(
-              "Returning but project changed, treating as fresh load",
-            );
             loadSource = "fresh-url";
           }
         }
         //if loading a new project, reset the view
         GlobalVariables.resetView();
 
+        // ===== STEP 2: Recover from localStorage if applicable =====
+        // If this is a reauthentication or return, check localStorage for
+        // unsaved atoms that the user was editing. This lets us restore
+        // their work after they reauthenticate or return from another view.
         if (loadSource !== "fresh-url") {
           let savedProjectJson = null;
 
@@ -183,7 +198,6 @@ export function ProjectProvider({ children, cad, loadProject }) {
               savedProjectJson = pendingProjectSave;
               // Clear the pending save after retrieving it
               localStorage.removeItem("pendingProjectSave");
-              console.log("Found pendingProjectSave for reauthentication");
             }
           }
 
@@ -205,13 +219,10 @@ export function ProjectProvider({ children, cad, loadProject }) {
                 setProjectSource("localStorage-unsaved-work");
               }
 
-              console.log(
-                "Deserializing project from localStorage:",
-                savedProject,
-              );
-
-              // For reauthentication, just deserialize the atoms directly
-              // Don't call loadProject() since we already have the AWS context
+              // ===== STEP 2b: Deserialize recovered atoms =====
+              // Restore the user's unsaved work into GlobalVariables.topLevelMolecule
+              // This happens BEFORE we fetch project.abundance from GitHub,
+              // so if the GitHub fetch fails (e.g., 403), we don't lose their work.
               const projectData =
                 savedProject.deserializedProject || savedProject;
               GlobalVariables.resetIdCounter(projectData);
@@ -236,9 +247,6 @@ export function ProjectProvider({ children, cad, loadProject }) {
                 }
                 keysToRemove.forEach((key) => localStorage.removeItem(key));
                 localStorage.removeItem("pendingProjectSave");
-                console.log(
-                  "Cleared old unsaved projects from localStorage after load",
-                );
               } catch (error) {
                 console.warn("Error cleaning up localStorage:", error);
               }
@@ -252,19 +260,19 @@ export function ProjectProvider({ children, cad, loadProject }) {
           }
         }
 
-        console.log("Loading project from GitHub:", projectKey);
-
-        // For reauthentication recovery, we already have the AWS node in memory
-        // Just use it instead of fetching again
+        // ===== STEP 3: Fetch or use cached AWS project metadata =====
+        // The AWS node contains project info (owner, description, topics, etc.)
+        // For reauthentication, we already have it in memory, so skip the fetch.
+        // For fresh loads, fetch from AWS Lambda endpoint.
         let awsNode = null;
         if (
           loadSource === "reauthentication" &&
           GlobalVariables.currentAWSnode
         ) {
+          // Reuse cached AWS node during reauthentication
           awsNode = GlobalVariables.currentAWSnode;
-          console.log("Using cached AWS node for reauthentication recovery");
         } else {
-          // Load fresh from GitHub (default for fresh URLs, fallback for localStorage failures)
+          // Load fresh from AWS (default for fresh URLs, fallback for localStorage failures)
           const awsNodeResponse = await fetch(
             `https://hg5gsgv9te.execute-api.us-east-2.amazonaws.com/abundance-stage/fetchSingleRepo?owner=${owner}&repoName=${repoName}`,
           );
@@ -284,18 +292,30 @@ export function ProjectProvider({ children, cad, loadProject }) {
           awsNode = awsData.item;
         }
 
-        // Store AWS node globally
+        // ===== STEP 4: Store AWS metadata globally =====
+        // Cache the AWS node so we can reuse it on reauthentication
+        // without fetching again. This is critical because the 403 error
+        // happens when App.jsx calls loadProject(), and we want to retry
+        // with the same project metadata and new authentication token.
         GlobalVariables.currentAWSnode = awsNode;
         setCurrentProject(awsNode);
 
-        // Create fresh molecule
+        // ===== STEP 5: Initialize molecule instance =====
+        // If loadSource !== "fresh-url", we already deserialized atoms
+        // into topLevelMolecule in Step 2b. For fresh loads, create an
+        // empty molecule that App.jsx loadProject() will populate.
         GlobalVariables.topLevelMolecule = new Molecule({
           owner: owner,
           repoName: repoName,
         });
         GlobalVariables.currentMolecule = GlobalVariables.topLevelMolecule;
 
-        // Call existing loadProject from App.jsx
+        // ===== STEP 6: Fetch project.abundance file from GitHub =====
+        // This calls App.jsx loadProject() which handles:
+        // - Fetching project.abundance from GitHub (with octokit auth)
+        // - Parsing the code and executing it
+        // - Handling 403 errors (triggers reauthentication flow)
+        // - Creating the final rendered 3D geometry
         loadProject(awsNode, octokitRef.current);
 
         // Mark source as GitHub
@@ -304,7 +324,10 @@ export function ProjectProvider({ children, cad, loadProject }) {
         // Update previous project key for tracking
         previousProjectKey.current = projectKey;
 
-        // Clean up localStorage after successful load
+        // ===== STEP 7: Clean up localStorage =====
+        // After successful load, remove any recovered work from localStorage
+        // so we don't accidentally restore stale atoms if the user navigates
+        // away and comes back later. Fresh project loads are now canonical.
         try {
           const keysToRemove = [];
           for (let i = 0; i < localStorage.length; i++) {
@@ -325,6 +348,12 @@ export function ProjectProvider({ children, cad, loadProject }) {
         setLoadingProject(false);
         console.log("Project loaded successfully:", projectKey);
       } catch (error) {
+        // ===== ERROR HANDLING =====
+        // Errors here are typically:
+        // - AWS fetch failures (project not found, network issues)
+        // - JSON parsing errors (corrupt localStorage)
+        // Note: 403 errors from GitHub are caught in App.jsx loadProject()
+        //       and trigger reauthentication, not a failure here.
         console.error("Error loading project:", error);
 
         setLoadError(error);
