@@ -202,18 +202,6 @@ function TopMenu({
       {
         id: "Open",
         buttonFunc: () => {
-          // Save current project state to localStorage before navigating
-          // Note: owner and repoName come from GitHub's API and are validated by GitHub
-          if (
-            GlobalVariables.topLevelMolecule &&
-            GlobalVariables.currentAWSnode?.owner &&
-            GlobalVariables.currentAWSnode?.repoName
-          ) {
-            const projectState = GlobalVariables.topLevelMolecule.serialize();
-            projectState.filetypeVersion = 1;
-            const projectKey = `unsavedProject_${GlobalVariables.currentAWSnode.owner}_${GlobalVariables.currentAWSnode.repoName}`;
-            localStorage.setItem(projectKey, JSON.stringify(projectState));
-          }
           navigate("/");
         },
       },
@@ -271,21 +259,22 @@ function TopMenu({
       {
         id: "Re-authenticate",
         buttonFunc: () => {
-          var jsonRepOfProject = GlobalVariables.topLevelMolecule.serialize();
-          const currentProjectRep = JSON.stringify(jsonRepOfProject);
-          // Re-authentication logic - redirect to GitHub OAuth
-          setNotification(
-            "Re-authentication is unavailable at this time. Please try refreshing the page.",
-            "error",
-          );
-          setTimeout(() => setNotification(null, "error"), 5000);
+          const projectState = GlobalVariables.topLevelMolecule.serialize();
+          projectState.filetypeVersion = 1;
 
-          /*
+          const currentProjectRep = JSON.stringify({
+            atoms: projectState,
+            timestamp: Date.now(),
+            source: "reauthentication-recovery",
+            lastSaveAttempt: null,
+            deserializedProject: projectState,
+          });
+
           authRedirectHandler({
             authType: "reauth",
             currentProjectRep,
             returnTo: `/${GlobalVariables.currentAWSnode.owner}/${GlobalVariables.currentAWSnode.repoName}`,
-          });*/
+          });
         },
       },
       {

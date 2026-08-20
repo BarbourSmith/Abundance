@@ -78,10 +78,22 @@ function ChangeMode({
       return;
     }
 
-    const projectState = GlobalVariables.topLevelMolecule.serialize();
-    projectState.filetypeVersion = 1;
-    const projectKey = `unsavedProject_${repo.owner}_${repo.repoName}`;
-    localStorage.setItem(projectKey, JSON.stringify(projectState));
+    try {
+      const projectState = GlobalVariables.topLevelMolecule.serialize();
+      projectState.filetypeVersion = 1;
+      const projectKey = `unsavedProject_${repo.owner}/${repo.repoName}`;
+      const collapsedData = {
+        atoms: projectState,
+        timestamp: Date.now(),
+        source: "unsaved-work",
+        lastSaveAttempt: null,
+        deserializedProject: projectState,
+      };
+      localStorage.setItem(projectKey, JSON.stringify(collapsedData));
+      console.log("Saved unsaved project state:", projectKey);
+    } catch (error) {
+      console.warn("Error saving project state to localStorage:", error);
+    }
   };
 
   // Defer route changes until the current render cycle has completed.

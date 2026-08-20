@@ -145,6 +145,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
         if (isReauthentication) {
           loadSource = "reauthentication";
           setIsReauthentication(false); // Clear flag after using
+          setIsReturningFromMode(false); // Also clear return flag since reauthentication supersedes it
         } else if (isReturningFromMode) {
           loadSource = "return";
           setIsReturningFromMode(false); // Clear flag after using
@@ -172,41 +173,60 @@ export function ProjectProvider({ children, cad, loadProject }) {
         GlobalVariables.resetView();
 
         if (loadSource !== "fresh-url") {
-          const savedProjectJson = localStorage.getItem(
-            `unsavedProject_${projectKey}`,
-          );
+          let savedProjectJson = null;
+
+          // For reauthentication, check pendingProjectSave first
+          if (loadSource === "reauthentication") {
+            const pendingProjectSave =
+              localStorage.getItem("pendingProjectSave");
+            if (pendingProjectSave) {
+              savedProjectJson = pendingProjectSave;
+              // Clear the pending save after retrieving it
+              localStorage.removeItem("pendingProjectSave");
+              console.log("Found pendingProjectSave for reauthentication");
+            }
+          }
+
+          // If no pending save, check for regular unsaved project
+          if (!savedProjectJson) {
+            savedProjectJson = localStorage.getItem(
+              `unsavedProject_${projectKey}`,
+            );
+          }
 
           if (savedProjectJson) {
             try {
               const savedProject = JSON.parse(savedProjectJson);
 
               // Determine recovery type for UI display
-              if (savedProject.source === "pending-retry") {
+              if (
+                savedProject.source === "pending-retry" ||
+                savedProject.source === "reauthentication-recovery"
+              ) {
                 setProjectSource("localStorage-recovery-failed-save");
               } else {
                 setProjectSource("localStorage-unsaved-work");
               }
 
-              // Update current project state
-              setCurrentProject({ owner, repoName });
-              GlobalVariables.resetView();
-              // Deserialize and load the project
-              GlobalVariables.topLevelMolecule = new Molecule({
-                owner: owner,
-                repoName: repoName,
-              });
-              GlobalVariables.currentMolecule =
-                GlobalVariables.topLevelMolecule;
-
               console.log(
                 "Deserializing project from localStorage:",
                 savedProject,
               );
-              // Call the existing loadProject function from App.jsx with saved data
-              loadProject(
-                savedProject.deserializedProject || savedProject,
-                octokitRef.current,
-              );
+
+              // For reauthentication, just deserialize the atoms directly
+              // Don't call loadProject() since we already have the AWS context
+              const projectData =
+                savedProject.deserializedProject || savedProject;
+              GlobalVariables.resetIdCounter(projectData);
+
+              // Create fresh molecule instance
+              GlobalVariables.topLevelMolecule = new Molecule({
+                owner: owner,
+                repoName: repoName,
+              });
+              GlobalVariables.topLevelMolecule.deserialize(projectData);
+              GlobalVariables.currentMolecule =
+                GlobalVariables.topLevelMolecule;
 
               // Clean up localStorage after successful load
               try {
