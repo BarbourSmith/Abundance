@@ -274,6 +274,7 @@ function TopMenu({
             authType: "reauth",
             currentProjectRep,
             returnTo: `/${GlobalVariables.currentAWSnode.owner}/${GlobalVariables.currentAWSnode.repoName}`,
+            privateRepo: GlobalVariables.currentAWSnode.privateRepo || false,
           });
         },
       },

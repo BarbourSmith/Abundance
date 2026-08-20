@@ -664,8 +664,9 @@ function CreateMode() {
     /** User is not logged in - try to authenticate */
     console.warn("You are not logged in");
     authRedirectHandler({
-      redirectType: "reauth",
+      authType: "reauth",
       returnTo: `/${owner && repoName ? `${owner}/${repoName}` : ""}`,
+      privateRepo: GlobalVariables.currentAWSnode?.privateRepo || false,
     });
     return null;
   }
