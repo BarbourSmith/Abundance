@@ -215,9 +215,9 @@ class GlobalVariables {
      * promise of the load, so a second caller for the same project joins the
      * first one instead of being told "already loading" and getting a resolved
      * promise it can't wait on.
-     * @type {Map<string, Promise>}
+     * @type {Set<string>}
      */
-    this.loadingProjects = new Map();
+    this.loadingProjects = new Set();
 
     /**
      * A flag to indicate if the program is running with a touch interface. Set in flowDraw.js.
