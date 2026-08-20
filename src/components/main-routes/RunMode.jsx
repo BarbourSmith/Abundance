@@ -126,6 +126,7 @@ function runMode({ processing, setProcessing }) {
     authRedirectHandler,
     isReturningFromMode,
     setIsReturningFromMode,
+    isRestoringSession,
   } = useAuth();
   const {
     activeAtom,
@@ -257,6 +258,19 @@ function runMode({ processing, setProcessing }) {
     GlobalVariables.canvas = canvasRef;
     GlobalVariables.c = canvasRef.current.getContext("2d");
 
+    return () => {
+      if (GlobalVariables.canvas === canvasRef) {
+        GlobalVariables.canvas = null;
+        GlobalVariables.c = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (isRestoringSession) {
+      return;
+    }
+
     // Load project using centralized context-based loading
     loadProjectByUrl(owner, repoName)
       .then(() => {
@@ -282,7 +296,7 @@ function runMode({ processing, setProcessing }) {
     return () => {
       resetMetaTags();
     };
-  }, [owner, repoName]);
+  }, [owner, repoName, isRestoringSession]);
 
   const screenHeight = window.innerHeight;
   const screenWidth = window.innerWidth;

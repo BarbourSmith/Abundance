@@ -36,6 +36,7 @@ function PreviewCreateMode() {
     authRedirectHandler,
     userScopes,
     setIsReturningFromMode,
+    isRestoringSession,
   } = useAuth();
   const {
     activeAtom,
@@ -101,6 +102,10 @@ function PreviewCreateMode() {
 
   /** Load project when URL params change */
   useEffect(() => {
+    if (isRestoringSession) {
+      return;
+    }
+
     // Load project using centralized context-based loading
     loadProjectByUrl(owner, repoName)
       .then(() => {
@@ -115,7 +120,7 @@ function PreviewCreateMode() {
         setTimeout(() => setErrorNotification(null, "error"), 5000);
         navigate("/");
       });
-  }, [owner, repoName]);
+  }, [owner, repoName, isRestoringSession]);
 
   const solidParamRef = useRef(solidParam);
   useEffect(() => {
