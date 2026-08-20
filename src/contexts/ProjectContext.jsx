@@ -196,8 +196,6 @@ export function ProjectProvider({ children, cad, loadProject }) {
               localStorage.getItem("pendingProjectSave");
             if (pendingProjectSave) {
               savedProjectJson = pendingProjectSave;
-              // Clear the pending save after retrieving it
-              localStorage.removeItem("pendingProjectSave");
             }
           }
 
