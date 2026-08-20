@@ -821,7 +821,9 @@ function AppContent() {
         path: "project.abundance",
       })
       .then(async (response) => {
-        let rawFileContent = await fetchGitHubFileContent(response.data);
+        let rawFileContent = await fetchGitHubFileContent(response.data, {
+          octokit,
+        });
         let rawFile;
         try {
           rawFile = JSON.parse(rawFileContent);
@@ -836,6 +838,7 @@ function AppContent() {
           }
           rawFileContent = await fetchGitHubFileContent(response.data, {
             bustCache: true,
+            octokit,
           });
           rawFile = JSON.parse(rawFileContent);
         }

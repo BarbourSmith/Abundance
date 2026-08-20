@@ -376,6 +376,7 @@ export default class Molecule extends Atom {
               GlobalVariables.topLevelMolecule.nodesOnTheScreen = []; // <-- clear the array
               const rawFileContent = await fetchGitHubFileContent(
                 response.data,
+                { octokit },
               );
 
               let rawFile;
@@ -1006,9 +1007,7 @@ export default class Molecule extends Atom {
           // yields WAITING internally, not ERROR), and an errored molecule
           // input is already handled by the hasErrorInputs check above.
           this.onChildError();
-        } else if (
-          this.inputs.every((input) => input.status == Status.READY)
-        ) {
+        } else if (this.inputs.every((input) => input.status == Status.READY)) {
           // All inputs are ready but our output isn't yet.
           if (outputAtom.inputs[0]?.connectors.length == 0) {
             this.setWaiting(); // No connectors to our internal output means we're in a freshly initialized state.;
@@ -1538,7 +1537,9 @@ export default class Molecule extends Atom {
           repo: gitObj.repoName,
         })
         .then(async (response) => {
-          const rawFileContent = await fetchGitHubFileContent(response.data);
+          const rawFileContent = await fetchGitHubFileContent(response.data, {
+            octokit,
+          });
 
           let rawFile;
           try {
