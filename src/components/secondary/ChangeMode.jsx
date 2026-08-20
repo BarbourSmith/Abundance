@@ -133,7 +133,9 @@ function ChangeMode({
         if (repo) navigateDeferred(`/${repo.owner}/${repo.repoName}`);
         break;
       case "preview":
+        setIsReturningFromMode(true);
         if (repo) navigateDeferred(`/preview/${repo.owner}/${repo.repoName}`);
+
         break;
       case "browse":
         saveCurrentProjectState(repo);
@@ -141,6 +143,7 @@ function ChangeMode({
         navigateDeferred("/", { state: { fromRunMode: true } });
         break;
       case "preview-back":
+        setIsReturningFromMode(true);
         resetActiveAtom();
         if (restorePreviewOriginProject()) {
           break;
