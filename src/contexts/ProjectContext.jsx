@@ -1627,13 +1627,13 @@ export function ProjectProvider({ children, cad, loadProject }) {
 
       // Check if this is an authentication error
       if (error.status === 401 || error.message.includes("Bad credentials")) {
-        const projectRep = {
+        const projectRep = JSON.stringify({
           atoms: jsonRepOfProject,
           timestamp: Date.now(),
           source: "reauthentication-recovery",
           lastSaveAttempt: null,
           deserializedProject: jsonRepOfProject,
-        };
+        });
         handleAuthenticationError(error, saveType, projectRep);
       } else {
         // Handle other errors
