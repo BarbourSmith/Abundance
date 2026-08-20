@@ -918,8 +918,8 @@ function AppContent() {
           );
           authRedirectHandler({
             authType: "reauth",
-            currentProjectRep: undefined,
-            returnTo: `/`,
+            repo: { owner: project.owner, repo: project.repoName },
+            returnTo: `/${project.owner}/${project.repoName}`,
             privateRepo: true,
           });
           return;

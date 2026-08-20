@@ -104,7 +104,6 @@ const Callback = ({ setRedirectType }) => {
         } else if (state.returnTo && authorizedUser) {
           let owner, repoName;
           if (state.authType === "reauth" && state.currentRepo) {
-            console.log("Reauthentication for repo:", state.currentRepo);
             owner = state.currentRepo.owner;
             repoName = state.currentRepo.repo;
           } else {
