@@ -211,10 +211,9 @@ class GlobalVariables {
      */
     this._topLevelMolecule;
     /**
-     * In-flight project loads, keyed by "owner/repoName".  The value is the
-     * promise of the load, so a second caller for the same project joins the
-     * first one instead of being told "already loading" and getting a resolved
-     * promise it can't wait on.
+     * Tracks which projects are currently in-flight during `loadProject()`.
+     * Used to prevent duplicate concurrent loads for the same "owner/repoName".
+     *
      * @type {Set<string>}
      */
     this.loadingProjects = new Set();
