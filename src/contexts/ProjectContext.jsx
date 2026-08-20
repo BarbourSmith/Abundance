@@ -270,9 +270,11 @@ export function ProjectProvider({ children, cad, loadProject }) {
           );
 
           if (!awsNodeResponse.ok) {
-            throw new Error(
+            const error = new Error(
               `Failed to fetch project from AWS: ${awsNodeResponse.statusText}`,
             );
+            error.status = awsNodeResponse.status;
+            throw error;
           }
 
           const awsData = await awsNodeResponse.json();
@@ -324,6 +326,25 @@ export function ProjectProvider({ children, cad, loadProject }) {
         console.log("Project loaded successfully:", projectKey);
       } catch (error) {
         console.error("Error loading project:", error);
+
+        // Check if this is a 403 error (insufficient permissions/scopes)
+        if (error?.message?.includes("403") || error?.status === 403) {
+          console.warn(
+            "Permission denied - likely insufficient scopes for private project",
+          );
+          setLoadError(error);
+          setLoadingProject(false);
+
+          // Trigger reauthentication with private repo scope requested
+          authRedirectHandler({
+            authType: "reauth",
+            repo: { owner: owner, repo: repoName },
+            returnTo: `/${owner}/${repoName}`,
+            privateRepo: true,
+          });
+          return;
+        }
+
         setLoadError(error);
         setLoadingProject(false);
         setNotification(`Failed to load project: ${error.message}`, "error");
@@ -930,6 +951,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
         let projectFileContent;
         projectFileContent = await fetchGitHubFileContent(
           projectFileResponse.data,
+          { octokit: authorizedUserOcto },
         );
 
         // Parse the JSON
@@ -993,6 +1015,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
         let projectFileContent;
         projectFileContent = await fetchGitHubFileContent(
           projectFileResponse.data,
+          { octokit: authorizedUserOcto },
         );
         // Parse and update topLevelMolecule
         const projectData = JSON.parse(projectFileContent);
@@ -1198,6 +1221,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
         let projectFileContent;
         projectFileContent = await fetchGitHubFileContent(
           projectFileResponse.data,
+          { octokit: authorizedUserOcto },
         );
 
         // Parse the JSON
