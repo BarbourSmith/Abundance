@@ -57,7 +57,7 @@ function PreviewCreateMode() {
     setShowTopLevelWireframe,
   } = useRendering();
 
-  const { cad, loadProject, loadProjectByUrl } = useProject();
+  const { cad, loadProject, loadProjectManager } = useProject();
   const { fetchFileContent, fetchRawFileContent } = useFileImport();
   const meshRef = useRef();
 
@@ -107,7 +107,7 @@ function PreviewCreateMode() {
     }
 
     // Load project using centralized context-based loading
-    loadProjectByUrl(owner, repoName)
+    loadProjectManager(owner, repoName)
       .then(() => {
         setActiveAtom(GlobalVariables.topLevelMolecule);
       })
@@ -316,7 +316,6 @@ function PreviewCreateMode() {
         {...{
           activeAtom,
           authorizedUserOcto,
-          loadProject,
           setActiveAtom,
           setSavePopUp: () => {},
           setSaveState: () => {},

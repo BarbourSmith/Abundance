@@ -125,7 +125,7 @@ export function AuthProvider({ children }) {
   /**
    * Unified handler for login and re-authentication.
    * @param {Object} options
-   *   - authType: "fork" | "like" | "reauth" | "save" |undefined
+   *   - authType: "fork" | "like" | "reauth" | undefined
    *   - currentProjectRep: string (optional, for re-auth)
    *   - returnTo: string (optional, for re-auth)
    *   - repo: {owner, repo} (optional) the project this redirect is for.

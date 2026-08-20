@@ -153,7 +153,7 @@ function runMode({ processing, setProcessing }) {
     setSolid,
     computingLabel,
   } = useRendering();
-  const { loadProject, loadProjectByUrl } = useProject();
+  const { loadProject, loadProjectManager } = useProject();
   const { uploadFile, deleteFile } = useFileImport();
 
   const navigate = useNavigate();
@@ -272,7 +272,7 @@ function runMode({ processing, setProcessing }) {
     }
 
     // Load project using centralized context-based loading
-    loadProjectByUrl(owner, repoName)
+    loadProjectManager(owner, repoName)
       .then(() => {
         setActiveAtom(GlobalVariables.topLevelMolecule);
       })

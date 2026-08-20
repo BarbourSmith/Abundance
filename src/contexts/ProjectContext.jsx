@@ -137,7 +137,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
    * 4. Call App.jsx loadProject() to fetch project.abundance from GitHub
    * 5. Clean up localStorage after successful load
    */
-  const loadProjectByUrl = useCallback(
+  const loadProjectManager = useCallback(
     async (owner, repoName) => {
       const projectKey = `${owner}/${repoName}`;
 
@@ -1301,34 +1301,21 @@ export function ProjectProvider({ children, cad, loadProject }) {
   /**
    * Handles authentication errors by redirecting to re-authentication
    */
-  const handleAuthenticationError = (
-    error,
-    saveType,
-    currentProjectRep,
-    setErrorNotification,
-  ) => {
+  const handleAuthenticationError = (error, saveType, currentProjectRep) => {
     console.error("Authentication error during save:", error);
 
     // Show user-friendly error message
-    if (setErrorNotification) {
-      setErrorNotification(
-        `Save failed due to expired login. You will be redirected to re-authenticate.`,
-      );
-      setTimeout(() => {
-        setErrorNotification(null);
-        authRedirectHandler({
-          authType: "save",
-          currentProjectRep,
-          returnTo: `/${GlobalVariables.currentAWSnode.owner}/${GlobalVariables.currentAWSnode.repoName}`,
-        });
-      }, 2000);
-    } else {
+    setNotification(
+      `Save failed due to expired login. You will be redirected to re-authenticate.`,
+      "error",
+    );
+    setTimeout(() => {
       authRedirectHandler({
-        authType: "save",
+        authType: "reauth",
         currentProjectRep,
         returnTo: `/${GlobalVariables.currentAWSnode.owner}/${GlobalVariables.currentAWSnode.repoName}`,
       });
-    }
+    }, 2000);
   };
 
   /**
@@ -1650,12 +1637,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
           lastSaveAttempt: null,
           deserializedProject: jsonRepOfProject,
         });
-        handleAuthenticationError(
-          error,
-          saveType,
-          projectRep,
-          setErrorNotification,
-        );
+        handleAuthenticationError(error, saveType, projectRep);
       } else {
         // Handle other errors
         if (setErrorNotification) {
@@ -1774,7 +1756,6 @@ export function ProjectProvider({ children, cad, loadProject }) {
               new Error("GitHub token has expired"),
               typeSave,
               projectRep,
-              setErrorNotification,
             );
             return;
           }
@@ -1955,7 +1936,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
     setSize,
     cad,
     loadProject,
-    loadProjectByUrl,
+    loadProjectManager,
     createProject,
     duplicateProject,
     forkProject,

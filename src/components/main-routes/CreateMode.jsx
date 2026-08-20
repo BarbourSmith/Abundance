@@ -84,7 +84,7 @@ function CreateMode() {
     loadProject,
     searchGithubMolecules,
     saveProject: saveProjectFromContext,
-    loadProjectByUrl,
+    loadProjectManager,
     loadingProject: contextLoadingProject,
   } = useProject();
   const { uploadFile, deleteFile, fetchFileContent, fetchRawFileContent } =
@@ -117,7 +117,7 @@ function CreateMode() {
   useEffect(() => {
     if (owner && repoName) {
       console.log("Attempting to load project:", owner, repoName);
-      loadProjectByUrl(owner, repoName);
+      loadProjectManager(owner, repoName);
     }
   }, [owner, repoName]);
 
