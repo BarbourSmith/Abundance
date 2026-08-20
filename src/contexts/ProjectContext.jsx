@@ -150,7 +150,6 @@ export function ProjectProvider({ children, cad, loadProject }) {
           setIsReturningFromMode(false); // Clear flag after using
         }
         console.log("Load source determined:", loadSource);
-        GlobalVariables.resetView();
 
         // **NEW: If returning but it's a different project, treat as fresh load**
         if (loadSource === "return" && GlobalVariables.currentAWSnode) {
@@ -169,6 +168,8 @@ export function ProjectProvider({ children, cad, loadProject }) {
             loadSource = "fresh-url";
           }
         }
+        //if loading a new project, reset the view
+        GlobalVariables.resetView();
 
         if (loadSource !== "fresh-url") {
           const savedProjectJson = localStorage.getItem(
@@ -206,6 +207,24 @@ export function ProjectProvider({ children, cad, loadProject }) {
                 savedProject.deserializedProject || savedProject,
                 octokitRef.current,
               );
+
+              // Clean up localStorage after successful load
+              try {
+                const keysToRemove = [];
+                for (let i = 0; i < localStorage.length; i++) {
+                  const key = localStorage.key(i);
+                  if (key && key.startsWith("unsavedProject_")) {
+                    keysToRemove.push(key);
+                  }
+                }
+                keysToRemove.forEach((key) => localStorage.removeItem(key));
+                localStorage.removeItem("pendingProjectSave");
+                console.log(
+                  "Cleared old unsaved projects from localStorage after load",
+                );
+              } catch (error) {
+                console.warn("Error cleaning up localStorage:", error);
+              }
 
               setLoadingProject(false);
               return;
@@ -253,6 +272,24 @@ export function ProjectProvider({ children, cad, loadProject }) {
 
         // Update previous project key for tracking
         previousProjectKey.current = projectKey;
+
+        // Clean up localStorage after successful load
+        try {
+          const keysToRemove = [];
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith("unsavedProject_")) {
+              keysToRemove.push(key);
+            }
+          }
+          keysToRemove.forEach((key) => localStorage.removeItem(key));
+          localStorage.removeItem("pendingProjectSave");
+          console.log(
+            "Cleared old unsaved projects from localStorage after load",
+          );
+        } catch (error) {
+          console.warn("Error cleaning up localStorage:", error);
+        }
 
         setLoadingProject(false);
         console.log("Project loaded successfully:", projectKey);
