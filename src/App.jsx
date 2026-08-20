@@ -781,6 +781,19 @@ function AppContent() {
     GlobalVariables.numberOfAtomsToLoad = 0;
     GlobalVariables.startTime = new Date().getTime();
 
+    const projectKey = `${project.owner}/${project.repoName}`;
+
+    // Guard against duplicate loading: add flag BEFORE fetching from GitHub
+    // so concurrent calls see it in the Set
+    if (!GlobalVariables.loadingProjects) {
+      GlobalVariables.loadingProjects = new Set();
+    }
+    if (GlobalVariables.loadingProjects.has(projectKey)) {
+      console.log("Project already loading, skipping:", projectKey);
+      return Promise.resolve(); // Return resolved promise for consistency
+    }
+    GlobalVariables.loadingProjects.add(projectKey);
+
     if (authorizedUser) {
       var octokit = authorizedUser;
     } else {
@@ -867,9 +880,11 @@ function AppContent() {
             await targetMolecule.deserialize(rawFile);
           }
         } catch (deserializeError) {
-          targetMolecule.loadedProjectKey = undefined;
+          GlobalVariables.loadingProjects.delete(projectKey);
           throw deserializeError;
         }
+        // Clear loading flag after deserialization completes
+        GlobalVariables.loadingProjects.delete(projectKey);
         GlobalVariables.currentMolecule = targetMolecule;
         GlobalVariables.currentMolecule.selected = true;
         setActiveAtom(GlobalVariables.currentMolecule);
@@ -936,6 +951,8 @@ function AppContent() {
 
         setErrorNotification("Can't load/find project: " + (e.message || e));
         setTimeout(() => setErrorNotification(null), 5000);
+        // Clear loading flag on error
+        GlobalVariables.loadingProjects.delete(projectKey);
         // Navigate back to projects page after error
         navigate("/");
         throw new Error("Can't load/find project " + e);

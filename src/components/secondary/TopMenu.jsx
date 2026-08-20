@@ -38,6 +38,7 @@ function TopMenu({
     shortCutsOn,
     setShortCuts,
     setExportPopUp,
+    setNotification,
   } = useAppState();
   const {
     gridParam,
@@ -273,11 +274,18 @@ function TopMenu({
           var jsonRepOfProject = GlobalVariables.topLevelMolecule.serialize();
           const currentProjectRep = JSON.stringify(jsonRepOfProject);
           // Re-authentication logic - redirect to GitHub OAuth
+          setNotification(
+            "Re-authentication is unavailable at this time. Please try refreshing the page.",
+            "error",
+          );
+          setTimeout(() => setNotification(null, "error"), 5000);
+
+          /*
           authRedirectHandler({
             authType: "reauth",
             currentProjectRep,
             returnTo: `/${GlobalVariables.currentAWSnode.owner}/${GlobalVariables.currentAWSnode.repoName}`,
-          });
+          });*/
         },
       },
       {

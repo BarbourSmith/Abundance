@@ -174,11 +174,37 @@ export default class ClipperWrapper {
 
             const resultPath: PointI32[][] = clipperOffset.execute(path, offset * ClipperWrapper.CLIPPER_SCALE);
 
-            if (resultPath.length !== 1) {
+            if (resultPath.length === 0) {
                 throw new Error(`Error while offset ${JSON.stringify(node)}`);
             }
 
-            node.memSeg = ClipperWrapper.toMemSeg(resultPath[0]);
+            // More than one path is a normal outcome, not a failure: offsetting a
+            // concave outline outwards can bridge the mouth of a notch and seal it
+            // into an enclosed void, which comes back as a second path alongside the
+            // outer contour. (A part whose notch is roughly twice the offset wide hits
+            // this, which is why it can fail at one spacing and succeed at both a
+            // smaller and a larger one.) Keep the largest path: nesting only cares
+            // about the part's outer envelope, and voids are unusable anyway unless
+            // useHoles is on. cleanNode below resolves its own multi-path result the
+            // same way.
+            let biggest: PointI32[] = resultPath[0];
+
+            if (resultPath.length > 1) {
+                let biggestArea: number = absArea(biggest);
+                let i: number = 0;
+                let area: number = 0;
+
+                for (i = 1; i < resultPath.length; ++i) {
+                    area = absArea(resultPath[i]);
+
+                    if (area > biggestArea) {
+                        biggest = resultPath[i];
+                        biggestArea = area;
+                    }
+                }
+            }
+
+            node.memSeg = ClipperWrapper.toMemSeg(biggest);
 
             this.cleanNode(node);
         }

@@ -433,7 +433,7 @@ function isLeaf(obj: AbundanceObject): obj is AbundanceLeaf {
   return obj !== undefined && !Array.isArray(obj.geometry);
 }
 
-function leafCount(assembly: AbundanceObject) {
+function leafCount(assembly: AbundanceObject): number {
   if (isLeaf(assembly)) {
     return 1;
   } else {
