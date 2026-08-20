@@ -115,11 +115,19 @@ function CreateMode() {
   const [isLoadingProject, setIsLoadingProject] = useState(true);
 
   useEffect(() => {
-    if (owner && repoName) {
-      console.log("Attempting to load project:", owner, repoName);
-      loadProjectManager(owner, repoName);
+    if (!owner || !repoName || isRestoringSession || !authorizedUserOcto) {
+      return;
     }
-  }, [owner, repoName]);
+
+    console.log("Attempting to load project:", owner, repoName);
+    loadProjectManager(owner, repoName);
+  }, [
+    owner,
+    repoName,
+    isRestoringSession,
+    authorizedUserOcto,
+    loadProjectManager,
+  ]);
 
   // Sync context loading state to local loading state
   useEffect(() => {
@@ -641,7 +649,10 @@ function CreateMode() {
 
   // Show loading screen while project is being fetched and loaded
   // ALSO check if currentAWSnode is populated - if not, keep loading
-  if (isLoadingProject || !GlobalVariables.currentAWSnode) {
+  if (
+    (isLoadingProject || !GlobalVariables.currentAWSnode) &&
+    (isRestoringSession || authorizedUserOcto)
+  ) {
     return (
       <div
         style={{
