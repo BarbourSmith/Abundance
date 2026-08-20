@@ -327,24 +327,6 @@ export function ProjectProvider({ children, cad, loadProject }) {
       } catch (error) {
         console.error("Error loading project:", error);
 
-        // Check if this is a 403 error (insufficient permissions/scopes)
-        if (error?.message?.includes("403") || error?.status === 403) {
-          console.warn(
-            "Permission denied - likely insufficient scopes for private project",
-          );
-          setLoadError(error);
-          setLoadingProject(false);
-
-          // Trigger reauthentication with private repo scope requested
-          authRedirectHandler({
-            authType: "reauth",
-            repo: { owner: owner, repo: repoName },
-            returnTo: `/${owner}/${repoName}`,
-            privateRepo: true,
-          });
-          return;
-        }
-
         setLoadError(error);
         setLoadingProject(false);
         setNotification(`Failed to load project: ${error.message}`, "error");
