@@ -72,30 +72,6 @@ function ChangeMode({
     button.title ??
     `button-${index}`;
 
-  // Preserve unsaved project edits when a transition leaves the editable view.
-  const saveCurrentProjectState = (repo) => {
-    if (!GlobalVariables.topLevelMolecule || !repo?.owner || !repo?.repoName) {
-      return;
-    }
-
-    try {
-      const projectState = GlobalVariables.topLevelMolecule.serialize();
-      projectState.filetypeVersion = 1;
-      const projectKey = `unsavedProject_${repo.owner}/${repo.repoName}`;
-      const collapsedData = {
-        atoms: projectState,
-        timestamp: Date.now(),
-        source: "unsaved-work",
-        lastSaveAttempt: null,
-        deserializedProject: projectState,
-      };
-      localStorage.setItem(projectKey, JSON.stringify(collapsedData));
-      console.log("Saved unsaved project state:", projectKey);
-    } catch (error) {
-      console.warn("Error saving project state to localStorage:", error);
-    }
-  };
-
   // Defer route changes until the current render cycle has completed.
   const navigateDeferred = (path, options) => {
     setTimeout(() => {
@@ -129,13 +105,12 @@ function ChangeMode({
     const repo = findFirstValidRepo(button.targetRepo);
 
     if (typeof button.beforeNavigate === "function") {
-      button.beforeNavigate({ repo, resetActiveAtom, saveCurrentProjectState });
+      button.beforeNavigate({ repo, resetActiveAtom });
     }
 
     switch (button.action) {
       case "run":
         setIsReturningFromMode(true);
-        saveCurrentProjectState(repo);
         //resetActiveAtom();
         if (repo) navigateDeferred(`/run/${repo.owner}/${repo.repoName}`);
         break;
@@ -150,7 +125,6 @@ function ChangeMode({
 
         break;
       case "browse":
-        saveCurrentProjectState(repo);
         resetActiveAtom();
         navigateDeferred("/", { state: { fromRunMode: true } });
         break;

@@ -198,15 +198,8 @@ export function ProjectProvider({ children, cad, loadProject }) {
             try {
               const savedProject = JSON.parse(savedProjectJson);
 
-              // Determine recovery type for UI display
-              if (
-                savedProject.source === "pending-retry" ||
-                savedProject.source === "reauthentication-recovery"
-              ) {
-                setProjectSource("localStorage-recovery-failed-save");
-              } else {
-                setProjectSource("localStorage-unsaved-work");
-              }
+              // Recovered from localStorage during reauthentication
+              setProjectSource("localStorage-recovery-reauthentication");
 
               console.log(
                 "Deserializing project from localStorage:",
@@ -1599,7 +1592,19 @@ export function ProjectProvider({ children, cad, loadProject }) {
 
       // Check if this is an authentication error
       if (error.status === 401 || error.message.includes("Bad credentials")) {
-        handleAuthenticationError(error, saveType, null, setErrorNotification);
+        const projectRep = JSON.stringify({
+          atoms: jsonRepOfProject,
+          timestamp: Date.now(),
+          source: "reauthentication-recovery",
+          lastSaveAttempt: null,
+          deserializedProject: jsonRepOfProject,
+        });
+        handleAuthenticationError(
+          error,
+          saveType,
+          projectRep,
+          setErrorNotification,
+        );
       } else {
         // Handle other errors
         if (setErrorNotification) {
@@ -1707,10 +1712,17 @@ export function ProjectProvider({ children, cad, loadProject }) {
         if (authorizedUserOcto) {
           const isTokenValid = await validateGitHubToken(authorizedUserOcto);
           if (!isTokenValid) {
+            const projectRep = JSON.stringify({
+              atoms: jsonRepOfProject,
+              timestamp: Date.now(),
+              source: "reauthentication-recovery",
+              lastSaveAttempt: null,
+              deserializedProject: jsonRepOfProject,
+            });
             handleAuthenticationError(
               new Error("GitHub token has expired"),
               typeSave,
-              JSON.stringify(jsonRepOfProject),
+              projectRep,
               setErrorNotification,
             );
             return;
