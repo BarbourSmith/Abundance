@@ -128,6 +128,7 @@ declare global {
        */
       getSelectedFaces(): replicad.Face[];
       onLeafs(fn: (leaf: Assembly<LeafGeom>) => Assembly<LeafGeom> | null): Assembly | null;
+      leafCount(): number;
       filterLeafs(filterFn: (leaf: Assembly<LeafGeom>) => boolean): Assembly[];
       /**
        * True when this assembly is (or contains, for branches) 2D geometry —

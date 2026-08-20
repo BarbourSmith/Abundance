@@ -166,6 +166,14 @@ export function makeAbundanceFramework(replicad) {
         return fn(this);
       }
     }
+    leafCount() {
+      let i = 0;
+      this.onLeafs((leaf) => {
+        i++;
+        return leaf;
+      });
+      return i;
+    }
     //@ts-ignore
     filterLeafs(filterFn) {
       const result = [];

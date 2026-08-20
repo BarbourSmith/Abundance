@@ -237,6 +237,15 @@ export class Assembly<G = any> {
     }
   }
 
+  leafCount(): number {
+    let i = 0;
+    this.onLeafs((leaf) => {
+      i++;
+      return leaf;
+    });
+    return i;
+  }
+
   //@ts-ignore
   filterLeafs(filterFn: (leaf: Assembly<LeafGeom>) => boolean): Assembly[] {
     const result: Assembly[] = [];
