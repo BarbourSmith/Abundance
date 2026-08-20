@@ -211,6 +211,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
           if (savedProjectJson) {
             try {
               const savedProject = JSON.parse(savedProjectJson);
+              console.log("reauth localStorage recovery");
 
               // Determine recovery type for UI display
               if (savedProject.source === "reauthentication-recovery") {
@@ -236,20 +237,9 @@ export function ProjectProvider({ children, cad, loadProject }) {
               GlobalVariables.currentMolecule =
                 GlobalVariables.topLevelMolecule;
 
-              // Clean up localStorage after successful load
-              try {
-                const keysToRemove = [];
-                for (let i = 0; i < localStorage.length; i++) {
-                  const key = localStorage.key(i);
-                  if (key && key.startsWith("unsavedProject_")) {
-                    keysToRemove.push(key);
-                  }
-                }
-                keysToRemove.forEach((key) => localStorage.removeItem(key));
-                localStorage.removeItem("pendingProjectSave");
-              } catch (error) {
-                console.warn("Error cleaning up localStorage:", error);
-              }
+              // NOTE: Don't clean up localStorage here - wait until after loadProject completes.
+              // If loadProject fails, we want to keep the recovery data in localStorage
+              // so the user can retry on the next load attempt.
 
               // Continue to fetch AWS node and call loadProject to populate currentRepo and metadata
               // (don't return early - fall through to GitHub load path)
@@ -304,11 +294,13 @@ export function ProjectProvider({ children, cad, loadProject }) {
         // If loadSource !== "fresh-url", we already deserialized atoms
         // into topLevelMolecule in Step 2b. For fresh loads, create an
         // empty molecule that App.jsx loadProject() will populate.
-        GlobalVariables.topLevelMolecule = new Molecule({
-          owner: owner,
-          repoName: repoName,
-        });
-        GlobalVariables.currentMolecule = GlobalVariables.topLevelMolecule;
+        if (loadSource === "fresh-url") {
+          GlobalVariables.topLevelMolecule = new Molecule({
+            owner: owner,
+            repoName: repoName,
+          });
+          GlobalVariables.currentMolecule = GlobalVariables.topLevelMolecule;
+        }
 
         // ===== STEP 6: Fetch project.abundance file from GitHub =====
         // This calls App.jsx loadProject() which handles:
@@ -316,10 +308,15 @@ export function ProjectProvider({ children, cad, loadProject }) {
         // - Parsing the code and executing it
         // - Handling 403 errors (triggers reauthentication flow)
         // - Creating the final rendered 3D geometry
-        loadProject(awsNode, octokitRef.current);
-
-        // Mark source as GitHub
-        setProjectSource("github");
+        //
+        // SKIP for reauthentication recovery: We already have the atoms deserialized
+        // from Step 2b (the recovery snapshot). Loading from GitHub would overwrite
+        // them with the old version (since the save that failed didn't commit to GitHub).
+        if (loadSource !== "reauthentication") {
+          loadProject(awsNode, octokitRef.current);
+          // Mark source as GitHub only if we actually loaded from GitHub
+          setProjectSource("github");
+        }
 
         // Update previous project key for tracking
         previousProjectKey.current = projectKey;
@@ -1630,13 +1627,13 @@ export function ProjectProvider({ children, cad, loadProject }) {
 
       // Check if this is an authentication error
       if (error.status === 401 || error.message.includes("Bad credentials")) {
-        const projectRep = JSON.stringify({
+        const projectRep = {
           atoms: jsonRepOfProject,
           timestamp: Date.now(),
           source: "reauthentication-recovery",
           lastSaveAttempt: null,
           deserializedProject: jsonRepOfProject,
-        });
+        };
         handleAuthenticationError(error, saveType, projectRep);
       } else {
         // Handle other errors

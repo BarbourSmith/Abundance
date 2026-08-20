@@ -144,6 +144,11 @@ export default class Output extends Atom {
    * Draw the output shape on the screen.
    */
   draw() {
+    // Guard: skip drawing if canvas context is not available (e.g., during deserialization)
+    if (!GlobalVariables.c) {
+      return;
+    }
+
     this.radius = GlobalVariables.atomSize / 1.25;
     const xInPixels = GlobalVariables.widthToPixels(this.x);
     const yInPixels = GlobalVariables.heightToPixels(this.y);
