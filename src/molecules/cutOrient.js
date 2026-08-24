@@ -5,6 +5,7 @@ import { proxy } from "comlink";
 import { Status } from "../prototypes/observableEntity.js";
 import * as THREE from "three";
 import * as util from "../worker/util.ts";
+import { extractKeepOut } from "../worker/tags.ts";
 
 /**
  * Orient all given parts to the best orientation for cutting. Returns a new assembly of the oriented parts.
@@ -161,7 +162,15 @@ export default class CutOrient extends Atom {
   }
 
   compute(inputs) {
-    const inputGeom = inputs.geometry;
+    // Keepout geometry never gets cut, so drop it before orienting. Leaving it in
+    // slows the orientation down and shifts the leaf ordering that the computed
+    // orientations are indexed by.
+    const inputGeom = extractKeepOut(inputs.geometry);
+    if (inputGeom === false) {
+      return Promise.reject(
+        new Error("No geometry to orient after keepout geometry is excluded"),
+      );
+    }
     if (
       util.leafCount(inputGeom) != this.orientationsForHashed ||
       this.orientations.length == 0
