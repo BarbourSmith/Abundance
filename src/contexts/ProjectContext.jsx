@@ -570,6 +570,14 @@ export function ProjectProvider({ children, cad, loadProject }) {
     await authorizedUserOcto.rest.repos.createOrUpdateFileContents({
       owner: currentUser,
       repo: currentRepoName,
+      path: ".gitignore",
+      message: "Create gitignore",
+      content: window.btoa("project.png\nproject.svg\n"),
+    });
+
+    await authorizedUserOcto.rest.repos.createOrUpdateFileContents({
+      owner: currentUser,
+      repo: currentRepoName,
       path: "data.json",
       message: "Data file",
       content: "",
@@ -1864,6 +1872,19 @@ export function ProjectProvider({ children, cad, loadProject }) {
         }
         // If no valid thumbnail was generated, don't include project.svg in the commit
         // This preserves the existing thumbnail in the repository
+
+        // Ensure .gitignore exists; create it in this commit if it doesn't
+        try {
+          await octokitRef.current.rest.repos.getContent({
+            owner: GlobalVariables.currentUser,
+            repo: GlobalVariables.currentAWSnode.repoName,
+            path: ".gitignore",
+          });
+        } catch (err) {
+          if (err?.status === 404) {
+            filesObject[".gitignore"] = "project.png\nproject.svg\n";
+          }
+        }
 
         updateSaveProgress(30);
 
