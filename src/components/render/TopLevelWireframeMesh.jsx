@@ -10,13 +10,19 @@ import { Wireframe } from "@react-three/drei";
 import { useRendering } from "../../contexts/index.js";
 
 export default React.memo(function TopLevelWireframeMesh() {
-  const { topLevelWireMesh: mesh, showTopLevelWireframe } = useRendering();
+  const { topLevelWireMesh: mesh, showTopLevelWireframe, selectionModeAtom } =
+    useRendering();
   const { invalidate } = useThree();
 
   const [fullMesh, setFullMesh] = useState([]);
 
   useLayoutEffect(() => {
-    if (!mesh || mesh.length === 0 || !showTopLevelWireframe) {
+    if (
+      !mesh ||
+      mesh.length === 0 ||
+      !showTopLevelWireframe ||
+      selectionModeAtom
+    ) {
       setFullMesh([]);
       invalidate();
       return;
@@ -57,7 +63,7 @@ export default React.memo(function TopLevelWireframeMesh() {
     // We have configured the canvas to only refresh when there is a change,
     // the invalidate function is here to tell it to recompute
     invalidate();
-  }, [mesh, showTopLevelWireframe, invalidate]);
+  }, [mesh, showTopLevelWireframe, selectionModeAtom, invalidate]);
 
   useEffect(
     () => () => {
@@ -66,7 +72,7 @@ export default React.memo(function TopLevelWireframeMesh() {
     [invalidate]
   );
 
-  if (!showTopLevelWireframe) {
+  if (!showTopLevelWireframe || selectionModeAtom) {
     return null;
   }
 
