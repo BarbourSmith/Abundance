@@ -5,9 +5,6 @@ import { createPortal } from "react-dom";
 import App from "./App.jsx";
 import { BrowserRouter } from "react-router-dom";
 
-// This is here to compensate for a bug in vite
-import opencascadeWasm from "replicad-opencascadejs/wasm?url"
-
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(
   <BrowserRouter basename={import.meta.env.VITE_BROWSER_ROUTER}>
