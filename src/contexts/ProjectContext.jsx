@@ -568,7 +568,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
       path: ".gitattributes",
       message: "Create gitattributes",
       content: window.btoa(
-        "data binary\nproject.png linguist-generated=true merge=binary\nproject.svg linguist-generated=true merge=binary\n",
+        "project.png linguist-generated=true merge=binary\nproject.svg linguist-generated=true merge=binary\n",
       ),
     });
     setNewProjectBar(60);
@@ -1873,7 +1873,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
 
         // Add .gitattributes to ensure binary file handling is consistent
         filesObject[".gitattributes"] = window.btoa(
-          "data binary\nproject.png linguist-generated=true merge=binary\nproject.svg linguist-generated=true merge=binary\n",
+          "project.png linguist-generated=true merge=binary\nproject.svg linguist-generated=true merge=binary\n",
         );
 
         updateSaveProgress(30);
