@@ -1867,6 +1867,11 @@ export function ProjectProvider({ children, cad, loadProject }) {
         // If no valid thumbnail was generated, don't include project.svg in the commit
         // This preserves the existing thumbnail in the repository
 
+        // Add .gitattributes to ensure binary file handling is consistent
+        filesObject[".gitattributes"] = window.btoa(
+          "data binary\nproject.png linguist-generated=true merge=binary\nproject.svg linguist-generated=true merge=binary\n",
+        );
+
         updateSaveProgress(30);
 
         // Use the current authorizedUserOcto from ref, not closure or parameter
