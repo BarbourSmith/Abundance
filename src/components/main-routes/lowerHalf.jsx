@@ -89,7 +89,9 @@ const LowerHalf = forwardRef(function LowerHalf({ windowSize }, ref) {
                 cameraZoom,
               }}
             >
-              {wireParam && !isViewingOutputMesh ? <WireframeMesh /> : null}
+              {wireParam && !isViewingOutputMesh && !selectionModeAtom ? (
+                <WireframeMesh />
+              ) : null}
               <TopLevelWireframeMesh />
               <NonReplicadMesh />
               <ReplicadMesh
