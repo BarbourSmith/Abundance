@@ -44,8 +44,10 @@ function useWindowSize() {
  * Tries master branch first, falls back to main
  */
 function fetchGithubProjectSerialzed(owner, repo) {
+  // Add cache-busting query parameter to force fresh data on every fetch
+  const cacheBust = `?bust=${Date.now()}`;
   const fetchUrl = (branch) =>
-    `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/project.abundance`;
+    `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/project.abundance${cacheBust}`;
 
   return fetch(fetchUrl("master"))
     .then((res) => {
