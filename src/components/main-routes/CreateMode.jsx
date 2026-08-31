@@ -47,6 +47,7 @@ function CreateMode() {
     isRestoringSession,
     isReturningFromMode,
     setIsReturningFromMode,
+    isReauthentication,
   } = useAuth();
   const {
     activeAtom,
@@ -671,8 +672,13 @@ function CreateMode() {
     return null;
   }
 
-  if (GlobalVariables.currentAWSnode.owner === GlobalVariables.currentUser) {
-    /** User is logged in and owns the project - show CreateMode */
+  if (
+    isReauthentication ||
+    GlobalVariables.currentAWSnode.owner === GlobalVariables.currentUser
+  ) {
+    /** User is in the middle of reauthentication - allow them to stay in CreateMode
+     *  to complete the authentication flow and restore their work
+     *  OR user is logged in and owns the project - show CreateMode */
     return (
       <>
         {isActive ? <TutorialOverlay /> : null}
