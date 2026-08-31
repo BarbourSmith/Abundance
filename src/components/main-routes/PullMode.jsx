@@ -344,12 +344,17 @@ function PullMode({ setProcessing }) {
 
   const [showMergeConfirm, setShowMergeConfirm] = useState(false);
   const [showPRConfirm, setShowPRConfirm] = useState(false);
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [showMergeErrorDialog, setShowMergeErrorDialog] = useState(false);
   const [mergeErrorMessage, setMergeErrorMessage] = useState("");
   const [prDescription, setPrDescription] = useState("");
+  const [closeComment, setCloseComment] = useState("");
   const [isMergeSuccessful, setIsMergeSuccessful] = useState(false);
   const [isMerging, setIsMerging] = useState(false);
   const [isCreatingPR, setIsCreatingPR] = useState(false);
+  const [isClosingPR, setIsClosingPR] = useState(false);
+  const [mergeConflicts, setMergeConflicts] = useState(null);
+  const [acceptAbundanceConflict, setAcceptAbundanceConflict] = useState(false);
 
   // Handle keyboard events for merge confirmation dialog
   useEffect(() => {
@@ -563,6 +568,67 @@ function PullMode({ setProcessing }) {
     setShowPRConfirm(true);
   };
 
+  const closePullRequest = () => {
+    setCloseComment("");
+    setShowCloseConfirm(true);
+  };
+
+  const handleConfirmClosePR = async () => {
+    if (!authorizedUserOcto) {
+      setNotification(
+        "You must be logged in to close a pull request.",
+        "error",
+      );
+      setTimeout(() => setNotification(null), 5000);
+      setShowCloseConfirm(false);
+      return;
+    }
+
+    setIsClosingPR(true);
+
+    try {
+      // Close the pull request
+      await authorizedUserOcto.request(
+        "PATCH /repos/{owner}/{repo}/pulls/{pull_number}",
+        {
+          owner: baseOwner,
+          repo: baseRepo,
+          pull_number: pullNumber,
+          state: "closed",
+        },
+      );
+
+      // Add comment if provided
+      if (closeComment.trim()) {
+        await authorizedUserOcto.request(
+          "POST /repos/{owner}/{repo}/issues/{issue_number}/comments",
+          {
+            owner: baseOwner,
+            repo: baseRepo,
+            issue_number: pullNumber,
+            body: closeComment,
+          },
+        );
+      }
+
+      setNotification("Pull request closed successfully", "notice");
+      setTimeout(() => setNotification(null), 5000);
+      setShowCloseConfirm(false);
+      setCloseComment("");
+
+      // Redirect to LoginMode after a short delay
+      setTimeout(() => {
+        navigate("/");
+      }, 1000);
+    } catch (error) {
+      console.error("Error closing pull request:", error);
+      setNotification(`Error closing pull request: ${error.message}`, "error");
+      setTimeout(() => setNotification(null), 5000);
+    } finally {
+      setIsClosingPR(false);
+    }
+  };
+
   if (activeAtom) {
     activeAtom.onStatusChange = (status) => {
       if (status === "waiting") {
@@ -573,7 +639,169 @@ function PullMode({ setProcessing }) {
   }
 
   const mergePullRequest = async () => {
-    setShowMergeConfirm(true);
+    // Fetch PR data to check for conflicts
+    try {
+      const prData = await authorizedUserOcto.request(
+        "GET /repos/{owner}/{repo}/pulls/{pull_number}",
+        {
+          owner: baseOwner,
+          repo: baseRepo,
+          pull_number: pullNumber,
+        },
+      );
+
+      // Check if the PR has merge conflicts
+      if (prData.data.mergeable === false) {
+        // Try to get the list of conflicting files
+        try {
+          const filesData = await authorizedUserOcto.request(
+            "GET /repos/{owner}/{repo}/pulls/{pull_number}/files",
+            {
+              owner: baseOwner,
+              repo: baseRepo,
+              pull_number: pullNumber,
+            },
+          );
+
+          // Filter for files with conflicts
+          const conflictingFiles = filesData.data
+            .filter(
+              (file) => file.status === "modified" || file.status === "added",
+            )
+            .map((file) => file.filename);
+
+          setMergeConflicts(conflictingFiles);
+        } catch (error) {
+          // If we can't get file details, just show that there are conflicts
+          setMergeConflicts(["Merge conflicts detected"]);
+        }
+      } else {
+        setMergeConflicts(null);
+      }
+
+      setShowMergeConfirm(true);
+    } catch (error) {
+      console.error("Error fetching PR data:", error);
+      setNotification(
+        "Error checking for merge conflicts. Please try again.",
+        "error",
+      );
+    }
+  };
+
+  const createConflictResolutionCommit = async (conflictingFiles) => {
+    try {
+      // Get the base branch's current commit SHA
+      const baseRef = await authorizedUserOcto.request(
+        "GET /repos/{owner}/{repo}/git/ref/{ref}",
+        {
+          owner: baseOwner,
+          repo: baseRepo,
+          ref: "heads/main",
+        },
+      );
+      const baseSha = baseRef.data.object.sha;
+
+      // Get the head branch's current commit SHA
+      const headRef = await authorizedUserOcto.request(
+        "GET /repos/{owner}/{repo}/git/ref/{ref}",
+        {
+          owner: headOwner,
+          repo: headRepo,
+          ref: "heads/main",
+        },
+      );
+      const headCommitSha = headRef.data.object.sha;
+
+      // Get the head branch's tree (which has the versions we want)
+      const headCommit = await authorizedUserOcto.request(
+        "GET /repos/{owner}/{repo}/git/commits/{commit_sha}",
+        {
+          owner: headOwner,
+          repo: headRepo,
+          commit_sha: headCommitSha,
+        },
+      );
+      const headTreeSha = headCommit.data.tree.sha;
+
+      // Get the full head tree to find the blob SHAs
+      const headTree = await authorizedUserOcto.request(
+        "GET /repos/{owner}/{repo}/git/trees/{tree_sha}",
+        {
+          owner: headOwner,
+          repo: headRepo,
+          tree_sha: headTreeSha,
+          recursive: "true",
+        },
+      );
+
+      // Build the tree updates by finding the SHAs from the head tree
+      const filesToUpdate = [];
+      for (const file of conflictingFiles) {
+        if (file === "project.abundance" && !acceptAbundanceConflict) {
+          // Skip if user didn't accept this file
+          continue;
+        }
+
+        // Find this file in the head tree
+        const headFile = headTree.data.tree.find((item) => item.path === file);
+        if (headFile) {
+          filesToUpdate.push({
+            path: file,
+            mode: headFile.mode,
+            type: headFile.type,
+            sha: headFile.sha,
+          });
+        } else {
+          console.warn(`File ${file} not found in head tree`);
+        }
+      }
+
+      if (filesToUpdate.length === 0) {
+        console.warn("No files to update in resolution commit");
+        return false;
+      }
+
+      // Create new tree with resolved files
+      const newTree = await authorizedUserOcto.request(
+        "POST /repos/{owner}/{repo}/git/trees",
+        {
+          owner: baseOwner,
+          repo: baseRepo,
+          base_tree: baseSha,
+          tree: filesToUpdate,
+        },
+      );
+
+      // Create resolution commit
+      const commit = await authorizedUserOcto.request(
+        "POST /repos/{owner}/{repo}/git/commits",
+        {
+          owner: baseOwner,
+          repo: baseRepo,
+          message: `Resolve merge conflicts by accepting incoming changes`,
+          tree: newTree.data.sha,
+          parents: [baseSha],
+        },
+      );
+
+      // Update the base branch to point to this new commit
+      await authorizedUserOcto.request(
+        "PATCH /repos/{owner}/{repo}/git/refs/{ref}",
+        {
+          owner: baseOwner,
+          repo: baseRepo,
+          ref: "heads/main",
+          sha: commit.data.sha,
+        },
+      );
+
+      console.log("Resolution commit created:", commit.data.sha);
+      return true;
+    } catch (error) {
+      console.error("Error creating resolution commit:", error);
+      throw error;
+    }
   };
 
   const handleConfirmMerge = async () => {
@@ -593,6 +821,11 @@ function PullMode({ setProcessing }) {
       `Merging pull request from ${headOwner}/${headRepo} into ${baseOwner}/${baseRepo}`,
     );
     try {
+      // If there are conflicts, create a resolution commit first
+      if (mergeConflicts && mergeConflicts.length > 0) {
+        await createConflictResolutionCommit(mergeConflicts);
+      }
+
       const response = await authorizedUserOcto.request(
         "PUT /repos/{owner}/{repo}/pulls/{pull_number}/merge",
         {
@@ -652,11 +885,15 @@ function PullMode({ setProcessing }) {
       setNotification(`Pull request merged: ${response.data.sha}`, "notice");
       setTimeout(() => setNotification(null), 5000);
       setShowMergeConfirm(false);
+      setMergeConflicts(null);
+      setAcceptAbundanceConflict(false);
       setIsMergeSuccessful(true);
     } catch (error) {
       console.error("Error merging pull request:", error);
       setMergeErrorMessage(error.message);
       setShowMergeErrorDialog(true);
+      setMergeConflicts(null);
+      setAcceptAbundanceConflict(false);
     } finally {
       setIsMerging(false);
     }
@@ -680,6 +917,7 @@ function PullMode({ setProcessing }) {
         prOwner={prOwner}
         createPullRequest={createPullRequest}
         mergePullRequest={mergePullRequest}
+        closePullRequest={closePullRequest}
         isMergeSuccessful={isMergeSuccessful}
         isCreatingPR={isCreatingPR}
       />
@@ -694,22 +932,81 @@ function PullMode({ setProcessing }) {
             alignItems: "stretch",
             padding: "20px",
             minWidth: "400px",
+            maxHeight: "80vh",
+            overflowY: "auto",
           }}
           className="share-dialog"
         >
           <h3 style={{ margin: "0 0 15px 0" }}>Confirm Merge</h3>
 
-          <p style={{ margin: "0 0 20px 0" }}>
-            Are you sure you want to merge the changes from{" "}
-            <strong>
-              {headOwner}/{headRepo}
-            </strong>{" "}
-            into{" "}
-            <strong>
-              {baseOwner}/{baseRepo}
-            </strong>
-            ?
-          </p>
+          {mergeConflicts && mergeConflicts.length > 0 ? (
+            <>
+              <p
+                style={{
+                  margin: "0 0 15px 0",
+                  color: "var(--abundance-color-warning)",
+                }}
+              >
+                ⚠️ This pull request has merge conflicts.
+              </p>
+              <div style={{ margin: "0 0 20px 0" }}>
+                <p style={{ margin: "0 0 10px 0", fontWeight: "bold" }}>
+                  Conflicting files:
+                </p>
+                <ul style={{ margin: "0", paddingLeft: "20px" }}>
+                  {mergeConflicts.map((file) => (
+                    <li key={file} style={{ marginBottom: "8px" }}>
+                      <span>{file}</span>
+                      {file === "project.abundance" ? (
+                        <div style={{ marginTop: "5px", marginLeft: "20px" }}>
+                          <label
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "8px",
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={acceptAbundanceConflict}
+                              onChange={(e) =>
+                                setAcceptAbundanceConflict(e.target.checked)
+                              }
+                            />
+                            Accept incoming change. (Changes made to your
+                            project might be lost if you accept this change.)
+                          </label>
+                        </div>
+                      ) : (
+                        <div
+                          style={{
+                            marginTop: "3px",
+                            marginLeft: "20px",
+                            fontSize: "0.9em",
+                            color: "#999",
+                          }}
+                        >
+                          ✓ Will be auto-resolved with incoming changes
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </>
+          ) : (
+            <p style={{ margin: "0 0 20px 0" }}>
+              Are you sure you want to merge the changes from{" "}
+              <strong>
+                {headOwner}/{headRepo}
+              </strong>{" "}
+              into{" "}
+              <strong>
+                {baseOwner}/{baseRepo}
+              </strong>
+              ?
+            </p>
+          )}
 
           <div
             style={{
@@ -720,35 +1017,49 @@ function PullMode({ setProcessing }) {
             }}
           >
             <button
-              onClick={() => setShowMergeConfirm(false)}
-              autoFocus
+              onClick={() => {
+                setShowMergeConfirm(false);
+                setMergeConflicts(null);
+                setAcceptAbundanceConflict(false);
+              }}
+              autoFocus={!mergeConflicts || mergeConflicts.length === 0}
               style={{
                 padding: "8px 16px",
                 cursor: "pointer",
               }}
             >
-              Cancel
+              {mergeConflicts && mergeConflicts.length > 0 ? "Cancel" : "Close"}
             </button>
-            <button
-              onClick={handleConfirmMerge}
-              disabled={isMerging}
-              style={{
-                padding: "8px 16px",
-                cursor: isMerging ? "not-allowed" : "pointer",
-                backgroundColor: "var(--abundance-color-brightPurple)",
-                color: "white",
-                border: "none",
-                borderRadius: "4px",
-                opacity: isMerging ? 0.6 : 1,
-              }}
-            >
-              {isMerging ? "Merging..." : "Merge"}
-            </button>
+            {!mergeConflicts ||
+            mergeConflicts.length === 0 ||
+            (mergeConflicts.includes("project.abundance")
+              ? acceptAbundanceConflict
+              : true) ? (
+              <button
+                onClick={handleConfirmMerge}
+                disabled={isMerging}
+                style={{
+                  padding: "8px 16px",
+                  cursor: isMerging ? "not-allowed" : "pointer",
+                  backgroundColor: "var(--abundance-color-brightPurple)",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  opacity: isMerging ? 0.6 : 1,
+                }}
+              >
+                {isMerging ? "Merging..." : "Merge"}
+              </button>
+            ) : null}
           </div>
 
           <a
             className="closeButton"
-            onClick={() => setShowMergeConfirm(false)}
+            onClick={() => {
+              setShowMergeConfirm(false);
+              setMergeConflicts(null);
+              setAcceptAbundanceConflict(false);
+            }}
             style={{ cursor: "pointer" }}
           >
             {"\u00D7"}
@@ -838,6 +1149,92 @@ function PullMode({ setProcessing }) {
           <a
             className="closeButton"
             onClick={() => setShowMergeErrorDialog(false)}
+            style={{ cursor: "pointer" }}
+          >
+            {"\u00D7"}
+          </a>
+        </dialog>
+      )}
+
+      {/* Close Pull Request Dialog */}
+      {showCloseConfirm && (
+        <dialog
+          open={showCloseConfirm}
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "stretch",
+            padding: "20px",
+            minWidth: "450px",
+          }}
+          className="share-dialog"
+        >
+          <h3 style={{ margin: "0 0 15px 0" }}>Close Pull Request</h3>
+
+          <p style={{ margin: "0 0 15px 0" }}>
+            Add an optional comment before closing:
+          </p>
+
+          <textarea
+            value={closeComment}
+            onChange={(e) => setCloseComment(e.target.value)}
+            placeholder="Leave a comment (optional)..."
+            style={{
+              width: "100%",
+              minHeight: "100px",
+              padding: "10px",
+              borderRadius: "4px",
+              border: "1px solid #ccc",
+              fontFamily: "inherit",
+              fontSize: "0.95em",
+              marginBottom: "15px",
+              boxSizing: "border-box",
+            }}
+          />
+
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "flex-end",
+              gap: "10px",
+            }}
+          >
+            <button
+              onClick={() => {
+                setShowCloseConfirm(false);
+                setCloseComment("");
+              }}
+              autoFocus
+              style={{
+                padding: "8px 16px",
+                cursor: "pointer",
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleConfirmClosePR}
+              disabled={isClosingPR}
+              style={{
+                padding: "8px 16px",
+                cursor: isClosingPR ? "not-allowed" : "pointer",
+                backgroundColor: "#d32f2f",
+                color: "white",
+                border: "none",
+                borderRadius: "4px",
+                opacity: isClosingPR ? 0.6 : 1,
+              }}
+            >
+              {isClosingPR ? "Closing..." : "Close Pull Request"}
+            </button>
+          </div>
+
+          <a
+            className="closeButton"
+            onClick={() => {
+              setShowCloseConfirm(false);
+              setCloseComment("");
+            }}
             style={{ cursor: "pointer" }}
           >
             {"\u00D7"}

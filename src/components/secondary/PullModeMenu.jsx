@@ -35,6 +35,7 @@ export default function PullModeMenu({
   prOwner,
   createPullRequest,
   mergePullRequest,
+  closePullRequest,
   isMergeSuccessful,
   isCreatingPR,
 }) {
@@ -171,6 +172,13 @@ export default function PullModeMenu({
       disabled: isMergeSuccessful,
       onClick: () => {
         mergePullRequest();
+      },
+    },
+    closeButton: {
+      type: "button",
+      label: "Close Pull Request",
+      onClick: () => {
+        closePullRequest();
       },
     },
   };
