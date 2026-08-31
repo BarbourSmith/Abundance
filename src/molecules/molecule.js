@@ -1221,7 +1221,18 @@ export default class Molecule extends Atom {
 
     var thisAsObject = super.serialize(offset); //Do the atom serialization to create an object, then add all the bits of this one to it
     thisAsObject.topLevel = this.topLevel;
+
+    // Sort atoms by uniqueID for deterministic serialization (improves Git mergeability)
+    // This ensures that load → save produces identical output, preventing false conflict markers
+    allAtoms.sort((a, b) =>
+      String(a.uniqueID || "").localeCompare(String(b.uniqueID || "")),
+    );
     thisAsObject.allAtoms = allAtoms;
+
+    // Sort connectors by uniqueID for consistent ordering
+    allConnectors.sort((a, b) =>
+      String(a.uniqueID || "").localeCompare(String(b.uniqueID || "")),
+    );
     thisAsObject.allConnectors = allConnectors;
 
     // Check if there are Input atoms whose values aren't in ioValues
