@@ -568,7 +568,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
       path: ".gitattributes",
       message: "Create gitattributes",
       content: window.btoa(
-        "project.png linguist-generated=true merge=binary\nproject.svg linguist-generated=true merge=binary\n",
+        "project.png linguist-generated=true merge=ours\nproject.svg linguist-generated=true merge=ours\n",
       ),
     });
     setNewProjectBar(60);
@@ -1791,7 +1791,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
           "\n\n" +
           "# " +
           GlobalVariables.currentAWSnode.repoName +
-          "\n\n![](/project.svg)\n\n";
+          "\n\n![](/project.png)\n\n";
 
         // Automatically document top-level molecule inputs
         if (
@@ -1871,9 +1871,10 @@ export function ProjectProvider({ children, cad, loadProject }) {
         // If no valid thumbnail was generated, don't include project.svg in the commit
         // This preserves the existing thumbnail in the repository
 
-        // Add .gitattributes to ensure binary file handling is consistent
+        // Add .gitattributes to prevent merge conflicts on binary thumbnails
+        // merge=ours means Git always keeps the local version, preventing conflicts in PRs
         filesObject[".gitattributes"] = window.btoa(
-          "project.png linguist-generated=true merge=binary\nproject.svg linguist-generated=true merge=binary\n",
+          "project.png linguist-generated=true merge=ours\nproject.svg linguist-generated=true merge=ours\n",
         );
 
         updateSaveProgress(30);
