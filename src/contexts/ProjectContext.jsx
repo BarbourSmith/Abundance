@@ -245,6 +245,10 @@ export function ProjectProvider({ children, cad, loadProject }) {
               console.error("Error loading from localStorage:", error);
               // Fall through to GitHub load if localStorage parsing fails
             }
+          } else if (loadSource !== "fresh-url") {
+            // No recovery data found for reauthentication or return - treat as fresh load
+            // so that GitHub load happens below
+            loadSource = "fresh-url";
           }
         }
 
