@@ -564,7 +564,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
       path: ".gitattributes",
       message: "Create gitattributes",
       content: window.btoa(
-        "data binary\nproject.png linguist-generated=true\nproject.svg linguist-generated=true\n",
+        "data binary\nproject.png linguist-generated=true merge=binary\nproject.svg linguist-generated=true merge=binary\n",
       ),
     });
     setNewProjectBar(60);
