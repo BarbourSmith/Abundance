@@ -253,6 +253,15 @@ Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-s
 
 **Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
 
+### 0. Always Ask Before Making Changes
+
+**Get explicit approval before implementing any changes.**
+
+- If the user describes a problem or mentions an idea but doesn't explicitly ask for implementation, ask before changing code.
+- State what you plan to do and wait for confirmation.
+- Never make assumptions about what the user wants—clarify first.
+- Only implement when the user has clearly requested it.
+
 ### 1. Think Before Coding
 
 **Don't assume. Don't hide confusion. Surface tradeoffs.**
