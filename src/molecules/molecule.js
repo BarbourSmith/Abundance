@@ -1224,12 +1224,14 @@ export default class Molecule extends Atom {
 
     // Sort atoms by uniqueID for deterministic serialization (improves Git mergeability)
     // This ensures that load → save produces identical output, preventing false conflict markers
-    allAtoms.sort((a, b) => (a.uniqueID || "").localeCompare(b.uniqueID || ""));
+    allAtoms.sort((a, b) =>
+      String(a.uniqueID || "").localeCompare(String(b.uniqueID || "")),
+    );
     thisAsObject.allAtoms = allAtoms;
 
     // Sort connectors by uniqueID for consistent ordering
     allConnectors.sort((a, b) =>
-      (a.uniqueID || "").localeCompare(b.uniqueID || ""),
+      String(a.uniqueID || "").localeCompare(String(b.uniqueID || "")),
     );
     thisAsObject.allConnectors = allConnectors;
 
