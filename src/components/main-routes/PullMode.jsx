@@ -335,14 +335,6 @@ function PullMode({ setProcessing }) {
 
   const navigate = useNavigate();
 
-  // Determine if current user is the base owner
-  const isBaseOwner = GlobalVariables.currentUser === baseOwner;
-  console.log("Pull Mode Auth Check:", {
-    currentUser: GlobalVariables.currentUser,
-    baseOwner,
-    isBaseOwner,
-  });
-
   // Disable output wire and top level wireframe for pull mode
   useEffect(() => {
     setWire(false);
@@ -846,8 +838,20 @@ function PullMode({ setProcessing }) {
         },
       );
 
-      // Check if the PR has merge conflicts
-      if (prData.data.mergeable === false) {
+      const prInfo = prData.data;
+
+      console.log("Merge PR - Mergeable Status:", {
+        mergeable: prInfo.mergeable,
+        mergeable_state: prInfo.mergeable_state,
+      });
+
+      // Check for conflicts - mergeable false or mergeable_state dirty/blocked
+      const hasConflicts =
+        prInfo.mergeable === false ||
+        prInfo.mergeable_state === "dirty" ||
+        prInfo.mergeable_state === "blocked";
+
+      if (hasConflicts) {
         // Try to get the list of conflicting files
         try {
           const filesData = await authorizedUserOcto.request(
@@ -859,16 +863,14 @@ function PullMode({ setProcessing }) {
             },
           );
 
-          // Filter for files with conflicts
-          const conflictingFiles = filesData.data
-            .filter(
-              (file) => file.status === "modified" || file.status === "added",
-            )
-            .map((file) => file.filename);
+          // Get all changed files
+          const conflictingFiles = filesData.data.map((file) => file.filename);
 
+          console.log("Merge PR - Conflicting Files:", conflictingFiles);
           setMergeConflicts(conflictingFiles);
         } catch (error) {
           // If we can't get file details, just show that there are conflicts
+          console.warn("Could not fetch conflict details:", error);
           setMergeConflicts(["Merge conflicts detected"]);
         }
       } else {
@@ -1556,48 +1558,46 @@ function PullMode({ setProcessing }) {
             >
               Resolve on GitHub
             </button>
-            {isBaseOwner && (
-              <button
-                onClick={async () => {
-                  setIsClosingPR(true);
-                  try {
-                    await authorizedUserOcto.request(
-                      "PATCH /repos/{owner}/{repo}/pulls/{pull_number}",
-                      {
-                        owner: baseOwner,
-                        repo: baseRepo,
-                        pull_number: existingPRData.number,
-                        state: "closed",
-                      },
-                    );
-                    setNotification("Pull request closed.", "notice");
-                    setTimeout(() => setNotification(null), 3000);
-                    setShowExistingPRDialog(false);
-                    setExistingPRData(null);
-                    setExistingPRConflicts(null);
-                  } catch (error) {
-                    setNotification(
-                      `Error closing pull request: ${error.message}`,
-                      "error",
-                    );
-                  } finally {
-                    setIsClosingPR(false);
-                  }
-                }}
-                disabled={isClosingPR}
-                style={{
-                  padding: "8px 16px",
-                  cursor: isClosingPR ? "not-allowed" : "pointer",
-                  backgroundColor: "#dc3545",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "4px",
-                  opacity: isClosingPR ? 0.6 : 1,
-                }}
-              >
-                {isClosingPR ? "Closing..." : "Close Pull Request"}
-              </button>
-            )}
+            <button
+              onClick={async () => {
+                setIsClosingPR(true);
+                try {
+                  await authorizedUserOcto.request(
+                    "PATCH /repos/{owner}/{repo}/pulls/{pull_number}",
+                    {
+                      owner: baseOwner,
+                      repo: baseRepo,
+                      pull_number: existingPRData.number,
+                      state: "closed",
+                    },
+                  );
+                  setNotification("Pull request closed.", "notice");
+                  setTimeout(() => setNotification(null), 3000);
+                  setShowExistingPRDialog(false);
+                  setExistingPRData(null);
+                  setExistingPRConflicts(null);
+                } catch (error) {
+                  setNotification(
+                    `Error closing pull request: ${error.message}`,
+                    "error",
+                  );
+                } finally {
+                  setIsClosingPR(false);
+                }
+              }}
+              disabled={isClosingPR}
+              style={{
+                padding: "8px 16px",
+                cursor: isClosingPR ? "not-allowed" : "pointer",
+                backgroundColor: "#dc3545",
+                color: "white",
+                border: "none",
+                borderRadius: "4px",
+                opacity: isClosingPR ? 0.6 : 1,
+              }}
+            >
+              {isClosingPR ? "Closing..." : "Close Pull Request"}
+            </button>
           </div>
 
           <a
