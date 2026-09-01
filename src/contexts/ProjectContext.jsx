@@ -1380,7 +1380,9 @@ export function ProjectProvider({ children, cad, loadProject }) {
         );
 
         let htmlURL = repoResponse.data.html_url;
-        const privateRepo = repoResponse.data.private;
+        const privateRepo = repoResponse.data.private
+          ? repoResponse.data.private
+          : false;
         updateSaveProgress(40);
 
         base = repoResponse.data.default_branch;
