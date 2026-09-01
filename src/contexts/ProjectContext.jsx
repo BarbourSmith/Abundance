@@ -1380,7 +1380,9 @@ export function ProjectProvider({ children, cad, loadProject }) {
         );
 
         let htmlURL = repoResponse.data.html_url;
-        const privateRepo = repoResponse.data.private;
+        const privateRepo = repoResponse.data.private
+          ? repoResponse.data.private
+          : false;
         updateSaveProgress(40);
 
         base = repoResponse.data.default_branch;
@@ -1450,16 +1452,32 @@ export function ProjectProvider({ children, cad, loadProject }) {
                     message: changes.commit,
                     content: encodedContent,
                     branch: base,
-                    ...(existingSha ? { sha: existingSha } : {}),
+                    // only pass sha when truthy string
+                    ...(typeof existingSha === "string" &&
+                    existingSha.length > 0
+                      ? { sha: existingSha }
+                      : {}),
                   });
                 }
 
                 break;
               } catch (error) {
-                // Another commit updated the branch; refresh SHA and retry.
-                if (error?.status === 409 && attempt < maxAttempts) {
+                const msg = String(error?.message || "").toLowerCase();
+                const shaRelated =
+                  msg.includes("sha") ||
+                  msg.includes("does not match") ||
+                  msg.includes("already exists");
+
+                // Retry when branch moved (409) OR validation/SHA mismatch (422)
+                if (
+                  (error?.status === 409 ||
+                    error?.status === 422 ||
+                    shaRelated) &&
+                  attempt < maxAttempts
+                ) {
                   continue;
                 }
+
                 throw error;
               }
             }
