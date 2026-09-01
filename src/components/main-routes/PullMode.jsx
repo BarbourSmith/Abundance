@@ -347,14 +347,18 @@ function PullMode({ setProcessing }) {
   const [showMergeConfirm, setShowMergeConfirm] = useState(false);
   const [showPRConfirm, setShowPRConfirm] = useState(false);
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
+  const [showExistingPRDialog, setShowExistingPRDialog] = useState(false);
   const [showMergeErrorDialog, setShowMergeErrorDialog] = useState(false);
   const [mergeErrorMessage, setMergeErrorMessage] = useState("");
   const [prDescription, setPrDescription] = useState("");
   const [closeComment, setCloseComment] = useState("");
+  const [existingPRData, setExistingPRData] = useState(null);
+  const [existingPRConflicts, setExistingPRConflicts] = useState(null);
   const [isMergeSuccessful, setIsMergeSuccessful] = useState(false);
   const [isMerging, setIsMerging] = useState(false);
   const [isCreatingPR, setIsCreatingPR] = useState(false);
   const [isClosingPR, setIsClosingPR] = useState(false);
+  const [isCheckingPR, setIsCheckingPR] = useState(false);
   const [mergeConflicts, setMergeConflicts] = useState(null);
   const [acceptAbundanceConflict, setAcceptAbundanceConflict] = useState(false);
 
@@ -550,12 +554,86 @@ function PullMode({ setProcessing }) {
         },
       );
 
+      // Check mergeability of newly created PR
+      const prData = await authorizedUserOcto.request(
+        "GET /repos/{owner}/{repo}/pulls/{pull_number}",
+        {
+          owner: baseOwner,
+          repo: baseRepo,
+          pull_number: response.data.number,
+        },
+      );
+
+      console.log("Initial PR data:", prData.data);
+
+      // If mergeable is null or undefined (still computing), wait a moment and refetch
+      let finalPRData = prData.data;
+      if (
+        finalPRData.mergeable === null ||
+        finalPRData.mergeable === undefined
+      ) {
+        console.log("Mergeable is null/undefined, waiting and refetching...");
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        const refreshResponse = await authorizedUserOcto.request(
+          "GET /repos/{owner}/{repo}/pulls/{pull_number}",
+          {
+            owner: baseOwner,
+            repo: baseRepo,
+            pull_number: response.data.number,
+          },
+        );
+        console.log("Refreshed PR data:", refreshResponse.data);
+        finalPRData = refreshResponse.data;
+      }
+
+      // Check for conflicts - mergeable false or mergeable_state dirty/blocked
+      const hasConflicts =
+        finalPRData.mergeable === false ||
+        finalPRData.mergeable_state === "dirty" ||
+        finalPRData.mergeable_state === "blocked";
+
+      console.log("New PR - Mergeable Status:", {
+        mergeable: finalPRData.mergeable,
+        mergeable_state: finalPRData.mergeable_state,
+        hasConflicts,
+      });
+
+      if (hasConflicts) {
+        try {
+          const filesData = await authorizedUserOcto.request(
+            "GET /repos/{owner}/{repo}/pulls/{pull_number}/files",
+            {
+              owner: baseOwner,
+              repo: baseRepo,
+              pull_number: response.data.number,
+            },
+          );
+
+          const conflictingFiles = filesData.data.map((file) => file.filename);
+
+          console.log("New PR - Conflicting Files:", conflictingFiles);
+
+          setExistingPRConflicts(
+            conflictingFiles.length > 0
+              ? conflictingFiles
+              : ["Merge conflicts detected"],
+          );
+        } catch (error) {
+          console.warn("Could not fetch conflict details:", error);
+          setExistingPRConflicts(["Merge conflicts detected"]);
+        }
+      } else {
+        setExistingPRConflicts(null);
+      }
+
+      setExistingPRData(finalPRData);
       setNotification(
         `Pull request created: ${response.data.html_url}`,
         "notice",
       );
       setTimeout(() => setNotification(null), 5000);
       setShowPRConfirm(false);
+      setShowExistingPRDialog(true);
     } catch (error) {
       setTimeout(() => setNotification(null), 5000);
       setNotification(`Error creating pull request: ${error.message}`, "error");
@@ -565,9 +643,117 @@ function PullMode({ setProcessing }) {
     }
   };
 
-  const createPullRequest = () => {
-    setPrDescription("");
-    setShowPRConfirm(true);
+  const createPullRequest = async () => {
+    if (!authorizedUserOcto) {
+      setNotification(
+        "You must be logged in to create a pull request.",
+        "error",
+      );
+      return;
+    }
+
+    setIsCheckingPR(true);
+
+    try {
+      // Check for existing PR from head to base
+      const prsResponse = await authorizedUserOcto.request(
+        "GET /repos/{owner}/{repo}/pulls",
+        {
+          owner: baseOwner,
+          repo: baseRepo,
+          state: "open",
+          head: `${headOwner}:main`,
+          base: "main",
+        },
+      );
+
+      if (prsResponse.data.length > 0) {
+        // PR already exists
+        const existingPR = prsResponse.data[0];
+
+        // If mergeable is null or undefined (still computing), wait a moment and refetch
+        let prData = existingPR;
+        if (prData.mergeable === null || prData.mergeable === undefined) {
+          console.log(
+            "Existing PR: Mergeable is null/undefined, waiting and refetching...",
+          );
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+          const refreshResponse = await authorizedUserOcto.request(
+            "GET /repos/{owner}/{repo}/pulls/{pull_number}",
+            {
+              owner: baseOwner,
+              repo: baseRepo,
+              pull_number: existingPR.number,
+            },
+          );
+          console.log("Existing PR refreshed data:", refreshResponse.data);
+          prData = refreshResponse.data;
+        }
+
+        console.log("Existing PR initial data:", {
+          mergeable: prData.mergeable,
+          mergeable_state: prData.mergeable_state,
+        });
+
+        setExistingPRData(prData);
+
+        // Check for conflicts - mergeable false or mergeable_state dirty/blocked
+        const hasConflicts =
+          prData.mergeable === false ||
+          prData.mergeable_state === "dirty" ||
+          prData.mergeable_state === "blocked";
+
+        console.log("Existing PR - Mergeable Status:", {
+          mergeable: prData.mergeable,
+          mergeable_state: prData.mergeable_state,
+          hasConflicts,
+        });
+
+        if (hasConflicts) {
+          try {
+            const filesResponse = await authorizedUserOcto.request(
+              "GET /repos/{owner}/{repo}/pulls/{pull_number}/files",
+              {
+                owner: baseOwner,
+                repo: baseRepo,
+                pull_number: prData.number,
+              },
+            );
+
+            const conflictingFiles = filesResponse.data.map(
+              (file) => file.filename,
+            );
+
+            console.log("Existing PR - Conflicting Files:", conflictingFiles);
+
+            setExistingPRConflicts(
+              conflictingFiles.length > 0
+                ? conflictingFiles
+                : ["Merge conflicts detected"],
+            );
+          } catch (error) {
+            console.warn("Could not fetch conflict details:", error);
+            setExistingPRConflicts(["Merge conflicts detected"]);
+          }
+        } else {
+          setExistingPRConflicts(null);
+        }
+
+        setShowExistingPRDialog(true);
+      } else {
+        // No existing PR, show description dialog
+        setPrDescription("");
+        setShowPRConfirm(true);
+      }
+    } catch (error) {
+      console.error("Error checking for existing PR:", error);
+      setNotification(
+        "Error checking for pull requests. Please try again.",
+        "error",
+      );
+    } finally {
+      setIsCheckingPR(false);
+    }
   };
 
   const closePullRequest = () => {
@@ -652,8 +838,20 @@ function PullMode({ setProcessing }) {
         },
       );
 
-      // Check if the PR has merge conflicts
-      if (prData.data.mergeable === false) {
+      const prInfo = prData.data;
+
+      console.log("Merge PR - Mergeable Status:", {
+        mergeable: prInfo.mergeable,
+        mergeable_state: prInfo.mergeable_state,
+      });
+
+      // Check for conflicts - mergeable false or mergeable_state dirty/blocked
+      const hasConflicts =
+        prInfo.mergeable === false ||
+        prInfo.mergeable_state === "dirty" ||
+        prInfo.mergeable_state === "blocked";
+
+      if (hasConflicts) {
         // Try to get the list of conflicting files
         try {
           const filesData = await authorizedUserOcto.request(
@@ -665,16 +863,14 @@ function PullMode({ setProcessing }) {
             },
           );
 
-          // Filter for files with conflicts
-          const conflictingFiles = filesData.data
-            .filter(
-              (file) => file.status === "modified" || file.status === "added",
-            )
-            .map((file) => file.filename);
+          // Get all changed files
+          const conflictingFiles = filesData.data.map((file) => file.filename);
 
+          console.log("Merge PR - Conflicting Files:", conflictingFiles);
           setMergeConflicts(conflictingFiles);
         } catch (error) {
           // If we can't get file details, just show that there are conflicts
+          console.warn("Could not fetch conflict details:", error);
           setMergeConflicts(["Merge conflicts detected"]);
         }
       } else {
@@ -1236,6 +1432,180 @@ function PullMode({ setProcessing }) {
             onClick={() => {
               setShowCloseConfirm(false);
               setCloseComment("");
+            }}
+            style={{ cursor: "pointer" }}
+          >
+            {"\u00D7"}
+          </a>
+        </dialog>
+      )}
+
+      {/* Existing Pull Request Dialog */}
+      {showExistingPRDialog && existingPRData && (
+        <dialog
+          open={showExistingPRDialog}
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "stretch",
+            padding: "20px",
+            minWidth: "450px",
+            maxHeight: "80vh",
+            overflowY: "auto",
+          }}
+          className="share-dialog"
+        >
+          <h3 style={{ margin: "0 0 15px 0" }}>Pull Request Already Exists</h3>
+
+          <p style={{ margin: "0 0 15px 0" }}>
+            A pull request from{" "}
+            <strong>
+              {headOwner}/{headRepo}
+            </strong>{" "}
+            to{" "}
+            <strong>
+              {baseOwner}/{baseRepo}
+            </strong>{" "}
+            already exists.
+          </p>
+
+          {existingPRConflicts && existingPRConflicts.length > 0 ? (
+            <>
+              <div
+                style={{
+                  padding: "12px",
+                  backgroundColor: "#fff3cd",
+                  borderLeft: "4px solid #ffc107",
+                  borderRadius: "4px",
+                  marginBottom: "15px",
+                }}
+              >
+                <p style={{ margin: "0 0 10px 0", fontWeight: "bold" }}>
+                  ⚠️ Merge Conflicts Detected
+                </p>
+                <p style={{ margin: "0" }}>
+                  The following files have merge conflicts:
+                </p>
+                <ul style={{ margin: "8px 0 0 0", paddingLeft: "20px" }}>
+                  {existingPRConflicts.map((file) => (
+                    <li key={file} style={{ marginBottom: "5px" }}>
+                      {file}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <p
+                style={{
+                  margin: "12px 0 0 0",
+                  fontSize: "0.9em",
+                  color: "#666",
+                }}
+              >
+                *The owner of the project will have the option to merge your
+                changes even if there are existing conflicts.
+              </p>
+            </>
+          ) : (
+            <div
+              style={{
+                padding: "12px",
+                backgroundColor: "#d4edda",
+                borderLeft: "4px solid #28a745",
+                borderRadius: "4px",
+                marginBottom: "15px",
+              }}
+            >
+              <p style={{ margin: "0" }}>✓ No merge conflicts detected</p>
+            </div>
+          )}
+
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "flex-end",
+              gap: "10px",
+              marginTop: "15px",
+            }}
+          >
+            <button
+              onClick={() => {
+                setShowExistingPRDialog(false);
+                setExistingPRData(null);
+                setExistingPRConflicts(null);
+              }}
+              style={{
+                padding: "8px 16px",
+                cursor: "pointer",
+              }}
+            >
+              Close
+            </button>
+            <button
+              onClick={() => {
+                window.open(
+                  `https://github.com/${baseOwner}/${baseRepo}/pull/${existingPRData.number}`,
+                  "_blank",
+                );
+              }}
+              style={{
+                padding: "8px 16px",
+                cursor: "pointer",
+                backgroundColor: "var(--abundance-color-brightPurple)",
+                color: "white",
+                border: "none",
+                borderRadius: "4px",
+              }}
+            >
+              Resolve on GitHub
+            </button>
+            <button
+              onClick={async () => {
+                setIsClosingPR(true);
+                try {
+                  await authorizedUserOcto.request(
+                    "PATCH /repos/{owner}/{repo}/pulls/{pull_number}",
+                    {
+                      owner: baseOwner,
+                      repo: baseRepo,
+                      pull_number: existingPRData.number,
+                      state: "closed",
+                    },
+                  );
+                  setNotification("Pull request closed.", "notice");
+                  setTimeout(() => setNotification(null), 3000);
+                  setShowExistingPRDialog(false);
+                  setExistingPRData(null);
+                  setExistingPRConflicts(null);
+                } catch (error) {
+                  setNotification(
+                    `Error closing pull request: ${error.message}`,
+                    "error",
+                  );
+                } finally {
+                  setIsClosingPR(false);
+                }
+              }}
+              disabled={isClosingPR}
+              style={{
+                padding: "8px 16px",
+                cursor: isClosingPR ? "not-allowed" : "pointer",
+                backgroundColor: "#dc3545",
+                color: "white",
+                border: "none",
+                borderRadius: "4px",
+                opacity: isClosingPR ? 0.6 : 1,
+              }}
+            >
+              {isClosingPR ? "Closing..." : "Close Pull Request"}
+            </button>
+          </div>
+
+          <a
+            className="closeButton"
+            onClick={() => {
+              setShowExistingPRDialog(false);
+              setExistingPRData(null);
+              setExistingPRConflicts(null);
             }}
             style={{ cursor: "pointer" }}
           >
