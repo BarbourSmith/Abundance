@@ -18,7 +18,10 @@ import { licenses } from "../../js/licenseOptions.js";
 import RenderProgressBar from "../secondary/RenderProgressBar.jsx";
 import RenameProjectDialog from "../secondary/RenameProjectDialog.jsx";
 import ProjectNotFoundDialog from "../secondary/ProjectNotFoundDialog.jsx";
-import { convertToDisplayName } from "../../js/projectNameUtils.js";
+import {
+  convertToDisplayName,
+  convertToGithubName,
+} from "../../js/projectNameUtils.js";
 import FilterPanel from "../secondary/FilterPanel.jsx";
 import DropdownSectionDisplay from "./DropdownSectionDisplay.jsx";
 import FAQDisplay from "./FAQDisplay.jsx";
@@ -1200,6 +1203,8 @@ const ShowProjects = ({
 }) => {
   const [search, setSearch] = useState("");
   const debouncedSearchTerm = useDebounce(search, 200);
+  // Normalize search term to match backend storage (replace spaces with underscores)
+  const normalizedSearchTerm = convertToGithubName(debouncedSearchTerm);
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: 6 }, (_, i) => currentYear - i);
   const [lastKey, setLastKey] = useState("");
@@ -1217,7 +1222,7 @@ const ShowProjects = ({
       "https://hg5gsgv9te.execute-api.us-east-2.amazonaws.com/abundance-stage/scan-search-abundance?" +
         "attribute=searchField" +
         "&query=" +
-        debouncedSearchTerm +
+        normalizedSearchTerm +
         "&mode=all" +
         "&yearShow=" +
         yearShow +
@@ -1234,7 +1239,7 @@ const ShowProjects = ({
       "https://hg5gsgv9te.execute-api.us-east-2.amazonaws.com/abundance-stage/scan-search-abundance?" +
         "attribute=searchField" +
         "&query=" +
-        debouncedSearchTerm +
+        normalizedSearchTerm +
         "&yearShow=" +
         yearShow +
         "&user=" +
@@ -1272,7 +1277,7 @@ const ShowProjects = ({
     isLoading,
     isError,
   } = useQuery({
-    queryKey: ["search", debouncedSearchTerm],
+    queryKey: ["search", normalizedSearchTerm],
     queryFn: fetchAll,
   });
 
@@ -1281,7 +1286,7 @@ const ShowProjects = ({
     isLoading: isLoadingUser,
     isError: isErrorUser,
   } = useQuery({
-    queryKey: ["userRepos", debouncedSearchTerm],
+    queryKey: ["userRepos", normalizedSearchTerm],
     queryFn: fetchUserRepos,
   });
 
