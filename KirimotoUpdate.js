@@ -14,7 +14,6 @@ const generateGcode = (
 ) => {
   return new Promise((resolve, reject) => {
     const kiriEngine = new Engine({ workURL: "/worker.js" });
-    const CUT_THROUGH = cutThrough;
     const stock_offset = {
       x: 3,
       y: 3,
@@ -87,6 +86,9 @@ const generateGcode = (
         // Determine if project uses metric units
         const projectUnits = GlobalVariables.topLevelMolecule?.unitsKey || "MM";
         const isMetric = projectUnits === "MM";
+
+        // cutThrough is always applied in Kiri units (mm). Convert if necessary
+        const CUT_THROUGH = isMetric ? cutThrough : cutThrough * 25.4;
 
         eng.setTools([
           {
