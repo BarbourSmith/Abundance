@@ -16,6 +16,7 @@ const TOKEN_EXPIRY_DAYS = 60; // GitHub tokens typically expire after 60 days
 export function AuthProvider({ children }) {
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [authorizedUserOcto, setAuthorizedUserOcto] = useState(null);
+  const [githubToken, setGithubToken] = useState(null);
   const [isRestoringSession, setIsRestoringSession] = useState(true);
   const [userScopes, setUserScopes] = useState([]);
   const [isReauthentication, setIsReauthentication] = useState(false);
@@ -109,6 +110,7 @@ export function AuthProvider({ children }) {
       GlobalVariables.currentUser = user.login;
       setIsAuthorized(true);
       setAuthorizedUserOcto(octokit);
+      setGithubToken(token);
       // Store scopes so we know token permissions without extra OAuth call
       setUserScopes(scopes);
       setIsRestoringSession(false);
@@ -206,6 +208,8 @@ export function AuthProvider({ children }) {
     setIsReauthentication,
     isReturningFromMode,
     setIsReturningFromMode,
+    githubToken,
+    setGithubToken,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

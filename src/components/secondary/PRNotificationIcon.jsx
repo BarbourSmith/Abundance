@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import GlobalVariables from "../../js/globalvariables.js";
+import { useAuth } from "../../contexts/AuthContext.jsx";
 
 /**
  * PRNotificationIcon displays pull requests across user's projects
@@ -15,6 +16,8 @@ function PRNotificationIcon({ allProjects = [] }) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const dropdownRef = useRef(null);
   const buttonRef = useRef(null);
+
+  const { githubToken } = useAuth();
 
   // Collect all PRs from all projects
   const allPRs = (() => {
@@ -82,7 +85,10 @@ function PRNotificationIcon({ allProjects = [] }) {
         "https://hg5gsgv9te.execute-api.us-east-2.amazonaws.com/abundance-stage/check-user-prs",
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${githubToken}`,
+          },
           body: JSON.stringify({ user: GlobalVariables.currentUser }),
         },
       );

@@ -14,8 +14,27 @@ const today = date.toISOString();
 const tableName = "abundance-projects";
 
 export const handler = async (event, context) => {
+  // Get the user's GitHub token from Authorization header
+  const authHeader =
+    event.headers?.authorization || event.headers?.Authorization;
+  const githubToken = authHeader?.replace("Bearer ", "");
+
+  if (!githubToken) {
+    return {
+      statusCode: 401,
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "Content-Type",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        error: "Missing GitHub token in Authorization header",
+      }),
+    };
+  }
+
   const octokit = new Octokit({
-    auth: process.env.GIT_ACCESS,
+    auth: githubToken,
   });
 
   // Get the user from the request body
@@ -91,8 +110,6 @@ export const handler = async (event, context) => {
         }),
       };
     }
-
-    await checkRateLimit();
 
     function sleep(ms) {
       return new Promise((resolve) => setTimeout(resolve, ms));
@@ -196,23 +213,6 @@ export const handler = async (event, context) => {
       console.error(`Error updating PR data for ${owner}/${repoName}:`, error);
       throw error;
     }
-  }
-
-  async function checkRateLimit() {
-    const response = await fetch("https://api.github.com/rate_limit", {
-      headers: {
-        Authorization: `Bearer ${process.env.GIT_ACCESS}`,
-      },
-    });
-
-    if (!response.ok) {
-      console.error("Failed to fetch rate limit status.");
-      return null;
-    }
-
-    const data = await response.json();
-    console.log("Rate Limit Status:", data);
-    return data;
   }
 
   async function getPullRequests(owner, repoName) {
