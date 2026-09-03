@@ -922,8 +922,8 @@ export default class Atom extends ObservableEntity {
     });
     var object = {
       atomType: this.atomType,
-      x: this.x + offset.x,
-      y: this.y - offset.y,
+      x: Math.round((this.x + offset.x) * 10) / 10,
+      y: Math.round((this.y - offset.y) * 10) / 10,
       uniqueID: this.uniqueID,
     };
 
