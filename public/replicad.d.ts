@@ -1,32 +1,31 @@
 import { Adaptor3d_Surface } from 'replicad-opencascadejs';
 import { Bnd_Box } from 'replicad-opencascadejs';
 import { Bnd_Box2d } from 'replicad-opencascadejs';
-import type { Box } from 'manifold-3d';
+import { Box } from 'manifold-3d';
 import { BRepAdaptor_CompCurve } from 'replicad-opencascadejs';
 import { BRepAdaptor_Curve } from 'replicad-opencascadejs';
-import { BRepAdaptor_Surface } from 'replicad-opencascadejs';
-import type { BRepExtrema_DistShapeShape } from 'replicad-opencascadejs';
+import { BRepExtrema_DistShapeShape } from 'replicad-opencascadejs';
+import { default as default_2 } from 'opentype.js';
 import { Geom2d_Curve } from 'replicad-opencascadejs';
 import { Geom2dAdaptor_Curve } from 'replicad-opencascadejs';
+import { Geom_Surface } from 'replicad-opencascadejs';
 import { gp_Ax1 } from 'replicad-opencascadejs';
 import { gp_Ax2 } from 'replicad-opencascadejs';
 import { gp_Ax2d } from 'replicad-opencascadejs';
 import { gp_Ax3 } from 'replicad-opencascadejs';
 import { gp_Dir } from 'replicad-opencascadejs';
+import { gp_Pln } from 'replicad-opencascadejs';
 import { gp_Pnt } from 'replicad-opencascadejs';
 import { gp_Trsf } from 'replicad-opencascadejs';
 import { gp_Vec } from 'replicad-opencascadejs';
 import { gp_XYZ } from 'replicad-opencascadejs';
-import type { GProp_GProps } from 'replicad-opencascadejs';
-import { Handle_Geom2d_Curve } from 'replicad-opencascadejs';
-import { Handle_Geom_Surface } from 'replicad-opencascadejs';
-import { Handle_Law_Function } from 'replicad-opencascadejs';
-import type { Manifold } from 'manifold-3d';
-import type { ManifoldToplevel } from 'manifold-3d';
-import type { Mesh } from 'manifold-3d';
+import { GProp_GProps } from 'replicad-opencascadejs';
+import { Law_Function } from 'replicad-opencascadejs';
+import { Manifold } from 'manifold-3d';
+import { ManifoldToplevel } from 'manifold-3d';
+import { Mesh } from 'manifold-3d';
 import { OpenCascadeInstance } from 'replicad-opencascadejs';
-import { default as opentype_2 } from 'opentype.js';
-import type { TDocStd_Document } from 'replicad-opencascadejs';
+import { TDocStd_Document } from 'replicad-opencascadejs';
 import { TopAbs_ShapeEnum } from 'replicad-opencascadejs';
 import { TopoDS_Compound } from 'replicad-opencascadejs';
 import { TopoDS_CompSolid } from 'replicad-opencascadejs';
@@ -37,7 +36,7 @@ import { TopoDS_Shell } from 'replicad-opencascadejs';
 import { TopoDS_Solid } from 'replicad-opencascadejs';
 import { TopoDS_Vertex } from 'replicad-opencascadejs';
 import { TopoDS_Wire } from 'replicad-opencascadejs';
-import type { Vec3 } from 'manifold-3d';
+import { Vec3 } from 'manifold-3d';
 
 export declare abstract class _1DShape<Type extends TopoDS_Shape> extends Shape<Type> {
     protected abstract _geomAdaptor(): CurveLike;
@@ -132,6 +131,23 @@ export declare class _3DShape<Type extends TopoDS_Shape> extends Shape<Type> imp
      * @category Shape Modifications
      */
     chamfer(radiusConfig: RadiusConfig<ChamferRadius>, filter?: (e: EdgeFinder) => EdgeFinder): Shape3D;
+    /**
+     * Applies a draft angle to selected faces of the shape.
+     *
+     * A draft angle is a taper applied to faces, commonly used in moulding
+     * and casting to allow parts to be released from a mould. The selected
+     * faces are tilted by the given angle relative to the neutral plane.
+     *
+     * The face finder function receives a `FaceFinder` and should return it
+     * with the desired filters applied to select which faces to draft.
+     *
+     * The neutral plane defines the reference from which the draft angle is
+     * measured — faces are unchanged where they intersect this plane and
+     * taper away from it.
+     *
+     * @category Shape Modifications
+     */
+    draft(angle: number, faceFinder: (e: FaceFinder) => FaceFinder, neutralPlane?: Plane | PlaneName): AnyShape;
 }
 
 export declare const addHolesInFace: (face: Face, holes: Wire[]) => Face;
@@ -219,7 +235,7 @@ export declare class BaseSketcher2d {
     /**
      * Changes the corner between the previous and next segments.
      */
-    customCorner(radius: number | ((first: Curve2D, second: Curve2D) => Curve2D[]), mode?: "fillet" | "chamfer"): this;
+    customCorner(radius: number | ((first: Curve2D, second: Curve2D) => Curve2D[]), mode?: "fillet" | "chamfer" | "dogbone"): this;
     protected _customCornerLastWithFirst(radius: number | ((f: Curve2D, s: Curve2D) => Curve2D[]), mode?: "fillet" | "chamfer" | "dogbone"): void;
     protected _closeSketch(): void;
     protected _closeWithMirror(): void;
@@ -442,8 +458,9 @@ export declare class CompoundSketch implements SketchInterface {
      * Revolves the drawing on an axis (defined by its direction and an origin
      * (defaults to the sketch origin)
      */
-    revolve(revolutionAxis?: Point, { origin }?: {
+    revolve(revolutionAxis?: Point, { origin, angle }?: {
         origin?: Point;
+        angle?: number;
     }): Shape3D;
     loftWith(otherCompound: this, loftConfig: LoftConfig): Shape3D;
 }
@@ -519,9 +536,9 @@ export declare class Curve extends WrappingObj<CurveLike> {
     get period(): number;
 }
 
-export declare class Curve2D extends WrappingObj<Handle_Geom2d_Curve> {
+export declare class Curve2D extends WrappingObj<Geom2d_Curve> {
     _boundingBox: null | BoundingBox2d;
-    constructor(handle: Handle_Geom2d_Curve);
+    constructor(handle: Geom2d_Curve);
     get boundingBox(): BoundingBox2d;
     get repr(): string;
     get innerCurve(): Geom2d_Curve;
@@ -564,7 +581,7 @@ export declare const cutBlueprints: (first: Blueprint, second: Blueprint) => nul
 
 export declare const DEG2RAD: number;
 
-declare interface Deletable {
+export declare interface Deletable {
     delete: () => void;
 }
 
@@ -914,7 +931,7 @@ export declare interface ExtrusionProfile {
 }
 
 export declare class Face extends Shape<TopoDS_Face> {
-    protected _geomAdaptor(): BRepAdaptor_Surface;
+    protected _geomAdaptor(): Adaptor3d_Surface;
     get surface(): Surface;
     get orientation(): "forward" | "backward";
     flipOrientation(): Face;
@@ -989,7 +1006,7 @@ export declare class FaceSketcher extends BaseSketcher2d implements GenericSketc
     constructor(face: Face, origin?: Point2D);
     protected _convertToUV([x, y]: Point2D): Point2D;
     protected _convertFromUV([u, v]: Point2D): Point2D;
-    _adaptSurface(): Handle_Geom_Surface;
+    _adaptSurface(): Geom_Surface;
     /**
      * @ignore
      */
@@ -1436,7 +1453,7 @@ export declare function genericSweep(wire: Wire, spine: Wire, sweepConfig: Gener
 export declare interface GenericSweepConfig {
     frenet?: boolean;
     auxiliarySpine?: Wire | Edge;
-    law?: null | Handle_Law_Function;
+    law?: null | Law_Function;
     transitionMode?: "right" | "transformed" | "round";
     withContact?: boolean;
     support?: TopoDS_Shape;
@@ -1445,7 +1462,7 @@ export declare interface GenericSweepConfig {
 
 declare type GenericTopo = TopoDS_Vertex | TopoDS_Face | TopoDS_Shape | TopoDS_Edge | TopoDS_Wire | TopoDS_Shell | TopoDS_Vertex | TopoDS_Solid | TopoDS_Compound | TopoDS_CompSolid;
 
-export declare const getFont: (fontFamily?: string) => opentype_2.Font;
+export declare const getFont: (fontFamily?: string) => default_2.Font;
 
 export declare const getManifold: () => ManifoldToplevel;
 
@@ -1460,7 +1477,7 @@ export declare const HASH_CODE_MAX = 2147483647;
  *
  * @category Import
  */
-export declare function importSTEP(STLBlob: Blob): Promise<AnyShape>;
+export declare function importSTEP(STLBlob: Blob): Promise< AnyShape>;
 
 /** Creates a new shapes from a STL file (as a Blob or a File).
  *
@@ -1472,7 +1489,7 @@ export declare function importSTEP(STLBlob: Blob): Promise<AnyShape>;
  *
  * @category Import
  */
-export declare function importSTL(STLBlob: Blob): Promise<AnyShape>;
+export declare function importSTL(STLBlob: Blob): Promise< AnyShape>;
 
 /**
  * Imports an STL file (as a Blob or a File) and creates a MeshShape.
@@ -1511,7 +1528,7 @@ export declare class LinearPhysicalProperties extends PhysicalProperties {
  *
  * The font should be in TTF
  */
-export declare function loadFont(fontPath: string | ArrayBuffer, fontFamily?: string, force?: boolean): Promise<opentype_2.Font>;
+export declare function loadFont(fontPath: string | ArrayBuffer, fontFamily?: string, force?: boolean): Promise<default_2.Font>;
 
 export declare const localGC: (debug?: boolean) => [<T extends Deletable>(v: T) => T, () => void, Set<Deletable> | undefined];
 
@@ -1531,6 +1548,20 @@ export declare const makeAx2: (center: Point, dir: Point, xDir?: Point) => gp_Ax
 
 export declare const makeAx3: (center: Point, dir: Point, xDir?: Point) => gp_Ax3;
 
+/**
+ * Builds a rectangular box of the given lengths.
+ *
+ * The box is centred on the origin in X and Y (spanning `[-x/2, +x/2]` and
+ * `[-y/2, +y/2]`) and corner-based in Z (spanning `[0, +z]`). Translate by
+ * `[0, 0, -z/2]` to centre the box fully, or use {@link makeBox} when you
+ * want explicit two-corner control.
+ *
+ * @example
+ * const slab = makeBaseBox(30, 50, 10);
+ * // slab spans x: [-15, 15], y: [-25, 25], z: [0, 10]
+ *
+ * @category Solids
+ */
 export declare const makeBaseBox: (xLength: number, yLength: number, zLength: number) => Shape3D;
 
 export declare const makeBezierCurve: (points: Point[]) => Edge;
@@ -1562,7 +1593,7 @@ export declare const makeEllipse: (majorRadius: number, minorRadius: number, cen
 export declare const makeEllipseArc: (majorRadius: number, minorRadius: number, startAngle: number, endAngle: number, center?: Point, normal?: Point, xDir?: Point) => Edge;
 
 /**
- * Creates an ellipsoid with the given lengths of the axes.
+ * Creates an ellipsoid with the given lengths of the axes, centred on the origin.
  *
  * @category Solids
  */
@@ -1582,9 +1613,15 @@ export declare const makeOffset: (face: Face, offset: number, tolerance?: number
 
 export declare function makePlane(plane: Plane): Plane;
 
+export declare function makePlane(plane: PlaneName): Plane;
+
+export declare function makePlane(plane: Plane | PlaneName): Plane;
+
 export declare function makePlane(plane?: PlaneName, origin?: Point | number): Plane;
 
 export declare const makePlaneFromFace: (face: Face, originOnSurface?: Point2D) => Plane;
+
+export declare function makePln(origin: Point, dir: Point): gp_Pln;
 
 export declare const makePolygon: (points: Point[]) => Face;
 
@@ -1603,7 +1640,7 @@ export declare function makeProjectedEdges(shape: AnyShape, camera: ProjectionCa
 export declare function makeSolid(facesOrShells: Array<Face | Shell>): Solid;
 
 /**
- * Creates a sphere with the given radius.
+ * Creates a sphere with the given radius, centred on the origin.
  *
  * @category Solids
  */
@@ -1840,6 +1877,14 @@ export declare class Shape<Type extends TopoDS_Shape> extends WrappingObj<Type> 
     isSame(other: AnyShape): boolean;
     isEqual(other: AnyShape): boolean;
     /**
+     * Asserts that this shape is a 3D shape (Shell, Solid, CompSolid, or
+     * Compound) and returns it typed as Shape3D. Throws if the shape is not 3D.
+     *
+     * Useful for chaining after operations that return a generic shape type.
+     *
+     */
+    asShape3D(): Shape3D;
+    /**
      * Simplifies the shape by removing unnecessary edges and faces
      */
     simplify(): this;
@@ -2032,8 +2077,9 @@ export declare class Sketch implements SketchInterface {
      * Revolves the drawing on an axis (defined by its direction and an origin
      * (defaults to the sketch origin)
      */
-    revolve(revolutionAxis?: Point, { origin }?: {
+    revolve(revolutionAxis?: Point, { origin, angle }?: {
         origin?: Point;
+        angle?: number;
     }): Shape3D;
     /** Extrudes the sketch to a certain distance.(along the default direction
      * and origin of the sketch).
@@ -2171,6 +2217,7 @@ export declare class Sketches {
      */
     revolve(revolutionAxis?: Point, config?: {
         origin?: Point;
+        angle?: number;
     }): AnyShape;
 }
 
@@ -2200,6 +2247,7 @@ export declare interface SketchInterface {
      */
     revolve(revolutionAxis?: Point, config?: {
         origin?: Point;
+        angle?: number;
     }): Shape3D;
     /**
      * Extrudes the sketch to a certain distance.(along the default direction
