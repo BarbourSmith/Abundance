@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "../../contexts/index.js";
+import GlobalVariables from "../../js/globalvariables.js";
+import { useAuth } from "../../contexts/AuthContext.jsx";
 
 /**
  * PRNotificationIcon displays pull requests across user's projects
@@ -10,11 +11,13 @@ import { useAuth } from "../../contexts/index.js";
  */
 function PRNotificationIcon({ allProjects = [] }) {
   const navigate = useNavigate();
-  const { user } = useAuth();
   const [showDropdown, setShowDropdown] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const dropdownRef = useRef(null);
   const buttonRef = useRef(null);
+
+  const { githubToken } = useAuth();
 
   // Collect all PRs from all projects
   const allPRs = (() => {
@@ -65,6 +68,41 @@ function PRNotificationIcon({ allProjects = [] }) {
       `/pull/${pr.projectOwner}/${pr.projectName}/${pr.owner}/${pr.repo}?owner=${pr.projectOwner}&pull_number=${pr.pullRequestNumber}`,
     );
     setShowDropdown(false);
+  };
+
+  const handleRefresh = async () => {
+    if (isRefreshing) return;
+
+    setIsRefreshing(true);
+    try {
+      // TODO: Call check-user-prs Lambda to refresh PRs for current user's projects
+      console.log(
+        "Refreshing pull requests for user:",
+        GlobalVariables.currentUser,
+      );
+
+      const response = await fetch(
+        "https://hg5gsgv9te.execute-api.us-east-2.amazonaws.com/abundance-stage/check-user-prs",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${githubToken}`,
+          },
+          body: JSON.stringify({ user: GlobalVariables.currentUser }),
+        },
+      );
+      const data = await response.json();
+      console.log("Refresh response data:", data);
+      // Update allProjects or trigger parent component refresh
+
+      // Simulate a small delay to show the loading state
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    } catch (error) {
+      console.error("Error refreshing pull requests:", error);
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   if (totalCount === 0) {
@@ -156,9 +194,47 @@ function PRNotificationIcon({ allProjects = [] }) {
                 fontSize: "12px",
                 fontWeight: "600",
                 color: "#666",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
               }}
             >
-              Recent Pull Requests ({totalCount} total)
+              <span>Recent Pull Requests ({totalCount} total)</span>
+              <button
+                onClick={handleRefresh}
+                disabled={isRefreshing}
+                title="Refresh pull requests"
+                style={{
+                  background: "none",
+                  border: "none",
+                  cursor: isRefreshing ? "not-allowed" : "pointer",
+                  padding: "2px 4px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: isRefreshing ? "#ccc" : "#666",
+                  fontSize: "14px",
+                  transition: "color 0.2s",
+                  opacity: isRefreshing ? 0.6 : 1,
+                }}
+                onMouseEnter={(e) =>
+                  !isRefreshing && (e.target.style.color = "#333")
+                }
+                onMouseLeave={(e) => (e.target.style.color = "#666")}
+              >
+                {isRefreshing ? (
+                  <span
+                    style={{
+                      animation: "spin 1s linear infinite",
+                      display: "inline-block",
+                    }}
+                  >
+                    ↻
+                  </span>
+                ) : (
+                  "↻"
+                )}
+              </button>
             </div>
 
             {/* Recent PRs List */}
@@ -410,6 +486,16 @@ function PRNotificationIcon({ allProjects = [] }) {
           </div>
         </div>
       )}
+      <style>{`
+        @keyframes spin {
+          from {
+            transform: rotate(0deg);
+          }
+          to {
+            transform: rotate(360deg);
+          }
+        }
+      `}</style>
     </>
   );
 }
