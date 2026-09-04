@@ -1,0 +1,18 @@
+# Cloudflare Wrangler Configuration for Abundance
+# Deploy with: wrangler publish --env production
+
+name = "abundance-crawler-worker"
+main = "cloudflare/worker.js"
+compatibility_date = "2024-01-01"
+
+# Local development
+[env.development]
+routes = [
+  { pattern = "http://localhost:8787/*", zone_name = "localhost" }
+]
+
+# Production deployment
+[env.production]
+routes = [
+  { pattern = "https://abundance.maslowcnc.com/*", zone_id = "e7ec4eeb4e0f671c16cb45505f9c8865" }
+]
