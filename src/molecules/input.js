@@ -69,6 +69,7 @@ export default class Input extends Atom {
     this.SVGwidth = 10;
     this.importOptions = ["SVG", "STL", "STEP"];
     this.importIndex = 0;
+    this.options = [];
 
     /**
      * Properties for local file processing (not saved to GitHub)
@@ -118,6 +119,15 @@ export default class Input extends Atom {
     // Set values first to ensure type is set correctly
     this.setValues(values);
 
+    if (
+      this.type === "dropdown" &&
+      Array.isArray(this.options) &&
+      this.options.length > 0 &&
+      (this.value === 10 || this.value === null || this.value === undefined)
+    ) {
+      this.value = this.options[0];
+    }
+
     if (this.fileType && this.importOptions.includes(this.fileType)) {
       this.importIndex = this.importOptions.indexOf(this.fileType);
     }
@@ -161,6 +171,14 @@ export default class Input extends Atom {
               ? { ...this.options, edgeSelectType: true, inputAtom: this }
               : this.type === "faceselect"
                 ? { ...this.options, faceSelectType: true, inputAtom: this }
+                : this.type === "dropdown"
+                  ? {
+                      dropdownType: true,
+                      dropdownOptions: Array.isArray(this.options)
+                        ? [...this.options]
+                        : [],
+                      inputAtom: this,
+                    }
                 : this.options;
 
       // parent should subscribe so it can manage it's ready/processing/etc state
@@ -171,7 +189,9 @@ export default class Input extends Atom {
           this.type === "edgeselect" ||
           this.type === "faceselect"
           ? "geometry"
-          : this.type,
+          : this.type === "dropdown"
+            ? "string"
+            : this.type,
         this.value,
         "input",
         inputOptions,
@@ -187,6 +207,8 @@ export default class Input extends Atom {
         (this.min !== undefined || this.max !== undefined)
       ) {
         this.updateParentAPRangeOptions();
+      } else if (this.type === "dropdown" && Array.isArray(this.options)) {
+        this.updateParentAPDropdownOptions();
       }
     } else {
       throw new Error(
@@ -1328,6 +1350,17 @@ export default class Input extends Atom {
     }
   }
 
+  updateParentAPDropdownOptions() {
+    if (this.parentAP && this.type === "dropdown") {
+      this.parentAP.options = {
+        ...this.parentAP.options,
+        dropdownType: true,
+        dropdownOptions: Array.isArray(this.options) ? [...this.options] : [],
+        inputAtom: this,
+      };
+    }
+  }
+
   /**
    * Helper method to update parent attachment point options with current min/max values
    */
@@ -1394,6 +1427,7 @@ export default class Input extends Atom {
       options: [
         "number",
         "string",
+          "dropdown",
         "geometry",
         "array",
         "boolean",
@@ -1450,6 +1484,18 @@ export default class Input extends Atom {
             this.parentAP.valueType = outputType;
             if (newType === "import") {
               this.updateParentAPOptions();
+            } else if (newType === "dropdown") {
+              this.updateParentAPDropdownOptions();
+              if (
+                Array.isArray(this.options) &&
+                this.options.length > 0 &&
+                (this.value === 10 || this.value === null || this.value === undefined)
+              ) {
+                this.value = this.options[0];
+                if (this.output) {
+                  this.output.setReady(this.value);
+                }
+              }
             } else if (newType === "partselect") {
               this.updateParentAPPartSelectOptions();
             } else if (newType === "edgeselect") {
@@ -1458,12 +1504,16 @@ export default class Input extends Atom {
               this.updateParentAPFaceSelectOptions();
             } else if (
               this.parentAP.options?.importType ||
+              this.parentAP.options?.dropdownType ||
               this.parentAP.options?.partSelectType ||
               this.parentAP.options?.edgeSelectType ||
               this.parentAP.options?.faceSelectType
             ) {
               this.parentAP.options = {};
             }
+          }
+          if (typeof setInputChanged === "function") {
+            setInputChanged(newType);
           }
           // Reset selection state when switching away from selection types
           if (newType !== "partselect") this.selectedLeafIndexes = [];
@@ -1508,6 +1558,59 @@ export default class Input extends Atom {
             this.parentAP.options = this.options;
           }
           this.setInputChanged(newArr);
+        },
+      };
+    }
+
+    // If type is dropdown, add a multiline editor for the valid options list.
+    if (this.type === "dropdown") {
+      const dropdownOptionsText = Array.isArray(this.options)
+        ? this.options.join("\n")
+        : "";
+      inputParams[this.uniqueID + "dropdownOptions"] = {
+        type: "string",
+        value: dropdownOptionsText,
+        label: "Dropdown Options",
+        disabled: false,
+        multiline: true,
+        rows: 5,
+        onChange: (value) => {
+          const newOptions = String(value)
+            .split(/\r?\n/)
+            .map((option) => option.trim())
+            .filter((option) => option.length > 0);
+          if (!GlobalVariables.isUndoing && this.parent) {
+            const oldOptions = Array.isArray(this.options)
+              ? [...this.options]
+              : [];
+            GlobalVariables.pushUndoCommand(
+              new ValueChangeCommand(
+                this.uniqueID,
+                this.parent,
+                "dropdownOptions",
+                oldOptions,
+                (atom, oldVal) => {
+                  atom.options = Array.isArray(oldVal) ? [...oldVal] : [];
+                  atom.updateParentAPDropdownOptions();
+                  if (typeof atom.setInputChanged === "function")
+                    atom.setInputChanged(oldVal);
+                },
+                `Change dropdown options`,
+              ),
+            );
+          }
+          this.options = newOptions;
+          if (
+            newOptions.length > 0 &&
+            (this.value === 10 || this.value === null || this.value === undefined)
+          ) {
+            this.value = newOptions[0];
+            if (this.output) {
+              this.output.setReady(this.value);
+            }
+          }
+          this.updateParentAPDropdownOptions();
+          this.setInputChanged(newOptions);
         },
       };
     }
