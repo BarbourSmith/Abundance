@@ -42,18 +42,49 @@ function isCrawler(userAgent) {
 /**
  * Parse project owner and repo from URL path
  * Handles: /run/owner/repo, /owner/repo, /preview/owner/repo
+ * Only matches exactly these patterns (no extra path segments)
  */
 function parseProjectFromUrl(urlString) {
   try {
     const url = new URL(urlString);
     const pathname = url.pathname;
 
-    // Path-based routing: /run/owner/repo or /owner/repo or /preview/owner/repo
-    const pathMatch = pathname.match(
-      /^\/(?:run\/|preview\/)?([^/]+)\/([^/?#]+)/,
-    );
-    if (pathMatch) {
-      return { owner: pathMatch[1], repo: pathMatch[2] };
+    // Don't treat static assets as project routes
+    if (
+      pathname.startsWith("/assets/") ||
+      pathname.startsWith("/public/") ||
+      pathname.endsWith(".wasm") ||
+      pathname.endsWith(".js") ||
+      pathname.endsWith(".css") ||
+      pathname.endsWith(".png") ||
+      pathname.endsWith(".jpg") ||
+      pathname.endsWith(".svg") ||
+      pathname.endsWith(".json")
+    ) {
+      return null;
+    }
+
+    // Path-based routing: /run/owner/repo, /owner/repo, or /preview/owner/repo
+    // Must match exactly - no extra path segments after repo name
+    // Split path into segments to ensure exact matching
+    const segments = pathname.split("/").filter((s) => s.length > 0);
+
+    // Check for /run/owner/repo (3 segments)
+    if (segments.length === 3 && segments[0] === "run") {
+      return { owner: segments[1], repo: segments[2] };
+    }
+
+    // Check for /preview/owner/repo (3 segments)
+    if (segments.length === 3 && segments[0] === "preview") {
+      return { owner: segments[1], repo: segments[2] };
+    }
+
+    // Check for /owner/repo (2 segments, and not a known non-project path)
+    if (
+      segments.length === 2 &&
+      !["assets", "public", "api", "auth", "admin"].includes(segments[0])
+    ) {
+      return { owner: segments[0], repo: segments[1] };
     }
   } catch (e) {
     console.error("Error parsing URL:", e);
@@ -186,70 +217,71 @@ export default {
     const userAgent = request.headers.get("user-agent") || "";
     const url = request.url;
 
-    logDebug(`FETCH_START URL=${url} UA=${userAgent}`);
+    logDebug(`FETCH_START URL=${url}`);
 
-    // Parse project info from URL first (applies to ALL requests, not just crawlers)
+    // Only intercept for crawlers
+    if (!isCrawler(userAgent)) {
+      logDebug(`NOT_A_CRAWLER - passthrough`);
+      return fetch(request);
+    }
+
+    logDebug(`CRAWLER_DETECTED`);
+
+    // Parse project info from URL
     const project = parseProjectFromUrl(url);
     logDebug(`PROJECT_PARSED: ${JSON.stringify(project)}`);
 
-    // If this is a project route, handle it specially
-    if (project) {
-      try {
-        // Fetch index.html directly (GitHub Pages serves all routes from index.html)
-        const indexUrl = new URL(request.url);
-        indexUrl.pathname = "/index.html";
-        const baseResponse = await fetch(indexUrl.toString());
-        logDebug(`ORIGIN_RESPONSE: status=${baseResponse.status}`);
+    if (!project) {
+      logDebug(`NOT_A_PROJECT_URL - passthrough`);
+      return fetch(request);
+    }
 
-        if (baseResponse.ok) {
-          let html = await baseResponse.text();
-          logDebug(`HTML_FETCHED: length=${html.length}`);
+    try {
+      // Fetch index.html directly (GitHub Pages serves all routes from index.html)
+      const indexUrl = new URL(request.url);
+      indexUrl.pathname = "/index.html";
+      const baseResponse = await fetch(indexUrl.toString());
+      logDebug(`ORIGIN_RESPONSE: status=${baseResponse.status}`);
 
-          // For crawlers, inject meta tags
-          if (isCrawler(userAgent)) {
-            logDebug(`CRAWLER_DETECTED`);
+      if (baseResponse.ok) {
+        let html = await baseResponse.text();
+        logDebug(`HTML_FETCHED: length=${html.length}`);
 
-            // Fetch project metadata from GitHub
-            const projectData = await fetchProjectMetadata(
-              project.owner,
-              project.repo,
-            );
-            logDebug(
-              `GITHUB_METADATA_FETCHED: ${projectData ? "success" : "failed"}`,
-            );
+        // Fetch project metadata from GitHub
+        const projectData = await fetchProjectMetadata(
+          project.owner,
+          project.repo,
+        );
+        logDebug(
+          `GITHUB_METADATA_FETCHED: ${projectData ? "success" : "failed"}`,
+        );
 
-            // Inject meta tags into HTML
-            if (projectData) {
-              html = injectMetaTags(html, projectData);
-              logDebug(`META_TAGS_INJECTED`);
-            }
-          } else {
-            logDebug(`NOT_A_CRAWLER`);
-          }
-
-          // Return response (with or without injected meta tags)
-          logDebug(`RETURNING_RESPONSE: status=200`);
-          return new Response(html, {
-            status: 200,
-            statusText: "OK",
-            headers: {
-              "content-type": "text/html; charset=utf-8",
-              "cache-control": "public, max-age=3600, s-maxage=86400",
-              "x-worker-processed": "true",
-            },
-          });
-        } else {
-          logDebug(`ORIGIN_NOT_OK: status=${baseResponse.status}`);
+        // Inject meta tags into HTML
+        if (projectData) {
+          html = injectMetaTags(html, projectData);
+          logDebug(`META_TAGS_INJECTED`);
         }
-      } catch (error) {
-        logDebug(`ERROR_IN_PROJECT_PATH: ${error.message}`);
+
+        // Return response with meta tags injected
+        logDebug(`RETURNING_CUSTOM_RESPONSE: status=200`);
+        return new Response(html, {
+          status: 200,
+          statusText: "OK",
+          headers: {
+            "content-type": "text/html; charset=utf-8",
+            "cache-control": "public, max-age=3600, s-maxage=86400",
+            "x-worker-processed": "true",
+          },
+        });
+      } else {
+        logDebug(`ORIGIN_NOT_OK: status=${baseResponse.status}`);
       }
-    } else {
-      logDebug(`NOT_A_PROJECT_URL`);
+    } catch (error) {
+      logDebug(`ERROR: ${error.message}`);
     }
 
     logDebug(`PASSTHROUGH_TO_ORIGIN`);
-    // For non-project URLs, pass through to origin
+    // Fallback: pass through to origin
     return fetch(request);
   },
 };
