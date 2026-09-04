@@ -1527,6 +1527,49 @@ export default class Atom extends ObservableEntity {
               };
             }
           }
+        } else if (input.options?.dropdownType) {
+          const inputAtom = input.options.inputAtom;
+          if (inputAtom) {
+            inputAtom._panelSetInputChanged = setInputChanged;
+            const dropdownOptions = Array.isArray(input.options.dropdownOptions)
+              ? input.options.dropdownOptions
+              : [];
+            const displayValue = hasConnector ? input.getValue() : input.value;
+            inputParams[this.uniqueID + input.name + "_dropdown"] = {
+              type: "select",
+              value:
+                displayValue !== undefined && displayValue !== null
+                  ? displayValue
+                  : dropdownOptions[0] ?? "",
+              label: input.name,
+              options: dropdownOptions,
+              disabled: hasConnector,
+              onChange: (value) => {
+                if (input.value !== value) {
+                  if (!GlobalVariables.isUndoing && this.parent) {
+                    const oldVal = input.value;
+                    const inputName = input.name;
+                    GlobalVariables.pushUndoCommand(
+                      new ValueChangeCommand(
+                        this.uniqueID,
+                        this.parent,
+                        inputName,
+                        oldVal,
+                        (atom, val) => {
+                          const inp = atom.inputs.find(
+                            (i) => i.name === inputName,
+                          );
+                          if (inp) inp.setValue(val);
+                        },
+                        `Change ${this.name} "${input.name}"`,
+                      ),
+                    );
+                  }
+                  input.setValue(value);
+                }
+              },
+            };
+          }
         } else if (input.valueType === "string") {
           /* Makes inputs for Io's other than geometry */
           // When connector is attached, show the value from upstream connection
