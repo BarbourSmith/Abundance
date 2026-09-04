@@ -4,6 +4,15 @@
  * Serves React app normally to regular users
  */
 
+// Reliable logging to observability
+function logDebug(msg) {
+  console.log(`[Worker] ${msg}`);
+  // Also try to write to stderr for reliability
+  if (typeof globalThis !== "undefined" && globalThis.DEBUG) {
+    console.error(`[Worker] ${msg}`);
+  }
+}
+
 // List of crawler user-agent patterns
 const CRAWLER_PATTERNS = [
   /googlebot/i,
@@ -33,18 +42,49 @@ function isCrawler(userAgent) {
 /**
  * Parse project owner and repo from URL path
  * Handles: /run/owner/repo, /owner/repo, /preview/owner/repo
+ * Only matches exactly these patterns (no extra path segments)
  */
 function parseProjectFromUrl(urlString) {
   try {
     const url = new URL(urlString);
     const pathname = url.pathname;
 
-    // Path-based routing: /run/owner/repo or /owner/repo or /preview/owner/repo
-    const pathMatch = pathname.match(
-      /^\/(?:run\/|preview\/)?([^/]+)\/([^/?#]+)/,
-    );
-    if (pathMatch) {
-      return { owner: pathMatch[1], repo: pathMatch[2] };
+    // Don't treat static assets as project routes
+    if (
+      pathname.startsWith("/assets/") ||
+      pathname.startsWith("/public/") ||
+      pathname.endsWith(".wasm") ||
+      pathname.endsWith(".js") ||
+      pathname.endsWith(".css") ||
+      pathname.endsWith(".png") ||
+      pathname.endsWith(".jpg") ||
+      pathname.endsWith(".svg") ||
+      pathname.endsWith(".json")
+    ) {
+      return null;
+    }
+
+    // Path-based routing: /run/owner/repo, /owner/repo, or /preview/owner/repo
+    // Must match exactly - no extra path segments after repo name
+    // Split path into segments to ensure exact matching
+    const segments = pathname.split("/").filter((s) => s.length > 0);
+
+    // Check for /run/owner/repo (3 segments)
+    if (segments.length === 3 && segments[0] === "run") {
+      return { owner: segments[1], repo: segments[2] };
+    }
+
+    // Check for /preview/owner/repo (3 segments)
+    if (segments.length === 3 && segments[0] === "preview") {
+      return { owner: segments[1], repo: segments[2] };
+    }
+
+    // Check for /owner/repo (2 segments, and not a known non-project path)
+    if (
+      segments.length === 2 &&
+      !["assets", "public", "api", "auth", "admin"].includes(segments[0])
+    ) {
+      return { owner: segments[0], repo: segments[1] };
     }
   } catch (e) {
     console.error("Error parsing URL:", e);
@@ -58,8 +98,22 @@ function parseProjectFromUrl(urlString) {
  */
 async function fetchProjectMetadata(owner, repo) {
   try {
-    // Construct GitHub raw image URL (always accessible)
-    const imageUrl = `https://raw.githubusercontent.com/${owner}/${repo}/main/project.png`;
+    // Construct GitHub raw image URL
+    const projectImageUrl = `https://raw.githubusercontent.com/${owner}/${repo}/main/project.png`;
+    const defaultImageUrl =
+      "https://abundance.maslowcnc.com/assets/abundance_logo-BkAK_rm1.png";
+
+    // Try to fetch the project image to see if it exists
+    let imageUrl = defaultImageUrl; // Default fallback
+    try {
+      const imageResponse = await fetch(projectImageUrl, { method: "HEAD" });
+      if (imageResponse.ok) {
+        imageUrl = projectImageUrl;
+      }
+    } catch (e) {
+      // If check fails, use default
+      logDebug(`IMAGE_CHECK_FAILED: using default`);
+    }
 
     // Fetch repo metadata from GitHub API (public endpoint, no auth)
     const repoResponse = await fetch(
@@ -119,6 +173,13 @@ function injectMetaTags(html, project) {
 
   const { title, description, imageUrl, projectUrl } = project;
 
+  // Remove old og: and twitter: meta tags from the HTML
+  html = html.replace(
+    /<meta\s+(?:property|name)="(?:og:|twitter:)[^"]*"[^>]*>/gi,
+    "",
+  );
+  html = html.replace(/<meta\s+name="description"[^>]*>/gi, "");
+
   // Meta tags to inject for social media crawlers
   const metaTags = `
     <meta property="og:type" content="website" />
@@ -156,54 +217,71 @@ export default {
     const userAgent = request.headers.get("user-agent") || "";
     const url = request.url;
 
-    console.log(`[Worker] URL: ${url}`);
-    console.log(`[Worker] User-Agent: ${userAgent}`);
-    console.log(`[Worker] Is Crawler: ${isCrawler(userAgent)}`);
+    logDebug(`FETCH_START URL=${url}`);
 
-    // Check if this is a crawler request
-    if (isCrawler(userAgent)) {
-      // Parse project info from URL
-      const project = parseProjectFromUrl(url);
-      console.log(`[Worker] Parsed Project:`, project);
-
-      if (project) {
-        // Fetch the base HTML
-        const baseResponse = await fetch(request.clone());
-        console.log(`[Worker] Base Response OK: ${baseResponse.ok}`);
-
-        if (baseResponse.ok) {
-          let html = await baseResponse.text();
-          console.log(`[Worker] HTML length: ${html.length}`);
-
-          // Fetch project metadata from GitHub
-          const projectData = await fetchProjectMetadata(
-            project.owner,
-            project.repo,
-          );
-          console.log(`[Worker] Project Data:`, projectData);
-
-          // Inject meta tags into HTML
-          if (projectData) {
-            html = injectMetaTags(html, projectData);
-            console.log(`[Worker] Meta tags injected`);
-          }
-
-          // Return modified response with cache headers
-          return new Response(html, {
-            status: 200,
-            statusText: "OK",
-            headers: {
-              "content-type": "text/html; charset=utf-8",
-              "cache-control": "public, max-age=3600, s-maxage=86400",
-              "cf-cache-status": "HIT",
-            },
-          });
-        }
-      }
+    // Only intercept for crawlers
+    if (!isCrawler(userAgent)) {
+      logDebug(`NOT_A_CRAWLER - passthrough`);
+      return fetch(request);
     }
 
-    console.log(`[Worker] Passing through to origin`);
-    // For non-crawlers or non-project URLs, pass through to origin
+    logDebug(`CRAWLER_DETECTED`);
+
+    // Parse project info from URL
+    const project = parseProjectFromUrl(url);
+    logDebug(`PROJECT_PARSED: ${JSON.stringify(project)}`);
+
+    if (!project) {
+      logDebug(`NOT_A_PROJECT_URL - passthrough`);
+      return fetch(request);
+    }
+
+    try {
+      // Fetch index.html directly (GitHub Pages serves all routes from index.html)
+      const indexUrl = new URL(request.url);
+      indexUrl.pathname = "/index.html";
+      const baseResponse = await fetch(indexUrl.toString());
+      logDebug(`ORIGIN_RESPONSE: status=${baseResponse.status}`);
+
+      if (baseResponse.ok) {
+        let html = await baseResponse.text();
+        logDebug(`HTML_FETCHED: length=${html.length}`);
+
+        // Fetch project metadata from GitHub
+        const projectData = await fetchProjectMetadata(
+          project.owner,
+          project.repo,
+        );
+        logDebug(
+          `GITHUB_METADATA_FETCHED: ${projectData ? "success" : "failed"}`,
+        );
+
+        // Inject meta tags into HTML
+        if (projectData) {
+          html = injectMetaTags(html, projectData);
+          logDebug(`META_TAGS_INJECTED`);
+        }
+
+        // Return response with meta tags injected
+        logDebug(`RETURNING_CUSTOM_RESPONSE: status=200`);
+        return new Response(html, {
+          status: 200,
+          statusText: "OK",
+          headers: {
+            "content-type": "text/html; charset=utf-8",
+            "cache-control": "public, max-age=3600, s-maxage=86400",
+            "x-worker-processed": "true",
+          },
+        });
+      } else {
+        logDebug(`ORIGIN_NOT_OK: status=${baseResponse.status}`);
+      }
+    } catch (error) {
+      logDebug(`ERROR: ${error.message}`);
+    }
+
+    logDebug(`PASSTHROUGH_TO_ORIGIN`);
+    // Fallback: pass through to origin
     return fetch(request);
   },
 };
