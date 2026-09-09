@@ -2,9 +2,11 @@ import { useState, useEffect, useCallback, useRef } from "react";
 
 // Placeholder list of featured projects
 const FEATURED_PROJECTS = [
-  { owner: "alzatin", repoName: "Test_Colab" },
   { owner: "alzatin", repoName: "shoe_closet_rack" },
   { owner: "BarbourSmith", repoName: "Parametric_Plant_Stand" },
+  { owner: "BarbourSmith", repoName: "Tree_House" },
+  { owner: "BarbourSmith", repoName: "Sauna_Boat_2.0" },
+  { owner: "BarbourSmith", repoName: "Motor_Mounting_Bracket" },
 ];
 
 const GITHUB_RAW_URL = "https://raw.githubusercontent.com";

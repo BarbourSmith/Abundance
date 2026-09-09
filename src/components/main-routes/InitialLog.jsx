@@ -105,7 +105,13 @@ const InitialLog = ({ setNoUserBrowsing }) => {
             </button>
             <p className="message" style={{ fontSize: "13px" }}>
               Don't have a Github account?{" "}
-              <a href="https://github.com/join">Create an account</a>
+              <a
+                href="https://github.com/join"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Create an account
+              </a>
             </p>
           </form>
         </div>
