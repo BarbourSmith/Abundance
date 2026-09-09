@@ -73,12 +73,7 @@ const InitialLog = ({ setNoUserBrowsing }) => {
           </p>
         </div>
       </div>
-      <div
-        className="logindiv"
-        style={{
-          margin: "100px 30px 10px 0px",
-        }}
-      >
+      <div className="logindiv logoButtonBlock">
         <img
           className="logo"
           src={

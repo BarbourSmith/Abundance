@@ -182,9 +182,7 @@ const Callback = ({ setRedirectType }) => {
             />
           </div>
           {isAuthorized ? (
-            <p style={{ padding: "0 20px" }}>
-              Welcome. Redirecting you to your projects...
-            </p>
+            <p>Welcome. Redirecting you to your projects...</p>
           ) : (
             <p style={{ padding: "0 20px" }}>Logging you in ...</p>
           )}
