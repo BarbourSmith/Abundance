@@ -54,6 +54,23 @@ const InitialLog = ({ setNoUserBrowsing }) => {
               alt="rotate feature"
             />
           )}
+          <p
+            className="message"
+            style={{
+              fontSize: "13px",
+              marginTop: "10px",
+              textAlign: "right",
+              paddingRight: "10px",
+            }}
+          >
+            <a
+              href={`https://abundance.maslowcnc.com/run/${project ? `${project.owner}/${project.repoName}` : ""}`}
+              target="_blank"
+              style={{ color: "gray", textDecoration: "none" }}
+            >
+              {project ? `${project.owner} / ${project.repoName}` : "unknown"}
+            </a>
+          </p>
         </div>
       </div>
       <div className="logindiv">
@@ -64,6 +81,7 @@ const InitialLog = ({ setNoUserBrowsing }) => {
           }
           alt="logo"
         />
+
         {/* <div id="welcome">
           <img
             src={
@@ -127,6 +145,16 @@ const InitialLog = ({ setNoUserBrowsing }) => {
           >
             Explore our library
           </button>
+          <p className="message" style={{ fontSize: "13px" }}>
+            What is Abundance?{" "}
+            <a
+              href="https://abundance.com/user-guide"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Take a look at our user guide
+            </a>
+          </p>
         </div>
       </div>
     </div>

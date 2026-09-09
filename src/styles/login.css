@@ -40,7 +40,7 @@
   height: 100%;
 }
 .right-login-div {
-  padding: 1%;
+  padding: 2%;
   margin: 5% 5% 0 5%;
   align-items: center;
   justify-content: center;
@@ -604,10 +604,11 @@
   background: none;
 }
 .longButton {
+  position: relative;
   float: right;
   height: 2em;
   background-color: var(--settingsPopup-closeButton);
-  margin: 5px;
+  margin: 10px;
   border-radius: 5px;
   color: var(--settingsPopup-text);
   cursor: pointer;
@@ -1063,13 +1064,18 @@
 }
 
 @media (min-width: 768px) {
+  .top-banner {
+    position: fixed;
+    top: 40px;
+    left: 30px;
+  }
   .form {
     width: 100%;
     margin: 0 auto 100px;
     padding: 30px;
   }
   .login-page {
-    padding-top: 50px;
+    padding-top: 100px;
     display: flex;
     flex-direction: row;
     justify-content: space-between;
@@ -1107,7 +1113,7 @@
     height: 100%;
   }
   .right-login-div {
-    margin: 0% 0% 0 0;
+    margin: 2% 0% 0 0;
     width: 80%;
     height: 100%;
   }

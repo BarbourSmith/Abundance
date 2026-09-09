@@ -1907,7 +1907,7 @@ function LoginMode() {
           </button>
         ) : null}
       </div>
-      <div className="top-banner" style={{ margin: "20px 0px 30px 30px" }}>
+      <div className="top-banner">
         <div id="welcome-logo">
           <img
             src={
