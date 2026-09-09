@@ -36,7 +36,7 @@ const InitialLog = ({ setNoUserBrowsing }) => {
               style={{
                 marginLeft: "10%",
                 width: "90%",
-                height: "90%",
+                height: "80%",
                 objectFit: "cover",
               }}
               onError={(e) => {
@@ -73,7 +73,12 @@ const InitialLog = ({ setNoUserBrowsing }) => {
           </p>
         </div>
       </div>
-      <div className="logindiv">
+      <div
+        className="logindiv"
+        style={{
+          margin: "100px 30px 10px 0px",
+        }}
+      >
         <img
           className="logo"
           src={

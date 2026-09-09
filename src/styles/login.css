@@ -100,7 +100,6 @@
   margin: auto;
 }
 .logindiv {
-  margin: 100px 10px 0 10px;
   position: relative;
   width: 95%;
   box-sizing: border-box;
@@ -472,6 +471,7 @@
 
 .new-project-form input {
   width: 100%;
+  border-radius: 5px;
 }
 
 .validation-errors {
@@ -514,39 +514,38 @@
   font-family: "Roboto", sans-serif;
   outline: 0;
   background: var(--newProject-form-input);
-  border: 0;
-  margin: 0 0 10px;
+  border: 1px solid var(--abundance-color-fontLightGrey);
   padding: 9px;
   box-sizing: border-box;
   font-size: 14px;
-  color: var(--newProject-form-input-text);
+  color: var(--settingsPopup-text);
 }
 .form label {
   color: var(--settingsPopup-text);
-  font-size: 14px;
-  margin-bottom: 0px;
+  font-size: 15px;
+  margin-top: 10px;
   font-family: "Roboto", sans-serif;
-  text-transform: uppercase;
+  /* text-transform: uppercase; */
   display: inline-block;
 }
 
 .form select {
   font-family: "Roboto", sans-serif;
   outline: 0;
-  background: var(--settingsPopup-text);
+  background: var(--newProject-form-input);
+  border: 1px solid var(--abundance-color-fontLightGrey);
+  color: var(--settingsPopup-text);
   width: 100%;
-  border: 0;
-  margin: 0 0 15px;
   padding: 9px;
   box-sizing: border-box;
   font-size: 14px;
+  border-radius: 5px;
 }
 .form h2 {
   color: var(--settingsPopup-text);
   font-size: 17px;
   margin-bottom: 5px;
   font-family: "Roboto", sans-serif;
-  text-transform: uppercase;
 }
 .submit-button,
 .submit-btn {
@@ -714,7 +713,7 @@
   border-radius: 5px 5px;
   color: var(--newProject-form-input-text);
   outline: none;
-  background-color: var(--newProject-form-input);
+  background-color: var(--abundance-color-hightlightOffWhite);
 }
 
 #sorting-button-div {
@@ -725,7 +724,7 @@
   align-self: center;
   border: 1px solid var(--loginPopup-input);
   color: var(--newProject-form-input-text);
-  background-color: var(--newProject-form-input);
+  background-color: var(--abundance-color-hightlightOffWhite);
   border-radius: 5px 5px;
   outline: none;
 }
@@ -853,8 +852,7 @@
   border: 3px solid rgba(192, 105, 247, 0.546);
 }
 .basic-multi-select {
-  margin: 15px 0px 15px 0px;
-  height: 100%;
+  margin: 0px;
   width: 100%;
 }
 
@@ -1070,8 +1068,8 @@
     left: 30px;
   }
   .form {
-    width: 100%;
-    margin: 0 auto 100px;
+    width: 50%;
+    margin: 0 auto;
     padding: 30px;
   }
   .login-page {
@@ -1081,6 +1079,7 @@
     justify-content: space-between;
     width: 100%;
     height: 100%;
+    max-height: 100vh;
     margin: 0;
     box-sizing: border-box;
     overflow: hidden;
@@ -1103,6 +1102,7 @@
   .login-logo {
     width: 200px;
   }
+
   .left-login-div {
     display: block;
     padding: 1%;

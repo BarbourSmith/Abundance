@@ -1805,29 +1805,30 @@ function LoginMode() {
   if (isRestoringSession) {
     // Show loading state while checking for cached token
     popUpContent = (
-      <div className="login-page">
-        <div className="form animate fadeInUp one">
-          <div id="gitSide" className="logindiv">
+      <div
+        className="form animate fadeInUp one"
+        style={{ margin: "100px auto" }}
+      >
+        <div id="restoring-popup-inner-div" className="logindiv">
+          <img
+            className="logo"
+            src={
+              import.meta.env.VITE_APP_PATH_FOR_PICS +
+              "/imgs/abundance_logo.png"
+            }
+            alt="logo"
+          />
+          <div id="welcome">
             <img
-              className="logo"
               src={
                 import.meta.env.VITE_APP_PATH_FOR_PICS +
-                "/imgs/abundance_logo.png"
+                "/imgs/abundance_lettering.png"
               }
               alt="logo"
+              className="login-logo"
             />
-            <div id="welcome">
-              <img
-                src={
-                  import.meta.env.VITE_APP_PATH_FOR_PICS +
-                  "/imgs/abundance_lettering.png"
-                }
-                alt="logo"
-                className="login-logo"
-              />
-            </div>
-            <p style={{ padding: "0 20px" }}>Restoring your session...</p>
           </div>
+          <p style={{ padding: "0 20px" }}>Restoring your session...</p>
         </div>
       </div>
     );

@@ -232,6 +232,19 @@ const NewProjectPopUp = ({ setExportPopUp, authorizedUserOcto, exporting }) => {
           >
             X
           </button>
+          <h2
+            style={{
+              textAlign: "left",
+              color: "var( --abundance-color-fontWhite)",
+              margin: "10px 0 30px 0",
+              fontFamily: "Roboto, sans-serif",
+              textTransform: "none",
+            }}
+          >
+            {exporting
+              ? "Export this molecule to Github"
+              : "Create a New Project"}
+          </h2>
           <form
             className="new-project-form"
             style={{ scrollbarGutter: "stable", overflow: "visible" }}
@@ -239,11 +252,6 @@ const NewProjectPopUp = ({ setExportPopUp, authorizedUserOcto, exporting }) => {
               handleSubmit(e);
             }}
           >
-            <h2>
-              {exporting
-                ? "Export this molecule to Github"
-                : "Create a New Project"}
-            </h2>
             {validationErrors.length > 0 && (
               <div className="validation-errors">
                 <strong>Validation Issues:</strong>
@@ -290,7 +298,7 @@ const NewProjectPopUp = ({ setExportPopUp, authorizedUserOcto, exporting }) => {
               placeholder="Project Description"
               ref={projectDescriptionRef}
             />
-            <label htmlFor="project-topics">Project Tags</label>
+            <label htmlFor="project-topics">Project Tags </label>
             <CreatableSelect
               defaultValue={[]}
               isMulti
@@ -300,9 +308,27 @@ const NewProjectPopUp = ({ setExportPopUp, authorizedUserOcto, exporting }) => {
               classNamePrefix="select"
               ref={projectTopicRef}
               onKeyDown={(e) => handleKeyDown(e, "topic")}
+              styles={{
+                control: (base, state) => ({
+                  ...base,
+                  backgroundColor: "var(--abundance-color-darkGrey)",
+                  borderColor: "var(--abundance-color-fontLightGrey)",
+                }),
+                menu: (base, state) => ({
+                  ...base,
+                  color: "var(--abundance-color-fontWhite)",
+                  backgroundColor: "var(--abundance-color-fontLightGrey)",
+                }),
+                option: (base, state) => ({
+                  ...base,
+                  backgroundColor: state.isHovered
+                    ? "var(--abundance-color-darkGrey)"
+                    : "var(--abundance-color-fontLightGrey)",
+                }),
+              }}
             />
 
-            <div style={{ borderTop: "1px solid #ccc", padding: "10px 0" }} />
+            <div style={{ borderTop: "1px solid #ccc", margin: "20px 0" }} />
 
             <button className="submit-button" disabled={pending} type="submit">
               {pending ? newProjectBar + "%" : "Submit/Export to Github"}
