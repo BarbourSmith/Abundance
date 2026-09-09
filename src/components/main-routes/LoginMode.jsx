@@ -216,6 +216,13 @@ const AddProject = ({ projectsLoaded, authorizedUserOcto, projectToShow }) => {
 
 const FeaturedCarousel = () => {
   const { imageUrl, loading, project } = useRotatingFeaturedImage(5000);
+  const navigate = useNavigate();
+
+  const handleCarouselClick = () => {
+    if (project) {
+      navigate(`/run/${project.owner}/${project.repoName}`);
+    }
+  };
 
   return (
     <div
@@ -228,6 +235,7 @@ const FeaturedCarousel = () => {
       }}
     >
       <div
+        onClick={handleCarouselClick}
         style={{
           width: "90%",
           backgroundColor: "var(--abundance-color-hightlightOffWhite)",
@@ -235,6 +243,7 @@ const FeaturedCarousel = () => {
           borderRadius: "8px",
           border: "1px solid #ccc",
           boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
+          cursor: project ? "pointer" : "default",
         }}
       >
         {loading ? (
@@ -291,8 +300,6 @@ const FeaturedCarousel = () => {
         >
           <a
             href={`https://abundance.maslowcnc.com/run/${project ? `${project.owner}/${project.repoName}` : ""}`}
-            target="_blank"
-            rel="noopener noreferrer"
             style={{ color: "#999", textDecoration: "none" }}
           >
             {project ? `${project.owner} / ${project.repoName}` : "unknown"}
