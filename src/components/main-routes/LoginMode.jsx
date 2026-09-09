@@ -28,6 +28,7 @@ import FAQDisplay from "./FAQDisplay.jsx";
 import on from "../../js/circular-menu/src/on.js";
 import PRNotificationIcon from "../secondary/PRNotificationIcon.jsx";
 import InitialLog from "./InitialLog.jsx";
+import { useRotatingFeaturedImage } from "../../hooks/useRotatingFeaturedImage.js";
 import {
   getThumbnailUrl,
   markImageFailed,
@@ -184,10 +185,9 @@ const AddProject = ({ projectsLoaded, authorizedUserOcto, projectToShow }) => {
       <div className="projects-and-filters-container">
         <div className="project-items-wrapper">
           <div className={`project-items-div`}>
-            {projectToShow == "featured" && randomFeaturedNode ? (
-              <FeaturedHighlight randomFeaturedNode={randomFeaturedNode} />
-            ) : null}
-            {nodes.length > 0 ? (
+            {projectToShow == "featured" ? (
+              <FeaturedCarousel />
+            ) : nodes.length > 0 ? (
               <ProjectDiv
                 {...{
                   nodes,
@@ -211,6 +211,95 @@ const AddProject = ({ projectsLoaded, authorizedUserOcto, projectToShow }) => {
         />*/}
       </div>
     </>
+  );
+};
+
+const FeaturedCarousel = () => {
+  const { imageUrl, loading, project } = useRotatingFeaturedImage(5000);
+
+  return (
+    <div
+      id="featured-carousel"
+      style={{
+        width: "100%",
+        padding: "20px",
+        display: "flex",
+        justifyContent: "center",
+      }}
+    >
+      <div
+        style={{
+          width: "90%",
+          backgroundColor: "var(--abundance-color-hightlightOffWhite)",
+          padding: "20px",
+          borderRadius: "8px",
+          border: "1px solid #ccc",
+          boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
+        }}
+      >
+        {loading ? (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              height: "50vh",
+              maxHeight: "50vh",
+              color: "#999",
+            }}
+          >
+            Loading...
+          </div>
+        ) : imageUrl ? (
+          <img
+            src={imageUrl}
+            alt={
+              project
+                ? `${project.owner}/${project.repoName}`
+                : "featured project"
+            }
+            style={{
+              width: "100%",
+              height: "auto",
+              maxHeight: "50vh",
+              borderRadius: "8px",
+              objectFit: "contain",
+            }}
+            onError={(e) => {
+              e.currentTarget.src =
+                import.meta.env.VITE_APP_PATH_FOR_PICS +
+                "/imgs/rotate_feature.png";
+            }}
+          />
+        ) : (
+          <img
+            src={
+              import.meta.env.VITE_APP_PATH_FOR_PICS +
+              "/imgs/rotate_feature.png"
+            }
+            alt="rotate feature"
+            style={{ width: "100%", maxHeight: "50vh", borderRadius: "8px" }}
+          />
+        )}
+        <p
+          style={{
+            fontSize: "13px",
+            marginTop: "10px",
+            textAlign: "center",
+            color: "#999",
+          }}
+        >
+          <a
+            href={`https://abundance.maslowcnc.com/run/${project ? `${project.owner}/${project.repoName}` : ""}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: "#999", textDecoration: "none" }}
+          >
+            {project ? `${project.owner} / ${project.repoName}` : "unknown"}
+          </a>
+        </p>
+      </div>
+    </div>
   );
 };
 
@@ -1383,7 +1472,7 @@ const ShowProjects = ({
           setProjectsToShow("featured");
         }}
       >
-        <p> Browse Featured Projects</p>
+        <p> Featured Projects</p>
       </div>
       <div
         className={
@@ -1418,7 +1507,7 @@ const ShowProjects = ({
           setProjectsToShow("featured");
         }}
       >
-        <p> Browse Featured Projects</p>
+        <p> Featured Projects</p>
       </div>
       <div
         className={
@@ -1980,7 +2069,7 @@ function LoginMode() {
                   document.getElementById("menu-toggle").checked = false;
                 }}
               >
-                <p> Browse Featured Projects</p>
+                <p> Featured Projects</p>
               </div>
               <div
                 className={
@@ -2026,7 +2115,7 @@ function LoginMode() {
                   document.getElementById("menu-toggle-guest").checked = false;
                 }}
               >
-                <p> Browse Featured Projects</p>
+                <p> Featured Projects</p>
               </div>
               <div
                 className={
