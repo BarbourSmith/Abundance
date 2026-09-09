@@ -27,6 +27,7 @@ import DropdownSectionDisplay from "./DropdownSectionDisplay.jsx";
 import FAQDisplay from "./FAQDisplay.jsx";
 import on from "../../js/circular-menu/src/on.js";
 import PRNotificationIcon from "../secondary/PRNotificationIcon.jsx";
+import InitialLog from "./InitialLog.jsx";
 import {
   getThumbnailUrl,
   markImageFailed,
@@ -34,82 +35,8 @@ import {
 } from "./thumbnailUrls.js";
 
 /**
- * Initial log component displays pop Up to either attempt Github login/browse projects
- *
+ * adds individual projects after API call
  */
-const InitialLog = ({ setNoUserBrowsing }) => {
-  const { authRedirectHandler } = useAuth();
-
-  return (
-    <div className="login-page">
-      <div className="form animate fadeInUp one">
-        <div id="gitSide" className="logindiv">
-          <img
-            className="logo"
-            src={
-              import.meta.env.VITE_APP_PATH_FOR_PICS +
-              "/imgs/abundance_logo.png"
-            }
-            alt="logo"
-          />
-          <div id="welcome">
-            <img
-              src={
-                import.meta.env.VITE_APP_PATH_FOR_PICS +
-                "/imgs/abundance_lettering.png"
-              }
-              alt="logo"
-              className="login-logo"
-            />
-          </div>
-          <p style={{ padding: "0 20px" }}>
-            Abundance projects are stored through GitHub. You control your
-            files.{" "}
-          </p>
-          <form className="login-form">
-            <button
-              type="button"
-              id="loginButton"
-              style={{ height: "40px" }}
-              className="submit-btn"
-              onClick={() => authRedirectHandler()}
-            >
-              Login With GitHub
-            </button>
-            <p className="message">
-              Don't have an account?{" "}
-              <a href="https://github.com/join">Create a free account</a>
-            </p>
-          </form>
-        </div>
-        <div id="nonGitSide" className="logindiv curiousBrowse">
-          <p
-            style={{
-              justifyContent: "flex-start",
-              display: "inline",
-            }}
-          >
-            Check out what others have designed in Abundance
-          </p>
-
-          <button
-            type="button"
-            onClick={() => {
-              setNoUserBrowsing(true);
-            }}
-            className="submit-btn"
-            id="browseNonGit"
-            style={{ padding: "0 30px" }}
-          >
-            Browse all projects
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// adds individual projects after API call
 const AddProject = ({ projectsLoaded, authorizedUserOcto, projectToShow }) => {
   const [svgCacheBuster, setSvgCacheBuster] = useState(Date.now());
   const [failedImages, setFailedImages] = useState(new Set());
