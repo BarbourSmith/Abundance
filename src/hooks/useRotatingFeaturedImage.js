@@ -7,6 +7,22 @@ const FEATURED_PROJECTS = [
   { owner: "BarbourSmith", repoName: "Tree_House" },
   { owner: "BarbourSmith", repoName: "Sauna_Boat_2.0" },
   { owner: "BarbourSmith", repoName: "Motor_Mounting_Bracket" },
+  { owner: "BarbourSmith", repoName: "3D_Printed_T-Nut" },
+  {
+    owner: "wouldchuckit",
+    repoName: "Maslow4_Router_core_replacement_cylinder",
+  },
+  { owner: "IDAbbott", repoName: "Modified_Tri_Clamp-copy" },
+  {
+    owner: "wouldchuckit",
+    repoName: "Table_With_Tapered_Legs_and_Rounded_Corners",
+  },
+  { owner: "alzatin", repoName: "bar_stool_jenna" },
+  {
+    owner: "wouldchuckit",
+    repoName: "CurvedSupportBookshelfMultipleVerticals",
+  },
+  { owner: "wouldchuckit", repoName: "Maslow4_Crosshairs_for_centering" },
 ];
 
 const GITHUB_RAW_URL = "https://raw.githubusercontent.com";

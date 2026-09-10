@@ -35,9 +35,11 @@ const InitialLog = ({ setNoUserBrowsing }) => {
               }
               style={{
                 marginLeft: "10%",
+                marginBottom: "-10%",
                 width: "90%",
                 height: "80%",
                 objectFit: "cover",
+                overflow: "hidden",
               }}
               onError={(e) => {
                 e.currentTarget.src =
