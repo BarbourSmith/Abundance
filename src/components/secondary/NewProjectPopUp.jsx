@@ -219,7 +219,7 @@ const NewProjectPopUp = ({ setExportPopUp, authorizedUserOcto, exporting }) => {
 
   return (
     <>
-      <div className="login-page export-div">
+      <div className=" new-project-form-div  export-div">
         <div
           className="form animate fadeInUp one"
           style={{ scrollbarGutter: "stable", overflow: "visible" }}
@@ -229,8 +229,9 @@ const NewProjectPopUp = ({ setExportPopUp, authorizedUserOcto, exporting }) => {
               setExportPopUp(false);
             }}
             className="closeButton"
+            aria-label="Close dialog"
           >
-            X
+            ×
           </button>
           <h2
             style={{
