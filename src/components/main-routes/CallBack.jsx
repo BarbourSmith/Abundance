@@ -158,11 +158,12 @@ const Callback = ({ setRedirectType }) => {
         border: "10px solid #3e3d3d",
       }}
     >
-      <div
-        className="form animate fadeInUp one"
-        style={{ margin: "100px auto" }}
-      >
-        <div id="redirecting-popup-inner-div" className="logindiv">
+      <div className="form animate fadeInUp one" style={{ marginTop: "50px" }}>
+        <div
+          id="redirecting-popup-inner-div"
+          className="logindiv"
+          style={{ width: "100%" }}
+        >
           <img
             className="logo"
             src={

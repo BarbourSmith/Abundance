@@ -75,7 +75,7 @@ const InitialLog = ({ setNoUserBrowsing }) => {
           </p>
         </div>
       </div>
-      <div className="logindiv logoButtonBlock">
+      <div className="logoButtonBlock">
         <img
           className="logo"
           src={

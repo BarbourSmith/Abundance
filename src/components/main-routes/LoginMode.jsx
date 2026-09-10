@@ -1903,9 +1903,13 @@ function LoginMode() {
     popUpContent = (
       <div
         className="form animate fadeInUp one"
-        style={{ margin: "100px auto" }}
+        style={{ margin: "10px auto" }}
       >
-        <div id="restoring-popup-inner-div" className="logindiv">
+        <div
+          id="restoring-popup-inner-div"
+          className="logindiv"
+          style={{ width: "100%" }}
+        >
           <img
             className="logo"
             src={
