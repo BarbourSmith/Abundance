@@ -1,29 +1,40 @@
-// Simple hardcoded map of likely next atoms for each main atom type
+// Map of likely next atoms for each main atom type.
+//
+// Most entries below were measured rather than guessed: the two designs in
+// "Example Projects" were parsed, every connector read as a "B follows A" edge,
+// and the top three successors kept. Repeated sub-molecules were counted once
+// each so that popular reusable parts don't dominate. Output, GitHubMolecule,
+// Input and Molecule are never suggested, since none of them is useful as a
+// one-click placement. Types the example projects barely exercise (Text,
+// CutLayout, Constant, Gcode, Import, Code) keep their original hand-picked
+// lists.
 const ATOM_PREDICTIONS = {
-  Intersection: ["Move", "Fusion", "Tag"],
-  Difference: ["Move", "Fusion", "Tag"],
-  Assembly: ["ExtractTag", "Export", "Tag"],
-  Fusion: ["Move", "Assembly", "Tag"],
-  Loft: ["Move", "Tag"],
-  ShrinkWrap: ["Move", "Fusion", "Tag"],
+  Intersection: ["Extrude", "Difference", "Assembly"],
+  Difference: ["Extrude", "Tag", "Assembly"],
+  Assembly: ["ExtractTag", "Move", "Assembly"],
+  Fusion: ["Difference", "Color", "Tag"],
+  Loft: ["Fusion", "Difference", "Assembly"],
+  ShrinkWrap: ["Extrude", "Difference", "Intersection"],
   Readme: [],
-  "Add-BOM-Tag": ["Rotate", "Readme", "Move"],
-  Color: ["Assembly", "Move", "Export"],
-  Tag: ["Assembly", "Fusion", "Move"],
-  ExtractTag: ["Tag", "Readme", "Tag"],
+  "Add-BOM-Tag": ["Assembly", "Color"],
+  Color: ["Assembly", "Move", "Tag"],
+  Tag: ["Assembly", "Color", "Move"],
+  ExtractTag: ["Export", "Fusion", "Assembly"],
   CutLayout: ["Export", "Gcode", "Tag"],
-  RegularPolygon: ["Extrude", "Move", "Tag"],
+  RegularPolygon: ["Extrude"],
   Constant: ["Equation", "Rotate", "Tag"],
-  Circle: ["Extrude", "Move", "Tag"],
+  Circle: ["Extrude", "Move", "Difference"],
   Text: ["Move", "Color", "Tag"],
-  Rectangle: ["Extrude", "Move", "Tag"],
-  //Molecule: ["Move", "Assembly"],
-  Input: ["Equation", "Rectangle", "Circle"],
-  Equation: ["Move", "Rotate", "Tag"],
+  Rectangle: ["Extrude", "Move", "Difference"],
+  // Molecule atoms never show suggestions (see Atom.createPredictedParams),
+  // but the measured list would be:
+  //Molecule: ["Move", "Rotate", "Assembly"],
+  Input: ["Code", "Equation", "Extrude"],
+  Equation: ["Move", "Extrude", "Add-BOM-Tag"],
   //Code: ["Input", "Equation"],
-  Rotate: ["Move", "Assembly", "Tag"],
-  Extrude: ["Move", "Rotate", "Tag"],
-  Move: ["Rotate", "Assembly", "Tag"],
+  Rotate: ["Move", "Assembly", "Fusion"],
+  Extrude: ["Move", "Fusion", "Color"],
+  Move: ["Assembly", "Fusion", "Difference"],
   Gcode: ["Export", "Tag"],
   Import: ["Gcode", "Move", "Tag"],
   //Export: ["Gcode", "Import"],
@@ -40,6 +51,3 @@ const ATOM_PREDICTIONS = {
 export function getPredictedAtoms(currentAtomType) {
   return ATOM_PREDICTIONS[currentAtomType] || [];
 }
-
-// Example usage:
-// getPredictedAtoms("hole") // returns ["bolt", "nut"]
