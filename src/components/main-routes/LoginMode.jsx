@@ -192,63 +192,60 @@ const AddProject = ({
       <div className="projects-and-filters-container">
         <div
           className="project-items-wrapper"
-          style={{ display: "flex", flexDirection: "column", height: "100%" }}
+          style={{ display: "flex", flexDirection: "column" }}
         >
-          <div className={`project-items-div`}>
-            {projectToShow == "featured" ? (
-              <FeaturedCarousel />
-            ) : nodes.length > 0 ? (
-              <ProjectDiv
-                {...{
-                  nodes,
-                  browseType,
-                  orderType,
-                  authorizedUserOcto,
-                  svgCacheBuster,
-                  failedImages,
-                  setFailedImages,
-                  projectToShow,
+          {projectToShow == "featured" ? (
+            <FeaturedCarousel />
+          ) : nodes.length > 0 ? (
+            <ProjectDiv
+              {...{
+                nodes,
+                browseType,
+                orderType,
+                authorizedUserOcto,
+                svgCacheBuster,
+                failedImages,
+                setFailedImages,
+                projectToShow,
+              }}
+            />
+          ) : (
+            <p>No projects match your search</p>
+          )}
+          {projectToShow === "all" &&
+            !isLoading &&
+            allRepos?.repos?.length > (projectsLoaded?.repos?.length || 0) && (
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "center",
+                  padding: "20px",
                 }}
-              />
-            ) : (
-              <p>No projects match your search</p>
+              >
+                <button
+                  onClick={() => setAllReposVisibleCount((prev) => prev + 300)}
+                  style={{
+                    fontSize: "16px",
+                    padding: "24px 24px",
+                    fontWeight: "bold",
+                    color: "var(--loginPopup-text)",
+                    border: "none",
+                    backgroundColor: "transparent",
+                    cursor: "pointer",
+                    transition: "opacity 0.2s",
+                  }}
+                  onMouseEnter={(e) => (e.target.style.opacity = "0.8")}
+                  onMouseLeave={(e) => (e.target.style.opacity = "1")}
+                >
+                  Load More Projects
+                </button>
+              </div>
             )}
-          </div>
         </div>
         {/*<FilterPanel
           projects={projectsLoaded ? projectsLoaded["repos"] : []}
           onFilterChange={handleFilterChange}
         />*/}
-        {projectToShow === "all" &&
-          !isLoading &&
-          allRepos?.repos?.length > (projectsLoaded?.repos?.length || 0) && (
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "center",
-                padding: "20px",
-              }}
-            >
-              <button
-                onClick={() => setAllReposVisibleCount((prev) => prev + 300)}
-                style={{
-                  padding: "12px 24px",
-                  fontSize: "16px",
-                  fontWeight: "bold",
-                  backgroundColor: "var(--abundance-color-primary)",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "4px",
-                  cursor: "pointer",
-                  transition: "opacity 0.2s",
-                }}
-                onMouseEnter={(e) => (e.target.style.opacity = "0.8")}
-                onMouseLeave={(e) => (e.target.style.opacity = "1")}
-              >
-                Load More Projects
-              </button>
-            </div>
-          )}
       </div>
     </>
   );
@@ -1822,11 +1819,15 @@ const ShowProjects = ({
       <div className="login-content-div">
         {GlobalVariables.currentUser ? UserNavDiv : noUserNavDiv}
         <div className="right-login-div">
-          <span style={{ fontFamily: "Roboto" }}>
-            Welcome {GlobalVariables.currentUser}
-          </span>
-          <div className="home-section">{showDict[projectToShow]["label"]}</div>
-          <hr width="100%" color="#D3D3D3" />
+          <div id="project-page-header">
+            <span style={{ fontFamily: "Roboto" }}>
+              Welcome {GlobalVariables.currentUser}
+            </span>
+            <div className="home-section">
+              {showDict[projectToShow]["label"]}
+            </div>
+            <hr width="100%" color="#D3D3D3" />
+          </div>
 
           {projectToShow !== "featured" ? (
             <div className="search-bar-div">
