@@ -158,35 +158,35 @@ const Callback = ({ setRedirectType }) => {
         border: "10px solid #3e3d3d",
       }}
     >
-      <div className="login-page">
-        <div className="form animate fadeInUp one">
-          <div id="gitSide" className="logindiv">
+      <div className="form animate fadeInUp one" style={{ marginTop: "50px" }}>
+        <div
+          id="redirecting-popup-inner-div"
+          className="logindiv"
+          style={{ width: "100%" }}
+        >
+          <img
+            className="logo"
+            src={
+              import.meta.env.VITE_APP_PATH_FOR_PICS +
+              "/imgs/abundance_logo.png"
+            }
+            alt="logo"
+          />
+          <div id="welcome">
             <img
-              className="logo"
               src={
                 import.meta.env.VITE_APP_PATH_FOR_PICS +
-                "/imgs/abundance_logo.png"
+                "/imgs/abundance_lettering.png"
               }
               alt="logo"
+              className="login-logo"
             />
-            <div id="welcome">
-              <img
-                src={
-                  import.meta.env.VITE_APP_PATH_FOR_PICS +
-                  "/imgs/abundance_lettering.png"
-                }
-                alt="logo"
-                className="login-logo"
-              />
-            </div>
-            {isAuthorized ? (
-              <p style={{ padding: "0 20px" }}>
-                Welcome. Redirecting you to your projects...
-              </p>
-            ) : (
-              <p style={{ padding: "0 20px" }}>Logging you in ...</p>
-            )}
           </div>
+          {isAuthorized ? (
+            <p>Welcome. Redirecting you to your projects...</p>
+          ) : (
+            <p style={{ padding: "0 20px" }}>Logging you in ...</p>
+          )}
         </div>
       </div>
     </div>

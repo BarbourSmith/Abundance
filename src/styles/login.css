@@ -9,7 +9,6 @@
   width: 100%;
 }
 #welcome-logo {
-  margin: -2vh;
   display: flex;
   align-items: center;
 }
@@ -20,8 +19,11 @@
 .logo-private-scope {
   filter: invert(1) hue-rotate(180deg);
 }
-#welcome-logo-lettering {
+/* #welcome-logo-lettering {
   display: none;
+} */
+.top-banner {
+  margin: 5px;
 }
 .login-content-div {
   display: flex;
@@ -40,7 +42,7 @@
   height: 100%;
 }
 .right-login-div {
-  padding: 1%;
+  padding: 2%;
   margin: 5% 5% 0 5%;
   align-items: center;
   justify-content: center;
@@ -97,22 +99,25 @@
   width: 100px;
   height: 100px;
   border-radius: 50%;
-  margin: auto;
+  margin: 10% auto;
 }
+
 .logindiv {
-  margin: 10px 10px 0 10px;
   position: relative;
-  width: 95%;
+  width: auto;
   box-sizing: border-box;
   display: flex;
-  align-content: center;
-  justify-content: space-around;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   background-color: var(--loginPopup-background);
-  flex-wrap: wrap;
-  align-self: center;
+  overflow: hidden;
   padding: 20px;
   border-radius: 4px;
-  flex-flow: column;
+}
+
+.logoButtonBlock {
+  margin: 0px 30px 10px 0px;
 }
 
 /*mobile nav*/
@@ -201,6 +206,9 @@
 }
 
 @media (max-width: 768px) {
+  #rotate-feature {
+    display: none;
+  }
   .menu-button-container {
     display: flex;
   }
@@ -392,6 +400,7 @@
   background-color: var(--loginPopup-border);
   display: flex;
   flex-direction: column;
+  align-items: center;
   position: relative;
   z-index: 1;
   border-radius: 4px;
@@ -400,8 +409,6 @@
   box-shadow:
     0 0 20px 0 rgba(0, 0, 0, 0.2),
     0 5px 5px 0 rgba(0, 0, 0, 0.24);
-  max-height: 75vh;
-  overflow-y: auto;
 }
 
 .form-row .submit-btn {
@@ -469,8 +476,20 @@
   animation-name: fadeInUp;
 }
 
+.new-project-form-div {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  max-height: 100vh;
+  margin: 50px 0 0 0;
+  box-sizing: border-box;
+  overflow: scroll;
+}
+
 .new-project-form input {
   width: 100%;
+  border-radius: 5px;
 }
 
 .validation-errors {
@@ -513,39 +532,38 @@
   font-family: "Roboto", sans-serif;
   outline: 0;
   background: var(--newProject-form-input);
-  border: 0;
-  margin: 0 0 10px;
+  border: 1px solid var(--abundance-color-fontLightGrey);
   padding: 9px;
   box-sizing: border-box;
   font-size: 14px;
-  color: var(--newProject-form-input-text);
+  color: var(--settingsPopup-text);
 }
 .form label {
   color: var(--settingsPopup-text);
-  font-size: 14px;
-  margin-bottom: 0px;
+  font-size: 15px;
+  margin-top: 10px;
   font-family: "Roboto", sans-serif;
-  text-transform: uppercase;
+  /* text-transform: uppercase; */
   display: inline-block;
 }
 
 .form select {
   font-family: "Roboto", sans-serif;
   outline: 0;
-  background: var(--settingsPopup-text);
+  background: var(--newProject-form-input);
+  border: 1px solid var(--abundance-color-fontLightGrey);
+  color: var(--settingsPopup-text);
   width: 100%;
-  border: 0;
-  margin: 0 0 15px;
   padding: 9px;
   box-sizing: border-box;
   font-size: 14px;
+  border-radius: 5px;
 }
 .form h2 {
   color: var(--settingsPopup-text);
   font-size: 17px;
   margin-bottom: 5px;
   font-family: "Roboto", sans-serif;
-  text-transform: uppercase;
 }
 .submit-button,
 .submit-btn {
@@ -576,23 +594,28 @@
 
 .closeButton {
   position: absolute;
-  right: 10px;
-  top: 10px;
+  right: 20px;
+  top: 20px;
   min-width: 2em;
   min-height: 2em;
   height: 2em;
   width: 2em;
   background: none;
   border: none;
-  margin: 5px;
+  border-radius: 50%;
+  margin: 0;
   padding: 0;
   color: var(--settingsPopup-text);
-  font-size: 1em;
-  font-weight: 400;
+  font-size: 1.2em;
+  font-weight: 300;
   line-height: 2em;
   cursor: pointer;
-  transition: color 0.2s;
-  display: inline-block;
+  transition:
+    color 0.2s,
+    transform 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   text-align: center;
   vertical-align: middle;
   outline: none;
@@ -601,12 +624,14 @@
 .closeButton:focus {
   color: var(--abundance-color-brightPurple);
   background: none;
+  transform: scale(1.15);
 }
 .longButton {
+  position: relative;
   float: right;
   height: 2em;
   background-color: var(--settingsPopup-closeButton);
-  margin: 5px;
+  margin: 10px;
   border-radius: 5px;
   color: var(--settingsPopup-text);
   cursor: pointer;
@@ -712,7 +737,7 @@
   border-radius: 5px 5px;
   color: var(--newProject-form-input-text);
   outline: none;
-  background-color: var(--newProject-form-input);
+  background-color: var(--abundance-color-hightlightOffWhite);
 }
 
 #sorting-button-div {
@@ -723,7 +748,7 @@
   align-self: center;
   border: 1px solid var(--loginPopup-input);
   color: var(--newProject-form-input-text);
-  background-color: var(--newProject-form-input);
+  background-color: var(--abundance-color-hightlightOffWhite);
   border-radius: 5px 5px;
   outline: none;
 }
@@ -851,8 +876,7 @@
   border: 3px solid rgba(192, 105, 247, 0.546);
 }
 .basic-multi-select {
-  margin: 15px 0px 15px 0px;
-  height: 100%;
+  margin: 0px;
   width: 100%;
 }
 
@@ -1060,19 +1084,95 @@
     height: 70px;
   }
 }
+.login-page {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  max-height: 100vh;
+  margin: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+.login-page > :first-child {
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 0;
+  flex: 0 0 25%;
+  overflow: hidden;
+}
+
+.login-page > :nth-child(2) {
+  flex: 0 0 75%;
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  margin-right: 10%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-self: flex-start;
+}
+.login-logo {
+  width: 100px;
+}
+
+.logoButtonBlock {
+  margin: 0px 30px 10px 0px;
+}
 
 @media (min-width: 768px) {
+  .top-banner {
+    position: fixed;
+    top: 40px;
+    left: 30px;
+  }
   .form {
-    width: 100%;
-    margin: 0 auto 100px;
+    width: 50%;
+    margin: 0 auto;
     padding: 30px;
   }
+  #rotate-feature {
+    overflow: hidden;
+    width: 100%;
+    max-width: 100%;
+  }
   .login-page {
-    margin: auto;
+    padding-top: 100px;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    width: 100%;
+    height: 100%;
+    max-height: 100vh;
+    margin: 0;
+    box-sizing: border-box;
+    overflow: hidden;
+  }
+
+  .login-page > :first-child {
+    flex: 0 1 50%;
+    box-sizing: border-box;
+    min-width: 0;
+    max-width: 50%;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .login-page > :nth-child(2) {
+    flex: 0 1 35%;
+    box-sizing: border-box;
+    min-width: 0;
+    max-width: 35%;
+    min-height: 0;
+    overflow: hidden;
+    margin-right: 10%;
   }
   .login-logo {
-    width: 300px;
+    width: 200px;
   }
+
   .left-login-div {
     display: block;
     padding: 1%;
@@ -1083,7 +1183,7 @@
     height: 100%;
   }
   .right-login-div {
-    margin: 0% 0% 0 0;
+    margin: 2% 0% 0 0;
     width: 80%;
     height: 100%;
   }

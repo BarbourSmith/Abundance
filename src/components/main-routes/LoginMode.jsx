@@ -27,6 +27,8 @@ import DropdownSectionDisplay from "./DropdownSectionDisplay.jsx";
 import FAQDisplay from "./FAQDisplay.jsx";
 import on from "../../js/circular-menu/src/on.js";
 import PRNotificationIcon from "../secondary/PRNotificationIcon.jsx";
+import InitialLog from "./InitialLog.jsx";
+import { useRotatingFeaturedImage } from "../../hooks/useRotatingFeaturedImage.js";
 import {
   getThumbnailUrl,
   markImageFailed,
@@ -34,82 +36,8 @@ import {
 } from "./thumbnailUrls.js";
 
 /**
- * Initial log component displays pop Up to either attempt Github login/browse projects
- *
+ * adds individual projects after API call
  */
-const InitialLog = ({ setNoUserBrowsing }) => {
-  const { authRedirectHandler } = useAuth();
-
-  return (
-    <div className="login-page">
-      <div className="form animate fadeInUp one">
-        <div id="gitSide" className="logindiv">
-          <img
-            className="logo"
-            src={
-              import.meta.env.VITE_APP_PATH_FOR_PICS +
-              "/imgs/abundance_logo.png"
-            }
-            alt="logo"
-          />
-          <div id="welcome">
-            <img
-              src={
-                import.meta.env.VITE_APP_PATH_FOR_PICS +
-                "/imgs/abundance_lettering.png"
-              }
-              alt="logo"
-              className="login-logo"
-            />
-          </div>
-          <p style={{ padding: "0 20px" }}>
-            Abundance projects are stored through GitHub. You control your
-            files.{" "}
-          </p>
-          <form className="login-form">
-            <button
-              type="button"
-              id="loginButton"
-              style={{ height: "40px" }}
-              className="submit-btn"
-              onClick={() => authRedirectHandler()}
-            >
-              Login With GitHub
-            </button>
-            <p className="message">
-              Don't have an account?{" "}
-              <a href="https://github.com/join">Create a free account</a>
-            </p>
-          </form>
-        </div>
-        <div id="nonGitSide" className="logindiv curiousBrowse">
-          <p
-            style={{
-              justifyContent: "flex-start",
-              display: "inline",
-            }}
-          >
-            Check out what others have designed in Abundance
-          </p>
-
-          <button
-            type="button"
-            onClick={() => {
-              setNoUserBrowsing(true);
-            }}
-            className="submit-btn"
-            id="browseNonGit"
-            style={{ padding: "0 30px" }}
-          >
-            Browse all projects
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// adds individual projects after API call
 const AddProject = ({ projectsLoaded, authorizedUserOcto, projectToShow }) => {
   const [svgCacheBuster, setSvgCacheBuster] = useState(Date.now());
   const [failedImages, setFailedImages] = useState(new Set());
@@ -257,10 +185,9 @@ const AddProject = ({ projectsLoaded, authorizedUserOcto, projectToShow }) => {
       <div className="projects-and-filters-container">
         <div className="project-items-wrapper">
           <div className={`project-items-div`}>
-            {projectToShow == "featured" && randomFeaturedNode ? (
-              <FeaturedHighlight randomFeaturedNode={randomFeaturedNode} />
-            ) : null}
-            {nodes.length > 0 ? (
+            {projectToShow == "featured" ? (
+              <FeaturedCarousel />
+            ) : nodes.length > 0 ? (
               <ProjectDiv
                 {...{
                   nodes,
@@ -284,6 +211,102 @@ const AddProject = ({ projectsLoaded, authorizedUserOcto, projectToShow }) => {
         />*/}
       </div>
     </>
+  );
+};
+
+const FeaturedCarousel = () => {
+  const { imageUrl, loading, project } = useRotatingFeaturedImage(5000);
+  const navigate = useNavigate();
+
+  const handleCarouselClick = () => {
+    if (project) {
+      navigate(`/run/${project.owner}/${project.repoName}`);
+    }
+  };
+
+  return (
+    <div
+      id="featured-carousel"
+      style={{
+        width: "100%",
+        padding: "20px",
+        display: "flex",
+        justifyContent: "center",
+      }}
+    >
+      <div
+        onClick={handleCarouselClick}
+        style={{
+          width: "90%",
+          backgroundColor: "var(--abundance-color-hightlightOffWhite)",
+          padding: "20px",
+          borderRadius: "8px",
+          border: "1px solid #ccc",
+          boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
+          cursor: project ? "pointer" : "default",
+        }}
+      >
+        {loading ? (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              height: "50vh",
+              maxHeight: "50vh",
+              color: "#999",
+            }}
+          >
+            Loading...
+          </div>
+        ) : imageUrl ? (
+          <img
+            src={imageUrl}
+            alt={
+              project
+                ? `${project.owner}/${project.repoName}`
+                : "featured project"
+            }
+            style={{
+              width: "100%",
+              height: "auto",
+              maxHeight: "50vh",
+              borderRadius: "8px",
+              objectFit: "contain",
+            }}
+            onError={(e) => {
+              e.currentTarget.src =
+                import.meta.env.VITE_APP_PATH_FOR_PICS +
+                "/imgs/rotate_feature.png";
+            }}
+          />
+        ) : (
+          <img
+            src={
+              import.meta.env.VITE_APP_PATH_FOR_PICS +
+              "/imgs/rotate_feature.png"
+            }
+            alt="rotate feature"
+            style={{ width: "100%", maxHeight: "50vh", borderRadius: "8px" }}
+          />
+        )}
+        <p
+          style={{
+            fontSize: "13px",
+            marginTop: "10px",
+            textAlign: "center",
+            color: "#999",
+          }}
+        >
+          <a
+            href={`https://abundance.maslowcnc.com/run/${project ? `${project.owner}/${project.repoName}` : ""}`}
+            style={{ color: "#999", textDecoration: "none" }}
+          >
+            {project ? `${project.owner} / ${project.repoName}` : "unknown"}
+          </a>
+        </p>
+      </div>
+    </div>
   );
 };
 
@@ -1456,7 +1479,7 @@ const ShowProjects = ({
           setProjectsToShow("featured");
         }}
       >
-        <p> Browse Featured Projects</p>
+        <p> Featured Projects</p>
       </div>
       <div
         className={
@@ -1491,7 +1514,7 @@ const ShowProjects = ({
           setProjectsToShow("featured");
         }}
       >
-        <p> Browse Featured Projects</p>
+        <p> Featured Projects</p>
       </div>
       <div
         className={
@@ -1878,29 +1901,34 @@ function LoginMode() {
   if (isRestoringSession) {
     // Show loading state while checking for cached token
     popUpContent = (
-      <div className="login-page">
-        <div className="form animate fadeInUp one">
-          <div id="gitSide" className="logindiv">
+      <div
+        className="form animate fadeInUp one"
+        style={{ margin: "10px auto" }}
+      >
+        <div
+          id="restoring-popup-inner-div"
+          className="logindiv"
+          style={{ width: "100%" }}
+        >
+          <img
+            className="logo"
+            src={
+              import.meta.env.VITE_APP_PATH_FOR_PICS +
+              "/imgs/abundance_logo.png"
+            }
+            alt="logo"
+          />
+          <div id="welcome">
             <img
-              className="logo"
               src={
                 import.meta.env.VITE_APP_PATH_FOR_PICS +
-                "/imgs/abundance_logo.png"
+                "/imgs/abundance_lettering.png"
               }
               alt="logo"
+              className="login-logo"
             />
-            <div id="welcome">
-              <img
-                src={
-                  import.meta.env.VITE_APP_PATH_FOR_PICS +
-                  "/imgs/abundance_lettering.png"
-                }
-                alt="logo"
-                className="login-logo"
-              />
-            </div>
-            <p style={{ padding: "0 20px" }}>Restoring your session...</p>
           </div>
+          <p style={{ padding: "0 20px" }}>Restoring your session...</p>
         </div>
       </div>
     );
@@ -1980,7 +2008,7 @@ function LoginMode() {
           </button>
         ) : null}
       </div>
-      <div className="top-banner" style={{ margin: "20px 0px 30px 30px" }}>
+      <div className="top-banner">
         <div id="welcome-logo">
           <img
             src={
@@ -2052,7 +2080,7 @@ function LoginMode() {
                   document.getElementById("menu-toggle").checked = false;
                 }}
               >
-                <p> Browse Featured Projects</p>
+                <p> Featured Projects</p>
               </div>
               <div
                 className={
@@ -2098,7 +2126,7 @@ function LoginMode() {
                   document.getElementById("menu-toggle-guest").checked = false;
                 }}
               >
-                <p> Browse Featured Projects</p>
+                <p> Featured Projects</p>
               </div>
               <div
                 className={
