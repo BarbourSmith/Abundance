@@ -1274,10 +1274,14 @@
 
 /* Eye icon overlay on thumbnail */
 .thumb-eye-icon {
-  background-color: rgba(255, 255, 255, 0.8);
+  /* background-color: rgba(255, 255, 255, 0.8); */
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
+  border: 1px solid #f8f8f8;
   padding: 5px;
   display: flex;
+  margin-left: 5px;
   align-items: center;
   justify-content: center;
   cursor: pointer;
@@ -1285,6 +1289,7 @@
     background-color 0.3s ease,
     transform 0.2s ease;
   z-index: 2;
+  box-shadow: 0 2px 8px rgba(188, 188, 188, 0.15);
 }
 
 .thumb-eye-icon:hover {

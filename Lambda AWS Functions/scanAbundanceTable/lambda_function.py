@@ -86,54 +86,51 @@ def lambda_handler(event: any, context: any):
                 item_array.extend(response.get('Items', []))
 
         elif mode == "all":
-            # Mode: all
-            if user:
-                # All public projects + private projects owned by user
-                if query:
-                    # Public projects matching query + private projects owned by user matching query
-                    scan_args = {
-                        'FilterExpression': (
-                            (~(Attr('privateRepo').eq(True)) & ~(Attr('repoName').eq(
-                                'tutorial-default')) & Attr(searchAttribute).contains(query))
-                            | (Attr('owner').eq(user) & Attr(searchAttribute).contains(query))
-                        )
-                    }
+            # Mode: all - return ranked projects
+            def get_ranking(item):
+                return float(item.get('ranking', 0))
+
+            if query:
+                # Search mode: scan table for matches, limited to avoid excessive costs
+                scan_args = {
+                    'FilterExpression': ~(Attr('privateRepo').eq(True)) & ~(Attr('repoName').eq('tutorial-default')) & Attr(searchAttribute).contains(query)
+                }
+
+                items_scanned = 0
+                max_scan_limit = 2000  # Scan max 2000 items to find matches
+
+                while True:
                     response = table.scan(**scan_args)
                     item_array.extend(response.get('Items', []))
-                else:
-                    # All public projects + private projects owned by user (no search)
-                    scan_args = {
-                        'FilterExpression': (~Attr('privateRepo').eq(True) & ~Attr('repoName').eq('tutorial-default')) | (Attr('owner').eq(user))
-                    }
-                    response = table.scan(**scan_args)
-                    item_array.extend(response.get('Items', []))
+                    items_scanned += response.get('Count', 0)
+
+                    # Stop if no more results or reached scan limit
+                    if 'LastEvaluatedKey' not in response or items_scanned >= max_scan_limit:
+                        break
+
+                    scan_args['ExclusiveStartKey'] = response['LastEvaluatedKey']
+
+                # Return all matching results found (no ranking sort, no limit)
             else:
-                # No user specified - return all public projects
-                if query:
-                    # Public projects matching query
-                    scan_args = {
-                        'FilterExpression': ~(Attr('privateRepo').eq(True)) & ~(Attr('repoName').eq('tutorial-default')) & Attr(searchAttribute).contains(query)
-                    }
-                    response = table.scan(**scan_args)
-                    item_array.extend(response.get('Items', []))
-                else:
-                    # All public projects by year
-                    exclusiveKey = lookForLast()
+                # Default mode: fetch all ranked projects from the 3 most recent years once,
+                # fully paginating through DynamoDB's own query pages so the client can page client-side
+                years_to_fetch = [current_year - i for i in range(3)]
+
+                for y in years_to_fetch:
                     query_args = {
-                        'IndexName': 'yyyy-dateCreated-index',
-                        'KeyConditionExpression': Key('yyyy').eq(year),
-                        'FilterExpression': ~(Attr('privateRepo').eq(True)) & ~(Attr('repoName').eq('tutorial-default'))
+                        'IndexName': 'yyyy-ranking-index',
+                        'KeyConditionExpression': Key('yyyy').eq(y),
+                        'ScanIndexForward': False,
+                        'FilterExpression': ~(Attr('privateRepo').eq(True)) & ~(Attr('repoName').eq('tutorial-default')) & Attr('parentRepo').eq(None),
                     }
-                    if exclusiveKey:
-                        query_args['ExclusiveStartKey'] = exclusiveKey
-                    response = table.query(**query_args)
-                    item_array.extend(response.get('Items', []))
-                    if 0 < len(item_array) < 50:
-                        year = year - 1
-                        query_args['KeyConditionExpression'] = Key(
-                            'yyyy').eq(year)
-                        response2 = table.query(**query_args)
-                        item_array.extend(response2.get('Items', []))
+                    while True:
+                        response = table.query(**query_args)
+                        item_array.extend(response.get('Items', []))
+                        if 'LastEvaluatedKey' not in response:
+                            break
+                        query_args['ExclusiveStartKey'] = response['LastEvaluatedKey']
+
+                item_array = sorted(item_array, key=get_ranking, reverse=True)
         else:
             # Default: public projects by year (no specific mode)
             exclusiveKey = lookForLast()
@@ -156,7 +153,9 @@ def lambda_handler(event: any, context: any):
         if response and 'LastEvaluatedKey' in response:
             lastKeyForward = response.get('LastEvaluatedKey')
 
-        return build_response(200, {'repos': item_array, "lastKey": lastKeyForward})
+        response_body = {'repos': item_array, "lastKey": lastKeyForward}
+
+        return build_response(200, response_body)
     except Exception as e:
         print('Error', e)
         return build_response(400, {"error": "Something went wrong"})

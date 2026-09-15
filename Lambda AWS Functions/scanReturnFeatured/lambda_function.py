@@ -48,7 +48,7 @@ def lambda_handler(event: any, context: any):
                 'KeyConditionExpression': Key('yyyy').eq(y),
                 'ScanIndexForward': False,
                 'FilterExpression': ~(Attr('privateRepo').eq(True)),
-                'Limit': 30
+                'Limit': 100
             }
             response = table.query(**query_args)
             item_array.extend(response.get('Items', []))
@@ -59,7 +59,7 @@ def lambda_handler(event: any, context: any):
             return float(item.get('ranking', 0))
 
         item_array_sorted = sorted(item_array, key=get_ranking, reverse=True)
-        top_items = item_array_sorted[:15]
+        top_items = item_array_sorted[:150]
         print(top_items)
         return build_response(200, {'repos': top_items})
     except Exception as e:

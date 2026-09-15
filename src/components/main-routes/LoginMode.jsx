@@ -38,7 +38,14 @@ import {
 /**
  * adds individual projects after API call
  */
-const AddProject = ({ projectsLoaded, authorizedUserOcto, projectToShow }) => {
+const AddProject = ({
+  projectsLoaded,
+  authorizedUserOcto,
+  projectToShow,
+  isLoading,
+  allRepos,
+  setAllReposVisibleCount,
+}) => {
   const [svgCacheBuster, setSvgCacheBuster] = useState(Date.now());
   const [failedImages, setFailedImages] = useState(new Set());
   const {
@@ -183,7 +190,10 @@ const AddProject = ({ projectsLoaded, authorizedUserOcto, projectToShow }) => {
         )}
       </div>
       <div className="projects-and-filters-container">
-        <div className="project-items-wrapper">
+        <div
+          className="project-items-wrapper"
+          style={{ display: "flex", flexDirection: "column", height: "100%" }}
+        >
           <div className={`project-items-div`}>
             {projectToShow == "featured" ? (
               <FeaturedCarousel />
@@ -209,6 +219,36 @@ const AddProject = ({ projectsLoaded, authorizedUserOcto, projectToShow }) => {
           projects={projectsLoaded ? projectsLoaded["repos"] : []}
           onFilterChange={handleFilterChange}
         />*/}
+        {projectToShow === "all" &&
+          !isLoading &&
+          allRepos?.repos?.length > (projectsLoaded?.repos?.length || 0) && (
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "center",
+                padding: "20px",
+              }}
+            >
+              <button
+                onClick={() => setAllReposVisibleCount((prev) => prev + 300)}
+                style={{
+                  padding: "12px 24px",
+                  fontSize: "16px",
+                  fontWeight: "bold",
+                  backgroundColor: "var(--abundance-color-primary)",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  cursor: "pointer",
+                  transition: "opacity 0.2s",
+                }}
+                onMouseEnter={(e) => (e.target.style.opacity = "0.8")}
+                onMouseLeave={(e) => (e.target.style.opacity = "1")}
+              >
+                Load More Projects
+              </button>
+            </div>
+          )}
       </div>
     </>
   );
@@ -1236,26 +1276,29 @@ const ShowProjects = ({
   // not used by aws but need to update function before deleting
   const [yearShow, setYearShow] = useState(currentYear);
 
+  // "all" mode fetches the full ranked list once; pagination is just how many are shown
+  const [allReposVisibleCount, setAllReposVisibleCount] = useState(300);
+
   let lastKeyQuery = lastKey
     ? "&lastKey=" + lastKey.repoName + "~" + lastKey.owner
     : "&lastKey";
 
   const fetchAll = async ({ signal }) => {
-    return fetch(
+    // Only include query parameter if search term is not empty
+    let url =
       "https://hg5gsgv9te.execute-api.us-east-2.amazonaws.com/abundance-stage/scan-search-abundance?" +
-        "attribute=searchField" +
-        "&query=" +
-        normalizedSearchTerm +
-        "&mode=all" +
-        "&yearShow=" +
-        yearShow +
-        lastKeyQuery,
-      { signal },
-    )
-      .then((res) => res.json())
-      .then((data) => {
-        return data;
-      });
+      "attribute=searchField" +
+      "&mode=all" +
+      "&yearShow=" +
+      yearShow +
+      lastKeyQuery;
+
+    // Only add query parameter if there's a search term
+    if (normalizedSearchTerm) {
+      url += "&query=" + normalizedSearchTerm;
+    }
+
+    return fetch(url, { signal }).then((res) => res.json());
   };
   const fetchUserRepos = async ({ signal }) => {
     return fetch(
@@ -1338,6 +1381,7 @@ const ShowProjects = ({
   const handleSearchChange = (e) => {
     setSearch(e.target.value.toLowerCase());
     setPageNumber(0);
+    setAllReposVisibleCount(300);
   };
 
   // Determine if user is new (no projects), triggers animation to draw attention to getting started tab
@@ -1573,7 +1617,9 @@ const ShowProjects = ({
   const showDict = {
     all: {
       label: "Molecule Library",
-      data: allRepos,
+      data: allRepos
+        ? { ...allRepos, repos: allRepos.repos.slice(0, allReposVisibleCount) }
+        : null,
       loading: isLoading,
       error: isError,
     },
@@ -1851,6 +1897,9 @@ const ShowProjects = ({
                 authorizedUserOcto,
                 user,
                 projectToShow,
+                isLoading,
+                allRepos,
+                setAllReposVisibleCount,
               }}
             />
           ) : null}
