@@ -190,13 +190,12 @@ const AddProject = ({
         )}
       </div>
       <div className="projects-and-filters-container">
+        {projectToShow == "featured" ? <FeaturedCarousel /> : null}
         <div
           className="project-items-wrapper"
           style={{ display: "flex", flexDirection: "column" }}
         >
-          {projectToShow == "featured" ? (
-            <FeaturedCarousel />
-          ) : nodes.length > 0 ? (
+          {nodes.length > 0 && projectToShow !== "featured" ? (
             <ProjectDiv
               {...{
                 nodes,
