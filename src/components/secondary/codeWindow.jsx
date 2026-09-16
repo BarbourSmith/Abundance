@@ -230,7 +230,7 @@ export default function CodeWindow(props) {
   };
 
   return (
-    <div id="code-window" className="code-off login-page code-window-div">
+    <div id="code-window" className="code-off code-window-div">
       <div className="code-window-container">
         <div className="code-editor-section">
           <div className="code-editor-toolbar">
