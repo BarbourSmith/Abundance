@@ -261,9 +261,9 @@ export default class Gcode extends Atom {
     GlobalVariables.cad
       .visExport(scaledMesh, "STL", this.getContext())
       .then((visExported) => {
-        const units = GlobalVariables.topLevelMolecule?.unitsKey || "MM";
+        // scaledMesh is already in MM, so export without further unit conversion
         GlobalVariables.cad
-          .downExport(visExported, "STL", null, units, this.getContext())
+          .downExport(visExported, "STL", null, "MM", this.getContext())
           .then((result) => {
             //Delete anything previously stored
             if (this.stlURL) {
@@ -484,12 +484,12 @@ export default class Gcode extends Atom {
           "STL",
           this.getContext(),
         );
-        const units = GlobalVariables.topLevelMolecule?.unitsKey || "MM";
+        // scaledMesh is already in MM, so export without further unit conversion
         const stlBlob = await GlobalVariables.cad.downExport(
           visExported,
           "STL",
           null,
-          units,
+          "MM",
           this.getContext(),
         );
 
