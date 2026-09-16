@@ -308,11 +308,18 @@
 }
 
 .code-window-div {
-  flex: 1; /* expand to the maximum */
-  height: 46%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 46dvh;
   width: 100%;
   z-index: 1000;
-  position: absolute;
+  margin: 0;
+}
+
+.code-window-div.code-off {
+  display: none;
 }
 
 .code-window-container {
