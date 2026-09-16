@@ -295,6 +295,9 @@ async function downExport(
   );
   const scaleUnit = units == "Inches" ? 1 : units == "MM" ? 25.4 : 1;
   const scaling = svgResolution / scaleUnit;
+  // STL carries no units and replicad writes STEP as millimeters, so inch
+  // projects have to be converted or downstream tools shrink them by 25.4x.
+  const mmScale = units == "Inches" ? 25.4 : 1;
   if (fileType == "SVG") {
     /** Fuses input geometry, draws a top view projection*/
     if (util.is3D(input)) {
@@ -320,12 +323,14 @@ async function downExport(
     if ("blobSTL" in geom == false) {
       throw new Error("STL export requires 3D geometry");
     }
-    return geom.clone().blobSTL();
+    const stlShape = geom.clone();
+    return (mmScale === 1 ? stlShape : stlShape.scale(mmScale)).blobSTL();
   } else {
     if ("blobSTEP" in geom == false) {
       throw new Error("STEP export requires 3D geometry");
     }
-    return geom.clone().blobSTEP();
+    const stepShape = geom.clone();
+    return (mmScale === 1 ? stepShape : stepShape.scale(mmScale)).blobSTEP();
   }
 }
 
