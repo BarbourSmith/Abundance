@@ -1,8 +1,7 @@
-import { BoundingBox, Drawing } from "replicad";
+import { Drawing } from "replicad";
 import * as util from "./util";
 import { AbundanceLeaf, AbundanceObject } from "./util";
-import { GeometryProvider, RequestContext } from "./geometryProvider";
-import { extractKeepOut } from "./tags";
+import { RequestContext } from "./geometryProvider";
 import { reportCadProgress } from "./progress";
 
 /** Color used to flag the two parts of a boolean cut that could not be computed. */
@@ -325,7 +324,7 @@ async function fusion(
 
   // Filter out keepout geometries from all shapes
   const filteredShapes = shapes
-    .map((shape) => extractKeepOut(shape))
+    .map((shape) => util.extractKeepOut(shape))
     .filter((shape) => shape !== false) as AbundanceObject[];
 
   if (filteredShapes.length === 0) {
