@@ -553,6 +553,14 @@ function walkAssembly(
   }
 }
 
+function extractBomList(assembly: AbundanceObject): any[] {
+  const bomList: any[] = [];
+  walkAssembly(assembly, (node: AbundanceObject) => {
+    bomList.push(...node.bom);
+  });
+  return bomList;
+}
+
 /**
  * Filters assembly to only those branches or leafs where predicate(node) is true.
  *
@@ -769,6 +777,7 @@ export {
   coPlanar,
   defaultColor,
   dimensionLabel,
+  extractBomList,
   flattenAssembly,
   filterAssembly,
   walkAssembly,
