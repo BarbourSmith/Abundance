@@ -127,8 +127,9 @@ export default class Assembly extends Atom {
     if (makeDisjoint) {
       return this.cad.assembly(nonnullInputIds, this.getContext());
     } else {
-      // TODO: set metadata flag about this
-      return Promise.resolve(assemblyOf(nonnullInputIds));
+      const result = assemblyOf(nonnullInputIds);
+      result.metadata = { mightOverlap: true };
+      return Promise.resolve(result);
     }
   }
 
