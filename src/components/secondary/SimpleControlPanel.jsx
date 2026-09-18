@@ -33,25 +33,6 @@ import TrashCanIcon from "../icons/TrashCanIcon";
 import { max } from "mathjs";
 
 // SVG icons (Settings, X, CaretDown)
-const SettingsIcon = ({ size = 14 }) => (
-  <svg width={size} height={size} viewBox="0 0 20 20" fill="none">
-    <circle
-      cx="10"
-      cy="10"
-      r="8"
-      stroke="var(--control-text-muted)"
-      strokeWidth="2"
-    />
-    <path
-      d="M10 7v3l2 2"
-      stroke="var(--control-text-muted)"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
-
 const XIcon = ({ size = 12 }) => (
   <svg width={size} height={size} viewBox="0 0 20 20" fill="none">
     <line x1="6" y1="6" x2="14" y2="14" stroke="#8ea9ff" strokeWidth="2" />
@@ -74,6 +55,25 @@ const CaretDownIcon = ({ size = 12, collapsed }) => (
       points="7 9 10 12 13 9"
       fill="none"
       stroke="#c4a3d5"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+const SettingsIcon = ({ size = 14 }) => (
+  <svg width={size} height={size} viewBox="0 0 20 20" fill="none">
+    <circle
+      cx="10"
+      cy="10"
+      r="8"
+      stroke="var(--control-text-muted)"
+      strokeWidth="2"
+    />
+    <path
+      d="M10 7v3l2 2"
+      stroke="var(--control-text-muted)"
       strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
@@ -237,6 +237,20 @@ const arrowButtonStyle = {
   justifyContent: "center",
   borderRadius: 4,
   background: "var(--panel-background)",
+  cursor: "pointer",
+  border: "none",
+  padding: 0,
+  transition: "background 0.2s",
+};
+
+const headerButtonStyle = {
+  width: 22,
+  height: 22,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  borderRadius: 4,
+  background: "transparent",
   cursor: "pointer",
   border: "none",
   padding: 0,
@@ -437,6 +451,7 @@ export const SimpleControlPanel = forwardRef(function SimpleControlPanel(
     contentCollapsed,
     setContentCollapsed,
     closeMenu,
+    headerActions,
     activeAtom,
   },
   ref,
@@ -806,45 +821,42 @@ export const SimpleControlPanel = forwardRef(function SimpleControlPanel(
       {/* Expanded panel */}
       {!collapsed && (
         <>
-          {/* Collapse/expand arrow */}
-          <button
-            style={arrowButtonStyle}
-            onClick={() => {
-              setCollapsed((c) => !c);
-            }}
-            title="Collapse Panel"
-          >
-            <SettingsIcon size={15} />
-          </button>
           {/* Panel header */}
           <div style={headerStyle}>
             <div style={panelTitleStyle}>{title}</div>
-            <div style={{ display: "flex", gap: 5 }}>
-              <button
-                style={arrowButtonStyle}
-                onClick={() => {
-                  if (contentCollapsed) {
-                    setContentCollapsed();
-                    if (initialCollapsed) setCollapsed(false);
-                  } else if (initialCollapsed) {
-                    // Allow collapsing to icon only for panels that start collapsed
-                    setCollapsed(true);
-                  } else {
-                    closeMenu();
-                  }
-                }}
-                title={
-                  contentCollapsed
-                    ? "Open controls"
-                    : initialCollapsed
-                      ? "Collapse panel"
-                      : "Active"
-                }
-              >
-                <CaretDownIcon size={14} collapsed={contentCollapsed} />
-              </button>
+            <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
+              {headerActions}
             </div>
           </div>
+          {/* Collapse/expand arrow */}
+          <button
+            style={{
+              ...arrowButtonStyle,
+              left: 8,
+              right: "auto",
+              top: 7,
+            }}
+            onClick={() => {
+              if (contentCollapsed) {
+                setContentCollapsed();
+                if (initialCollapsed) setCollapsed(false);
+              } else if (initialCollapsed) {
+                // Allow collapsing to icon only for panels that start collapsed
+                setCollapsed(true);
+              } else {
+                closeMenu();
+              }
+            }}
+            title={
+              contentCollapsed
+                ? "Open controls"
+                : initialCollapsed
+                  ? "Collapse panel"
+                  : "Active"
+            }
+          >
+            <CaretDownIcon size={14} collapsed={contentCollapsed} />
+          </button>
           {/* Controls */}
           {!contentCollapsed && (
             <div ref={contentRef} style={getControlListStyle(panelSize.height)}>
