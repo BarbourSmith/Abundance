@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 
 export function formatParamsOutput(value) {
   if (value === null) {
@@ -44,19 +44,28 @@ const headerStyle = {
   display: "flex",
   alignItems: "center",
   justifyContent: "space-between",
-  gap: 12,
+  gap: 8,
   padding: "8px 12px",
   borderBottom: "1px solid #31343b",
   background: "var(--abundance-color-background)",
 };
 
 const titleStyle = {
+  flex: 1,
   fontSize: 13,
   fontWeight: 700,
   color: "var(--abundance-color-mainPurple)",
   overflow: "hidden",
   textOverflow: "ellipsis",
   whiteSpace: "nowrap",
+};
+
+const actionsStyle = {
+  display: "flex",
+  alignItems: "center",
+  gap: 15,
+  flexShrink: 0,
+  color: "#c4a3d5",
 };
 
 const bodyStyle = {
@@ -256,6 +265,20 @@ function OutputBody({ value, status }) {
   return <Node value={value} isRoot level={0} />;
 }
 
+function formatClipboardJson(value) {
+  try {
+    return JSON.stringify(
+      value,
+      (_key, currentValue) => (typeof currentValue === "bigint" ? currentValue.toString() : currentValue),
+      2,
+    );
+  } catch (_error) {
+    return formatParamsOutput(value);
+  }
+}
+
+
+
 export default function ParamsOutputFlyout({
   value,
   status,
@@ -263,27 +286,66 @@ export default function ParamsOutputFlyout({
   style,
   onClose,
 }) {
+  const [copyState, setCopyState] = useState("idle");
+
+  useEffect(() => {
+    if (copyState !== "copied") {
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setCopyState("idle");
+    }, 1500);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [copyState]);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(formatClipboardJson(value)).then(() => {
+      setCopyState("copied");
+    });
+  };
+
   return (
     <div style={{ ...flyoutStyle, ...style }} role="dialog" aria-label="Atom output preview">
       <div style={headerStyle}>
         <div style={titleStyle}>{atomName ? `${atomName} Output` : "Output"}</div>
-        <button
-          type="button"
-          onClick={onClose}
-          style={{
-            border: "none",
-            background: "transparent",
-            color: "var(--control-text-muted)",
-            cursor: "pointer",
-            fontSize: 16,
-            lineHeight: 1,
-            padding: 0,
-          }}
-          aria-label="Close output preview"
-          title="Close output preview"
-        >
-          ×
-        </button>
+        <div style={actionsStyle}>
+          <button
+            type="button"
+            onClick={handleCopy}
+            style={{
+              border: "none",
+              background: "transparent",
+              color: copyState === "copied" ? "var(--abundance-color-mainPurple)" : "var(--control-text-muted)",
+              cursor: "pointer",
+              fontSize: 20,
+              lineHeight: 1,
+              padding: 0,
+            }}
+            aria-label={copyState === "copied" ? "Copied JSON to clipboard" : "Copy JSON to clipboard"}
+            title={copyState === "copied" ? "Copied" : "Copy JSON to clipboard"}
+          >
+            {copyState === "copied" ? "✓" : "⧉"}
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              border: "none",
+              background: "transparent",
+              color: "var(--control-text-muted)",
+              cursor: "pointer",
+              fontSize: 20,
+              lineHeight: 1,
+              padding: 0,
+            }}
+            aria-label="Close output preview"
+            title="Close output preview"
+          >
+            ×
+          </button>
+        </div>
       </div>
       <div style={bodyStyle}>
         <OutputBody value={value} status={status} />
