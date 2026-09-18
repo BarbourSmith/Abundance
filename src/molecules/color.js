@@ -102,13 +102,19 @@ export default class Color extends Atom {
   compute(inputs) {
     const color = Object.values(this.colorOptions)[this.selectedColorIndex];
 
-    // Set the color output value so anything connected to it gets the hex color
-    // This is required for Keep Out tagging in tags.ts, which checks for "#D9544D"
-    if (this.output) {
-      this.output.value = color;
-    }
-
-    return GlobalVariables.cad.color(inputs.geometry, color);
+    return Promise.resolve(
+      actOnLeafsSync(inputs.geometry, (leaf) => {
+        // keep out color add tag
+        if (color == "#D9544D") {
+          leaf.tags.push("keepout");
+        }
+        return {
+          ...leaf,
+          color: color,
+          tags: [...new Set(leaf.tags)],
+        };
+      }),
+    );
   }
 
   createInputParams(setInputChanged) {
