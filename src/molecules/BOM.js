@@ -88,7 +88,7 @@ export default class AddBOMTag extends Atom {
     const bomItem = this.BOMitem;
     return Promise.resolve({
       ...inputs.geometry,
-      BOM: [...(inputs.geometry.bom || []), bomItem]
+      bom: [...(inputs.geometry.bom || []), bomItem],
     });
   }
 
