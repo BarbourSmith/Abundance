@@ -37,12 +37,11 @@ import {
   addNonReplicadGeom,
   extractAllTags,
   extractBomList,
-  extractKeepOut,
   extractTag,
   extractTags,
   tag,
 } from "./tags";
-import { AbundanceObject, AbundanceLeaf, geometryProvider } from "./util";
+import { AbundanceObject, AbundanceLeaf } from "./util";
 import * as util from "./util";
 
 // --- Type Definitions ---
@@ -128,7 +127,7 @@ function findFlatFaces(
 ): Promise<number[]> {
   return started.then(async () => {
     const zValues: number[] = [];
-    const geometryToFilter = extractKeepOut(input);
+    const geometryToFilter = util.extractKeepOut(input);
     if (!geometryToFilter) {
       throw new Error(
         "Geometry To Export has no geometry after keepout is applied",
@@ -208,7 +207,7 @@ function visExport(
       );
     }
 
-    const geometryToExport = extractKeepOut(input);
+    const geometryToExport = util.extractKeepOut(input);
     if (!geometryToExport) {
       throw new Error(
         "Geometry To Export has no geometry after keepout is applied",
@@ -280,7 +279,7 @@ async function downExport(
     );
   }
   // For 3D exports (STL, STEP) and SVG, we need to process the geometry
-  const geometryToExport = extractKeepOut(input);
+  const geometryToExport = util.extractKeepOut(input);
   if (!geometryToExport) {
     throw new Error(
       "Geometry To Export has no geometry after keepout is applied",
@@ -837,7 +836,7 @@ async function getAsPoint3D(
  * @returns {AbundanceObject} The geometry with all keepout-tagged geometry removed
  */
 function extractNotKeepOut(input: AbundanceObject): AbundanceObject {
-  const result = extractKeepOut(input);
+  const result = util.extractKeepOut(input);
   if (!result) {
     throw new Error("No geometry remaining after removing keepout geometry");
   }
