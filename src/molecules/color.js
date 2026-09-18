@@ -1,7 +1,7 @@
 import Atom from "../prototypes/atom";
 
 import GlobalVariables from "../js/globalvariables.js";
-
+import { actOnLeafsSync } from "../worker/util";
 /**
  * This class creates the color atom which can be used to give a part a color.
  */

@@ -5,7 +5,8 @@ import {
   filterAssembly,
   walkAssembly,
   extractKeepOut,
-} from "../worker/util.js";
+  isLeaf,
+} from "../worker/util";
 
 /**
  * The cut away tag adds a tag to a part indicating that it should be cut away from the rest of the model in the next assembly. Essentially it creates a negitive version of itself.
