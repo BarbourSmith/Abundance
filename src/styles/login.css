@@ -891,8 +891,8 @@
   display: flex;
   height: 100%;
   position: absolute;
-  top: -0.5em;
-  right: 0rem;
+  top: 0em;
+  right: -0.2rem;
   flex-direction: column;
 }
 

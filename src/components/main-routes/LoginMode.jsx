@@ -36,6 +36,31 @@ import {
 } from "./thumbnailUrls.js";
 
 /**
+ * Get color for ranking star based on value
+ * 0 = grey, 3 = yellow, 5 = green with gradient between
+ */
+const getRankingColor = (ranking) => {
+  if (!ranking || ranking === 0) return "#999999"; // grey
+  if (ranking >= 5) return "#22c55e"; // green
+  if (ranking >= 4) return "#84cc16"; // lime
+  if (ranking >= 3) return "#eab308"; // yellow
+  if (ranking >= 2) return "#f97316"; // orange
+  return "#ef4444"; // red
+};
+
+/**
+ * Get tooltip text for ranking based on value
+ */
+const getRankingTooltip = (ranking) => {
+  if (!ranking || ranking === 0) return "Not ranked";
+  if (ranking >= 4.5) return "Widely used";
+  if (ranking >= 3.5) return "Moderately used";
+  if (ranking >= 2.5) return "Somewhat used";
+  if (ranking >= 1.5) return "Rarely used";
+  return "Barely used";
+};
+
+/**
  * adds individual projects after API call
  */
 const AddProject = ({
@@ -176,7 +201,7 @@ const AddProject = ({
               Forks
             </option>
             <option key={"stars_order"} value={"byStars"}>
-              Ranking
+              Most Used
             </option>
             <option key={"owner_order"} value={"byOwnerName"}>
               Creator
@@ -188,7 +213,7 @@ const AddProject = ({
               Date Modified
             </option>
             <option key={"likes_order"} value={"byLikes"}>
-              Likes
+              Most Liked
             </option>
           </select>
         </label>
@@ -448,10 +473,13 @@ const FeaturedHighlight = ({ randomFeaturedNode }) => {
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
+              title={getRankingTooltip(randomFeaturedNode.ranking)}
               style={{
                 transform: "scale(.7)",
-                fill: "#5a0562",
+                fill: getRankingColor(randomFeaturedNode.ranking),
                 alignSelf: "center",
+                pointerEvents: "auto",
+                cursor: "pointer",
               }}
               width="16"
               height="16"
@@ -526,7 +554,10 @@ const FeaturedHighlight = ({ randomFeaturedNode }) => {
                 <div style={{ display: "flex", alignItems: "center" }}>
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
-                    style={{ transform: "scale(.7)" }}
+                    style={{
+                      transform: "scale(.7)",
+                      fill: getRankingColor(randomFeaturedNode.ranking),
+                    }}
                     width="16"
                     height="16"
                   >
@@ -790,8 +821,11 @@ export const ProjectDiv = ({
         className={`project ${node.notFound ? "project-not-found" : ""}`}
         style={
           node.owner != GlobalVariables.currentUser
-            ? { backgroundColor: "rgb(233 221 242 / 58%)" }
-            : null
+            ? {
+                backgroundColor: "rgb(233 221 242 / 58%)",
+                position: "relative",
+              }
+            : { position: "relative" }
         }
         key={node.topMoleculeID + node.owner}
         id={node.repoName}
@@ -807,67 +841,159 @@ export const ProjectDiv = ({
         <p className="project_name">{convertToDisplayName(node.repoName)}</p>
 
         <div style={{ position: "relative" }}>
-          <div style={{ display: "flex", flexDirection: "row" }}>
-            <img
-              className="project_image"
-              src={getImageSrc(node)}
-              onError={({ currentTarget }) => {
-                currentTarget.onerror = null; // prevents looping
-                currentTarget.src = defaultThumbnail;
-                handleImageError(getThumbnailUrl(node));
-              }}
-              alt={node.repoName}
-            />
-            <div className="symbol-div">
-              {/* Ranking */}
-              <div
-                className="ranking-icon"
+          <img
+            className="project_image"
+            src={getImageSrc(node)}
+            onError={({ currentTarget }) => {
+              currentTarget.onerror = null; // prevents looping
+              currentTarget.src = defaultThumbnail;
+              handleImageError(getThumbnailUrl(node));
+            }}
+            alt={node.repoName}
+          />
+          <div className="symbol-div">
+            {/* Ranking */}
+            <div className="ranking-icon">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                title={getRankingTooltip(node.ranking)}
                 style={{
-                  display: "flex",
-                  justifyContent: "flex-start",
+                  transform: "scale(.7)",
+                  fill: getRankingColor(node.ranking),
+                  alignSelf: "center",
+                  pointerEvents: "auto",
+                  cursor: "pointer",
+                }}
+                width="16"
+                height="16"
+              >
+                <path d="M8 .2l4.9 15.2L0 6h16L3.1 15.4z" />
+              </svg>
+              <p
+                style={{
+                  fontFamily: "Roboto, sans-serif",
+                  fontSize: ".7em",
+                  display: "inline",
+                  alignSelf: "center",
                 }}
               >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  style={{
-                    transform: "scale(.7)",
-                    fill: "#5a0562",
-                    alignSelf: "center",
-                  }}
-                  width="16"
-                  height="16"
-                >
-                  <path d="M8 .2l4.9 15.2L0 6h16L3.1 15.4z" />
-                </svg>
-                <p
-                  style={{
-                    fontSize: ".7em",
-                    display: "inline",
-                    alignSelf: "center",
-                  }}
-                >
-                  {node.ranking}
-                </p>
-              </div>
-              {/* Forked repo icon */}
-              <div
-                style={{ opacity: 1, marginTop: "5px" }}
-                className="ranking-icon"
+                {node.ranking}
+              </p>
+            </div>
+            {/* User Ranking (Likes) */}
+            <div className="ranking-icon">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                style={{
+                  transform: "scale(.7)",
+                  fill: "#d64545",
+                  alignSelf: "center",
+                }}
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
               >
-                {node.parentRepo ? (
-                  <div style={{ alignSelf: "center" }}>
-                    <svg
-                      fill="#5a0562"
-                      fillOpacity={1}
-                      width="17"
-                      height="17"
-                      viewBox="0 0 33.627 33.628"
-                      style={{ verticalAlign: "middle" }}
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <g>
-                        <path
-                          d="M27.131,8.383c0-2.092-1.701-3.794-3.794-3.794s-3.793,1.702-3.793,3.794c0,0.99,0.39,1.885,1.013,2.561
+                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+              </svg>
+              <p
+                style={{
+                  fontFamily: "Roboto, sans-serif",
+                  fontSize: ".7em",
+                  display: "inline",
+                  alignSelf: "center",
+                }}
+              >
+                {typeof node.userRanking === "number"
+                  ? node.userRanking.toFixed(0)
+                  : node.userRanking || "0"}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Eye icon as corner tab */}
+        <div
+          className="thumb-eye-icon"
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            position: "absolute",
+            top: "0",
+            right: "0",
+            backgroundColor: "var(--loginPopup-bg, #ffffff)",
+            border: "1px solid #f3d2ff",
+            borderRadius: "0 12px 0 12px",
+            width: "20px",
+            height: "20px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: "pointer",
+            // boxShadow: "-2px 2px 8px rgba(0, 0, 0, 0.15)",
+            transition: "all 0.2s ease",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor =
+              "var(--abundance-color-darkGrey)";
+            e.currentTarget.style.boxShadow =
+              "-3px 3px 12px rgba(222, 193, 51, 0.25)";
+            e.currentTarget.style.transform = "translateY(-2px)";
+            handleEyeMouseEnter();
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.boxShadow =
+              "-2px 2px 8px rgba(0, 0, 0, 0.15)";
+            e.currentTarget.style.backgroundColor =
+              "var(--loginPopup-bg, #f8f3f8)";
+            e.currentTarget.style.transform = "translateY(0)";
+            handleEyeMouseLeave();
+          }}
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="18"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+            <circle cx="12" cy="12" r="3"></circle>
+          </svg>
+        </div>
+
+        {/* Fork icon as bottom-left corner tab */}
+        {node.parentRepo ? (
+          <div
+            style={{
+              position: "absolute",
+              bottom: "0",
+              left: "0",
+              backgroundColor: "var(--loginPopup-bg, #ffffff)",
+              border: "1px solid #f3d2ff",
+              borderRadius: "0 12px 0 12px",
+              width: "22px",
+              height: "22px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              transition: "all 0.2s ease",
+            }}
+          >
+            <svg
+              fill="#99659e"
+              fillOpacity={0.8}
+              width="14"
+              height="14"
+              viewBox="0 0 33.627 33.628"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <g>
+                <path
+                  d="M27.131,8.383c0-2.092-1.701-3.794-3.794-3.794s-3.793,1.702-3.793,3.794c0,0.99,0.39,1.885,1.013,2.561
       c-0.474,2.004-1.639,2.393-4.167,3.029c-1.279,0.322-2.753,0.7-4.099,1.501V7.003c1.072-0.671,1.793-1.854,1.793-3.209
       C14.084,1.702,12.382,0,10.292,0C8.199,0,6.497,1.702,6.497,3.794c0,1.356,0.722,2.539,1.795,3.21v19.62
       c-1.073,0.671-1.795,1.854-1.795,3.21c0,2.092,1.702,3.794,3.795,3.794c2.092,0,3.793-1.702,3.793-3.794
@@ -877,138 +1003,85 @@ export const ProjectDiv = ({
       c0-0.989,0.806-1.793,1.795-1.793c0.988,0,1.793,0.806,1.793,1.793C12.085,30.824,11.28,31.627,10.292,31.627z M23.337,10.177
       c-0.989,0-1.793-0.805-1.793-1.793c0-0.989,0.806-1.794,1.793-1.794c0.988,0,1.794,0.805,1.794,1.794
       C25.131,9.373,24.327,10.177,23.337,10.177z"
-                        />
-                      </g>
-                    </svg>
-                  </div>
-                ) : null}
-              </div>
-              {/* User Ranking (Likes) */}
-              <div
-                style={{ opacity: 1, marginTop: "5px" }}
-                className="ranking-icon"
-              >
+                />
+              </g>
+            </svg>
+          </div>
+        ) : null}
+
+        {/* Quick view panel */}
+        {showQuickView && (
+          <div
+            className={`thumb-quick-view-panel ${panelOnLeft ? "panel-on-left" : ""}`}
+            onMouseEnter={() => {
+              if (hoverTimerRef.current) {
+                clearTimeout(hoverTimerRef.current);
+                hoverTimerRef.current = null;
+              }
+            }}
+            onMouseLeave={handleEyeMouseLeave}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="GitInfoLeft">
+              <img
+                src={getImageSrc(node)}
+                onError={({ currentTarget }) => {
+                  currentTarget.onerror = null;
+                  currentTarget.src = defaultThumbnail;
+                  handleImageError(getThumbnailUrl(node));
+                }}
+                alt={node.repoName}
+              />
+              <div style={{ display: "flex", alignItems: "center" }}>
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
+                  title={getRankingTooltip(node.ranking)}
                   style={{
                     transform: "scale(.7)",
-                    fill: "#d64545",
-                    alignSelf: "center",
+                    fill: getRankingColor(node.ranking),
+                    pointerEvents: "auto",
+                    cursor: "pointer",
                   }}
                   width="16"
                   height="16"
-                  viewBox="0 0 24 24"
                 >
-                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                  <path d="M8 .2l4.9 15.2L0 6h16L3.1 15.4z" />
                 </svg>
-                <p
-                  style={{
-                    fontSize: ".7em",
-                    display: "inline",
-                    alignSelf: "center",
-                  }}
-                >
-                  {typeof node.userRanking === "number"
-                    ? node.userRanking.toFixed(1)
-                    : node.userRanking || "0"}
-                </p>
+                <p style={{ fontSize: "0.5em" }}>{node.ranking}</p>
               </div>
-              {/* Eye icon overlay */}
-              <div
-                className="thumb-eye-icon"
-                onMouseEnter={handleEyeMouseEnter}
-                onMouseLeave={handleEyeMouseLeave}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                  <circle cx="12" cy="12" r="3"></circle>
-                </svg>
+            </div>
+            <div className="GitInfo">
+              <div>
+                <strong>Project Name: </strong>
+                <span>{convertToDisplayName(node.repoName)}</span>
               </div>
-
-              {/* Quick view panel */}
-              {showQuickView && (
-                <div
-                  className={`thumb-quick-view-panel ${panelOnLeft ? "panel-on-left" : ""}`}
-                  onMouseEnter={() => {
-                    // Keep panel open when hovering over it
-                    if (hoverTimerRef.current) {
-                      clearTimeout(hoverTimerRef.current);
-                      hoverTimerRef.current = null;
-                    }
-                  }}
-                  onMouseLeave={handleEyeMouseLeave}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <div className="GitInfoLeft">
-                    <img
-                      src={getImageSrc(node)}
-                      onError={({ currentTarget }) => {
-                        currentTarget.onerror = null; // prevents looping
-                        currentTarget.src = defaultThumbnail;
-                        handleImageError(getThumbnailUrl(node));
-                      }}
-                      alt={node.repoName}
-                    />
-                    <div style={{ display: "flex", alignItems: "center" }}>
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        style={{ transform: "scale(.7)" }}
-                        width="16"
-                        height="16"
-                      >
-                        <path d="M8 .2l4.9 15.2L0 6h16L3.1 15.4z" />
-                      </svg>
-                      <p style={{ fontSize: "0.5em" }}>{node.ranking}</p>
-                    </div>
-                  </div>
-                  <div className="GitInfo">
-                    <div>
-                      <strong>Project Name: </strong>
-                      <span>{convertToDisplayName(node.repoName)}</span>
-                    </div>
-                    <div>
-                      <strong>Creator: </strong>
-                      <span>{node.owner}</span>
-                    </div>
-                    <div>
-                      <strong>Description: </strong>
-                      <span>{node.description || "No description"}</span>
-                    </div>
-                    <div>
-                      <strong>Tags: </strong>
-                      {node.topics && node.topics.length > 0 ? (
-                        node.topics.map((tag, idx) => (
-                          <span key={tag + idx} className="bubble-tag">
-                            {tag}
-                          </span>
-                        ))
-                      ) : (
-                        <span>None</span>
-                      )}
-                    </div>
-                    <div>
-                      <strong>Created: </strong>
-                      <span>
-                        {new Date(node.dateCreated).toLocaleDateString()}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              )}
+              <div>
+                <strong>Creator: </strong>
+                <span>{node.owner}</span>
+              </div>
+              <div>
+                <strong>Description: </strong>
+                <span>{node.description || "No description"}</span>
+              </div>
+              <div>
+                <strong>Tags: </strong>
+                {node.topics && node.topics.length > 0 ? (
+                  node.topics.map((tag, idx) => (
+                    <span key={tag + idx} className="bubble-tag">
+                      {tag}
+                    </span>
+                  ))
+                ) : (
+                  <span>None</span>
+                )}
+              </div>
+              <div>
+                <strong>Created: </strong>
+                <span>{new Date(node.dateCreated).toLocaleDateString()}</span>
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
     );
   });
@@ -1081,7 +1154,10 @@ export const ProjectDiv = ({
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
-            style={{ transform: "scale(.75)" }}
+            style={{
+              transform: "scale(.75)",
+              fill: getRankingColor(node.node.ranking),
+            }}
             width="16"
             height="16"
           >
@@ -1132,7 +1208,7 @@ export const ProjectDiv = ({
             }}
           >
             {typeof node.node.userRanking === "number"
-              ? node.node.userRanking.toFixed(1)
+              ? node.node.userRanking.toFixed(0)
               : node.node.userRanking || "0"}
           </p>
         </div>
