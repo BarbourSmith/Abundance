@@ -22,7 +22,7 @@ const tableName = process.env.TABLE_NAME || "abundance-projects";
  *   - URLs: readme, project.abundance, project.svg, project.png from raw GitHub
  *   - searchField: combined index for search functionality
  *   - dateModified: last update time from GitHub (updated_at)
- *   - yyyy: year extracted from dateCreated for yyyy-ranking-index
+ *   - yyyy: year extracted from dateCreated for yyyy-ranking-index and other year-based indexes
  *   - parentRepo: detected if project is a fork
  *
  * Preserved Data (not overwritten):
@@ -159,6 +159,7 @@ export const handler = async (event, context) => {
           svgURL,
           pngURL,
           searchField,
+          yyyy,
           ranking: existingRanking,
           userRanking: existingUserRanking,
           likes: existingLikes,
