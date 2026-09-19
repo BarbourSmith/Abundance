@@ -8,6 +8,22 @@ import datetime
 from datetime import datetime
 
 
+"""
+Scans the Abundance projects table with flexible query modes to retrieve projects.
+
+Modes:
+  - "user" (with user param): Returns all projects by a specific user, optionally filtered by search query
+  - "all" (default): Returns top-ranked public projects across all ranking tiers (1-5), sorted by dateCreated
+  - Default: Returns top-ranked public projects, with pagination support
+
+Uses the usageRanking index for efficient queries:
+  - Partition key: ranking (1-5 tier system based on molecule usage)
+  - Sort key: dateCreated (newest first)
+  
+Filters out: private repos, tutorial-default project, and fork projects (parentRepo not null)
+"""
+
+
 def lambda_handler(event: any, context: any):
 
     # Helper class to convert a DynamoDB item to JSON.
@@ -34,7 +50,6 @@ def lambda_handler(event: any, context: any):
         if lastKey:
             lastKeyList = lastKey.split("~")
             lastKeyObj = {"owner": lastKeyList[1], "repoName": lastKeyList[0]}
-            print(lastKeyObj)
             return lastKeyObj
         else:
             # need to change to null
@@ -112,16 +127,17 @@ def lambda_handler(event: any, context: any):
 
                 # Return all matching results found (no ranking sort, no limit)
             else:
-                # Default mode: fetch all ranked projects from the 3 most recent years once,
-                # fully paginating through DynamoDB's own query pages so the client can page client-side
-                years_to_fetch = [current_year - i for i in range(3)]
+                # Default mode: fetch all ranked projects across all ranking tiers (1-5),
+                # sorted by dateCreated. Query all 5 ranking buckets once, fully paginating.
+                ranking_tiers = [5, 4, 3, 2, 1]  # Query top tiers first
 
-                for y in years_to_fetch:
+                for ranking_tier in ranking_tiers:
                     query_args = {
-                        'IndexName': 'yyyy-ranking-index',
-                        'KeyConditionExpression': Key('yyyy').eq(y),
+                        'IndexName': 'usageRanking',
+                        'KeyConditionExpression': Key('ranking').eq(ranking_tier),
+                        # Most recent first (by dateCreated)
                         'ScanIndexForward': False,
-                        'FilterExpression': ~(Attr('privateRepo').eq(True)) & ~(Attr('repoName').eq('tutorial-default')) & Attr('parentRepo').eq(None),
+                        'FilterExpression': ~(Attr('privateRepo').eq(True)) & ~(Attr('repoName').eq('tutorial-default')) & ~(Attr('parentRepo').exists()),
                     }
                     while True:
                         response = table.query(**query_args)
@@ -129,25 +145,25 @@ def lambda_handler(event: any, context: any):
                         if 'LastEvaluatedKey' not in response:
                             break
                         query_args['ExclusiveStartKey'] = response['LastEvaluatedKey']
-
-                item_array = sorted(item_array, key=get_ranking, reverse=True)
         else:
-            # Default: public projects by year (no specific mode)
+            # Default: public projects sorted by ranking and dateCreated
             exclusiveKey = lookForLast()
-            query_args = {
-                'IndexName': 'yyyy-dateCreated-index',
-                'KeyConditionExpression': Key('yyyy').eq(year),
-                'FilterExpression': ~(Attr('privateRepo').eq(True)) & ~(Attr('repoName').eq('tutorial-default'))
-            }
-            if exclusiveKey:
-                query_args['ExclusiveStartKey'] = exclusiveKey
-            response = table.query(**query_args)
-            item_array.extend(response.get('Items', []))
-            if 0 < len(item_array) < 50:
-                year = year - 1
-                query_args['KeyConditionExpression'] = Key('yyyy').eq(year)
-                response2 = table.query(**query_args)
-                item_array.extend(response2.get('Items', []))
+            ranking_tiers = [5, 4, 3, 2, 1]  # Query top tiers first
+
+            for ranking_tier in ranking_tiers:
+                query_args = {
+                    'IndexName': 'usageRanking',
+                    'KeyConditionExpression': Key('ranking').eq(ranking_tier),
+                    # Most recent first (by dateCreated)
+                    'ScanIndexForward': False,
+                    'FilterExpression': ~(Attr('privateRepo').eq(True)) & ~(Attr('repoName').eq('tutorial-default')) & ~(Attr('parentRepo').exists())
+                }
+                if exclusiveKey and not item_array:  # Only apply pagination to first query
+                    query_args['ExclusiveStartKey'] = exclusiveKey
+                response = table.query(**query_args)
+                item_array.extend(response.get('Items', []))
+                if 'LastEvaluatedKey' in response:
+                    break  # Stop after first tier with pagination key
 
         lastKeyForward = ""
         if response and 'LastEvaluatedKey' in response:
@@ -157,5 +173,4 @@ def lambda_handler(event: any, context: any):
 
         return build_response(200, response_body)
     except Exception as e:
-        print('Error', e)
         return build_response(400, {"error": "Something went wrong"})

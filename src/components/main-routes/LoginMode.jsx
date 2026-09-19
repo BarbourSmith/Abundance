@@ -1343,6 +1343,11 @@ const ShowProjects = ({
     queryFn: fetchAll,
   });
 
+  // Debug logging for fetchAll
+  console.log("allRepos data:", allRepos);
+  console.log("allRepos.repos count:", allRepos?.repos?.length || 0);
+  console.log("isLoading:", isLoading, "isError:", isError);
+
   const {
     data: myRepos,
     isLoading: isLoadingUser,
