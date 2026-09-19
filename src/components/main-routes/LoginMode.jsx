@@ -57,6 +57,10 @@ const AddProject = ({
     updateFilters,
   } = useBrowseSettings();
   let nodes = projectsLoaded ? projectsLoaded["repos"] : [];
+  // Defensive check: ensure nodes is always an array, even if the API returns an unexpected structure
+  if (!Array.isArray(nodes)) {
+    nodes = [];
+  }
 
   let initialOrder =
     projectToShow == "featured"
@@ -70,7 +74,7 @@ const AddProject = ({
   // Use persistent settings from context
   // Pick a random featured project from all available nodes - memoized to prevent re-render loop
   const randomFeaturedNode = useMemo(() => {
-    if (projectToShow == "featured" && nodes.length > 0) {
+    if (projectToShow == "featured" && nodes && nodes.length > 0) {
       const randomIndex = Math.floor(Math.random() * nodes.length);
       return nodes[randomIndex];
     }
@@ -183,6 +187,9 @@ const AddProject = ({
             <option key={"dateModified_order"} value={"byDateModified"}>
               Date Modified
             </option>
+            <option key={"likes_order"} value={"byLikes"}>
+              Likes
+            </option>
           </select>
         </label>
         {projectToShow === "owned" && (
@@ -195,7 +202,7 @@ const AddProject = ({
           className="project-items-wrapper"
           style={{ display: "flex", flexDirection: "column" }}
         >
-          {nodes.length > 0 && projectToShow !== "featured" ? (
+          {nodes.length > 0 ? (
             <ProjectDiv
               {...{
                 nodes,
@@ -876,6 +883,36 @@ export const ProjectDiv = ({
                   </div>
                 ) : null}
               </div>
+              {/* User Ranking (Likes) */}
+              <div
+                style={{ opacity: 1, marginTop: "5px" }}
+                className="ranking-icon"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  style={{
+                    transform: "scale(.7)",
+                    fill: "#d64545",
+                    alignSelf: "center",
+                  }}
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                >
+                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                </svg>
+                <p
+                  style={{
+                    fontSize: ".7em",
+                    display: "inline",
+                    alignSelf: "center",
+                  }}
+                >
+                  {typeof node.userRanking === "number"
+                    ? node.userRanking.toFixed(1)
+                    : node.userRanking || "0"}
+                </p>
+              </div>
               {/* Eye icon overlay */}
               <div
                 className="thumb-eye-icon"
@@ -1064,6 +1101,41 @@ export const ProjectDiv = ({
               : node.node.ranking}
           </p>
         </div>
+
+        <div
+          style={{
+            width: "12%",
+            display: "flex",
+            flexDirection: "row",
+            alignItems: "center",
+          }}
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            style={{
+              transform: "scale(.6)",
+              fill: "#d64545",
+            }}
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+          >
+            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+          </svg>
+          <p
+            style={{
+              fontFamily: "Roboto, sans-serif",
+              color: "var(--loginPopup-text)",
+              width: "30%",
+              marginLeft: "5px",
+              textDecoration: "none",
+            }}
+          >
+            {typeof node.node.userRanking === "number"
+              ? node.node.userRanking.toFixed(1)
+              : node.node.userRanking || "0"}
+          </p>
+        </div>
       </div>
     );
   };
@@ -1088,6 +1160,9 @@ export const ProjectDiv = ({
           ? 1
           : 0;
     },
+    byLikes: function (a, b) {
+      return b.userRanking - a.userRanking;
+    },
     byDateModified: function (a, b) {
       return a.dateModified > b.dateModified
         ? -1
@@ -1099,6 +1174,7 @@ export const ProjectDiv = ({
   const dummyNode = {
     forks: "Forks",
     ranking: "",
+    userRanking: "Likes",
     dateCreated: "Date Created",
     owner: "Creator",
     repoName: "Project Name",
