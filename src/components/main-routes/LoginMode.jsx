@@ -574,7 +574,7 @@ export const ProjectDiv = ({
               }
             : { position: "relative" }
         }
-        key={node.topMoleculeID + node.owner}
+        key={node.owner + node.repoName}
         id={node.repoName}
         onClick={(e) => {
           if (node.notFound) {
