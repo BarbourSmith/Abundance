@@ -9,33 +9,33 @@ import decimal
 def lambda_handler(event: any, context: any):
     """
     Lambda function: queryReturnLikedProjects
-    
+
     Purpose:
     Fetches fresh project data for a user's liked projects using a two-table architecture.
     Retrieves stale project references from the user table, then batch-fetches current
     project data from the dedicated projects table to ensure up-to-date information.
-    
+
     Input (Query Parameters):
     - user (string): The username of the user whose liked projects to fetch
       Example: ?user=alzatin
-    
+
     Process:
     1. Query user table to retrieve the user's likedProjects array (list of {owner, repoName})
     2. Extract owner and repoName from each liked project object
     3. Batch fetch all project items from abundance-projects table using the keys
     4. Return fresh project data with current values (names, descriptions, stats, etc)
-    
+
     Output (Response):
     - Status 200 (Success): JSON object { "repos": [array of fresh project items] }
     - Status 200 (No liked projects): JSON object { "repos": [] }
     - Status 400 (Error): Error message as string
-    
+
     Response Format Example:
     {
         "statusCode": 200,
         "body": "{\"repos\": [{\"owner\": \"user\", \"repoName\": \"project\", ...}, ...]}"
     }
-    
+
     Dependencies:
     - Environment variables: TABLE_NAME (user table), PROJECTS_TABLE_NAME (projects table)
     - DynamoDB batch_get_item for efficient multi-item retrieval

@@ -1463,6 +1463,7 @@ const ShowProjects = ({
       { signal },
     ).then((res) => res.json());
   };
+  // Fetches featured projects from the feature endpoint which returns projects with high user (likes+forks) ratings.
   const fetchFeaturedRepos = async ({ signal }) => {
     return fetch(
       "https://hg5gsgv9te.execute-api.us-east-2.amazonaws.com/abundance-stage/queryFeaturedProjects",
@@ -1473,6 +1474,8 @@ const ShowProjects = ({
         return data;
       });
   };
+
+  // Fetches a user's liked projects from the user table, then retrieves the current project data from the projects table and returns it.
   const fetchLikedRepos = async ({ signal }) => {
     return fetch(
       "https://hg5gsgv9te.execute-api.us-east-2.amazonaws.com/abundance-stage/queryLikedProjects?user=" +
