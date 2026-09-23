@@ -1475,9 +1475,8 @@ const ShowProjects = ({
   };
   const fetchLikedRepos = async ({ signal }) => {
     return fetch(
-      "https://hg5gsgv9te.execute-api.us-east-2.amazonaws.com/abundance-stage/USER-TABLE?user=" +
-        user +
-        "&liked=true",
+      "https://hg5gsgv9te.execute-api.us-east-2.amazonaws.com/abundance-stage/queryLikedProjects?user=" +
+        user,
       { signal },
     )
       .then((res) => res.json())
