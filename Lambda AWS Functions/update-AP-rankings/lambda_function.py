@@ -4,6 +4,39 @@ from boto3.dynamodb.conditions import Key
 from decimal import Decimal
 
 
+"""
+Recalculates project rankings based on two independent metrics:
+
+1. RANKING (1-5 tier based on molecule usage):
+   - Scans all projects and counts how many times each molecule is used
+   - Calculates molecule usage for each project
+   - Converts to 1-5 tier: 0→1, 1-9→2, 10-49→3, 50-99→4, 100+→5
+   - Used by ranking-dateModified-index for featured project queries
+
+2. USER_RANKING (engagement score):
+   - Scans user table and tallies likes for each project (from likedProjects)
+   - Calculates: userRanking = 2 * likes + 0.2 * forks
+   - Represents user engagement and project popularity
+
+3. LIKES (count):
+   - Stores the tally of likes for each project from user table
+   - Used in userRanking calculation and stored for reference
+
+Safe Updates:
+   - Uses update_item with UpdateExpression (only updates 3 fields)
+   - Preserves all other project metadata (description, topics, urls, etc.)
+   - Skips "My-First-Project" as requested
+
+Requirements:
+   - TABLE_NAME environment variable: abundance-projects
+   - USER_TABLE environment variable: user table name
+   - Requires full table scans on both projects and users table
+
+Returns:
+   {statusCode: 200, body: "Updated ranking for N projects."}
+"""
+
+
 def compute_molecule_usage_counts(items):
     """Returns a dict mapping repo_id to usage count."""
     usage_counts = {}
@@ -67,15 +100,52 @@ def get_molecule_usage_for_project(owner, repo_name, usage_counts):
     return usage_counts.get(repo_id, 0)
 
 
-def calculate_ranking(item, molecule_usage):
+def batch_update_items(table, updates):
+    """Update items in DynamoDB one at a time (update_item preserves other attributes)."""
+    for update in updates:
+        table.update_item(
+            Key={"owner": update["owner"], "repoName": update["repoName"]},
+            UpdateExpression="SET ranking = :r, userRanking = :ur, likes = :l",
+            ExpressionAttributeValues={
+                ":r": update["ranking"],
+                ":ur": update["userRanking"],
+                ":l": update["likes"]
+            },
+        )
+
+
+def calculate_molecule_ranking(molecule_usage):
+    """Calculate ranking as 1-5 bucket based on molecule usage.
+
+    Buckets:
+    - 1: 0 uses
+    - 2: 1-9 uses
+    - 3: 10-49 uses
+    - 4: 50-99 uses
+    - 5: 100+ uses
+    """
+    molecule_usage = int(molecule_usage)
+
+    if molecule_usage == 0:
+        return 1
+    elif molecule_usage < 10:
+        return 2
+    elif molecule_usage < 50:
+        return 3
+    elif molecule_usage < 100:
+        return 4
+    else:
+        return 5
+
+
+def calculate_user_ranking(item):
+    """Calculate ranking based on likes and forks only."""
     # Ensure all values are Decimal for DynamoDB compatibility
     likes = Decimal(str(item.get("likes", 0)))
     forks = Decimal(str(item.get("forks", 0)))
-    molecule_usage = Decimal(str(molecule_usage))
-    # Use Decimal for all constants and new formula
-    ranking = Decimal('2') * likes + Decimal('0.3') * \
-        molecule_usage + Decimal('0.2') * forks
-    return ranking
+    # User ranking: 2 * likes + 0.2 * forks
+    user_ranking = Decimal('2') * likes + Decimal('0.2') * forks
+    return user_ranking
 
 
 def lambda_handler(event, context):
@@ -98,6 +168,8 @@ def lambda_handler(event, context):
     # 3. Tally likes from user table
     likes_count = tally_likes_from_user_table(dynamodb, user_table_name)
 
+    # 4. Prepare batch updates
+    updates = []
     updated = 0
     for item in items:
         owner = item["owner"]
@@ -114,17 +186,27 @@ def lambda_handler(event, context):
 
         molecule_usage = float(molecule_usage)
         item_for_ranking = {"likes": likes, "forks": forks}
-        ranking = calculate_ranking(item_for_ranking, molecule_usage)
 
-        if ranking > 0:
-            print(f"Would update ranking for {owner}/{repo_name} to {ranking}")
-            # 4. Update ranking attribute for this item
-            table.update_item(
-                Key={"owner": owner, "repoName": repo_name},
-                UpdateExpression="SET ranking = :r, likes = :l",
-                ExpressionAttributeValues={":r": ranking, ":l": likes},
-            )
+        # Calculate both rankings
+        ranking = calculate_molecule_ranking(molecule_usage)
+        user_ranking = calculate_user_ranking(item_for_ranking)
+
+        print(
+            f"Updating {owner}/{repo_name}: ranking={ranking}, userRanking={user_ranking}")
+
+        # Prepare item for batch write
+        update_item = {
+            "owner": owner,
+            "repoName": repo_name,
+            "ranking": ranking,
+            "userRanking": user_ranking,
+            "likes": likes
+        }
+        updates.append(update_item)
         updated += 1
+
+    # 5. Write all updates
+    batch_update_items(table, updates)
 
     print(f"Updated ranking for {updated} projects.")
     return {

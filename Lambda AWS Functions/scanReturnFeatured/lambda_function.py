@@ -8,7 +8,18 @@ import datetime
 
 
 def lambda_handler(event: any, context: any):
+    """
+    Queries the DynamoDB abundance-projects table for featured projects.
+    Returns the top 15 highest-ranked projects (by userRanking) for each of the 
+    current year and the two previous years, excluding private repositories.
 
+    Uses the yyyy-userRanking-index for efficient queries.
+    Results are already sorted by userRanking in descending order.
+
+    Returns:
+        - statusCode: 200 on success, 400 on error
+        - body: JSON array of up to 45 projects (15 per year × 3 years)
+    """
     # Get the current date and time
     now = datetime.datetime.now()
     years = [now.year, now.year - 1, now.year - 2]
@@ -44,24 +55,18 @@ def lambda_handler(event: any, context: any):
     try:
         for y in years:
             query_args = {
-                'IndexName': 'yyyy-ranking-index',
+                'IndexName': 'yyyy-userRanking',
                 'KeyConditionExpression': Key('yyyy').eq(y),
                 'ScanIndexForward': False,
                 'FilterExpression': ~(Attr('privateRepo').eq(True)),
-                'Limit': 30
+                'Limit': 15
             }
             response = table.query(**query_args)
             item_array.extend(response.get('Items', []))
 
-        # Sort all items by 'ranking' descending and take top 20
-        def get_ranking(item):
-            # fallback to 0 if ranking is missing
-            return float(item.get('ranking', 0))
-
-        item_array_sorted = sorted(item_array, key=get_ranking, reverse=True)
-        top_items = item_array_sorted[:15]
-        print(top_items)
-        return build_response(200, {'repos': top_items})
+        # Items are already sorted by userRanking descending per year, no additional sorting needed
+        print(item_array)
+        return build_response(200, {'repos': item_array})
     except Exception as e:
         print('Error:', e)
         return build_response(400, str(e))

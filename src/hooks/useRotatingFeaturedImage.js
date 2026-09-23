@@ -23,6 +23,7 @@ const FEATURED_PROJECTS = [
     repoName: "CurvedSupportBookshelfMultipleVerticals",
   },
   { owner: "wouldchuckit", repoName: "Maslow4_Crosshairs_for_centering" },
+  { owner: "BarbourSmith", repoName: "Van-Build" },
 ];
 
 const GITHUB_RAW_URL = "https://raw.githubusercontent.com";

@@ -22,8 +22,8 @@ def lambda_handler(event: any, context: any):
     # for every item in the body coming from abundance (a.e. ranking: 5), add a key value pair to expression attribute values
     # you have not connected to api gateway
 
-    # newDate = datetime.datetime.now().strftime('%m/%d/%Y')
-    newDate = str(datetime.datetime.now().toordinal())
+    # Format dateModified as ISO 8601 to match GitHub API format (dateCreated uses created_at)
+    newDate = datetime.datetime.now().isoformat() + 'Z'
     updateExpressions = []
     for key, value in event["attributeUpdates"].items():
         if (key == "ranking"):

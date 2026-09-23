@@ -1,0 +1,8 @@
+{
+  "queryStringParameters": {
+    "mode": "all",
+    "attribute": "searchField",
+    "yearShow": "2026"
+  },
+  "_comment": "This tests mode='all' which queries usageRanking index across ranking tiers [5,4,3,2,1]. Check CloudWatch logs for diagnostic output."
+}
