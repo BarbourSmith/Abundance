@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState, useMemo } from "react";
+import { createPortal } from "react-dom";
 import GlobalVariables from "../../js/globalvariables.js";
 import { Link } from "react-router-dom";
 import globalvariables from "../../js/globalvariables.js";
@@ -22,10 +23,8 @@ import {
   convertToDisplayName,
   convertToGithubName,
 } from "../../js/projectNameUtils.js";
-import FilterPanel from "../secondary/FilterPanel.jsx";
 import DropdownSectionDisplay from "./DropdownSectionDisplay.jsx";
 import FAQDisplay from "./FAQDisplay.jsx";
-import on from "../../js/circular-menu/src/on.js";
 import PRNotificationIcon from "../secondary/PRNotificationIcon.jsx";
 import InitialLog from "./InitialLog.jsx";
 import { useRotatingFeaturedImage } from "../../hooks/useRotatingFeaturedImage.js";
@@ -73,38 +72,13 @@ const AddProject = ({
 }) => {
   const [svgCacheBuster, setSvgCacheBuster] = useState(Date.now());
   const [failedImages, setFailedImages] = useState(new Set());
-  const {
-    browseType,
-    updateBrowseType,
-    orderType,
-    updateOrderType,
-    filters,
-    updateFilters,
-  } = useBrowseSettings();
+  const { browseType, updateBrowseType, orderType, updateOrderType, filters } =
+    useBrowseSettings();
   let nodes = projectsLoaded ? projectsLoaded["repos"] : [];
   // Defensive check: ensure nodes is always an array, even if the API returns an unexpected structure
   if (!Array.isArray(nodes)) {
     nodes = [];
   }
-
-  let initialOrder =
-    projectToShow == "featured"
-      ? "byStars"
-      : projectToShow == "all"
-        ? "byDateModified"
-        : projectToShow == "owned"
-          ? "byDateModified"
-          : "byName";
-
-  // Use persistent settings from context
-  // Pick a random featured project from all available nodes - memoized to prevent re-render loop
-  const randomFeaturedNode = useMemo(() => {
-    if (projectToShow == "featured" && nodes && nodes.length > 0) {
-      const randomIndex = Math.floor(Math.random() * nodes.length);
-      return nodes[randomIndex];
-    }
-    return null;
-  }, [projectToShow, nodes.length]);
 
   // Apply fork filter
   if (!filters.showForks) {
@@ -143,10 +117,6 @@ const AddProject = ({
       return true;
     });
   }
-
-  const handleFilterChange = (newFilters) => {
-    updateFilters(newFilters);
-  };
 
   return (
     <>
@@ -283,10 +253,6 @@ const AddProject = ({
               </div>
             )}
         </div>
-        {/*<FilterPanel
-          projects={projectsLoaded ? projectsLoaded["repos"] : []}
-          onFilterChange={handleFilterChange}
-        />*/}
       </div>
     </>
   );
@@ -387,243 +353,6 @@ const FeaturedCarousel = () => {
           </a>
         </p>
       </div>
-    </div>
-  );
-};
-
-const FeaturedHighlight = ({ randomFeaturedNode }) => {
-  const [showQuickView, setShowQuickView] = useState(false);
-  const [panelOnLeft, setPanelOnLeft] = useState(false);
-  const hoverTimerRef = useRef(null);
-  const projectRef = useRef(null);
-
-  const PANEL_WIDTH = 300;
-  const PANEL_MARGIN = 20;
-
-  useEffect(() => {
-    return () => {
-      if (hoverTimerRef.current) {
-        clearTimeout(hoverTimerRef.current);
-      }
-    };
-  }, []);
-
-  const handleEyeMouseEnter = () => {
-    if (hoverTimerRef.current) {
-      clearTimeout(hoverTimerRef.current);
-    }
-    hoverTimerRef.current = setTimeout(() => {
-      if (projectRef.current) {
-        const rect = projectRef.current.getBoundingClientRect();
-        const spaceOnRight = window.innerWidth - rect.right;
-        setPanelOnLeft(spaceOnRight < PANEL_WIDTH + PANEL_MARGIN);
-      }
-      setShowQuickView(true);
-    }, 500);
-  };
-
-  const handleEyeMouseLeave = () => {
-    if (hoverTimerRef.current) {
-      clearTimeout(hoverTimerRef.current);
-      hoverTimerRef.current = null;
-    }
-    setShowQuickView(false);
-  };
-
-  return (
-    <div id="featured-div">
-      <Link
-        onClick={() => {
-          GlobalVariables.currentAWSnode = randomFeaturedNode;
-        }}
-        id="featured-project-highlight"
-        className="featured-project-div"
-        key={randomFeaturedNode.owner + randomFeaturedNode.repoName}
-        to={
-          randomFeaturedNode.owner == globalvariables.currentUser
-            ? `/${randomFeaturedNode.owner}/${randomFeaturedNode.repoName}`
-            : `/run/${randomFeaturedNode.owner}/${randomFeaturedNode.repoName}`
-        }
-        ref={projectRef}
-      >
-        <div style={{ position: "relative", left: "5%", top: "5%" }}>
-          <p className="project_name">
-            {convertToDisplayName(randomFeaturedNode.repoName)}
-          </p>
-          <p className="project_name">By {randomFeaturedNode.owner}</p>
-        </div>
-        <img
-          className="project_image"
-          style={{ left: "80%", top: "30%" }}
-          src={randomFeaturedNode.pngURL || randomFeaturedNode.svgURL}
-          onError={({ currentTarget }) => {
-            currentTarget.onerror = null; // prevents looping
-            currentTarget.src =
-              import.meta.env.VITE_APP_PATH_FOR_PICS +
-              "/imgs/defaultThumbnail.svg";
-          }}
-          alt={randomFeaturedNode.repoName}
-        ></img>
-
-        {/* Ranking and Eye Icon Overlay */}
-        <div
-          style={{
-            display: "flex",
-            height: "100%",
-            position: "absolute",
-            top: "1rem",
-            right: "1rem",
-            flexDirection: "column",
-          }}
-        >
-          {/* Ranking */}
-          <div
-            className="ranking-icon"
-            style={{
-              display: "flex",
-              justifyContent: "flex-start",
-            }}
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              title={getRankingTooltip(randomFeaturedNode.ranking)}
-              style={{
-                transform: "scale(.7)",
-                fill: getRankingColor(randomFeaturedNode.ranking),
-                alignSelf: "center",
-                pointerEvents: "auto",
-                cursor: "pointer",
-              }}
-              width="16"
-              height="16"
-            >
-              <path d="M8 .2l4.9 15.2L0 6h16L3.1 15.4z" />
-            </svg>
-            <p
-              style={{
-                fontSize: ".7em",
-                display: "inline",
-                alignSelf: "center",
-              }}
-            >
-              {randomFeaturedNode.ranking}
-            </p>
-          </div>
-
-          {/* Eye icon overlay */}
-          <div
-            className="thumb-eye-icon"
-            onMouseEnter={handleEyeMouseEnter}
-            onMouseLeave={handleEyeMouseLeave}
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              marginTop: "5px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              style={{ aspectRatio: "1 / 1" }}
-            >
-              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-              <circle cx="12" cy="12" r="3"></circle>
-            </svg>
-          </div>
-
-          {/* Quick view panel */}
-          {showQuickView && (
-            <div
-              className={`thumb-quick-view-panel ${panelOnLeft ? "panel-on-left" : ""}`}
-              onMouseEnter={() => {
-                if (hoverTimerRef.current) {
-                  clearTimeout(hoverTimerRef.current);
-                  hoverTimerRef.current = null;
-                }
-              }}
-              onMouseLeave={handleEyeMouseLeave}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="GitInfoLeft">
-                <img
-                  src={randomFeaturedNode.pngURL || randomFeaturedNode.svgURL}
-                  onError={({ currentTarget }) => {
-                    currentTarget.onerror = null;
-                    currentTarget.src =
-                      import.meta.env.VITE_APP_PATH_FOR_PICS +
-                      "/imgs/defaultThumbnail.svg";
-                  }}
-                  alt={randomFeaturedNode.repoName}
-                />
-                <div style={{ display: "flex", alignItems: "center" }}>
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    style={{
-                      transform: "scale(.7)",
-                      fill: getRankingColor(randomFeaturedNode.ranking),
-                    }}
-                    width="16"
-                    height="16"
-                  >
-                    <path d="M8 .2l4.9 15.2L0 6h16L3.1 15.4z" />
-                  </svg>
-                  <p style={{ fontSize: "0.5em" }}>
-                    {randomFeaturedNode.ranking}
-                  </p>
-                </div>
-              </div>
-              <div className="GitInfo">
-                <div>
-                  <strong>Project Name: </strong>
-                  <span>
-                    {convertToDisplayName(randomFeaturedNode.repoName)}
-                  </span>
-                </div>
-                <div>
-                  <strong>Creator: </strong>
-                  <span>{randomFeaturedNode.owner}</span>
-                </div>
-                <div>
-                  <strong>Description: </strong>
-                  <span>
-                    {randomFeaturedNode.description || "No description"}
-                  </span>
-                </div>
-                <div>
-                  <strong>Tags: </strong>
-                  {randomFeaturedNode.topics &&
-                  randomFeaturedNode.topics.length > 0 ? (
-                    randomFeaturedNode.topics.map((tag, idx) => (
-                      <span key={tag + idx} className="bubble-tag">
-                        {tag}
-                      </span>
-                    ))
-                  ) : (
-                    <span>None</span>
-                  )}
-                </div>
-                <div>
-                  <strong>Created: </strong>
-                  <span>
-                    {new Date(
-                      randomFeaturedNode.dateCreated,
-                    ).toLocaleDateString()}
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </Link>
     </div>
   );
 };
@@ -783,7 +512,7 @@ export const ProjectDiv = ({
 
   const ThumbItem = React.memo(({ node, svgCacheBuster }) => {
     const [showQuickView, setShowQuickView] = useState(false);
-    const [panelOnLeft, setPanelOnLeft] = useState(false);
+    const [panelPosition, setPanelPosition] = useState({ top: 0, left: 0 });
     const hoverTimerRef = useRef(null);
     const projectRef = useRef(null);
 
@@ -807,13 +536,18 @@ export const ProjectDiv = ({
       }
       // Start a timer to show quick view after 1 second
       hoverTimerRef.current = setTimeout(() => {
-        // Check if panel would overflow on the right
+        // Check if panel would overflow on the right, and compute viewport-fixed
+        // coordinates so the panel renders via a portal instead of being clipped
+        // by a scrollable ancestor's overflow.
         if (projectRef.current) {
           const rect = projectRef.current.getBoundingClientRect();
           const spaceOnRight = window.innerWidth - rect.right;
+          const onLeft = spaceOnRight < PANEL_WIDTH + PANEL_MARGIN;
 
-          // If not enough space on the right, show panel on the left
-          setPanelOnLeft(spaceOnRight < PANEL_WIDTH + PANEL_MARGIN);
+          setPanelPosition({
+            top: rect.top,
+            left: onLeft ? rect.left - PANEL_WIDTH - 10 : rect.right + 10,
+          });
         }
         setShowQuickView(true);
       }, 1000);
@@ -1022,79 +756,86 @@ export const ProjectDiv = ({
           </div>
         ) : null}
 
-        {/* Quick view panel */}
-        {showQuickView && (
-          <div
-            className={`thumb-quick-view-panel ${panelOnLeft ? "panel-on-left" : ""}`}
-            onMouseEnter={() => {
-              if (hoverTimerRef.current) {
-                clearTimeout(hoverTimerRef.current);
-                hoverTimerRef.current = null;
-              }
-            }}
-            onMouseLeave={handleEyeMouseLeave}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="GitInfoLeft">
-              <img
-                src={getImageSrc(node)}
-                onError={({ currentTarget }) => {
-                  currentTarget.onerror = null;
-                  currentTarget.src = defaultThumbnail;
-                  handleImageError(getThumbnailUrl(node));
-                }}
-                alt={node.repoName}
-              />
-              <div style={{ display: "flex", alignItems: "center" }}>
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  title={getRankingTooltip(node.ranking)}
-                  style={{
-                    transform: "scale(.7)",
-                    fill: getRankingColor(node.ranking),
-                    pointerEvents: "auto",
-                    cursor: "pointer",
+        {/* Quick view panel, portaled to body so it isn't clipped by scrollable ancestors */}
+        {showQuickView &&
+          createPortal(
+            <div
+              className="thumb-quick-view-panel"
+              style={{
+                position: "fixed",
+                top: panelPosition.top,
+                left: panelPosition.left,
+              }}
+              onMouseEnter={() => {
+                if (hoverTimerRef.current) {
+                  clearTimeout(hoverTimerRef.current);
+                  hoverTimerRef.current = null;
+                }
+              }}
+              onMouseLeave={handleEyeMouseLeave}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="GitInfoLeft">
+                <img
+                  src={getImageSrc(node)}
+                  onError={({ currentTarget }) => {
+                    currentTarget.onerror = null;
+                    currentTarget.src = defaultThumbnail;
+                    handleImageError(getThumbnailUrl(node));
                   }}
-                  width="16"
-                  height="16"
-                >
-                  <path d="M8 .2l4.9 15.2L0 6h16L3.1 15.4z" />
-                </svg>
-                <p style={{ fontSize: "0.5em" }}>{node.ranking}</p>
+                  alt={node.repoName}
+                />
+                <div style={{ display: "flex", alignItems: "center" }}>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    title={getRankingTooltip(node.ranking)}
+                    style={{
+                      transform: "scale(.7)",
+                      fill: getRankingColor(node.ranking),
+                      pointerEvents: "auto",
+                      cursor: "pointer",
+                    }}
+                    width="16"
+                    height="16"
+                  >
+                    <path d="M8 .2l4.9 15.2L0 6h16L3.1 15.4z" />
+                  </svg>
+                  <p style={{ fontSize: "0.5em" }}>{node.ranking}</p>
+                </div>
               </div>
-            </div>
-            <div className="GitInfo">
-              <div>
-                <strong>Project Name: </strong>
-                <span>{convertToDisplayName(node.repoName)}</span>
+              <div className="GitInfo">
+                <div>
+                  <strong>Project Name: </strong>
+                  <span>{convertToDisplayName(node.repoName)}</span>
+                </div>
+                <div>
+                  <strong>Creator: </strong>
+                  <span>{node.owner}</span>
+                </div>
+                <div>
+                  <strong>Description: </strong>
+                  <span>{node.description || "No description"}</span>
+                </div>
+                <div>
+                  <strong>Tags: </strong>
+                  {node.topics && node.topics.length > 0 ? (
+                    node.topics.map((tag, idx) => (
+                      <span key={tag + idx} className="bubble-tag">
+                        {tag}
+                      </span>
+                    ))
+                  ) : (
+                    <span>None</span>
+                  )}
+                </div>
+                <div>
+                  <strong>Created: </strong>
+                  <span>{new Date(node.dateCreated).toLocaleDateString()}</span>
+                </div>
               </div>
-              <div>
-                <strong>Creator: </strong>
-                <span>{node.owner}</span>
-              </div>
-              <div>
-                <strong>Description: </strong>
-                <span>{node.description || "No description"}</span>
-              </div>
-              <div>
-                <strong>Tags: </strong>
-                {node.topics && node.topics.length > 0 ? (
-                  node.topics.map((tag, idx) => (
-                    <span key={tag + idx} className="bubble-tag">
-                      {tag}
-                    </span>
-                  ))
-                ) : (
-                  <span>None</span>
-                )}
-              </div>
-              <div>
-                <strong>Created: </strong>
-                <span>{new Date(node.dateCreated).toLocaleDateString()}</span>
-              </div>
-            </div>
-          </div>
-        )}
+            </div>,
+            document.body,
+          )}
       </div>
     );
   });
@@ -1422,20 +1163,14 @@ const ShowProjects = ({
   setProjectsToShow,
   user,
   authorizedUserOcto,
-  pageDict,
   setNoUserBrowsing,
 }) => {
   const [search, setSearch] = useState("");
   const debouncedSearchTerm = useDebounce(search, 200);
   // Normalize search term to match backend storage (replace spaces with underscores)
   const normalizedSearchTerm = convertToGithubName(debouncedSearchTerm);
-  const currentYear = new Date().getFullYear();
-  const years = Array.from({ length: 6 }, (_, i) => currentYear - i);
   const [lastKey, setLastKey] = useState("");
   const [pageNumber, setPageNumber] = useState(0);
-
-  // not used by aws but need to update function before deleting
-  const [yearShow, setYearShow] = useState(currentYear);
 
   // "all" mode fetches the full ranked list once; pagination is just how many are shown
   const [allReposVisibleCount, setAllReposVisibleCount] = useState(300);
@@ -1450,8 +1185,6 @@ const ShowProjects = ({
       "https://hg5gsgv9te.execute-api.us-east-2.amazonaws.com/abundance-stage/scan-search-abundance?" +
       "attribute=searchField" +
       "&mode=all" +
-      "&yearShow=" +
-      yearShow +
       lastKeyQuery;
 
     // Only add query parameter if there's a search term
@@ -1467,8 +1200,6 @@ const ShowProjects = ({
         "attribute=searchField" +
         "&query=" +
         normalizedSearchTerm +
-        "&yearShow=" +
-        yearShow +
         "&user=" +
         GlobalVariables.currentUser +
         "&mode=user" +
@@ -1561,7 +1292,7 @@ const ShowProjects = ({
   );
 
   const navigate = useNavigate();
-  const { start, isActive } = useTutorial();
+  const { start } = useTutorial();
   const { createProject } = useProject();
 
   const [loadingTutorialBar, setLoadingTutorialBar] = useState(0);
@@ -2059,7 +1790,6 @@ const ShowProjects = ({
           {showDict[projectToShow]["data"] ? (
             <AddProject
               {...{
-                setYearShow,
                 projectsLoaded: showDict[projectToShow]["data"],
                 authorizedUserOcto,
                 user,
@@ -2089,8 +1819,6 @@ function LoginMode() {
     useBrowseSettings();
   const navigate = useNavigate();
   const location = useLocation();
-
-  const pageDict = { 0: null };
 
   // Check if we're coming from run mode (Browse Projects was clicked)
   const fromRunMode = location.state?.fromRunMode;
@@ -2163,7 +1891,6 @@ function LoginMode() {
           setProjectsToShow,
           user: GlobalVariables.currentUser,
           authorizedUserOcto,
-          pageDict,
         }}
       />
     );
@@ -2176,7 +1903,6 @@ function LoginMode() {
           setProjectsToShow,
           user: null,
           authorizedUserOcto,
-          pageDict,
           setNoUserBrowsing,
         }}
       />
