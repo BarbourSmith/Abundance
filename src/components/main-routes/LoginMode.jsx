@@ -1284,7 +1284,7 @@ const ShowProjects = ({
     if (defaultSort[projectToShow]) {
       updateOrderType(defaultSort[projectToShow]);
     }
-  }, [projectToShow, updateOrderType]);
+  }, [projectToShow]);
 
   const handleSearchChange = (e) => {
     setSearch(e.target.value.toLowerCase());
