@@ -221,11 +221,21 @@ const AddProject = ({
           <PRNotificationIcon allProjects={nodes} />
         )}
       </div>
-      <div className="projects-and-filters-container">
+      <div
+        className="projects-and-filters-container"
+        style={
+          projectToShow == "featured" ? { flexDirection: "row" } : undefined
+        }
+      >
         {projectToShow == "featured" ? <FeaturedCarousel /> : null}
         <div
           className="project-items-wrapper"
-          style={{ display: "flex", flexDirection: "column" }}
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            maxHeight: "100%",
+            ...(projectToShow == "featured" ? { width: "50%" } : null),
+          }}
         >
           {nodes.length > 0 ? (
             <ProjectDiv
@@ -296,9 +306,12 @@ const FeaturedCarousel = () => {
     <div
       id="featured-carousel"
       style={{
-        width: "100%",
-        padding: "20px",
+        width: "48%",
+        margin: "2%",
+        padding: "0px",
         display: "flex",
+        maxHeight: "60vh",
+
         justifyContent: "center",
       }}
     >
@@ -320,8 +333,8 @@ const FeaturedCarousel = () => {
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              height: "50vh",
-              maxHeight: "50vh",
+              height: "30vh",
+              maxHeight: "30vh",
               color: "#999",
             }}
           >
