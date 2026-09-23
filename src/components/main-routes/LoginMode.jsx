@@ -1165,6 +1165,7 @@ const ShowProjects = ({
   authorizedUserOcto,
   setNoUserBrowsing,
 }) => {
+  const { updateOrderType } = useBrowseSettings();
   const [search, setSearch] = useState("");
   const debouncedSearchTerm = useDebounce(search, 200);
   // Normalize search term to match backend storage (replace spaces with underscores)
@@ -1271,6 +1272,19 @@ const ShowProjects = ({
   useEffect(() => {
     setProjectsToShow(user ? "owned" : "featured");
   }, [GlobalVariables.currentUser]);
+
+  // Reset sort order to tab default when switching tabs
+  useEffect(() => {
+    const defaultSort = {
+      owned: "byDateModified",
+      featured: "byLikes",
+      all: "byStars",
+      liked: "byLikes",
+    };
+    if (defaultSort[projectToShow]) {
+      updateOrderType(defaultSort[projectToShow]);
+    }
+  }, [projectToShow, updateOrderType]);
 
   const handleSearchChange = (e) => {
     setSearch(e.target.value.toLowerCase());
