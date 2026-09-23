@@ -25,7 +25,7 @@ def lambda_handler(event: any, context: any):
         ranking = event["ranking"]
         searchField = event["searchField"]
         forks = event["forks"]
-        topMoleculeID = event["topMoleculeID"]
+        topMoleculeID = event.get("topMoleculeID", "")
         topics = event["topics"]
         readMe = event["readme"]
         contentURL = event["contentURL"]
