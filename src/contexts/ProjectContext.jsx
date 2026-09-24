@@ -454,7 +454,6 @@ export function ProjectProvider({ children, cad, loadProject }) {
       searchField: searchField,
       repoName: result.data.name,
       forks: result.data.forks_count,
-      topMoleculeID: GlobalVariables.topLevelMolecule.uniqueID,
       topics: topics,
       html_url: result.data.html_url,
       privateRepo: result.data.private,
@@ -719,7 +718,6 @@ export function ProjectProvider({ children, cad, loadProject }) {
         searchField: searchField,
         repoName: forkData.name,
         forks: forkData.forks_count,
-        topMoleculeID: GlobalVariables.topLevelMolecule.uniqueID,
         topics: forkData.topics || [],
         readme:
           "https://raw.githubusercontent.com/" +
@@ -1063,7 +1061,6 @@ export function ProjectProvider({ children, cad, loadProject }) {
         ).toLowerCase(),
         repoName: newRepo.data.name,
         forks: 0,
-        topMoleculeID: GlobalVariables.topLevelMolecule?.uniqueID || "",
         topics: currentRepo.topics || [],
         html_url: newRepo.data.html_url,
         parentRepo: null,
