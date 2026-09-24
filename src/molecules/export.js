@@ -42,6 +42,13 @@ export default class Export extends Atom {
 
     this.resolution = 96;
 
+    const isMM = GlobalVariables.topLevelMolecule?.unitsKey === "MM";
+    /**
+     * Max chordal deviation (in project units) used when meshing for STL export. Smaller is finer.
+     * @type {number}
+     */
+    this.stlTolerance = isMM ? 0.05 : 0.002;
+
     this.parent = values?.parent;
     this.partName = this.parent?.name ?? "output";
 
@@ -52,6 +59,11 @@ export default class Export extends Atom {
         name: "Resolution (dpi)",
         valueType: "number",
         defaultValue: this.resolution,
+      },
+      {
+        name: "STL Tolerance",
+        valueType: "number",
+        defaultValue: this.stlTolerance,
       },
       {
         name: "Part Name",
@@ -88,7 +100,7 @@ export default class Export extends Atom {
   /**
    * Override the logic for determining if inputs are ready.
    * Only check the essential inputs needed for compute() - "geometry" and "File Type".
-   * "Part Name" and "Resolution (dpi)" are only used during download and can be set
+   * "Part Name", "Resolution (dpi)" and "STL Tolerance" are only used during download and can be set
    * via the parameter menu without connections.
    */
   inputsAreReady() {
@@ -161,6 +173,24 @@ export default class Export extends Atom {
             },
           };
         }
+        if (
+          input.name == "STL Tolerance" &&
+          this.findIOValue("File Type") === "STL"
+        ) {
+          const isMM = GlobalVariables.topLevelMolecule?.unitsKey === "MM";
+          inputParams[this.uniqueID + input.name] = {
+            type: "number",
+            value: input.value,
+            label: input.name + (isMM ? " (mm)" : " (in)"),
+            disabled: false,
+            step: isMM ? 0.01 : 0.001,
+            onChange: (value) => {
+              if (input.value !== value) {
+                input.setValue(value);
+              }
+            },
+          };
+        }
         if (input.name == "Part Name") {
           inputParams[this.uniqueID + input.name] = {
             type: "string",
@@ -226,6 +256,7 @@ export default class Export extends Atom {
   async exportFile() {
     let fileType = this.findIOValue("File Type");
     let resolution = this.findIOValue("Resolution (dpi)");
+    let stlTolerance = this.findIOValue("STL Tolerance");
     let partName = this.findIOValue("Part Name");
     let geometry = this.findIOValue("geometry");
     try {
@@ -240,6 +271,7 @@ export default class Export extends Atom {
         resolution,
         GlobalVariables.topLevelMolecule.unitsKey,
         this.getContext(),
+        stlTolerance,
       );
 
       saveAs(result, partName + "." + fileType.toLowerCase());

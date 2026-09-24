@@ -253,6 +253,7 @@ function visExport(
  * @param {string} fileType - The file type for export ("STL", "STEP", "SVG", or "TXT")
  * @param {number} svgResolution - The resolution for SVG export
  * @param {string} units - The units for scaling ("Inches", "MM", or other)
+ * @param {number} [stlTolerance] - Max chordal deviation, in project units, when meshing for STL export
  * @returns {Promise<Blob>} A promise that resolves to a Blob containing the exported file data
  */
 async function downExport(
@@ -261,6 +262,7 @@ async function downExport(
   svgResolution: number,
   units: string,
   context: RequestContext,
+  stlTolerance?: number,
 ): Promise<Blob> {
   await started;
   // TXT export
@@ -324,7 +326,12 @@ async function downExport(
       throw new Error("STL export requires 3D geometry");
     }
     const stlShape = geom.clone();
-    return (mmScale === 1 ? stlShape : stlShape.scale(mmScale)).blobSTL();
+    // Meshing happens after the mm conversion, so convert the tolerance too.
+    const tolerance =
+      stlTolerance && stlTolerance > 0 ? stlTolerance * mmScale : undefined;
+    return (mmScale === 1 ? stlShape : stlShape.scale(mmScale)).blobSTL({
+      tolerance,
+    });
   } else {
     if ("blobSTEP" in geom == false) {
       throw new Error("STEP export requires 3D geometry");
