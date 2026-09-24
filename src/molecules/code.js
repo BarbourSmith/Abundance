@@ -478,6 +478,7 @@ return assembly;
       this.getContext(),
       this.interpreterVersion ?? 0,
       this.uniqueID,
+      GlobalVariables.topLevelMolecule?.unitsKey,
       onLog,
     );
     if (isTs) {

@@ -29,6 +29,15 @@
 // this file compiles standalone; the generated .d.ts gives it proper typing.
 declare const replicad: any;
 
+type ProjectUnits = "MM" | "Inches" | "Unitless";
+
+// Read-only execution context injected into TypeScript code atoms.
+interface AbundanceContext {
+  readonly units: ProjectUnits;
+}
+
+declare const context: AbundanceContext;
+
 /*
  * Representation of Abundance Assemblies for use in code atoms.
  *
