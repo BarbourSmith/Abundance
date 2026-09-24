@@ -438,9 +438,6 @@ async function assembly(
         ) {
           nonReplicadGeoms.push(...geometry.nonReplicadSerialized);
         }
-        if (Array.isArray(geometry.bom) && geometry.bom.length > 0) {
-          bomAssembly.push(...geometry.bom);
-        }
       }
       // Always update to reflect current state, even if empty
       batchWithBounds.nonReplicadSerialized = nonReplicadGeoms;
