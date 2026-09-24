@@ -2,7 +2,6 @@ import { proxy } from "comlink";
 import { PlacementWrapper, PolygonPacker } from "polygon-packer";
 import type { DisplayCallback } from "polygon-packer/src/types";
 import { Drawing, Face, Shape3D } from "replicad";
-import { extractKeepOut } from "./tags";
 import { RequestContext } from "./geometryProvider";
 import { reportCadProgress } from "./progress";
 import type { AbundanceLeaf, AbundanceObject } from "./util";
@@ -389,7 +388,7 @@ async function rotateForLayout(
   context: RequestContext,
 ): Promise<Orientation[]> {
   // Filter out keepout geometry before any processing
-  const filteredAssembly = extractKeepOut(assembly);
+  const filteredAssembly = util.extractKeepOut(assembly);
   if (!filteredAssembly) {
     throw new Error("No geometry to layout after keepout geometry is excluded");
   }
