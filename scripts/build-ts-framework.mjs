@@ -186,6 +186,13 @@ const finalDts =
   `\nimport * as _replicad from "replicad";\n` +
   `\ndeclare global {\n` +
   `  const replicad: typeof _replicad;\n` +
+  `  type ProjectUnits = "MM" | "Inches" | "Unitless";\n` +
+  `\n` +
+  `  interface AbundanceContext {\n` +
+  `    readonly units: ProjectUnits;\n` +
+  `  }\n` +
+  `\n` +
+  `  const context: AbundanceContext;\n` +
   `\n` +
   `  namespace replicad {\n` +
   `    type AnyShape = _replicad.AnyShape;\n` +

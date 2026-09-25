@@ -18,8 +18,9 @@
  *         RealizedAssembly for downstream cache / render consumption.
  *     TS-mode users do NOT have access to `userLib`, wrapped* helpers, or
  *     anything else carried over from the legacy surface — the only globals
- *     exposed are `replicad`, `AbundanceObj`, and `AbundanceProps`. User
- *     code MAY contain static ES `import` statements for external modules
+ *     exposed are `replicad`, `context`, `AbundanceObj`, and `AbundanceProps`.
+ *     `context` is intentionally a small read-only landing zone for future
+ *     execution metadata. User code MAY contain static ES `import` statements for external modules
  *     (e.g. `import * as math from 'https://esm.sh/mathjs'`) because each
  *     atom executes as a real ES module via a Blob URL.
  */
@@ -54,6 +55,14 @@ const { Assembly } = makeAbundanceFramework(util.replicad as any);
 type Assembly<G = any> = InstanceType<typeof Assembly> & { geometry: G };
 
 type Primitive = number | string | boolean | null | undefined;
+
+type ProjectUnits = "MM" | "Inches" | "Unitless";
+
+function normalizeProjectUnits(unitsKey?: string | null): ProjectUnits {
+  if (unitsKey === "MM") return "MM";
+  if (unitsKey === "Inches") return "Inches";
+  return "Unitless";
+}
 
 /**
  * Monotonically-increasing counter used to give each `executeTsCode` call its
@@ -355,6 +364,7 @@ async function executeTsCode(
   argumentsArray: { [key: string]: any },
   context: RequestContext,
   atomUniqueId: string | number,
+  unitsKey?: string | null,
   onLog?: CodeAtomLogCallback,
 ): Promise<AbundanceObject | Primitive | Primitive[]> {
   let startedBatch = false;
@@ -548,6 +558,9 @@ async function executeTsCode(
 
     (globalThis as any)[CTX_KEY] = {
       replicad: util.replicad,
+      context: {
+        units: normalizeProjectUnits(unitsKey),
+      },
       args: { ...argumentsArray },
       console: sandboxConsole,
     };
@@ -570,7 +583,7 @@ async function executeTsCode(
     // inline that source and immediately call it here so the resulting
     // `Assembly` / `__promoteInput` are bound to the sandbox's `replicad`.
     const body =
-      `const { replicad, args: __abundanceArgs, console } = globalThis[${JSON.stringify(CTX_KEY)}];\n` +
+      `const { replicad, context, args: __abundanceArgs, console } = globalThis[${JSON.stringify(CTX_KEY)}];\n` +
       `delete globalThis[${JSON.stringify(CTX_KEY)}];\n` +
       `${ABUNDANCE_TS_FRAMEWORK_JS}\n` +
       `const { Assembly, __promoteInput } = makeAbundanceFramework(replicad);\n` +
@@ -695,11 +708,19 @@ export async function executeCode(
   argumentsArray: { [key: string]: any },
   context: RequestContext,
   interpreterVersion: number = 0,
+  unitsKey?: string | null,
   atomUniqueId: string | number = "anon",
   onLog?: CodeAtomLogCallback,
 ): Promise<AbundanceObject | Primitive | Primitive[]> {
   if (interpreterVersion < 1) {
     return executeLegacy(code, argumentsArray, context);
   }
-  return executeTsCode(code, argumentsArray, context, atomUniqueId, onLog);
+  return executeTsCode(
+    code,
+    argumentsArray,
+    context,
+    atomUniqueId,
+    unitsKey,
+    onLog,
+  );
 }

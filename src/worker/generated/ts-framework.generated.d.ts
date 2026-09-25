@@ -5,6 +5,13 @@ import * as _replicad from "replicad";
 
 declare global {
   const replicad: typeof _replicad;
+  type ProjectUnits = "MM" | "Inches" | "Unitless";
+
+  interface AbundanceContext {
+    readonly units: ProjectUnits;
+  }
+
+  const context: AbundanceContext;
 
   namespace replicad {
     type AnyShape = _replicad.AnyShape;

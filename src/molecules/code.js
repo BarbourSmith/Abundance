@@ -477,6 +477,7 @@ return assembly;
       argsDict,
       this.getContext(),
       this.interpreterVersion ?? 0,
+      GlobalVariables.topLevelMolecule?.unitsKey,
       this.uniqueID,
       onLog,
     );

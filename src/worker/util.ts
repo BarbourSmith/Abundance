@@ -803,7 +803,6 @@ export {
   mergeBounds,
   replicad,
   SimplePlane,
-  NonReplicadGeom,
   withAssemblyBoundingBoxes,
   XYPlane,
   startHeapMonitor,
