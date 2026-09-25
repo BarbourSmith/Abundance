@@ -1307,12 +1307,9 @@ export default class Molecule extends Atom {
     //Find the target molecule in the list
     let promiseArray = [];
 
-    // Capture topLevel NOW before setValues() below can change it.
-    // When a GitHub repo's project.abundance (which has topLevel:true) is loaded as a
-    // non-top-level atom, valuesToOverwriteInLoadedVersion overrides topLevel:false via
-    // setValues(values). Without this capture, the .finally() below would check the
-    // post-setValues value of this.topLevel (false) and never clear the flag.
-    const wasTopLevel = this.topLevel;
+    // Save this value immutably to ensure we turn off 'projectIsLoading' if it gets set
+    // to true here.
+    const wasTopLevel = json.topLevel;
 
     // Set loading flag to block saves during deserialization of the top-level molecule
     if (wasTopLevel) {
