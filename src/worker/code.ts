@@ -719,8 +719,8 @@ export async function executeCode(
     code,
     argumentsArray,
     context,
-    unitsKey,
     atomUniqueId,
+    unitsKey,
     onLog,
   );
 }
