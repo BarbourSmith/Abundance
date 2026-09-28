@@ -38,7 +38,7 @@ interface AbundanceContext {
 
 declare const context: AbundanceContext;
 
-// Reports progress and resets the code atom's inactivity timeout.
+// Reports progress to the status bar and the CAD worker's stall watchdog.
 declare function progress(label?: string): void;
 
 /*

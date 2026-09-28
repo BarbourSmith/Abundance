@@ -195,9 +195,10 @@ const finalDts =
   `  const context: AbundanceContext;\n` +
   `\n` +
   `  /**\n` +
-  `   * Report progress from a long-running code atom. Each call resets the\n` +
-  `   * execution timeout, so call it periodically (e.g. once per loop\n` +
-  `   * iteration) to keep a slow but healthy computation from being killed.\n` +
+  `   * Report progress from a long-running code atom. The label is shown in\n` +
+  `   * the status bar, and each call tells the CAD worker the atom is still\n` +
+  `   * working, so call it periodically (e.g. once per loop iteration) to keep\n` +
+  `   * a slow but healthy computation from being treated as stalled.\n` +
   `   * @param label Short description of the current step, e.g. "part 3/10".\n` +
   `   */\n` +
   `  function progress(label?: string): void;\n` +

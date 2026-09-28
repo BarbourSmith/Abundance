@@ -64,8 +64,6 @@ function normalizeProjectUnits(unitsKey?: string | null): ProjectUnits {
   return "Unitless";
 }
 
-/** A TS code atom is abandoned after this long without a `progress()` call. */
-const CODE_INACTIVITY_TIMEOUT_MS = 60_000;
 /** Minimum spacing between per-part progress messages posted to the main thread. */
 const PROGRESS_POST_INTERVAL_MS = 250;
 
@@ -587,30 +585,11 @@ async function executeTsCode(
     // refactor — here we just surface the supersession so it can be debugged).
     _atomLatestSerial.set(atomUniqueId, callSerial);
 
-    // Inactivity timeout for user code. `progress()` calls from inside the
-    // atom re-arm it, so a slow computation that keeps reporting is not
-    // killed — only one that goes silent for CODE_INACTIVITY_TIMEOUT_MS.
-    let rejectTimeout: (err: Error) => void = () => {};
-    let timeoutId: ReturnType<typeof setTimeout> | undefined;
-    const armTimeout = () => {
-      clearTimeout(timeoutId);
-      timeoutId = setTimeout(
-        () =>
-          rejectTimeout(
-            new Error(
-              `Code execution timed out (no progress for ${CODE_INACTIVITY_TIMEOUT_MS / 1000}s). ` +
-                `Long-running code can call progress("...") periodically to stay alive.`,
-            ),
-          ),
-        CODE_INACTIVITY_TIMEOUT_MS,
-      );
-    };
-    // Re-arming the local timer is cheap, but posting to the main thread is
-    // throttled so a tight loop calling progress() can't flood it.
-    const sandboxProgress = (label?: unknown) => {
-      armTimeout();
+    // `progress()` inside user code. Timeouts are owned by CadWorkerManager's
+    // inactivity watchdog, which each posted progress message resets.
+    // Throttled so a tight loop calling progress() can't flood the main thread.
+    const sandboxProgress = (label?: unknown) =>
       report(label === undefined ? "running code" : String(label), false);
-    };
 
     (globalThis as any)[CTX_KEY] = {
       replicad: util.replicad,
@@ -636,7 +615,7 @@ async function executeTsCode(
     // `console` is shadowed at the top of the module scope so user code's
     // `console.log(...)` calls hit our shim (which forwards to the UI)
     // rather than the worker's native console. `progress` is likewise a
-    // sandbox-provided global that resets the inactivity timeout.
+    // sandbox-provided global that reports progress to the UI and watchdog.
     // The framework module exports `makeAbundanceFramework(replicad)`; we
     // inline that source and immediately call it here so the resulting
     // `Assembly` / `__promoteInput` are bound to the sandbox's `replicad`.
@@ -657,17 +636,9 @@ async function executeTsCode(
     report("running code");
     let rawResult: any;
     try {
-      const timeoutPromise = new Promise((_, reject) => {
-        rejectTimeout = reject;
-      });
-      armTimeout();
-      const mod: any = await Promise.race([
-        import(/* @vite-ignore */ blobUrl),
-        timeoutPromise,
-      ]);
+      const mod: any = await import(/* @vite-ignore */ blobUrl);
       rawResult = mod.default;
     } finally {
-      clearTimeout(timeoutId);
       URL.revokeObjectURL(blobUrl);
       // Defensive: in case user code threw before reaching the delete line,
       // make sure we don't leak the ctx object on globalThis.
