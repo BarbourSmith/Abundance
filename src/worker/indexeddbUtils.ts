@@ -210,6 +210,9 @@ export async function shapeExists(
   });
 }
 
+/** How many visited entries between `filter` progress callbacks. */
+const FILTER_PROGRESS_INTERVAL = 500;
+
 /**
  * Filter entries in a project based on the given predicate. Predicate returns false
  * to remove an entry, true to retain.
@@ -221,6 +224,8 @@ export async function shapeExists(
  *     to the predicate.
  * @param includeValues if true, the value will be fetched and provided to the predicate.
  *     WARNING: includeValues=true will be ~4x slower than includeValues=false.
+ * @param onProgress optional callback invoked every `FILTER_PROGRESS_INTERVAL`
+ *     visited entries, so long filters can report that they are still alive.
  * @returns async - the number of deleted entries
  */
 export async function filter(
@@ -228,6 +233,7 @@ export async function filter(
   type: DataType,
   predicate: (shapeKey: string, value?: StoredGeometryRecord) => boolean,
   includeValues: boolean = false,
+  onProgress?: (visited: number, deleted: number) => void,
 ): Promise<number> {
   const startTime = performance.now();
   const db = await openDB();
@@ -264,6 +270,10 @@ export async function filter(
           deletedCount++;
         } else {
           retained++;
+        }
+        const visited = deletedCount + retained;
+        if (onProgress && visited % FILTER_PROGRESS_INTERVAL === 0) {
+          onProgress(visited, deletedCount);
         }
         cursor.continue();
       } else {
