@@ -30,6 +30,7 @@ import React, {
 import { useControls } from "../../hooks/useControls";
 import ReactMarkdown from "react-markdown";
 import TrashCanIcon from "../icons/TrashCanIcon";
+import { jogValue, restoreCaret } from "../../utils/caretJog";
 import { max } from "mathjs";
 
 // SVG icons (Settings, X, CaretDown)
@@ -1078,24 +1079,23 @@ export const SimpleControlPanel = forwardRef(function SimpleControlPanel(
                             width: "100%",
                           }}
                         >
+                          {/* type="text" rather than "number" so the caret
+                              position is readable for the ▲/▼ jog step */}
                           <input
-                            type="number"
+                            type="text"
+                            inputMode="decimal"
                             value={currentValue ?? 0}
                             onChange={(e) => {
-                              const numValue = Number(e.target.value);
-                              // Allow empty string for intermediate state while typing
-                              if (
-                                e.target.value === "" ||
-                                e.target.value === "-"
-                              ) {
-                                handleLocalChange(key, e.target.value);
-                              } else {
-                                handleLocalChange(key, numValue);
-                              }
-                            }}
-                            onBlur={(e) => {
-                              const numValue = Number(e.target.value);
-                              commitChange(key, numValue, config);
+                              const raw = e.target.value;
+                              const numValue = Number(raw);
+                              // Keep the raw text for intermediate states while
+                              // typing ("", "-", "1.", "1.50") so it isn't reformatted
+                              handleLocalChange(
+                                key,
+                                raw.trim() !== "" && String(numValue) === raw
+                                  ? numValue
+                                  : raw,
+                              );
                             }}
                             onKeyDown={(e) => {
                               if (e.key === "Enter") {
@@ -1105,6 +1105,10 @@ export const SimpleControlPanel = forwardRef(function SimpleControlPanel(
                               }
                             }}
                             {...commonProps}
+                            onBlur={(e) => {
+                              const numValue = Number(e.target.value);
+                              commitChange(key, numValue, config);
+                            }}
                             style={{
                               ...inputStyle,
                               width: 70,
@@ -1138,14 +1142,21 @@ export const SimpleControlPanel = forwardRef(function SimpleControlPanel(
                               disabled={isDisabled}
                               tabIndex={isDisabled ? -1 : 0}
                               aria-label="Increment"
+                              // Keep focus (and the caret) in the input
+                              onMouseDown={(e) => e.preventDefault()}
                               onClick={() => {
                                 if (isDisabled) return;
-                                let step = config.step ?? 1;
-                                let val = Number(currentValue ?? 0);
-                                if (isNaN(val)) val = 0;
-                                const newVal = val + step;
+                                const input = inputRefs.current[idx];
+                                const { value: newVal, placesFromPoint } =
+                                  jogValue(
+                                    input,
+                                    currentValue,
+                                    1,
+                                    config.step ?? 1,
+                                  );
                                 handleLocalChange(key, newVal);
                                 commitChange(key, newVal, config);
+                                restoreCaret(input, placesFromPoint);
                               }}
                             >
                               ▲
@@ -1169,14 +1180,21 @@ export const SimpleControlPanel = forwardRef(function SimpleControlPanel(
                               disabled={isDisabled}
                               tabIndex={isDisabled ? -1 : 0}
                               aria-label="Decrement"
+                              // Keep focus (and the caret) in the input
+                              onMouseDown={(e) => e.preventDefault()}
                               onClick={() => {
                                 if (isDisabled) return;
-                                let step = config.step ?? 1;
-                                let val = Number(currentValue ?? 0);
-                                if (isNaN(val)) val = 0;
-                                const newVal = val - step;
+                                const input = inputRefs.current[idx];
+                                const { value: newVal, placesFromPoint } =
+                                  jogValue(
+                                    input,
+                                    currentValue,
+                                    -1,
+                                    config.step ?? 1,
+                                  );
                                 handleLocalChange(key, newVal);
                                 commitChange(key, newVal, config);
+                                restoreCaret(input, placesFromPoint);
                               }}
                             >
                               ▼
@@ -1693,13 +1711,16 @@ export const SimpleControlPanel = forwardRef(function SimpleControlPanel(
                                     disabled={isDisabled}
                                     tabIndex={isDisabled ? -1 : 0}
                                     aria-label="Increment"
+                                    // Keep focus (and the caret) in the input
+                                    onMouseDown={(e) => e.preventDefault()}
                                     onClick={() => {
                                       if (isDisabled) return;
-                                      let val = Number(currentValue ?? 0);
-                                      if (isNaN(val)) val = 0;
-                                      const newVal = val + 1;
-                                      handleChange(String(newVal));
-                                      commitChange(key, String(newVal), config);
+                                      const input = inputRefs.current[idx];
+                                      const { text: newText, placesFromPoint } =
+                                        jogValue(input, currentValue, 1);
+                                      handleChange(newText);
+                                      commitChange(key, newText, config);
+                                      restoreCaret(input, placesFromPoint);
                                     }}
                                   >
                                     ▲
@@ -1725,13 +1746,16 @@ export const SimpleControlPanel = forwardRef(function SimpleControlPanel(
                                     disabled={isDisabled}
                                     tabIndex={isDisabled ? -1 : 0}
                                     aria-label="Decrement"
+                                    // Keep focus (and the caret) in the input
+                                    onMouseDown={(e) => e.preventDefault()}
                                     onClick={() => {
                                       if (isDisabled) return;
-                                      let val = Number(currentValue ?? 0);
-                                      if (isNaN(val)) val = 0;
-                                      const newVal = val - 1;
-                                      handleChange(String(newVal));
-                                      commitChange(key, String(newVal), config);
+                                      const input = inputRefs.current[idx];
+                                      const { text: newText, placesFromPoint } =
+                                        jogValue(input, currentValue, -1);
+                                      handleChange(newText);
+                                      commitChange(key, newText, config);
+                                      restoreCaret(input, placesFromPoint);
                                     }}
                                   >
                                     ▼
