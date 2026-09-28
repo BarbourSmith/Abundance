@@ -1,4 +1,5 @@
 import { create, all } from "mathjs";
+import { meshKey } from "./displayScheduler.js";
 import Assembly from "../molecules/assembly.js";
 import Circle from "../molecules/circle.js";
 import Color from "../molecules/color.js";
@@ -587,7 +588,7 @@ class GlobalVariables {
     if (
       rawGeom &&
       (inputAtom.type === "edgeselect" || inputAtom.type === "faceselect") &&
-      this.pool
+      this.displayScheduler
     ) {
       inputAtom._perElementMeshes = null;
       if (typeof this.setOutdatedMesh === "function") {
@@ -597,10 +598,14 @@ class GlobalVariables {
         inputAtom.type === "faceselect"
           ? "generatePerFaceMeshes"
           : "generatePerEdgeMeshes";
-      this.pool
-        .proxy()
-        .then((worker) => worker[workerFn](rawGeom, inputAtom.getContext()))
-        .then((meshes) => {
+      const context = inputAtom.getContext();
+      // Runs in the "selection" slot: ahead of background wireframes, and a
+      // newer selection mode supersedes this one before it starts.
+      this.displayScheduler.request("selection", {
+        method: workerFn,
+        args: [rawGeom, context],
+        key: meshKey(rawGeom, context),
+        onResult: (meshes) => {
           // Only apply if still in this selection mode
           if (this.selectionModeAtom === inputAtom) {
             inputAtom._perElementMeshes = meshes;
@@ -609,13 +614,17 @@ class GlobalVariables {
             }
             this.bumpSelectionVersion();
           }
-        })
-        .catch((err) => {
+        },
+        onError: (err) => {
           console.error("Failed to generate per-element meshes:", err);
-          if (typeof this.setOutdatedMesh === "function") {
+          if (
+            this.selectionModeAtom === inputAtom &&
+            typeof this.setOutdatedMesh === "function"
+          ) {
             this.setOutdatedMesh(false);
           }
-        });
+        },
+      });
     }
   }
 
@@ -628,6 +637,8 @@ class GlobalVariables {
     if (typeof this.setSelectionModeAtom === "function") {
       this.setSelectionModeAtom(null);
     }
+    // Drop any per-element mesh request that has not started yet.
+    this.displayScheduler?.cancel("selection");
     // Clean up cached per-element meshes
     if (prev) {
       prev._perElementMeshes = null;
