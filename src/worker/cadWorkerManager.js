@@ -225,20 +225,33 @@ export class CadWorkerManager {
     if (data.type !== CAD_PROGRESS_MESSAGE_TYPE) {
       return;
     }
-    // Attribute the progress to the task the worker is actively processing
-    // (the first call in the queue, whose timers are running).
+    // The entry whose watchdog is running (the first call in the queue).
     const activeEntry =
       this._pendingCalls.find((entry) => entry.startTime) ||
       this._pendingCalls[0];
     if (!activeEntry) {
       return;
-    }    // The operation is demonstrably making progress, so reset the inactivity
+    }
+    // The worker is demonstrably making progress, so reset the inactivity
     // watchdog. A long-running operation only times out if it goes silent for
     // `_timeoutMs` (truly stalled), not merely because it takes a long time.
     if (activeEntry.timeoutId) {
       this._armTimeout(activeEntry);
-    }    this._emitCadWorkerEvent("cad-worker-task-progress", {
-      taskId: activeEntry.taskId,
+    }
+    // The worker runs several calls concurrently, so the queue head is not
+    // necessarily the call that reported. Prefer the call from the reporting
+    // atom when the message says which one it was.
+    const reportingEntry =
+      (data.atomId &&
+        this._pendingCalls.find(
+          (entry) => entry.taskMeta?.atomId === data.atomId,
+        )) ||
+      activeEntry;
+    if (reportingEntry !== activeEntry && reportingEntry.timeoutId) {
+      this._armTimeout(reportingEntry);
+    }
+    this._emitCadWorkerEvent("cad-worker-task-progress", {
+      taskId: reportingEntry.taskId,
       label: data.label || null,
     });
   };

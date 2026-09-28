@@ -194,6 +194,14 @@ const finalDts =
   `\n` +
   `  const context: AbundanceContext;\n` +
   `\n` +
+  `  /**\n` +
+  `   * Report progress from a long-running code atom. Each call resets the\n` +
+  `   * execution timeout, so call it periodically (e.g. once per loop\n` +
+  `   * iteration) to keep a slow but healthy computation from being killed.\n` +
+  `   * @param label Short description of the current step, e.g. "part 3/10".\n` +
+  `   */\n` +
+  `  function progress(label?: string): void;\n` +
+  `\n` +
   `  namespace replicad {\n` +
   `    type AnyShape = _replicad.AnyShape;\n` +
   `    type Shape3D = _replicad.Shape3D;\n` +

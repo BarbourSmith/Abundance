@@ -38,6 +38,9 @@ interface AbundanceContext {
 
 declare const context: AbundanceContext;
 
+// Reports progress and resets the code atom's inactivity timeout.
+declare function progress(label?: string): void;
+
 /*
  * Representation of Abundance Assemblies for use in code atoms.
  *
