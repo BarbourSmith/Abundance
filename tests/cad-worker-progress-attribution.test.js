@@ -70,4 +70,31 @@ describe("CadWorkerManager progress attribution", () => {
     ]);
     cad.terminate?.();
   });
+
+  it("routes method-tagged progress to that method's task, not the queue head", () => {
+    let worker;
+    const cad = new CadWorkerManager(function () {
+      worker = new FakeWorker();
+      return worker;
+    }, 60_000);
+    const taskIds = {};
+    window.addEventListener("cad-worker-task-queued", (e) => {
+      taskIds[e.detail.method] = e.detail.taskId;
+    });
+    window.addEventListener("cad-worker-task-progress", onProgress);
+
+    cad.displayOrientation(1, meta("head-atom"));
+    cad.sweepCache([], {});
+
+    worker.emit({
+      type: CAD_PROGRESS_MESSAGE_TYPE,
+      label: "sweepCache: done",
+      method: "sweepCache",
+    });
+
+    expect(events).toEqual([
+      { taskId: taskIds["sweepCache"], label: "sweepCache: done" },
+    ]);
+    cad.terminate?.();
+  });
 });

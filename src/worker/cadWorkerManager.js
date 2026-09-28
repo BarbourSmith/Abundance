@@ -240,11 +240,16 @@ export class CadWorkerManager {
     }
     // The worker runs several calls concurrently, so the queue head is not
     // necessarily the call that reported. Prefer the call from the reporting
-    // atom when the message says which one it was.
+    // atom (or, for atom-less calls like sweepCache, the reporting method)
+    // when the message says which one it was.
     const reportingEntry =
       (data.atomId &&
         this._pendingCalls.find(
           (entry) => entry.taskMeta?.atomId === data.atomId,
+        )) ||
+      (data.method &&
+        this._pendingCalls.find(
+          (entry) => String(entry.method) === data.method,
         )) ||
       activeEntry;
     if (reportingEntry !== activeEntry && reportingEntry.timeoutId) {

@@ -481,7 +481,7 @@ class GeometryProvider {
     const phase = (label: string) => {
       const elapsed = Math.round(performance.now() - sweepStart);
       console.warn(`[sweepCache] phase: ${label} (+${elapsed}ms)`);
-      reportCadProgress(`sweepCache: ${label}`);
+      reportCadProgress(`sweepCache: ${label}`, undefined, "sweepCache");
     };
     phase(
       `starting for project ${context.project}, retaining ${idsToRetain.size} ids`,

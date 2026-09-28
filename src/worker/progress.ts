@@ -25,8 +25,14 @@ export const CAD_PROGRESS_MESSAGE_TYPE = "cad-worker-progress";
  * @param atomId The uniqueID of the atom whose call is reporting. The worker
  *   runs several calls concurrently, so without it CadWorkerManager can only
  *   guess which task the progress belongs to.
+ * @param method The worker method name of the reporting call, for calls that
+ *   have no atom (e.g. "sweepCache"). Used like `atomId` to find the right task.
  */
-export function reportCadProgress(label: string, atomId?: string): void {
+export function reportCadProgress(
+  label: string,
+  atomId?: string,
+  method?: string,
+): void {
   if (
     typeof self !== "undefined" &&
     typeof (self as any).postMessage === "function" &&
@@ -37,6 +43,7 @@ export function reportCadProgress(label: string, atomId?: string): void {
         type: CAD_PROGRESS_MESSAGE_TYPE,
         label,
         atomId,
+        method,
       });
     } catch {
       // Posting progress is best-effort; never let it break the operation.

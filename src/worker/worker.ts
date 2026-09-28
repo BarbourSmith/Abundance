@@ -810,7 +810,11 @@ async function sweepCache(
   console.warn(
     `[sweepCache] phase: collecting ids to retain from ${[...shapesToRetain].length} objects`,
   );
-  reportCadProgress("sweepCache: collecting ids to retain");
+  reportCadProgress(
+    "sweepCache: collecting ids to retain",
+    undefined,
+    "sweepCache",
+  );
   const idsToRetainSet = new Set<string>();
   for (const abundanceObj of shapesToRetain) {
     for (const leaf of await util.flattenAssembly(abundanceObj)) {
