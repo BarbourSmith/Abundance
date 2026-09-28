@@ -21,6 +21,7 @@ import {
   clearRotateCache,
 } from "./cutlayout";
 import { RequestContext } from "./geometryProvider";
+import { reportCadProgress } from "./progress";
 import {
   assembly,
   difference,
@@ -805,6 +806,11 @@ async function sweepCache(
   await started;
 
   // Filter down to the set of distinct geometry ids from the given abundance objects
+  // Callers pass an array at runtime despite the Set type, so count via spread.
+  console.warn(
+    `[sweepCache] phase: collecting ids to retain from ${[...shapesToRetain].length} objects`,
+  );
+  reportCadProgress("sweepCache: collecting ids to retain");
   const idsToRetainSet = new Set<string>();
   for (const abundanceObj of shapesToRetain) {
     for (const leaf of await util.flattenAssembly(abundanceObj)) {

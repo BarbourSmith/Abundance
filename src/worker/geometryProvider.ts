@@ -18,7 +18,7 @@ import {
   StoredGeometryRecord,
   filter,
 } from "./indexeddbUtils";
-import { reportBooleanInflight } from "./progress";
+import { reportBooleanInflight, reportCadProgress } from "./progress";
 import { BooleanOpCache } from "./booleanOpCache";
 
 type ReplicadObject =
@@ -474,18 +474,37 @@ class GeometryProvider {
     idsToRetain: Set<string>,
     context: RequestContext,
   ): Promise<number> {
+    const sweepStart = performance.now();
+    // Each step is logged as a `phase:` warning (forwarded to the main thread,
+    // where the stall watchdog quotes the latest one) and reported as progress
+    // (which resets the watchdog), so a slow sweep is neither silent nor killed.
+    const phase = (label: string) => {
+      const elapsed = Math.round(performance.now() - sweepStart);
+      console.warn(`[sweepCache] phase: ${label} (+${elapsed}ms)`);
+      reportCadProgress(`sweepCache: ${label}`);
+    };
+    phase(
+      `starting for project ${context.project}, retaining ${idsToRetain.size} ids`,
+    );
+
     // Step 1: filter geometries based on key since that's a much faster approach
     // and we don't need access to the geom values.
+    phase("scanning ReplicadObject keys");
     const deletedGeoms = await filter(
       context.project,
       "ReplicadObject",
       (shapeKey: string) => {
         return idsToRetain.has(shapeKey);
       },
+      false,
+      (visited, deleted) =>
+        phase(`ReplicadObject: visited ${visited}, deleted ${deleted}`),
     );
+    phase(`ReplicadObject done: deleted ${deletedGeoms}`);
 
     // Step 2: filter AbundanceObjects based on whether all their geometries
     // are in the idsToRetain set, here we need access to their values.
+    phase("scanning AbundanceObject values");
     const deletedAssemblies = await filter(
       context.project,
       "AbundanceObject",
@@ -511,17 +530,20 @@ class GeometryProvider {
         return false;
       },
       true,
+      (visited, deleted) =>
+        phase(`AbundanceObject: visited ${visited}, deleted ${deleted}`),
     );
+    phase(`AbundanceObject done: deleted ${deletedAssemblies}`);
 
+    // Step 3: drop disjoint/occlusion pairs that reference swept geometry.
     const prunedPairs = await this.booleanOpCache.sweep(
       idsToRetain,
       context.project,
+      (label) => phase(`pair cache: ${label}`),
     );
-    if (prunedPairs > 0) {
-      console.warn(
-        `[GeometryProvider] sweepCache pruned ${prunedPairs} stale disjoint/occlusion pairs for project ${context.project}`,
-      );
-    }
+    phase(
+      `done: deleted ${deletedGeoms} geometries, ${deletedAssemblies} assemblies, pruned ${prunedPairs} pairs`,
+    );
 
     return deletedGeoms + deletedAssemblies;
   }
