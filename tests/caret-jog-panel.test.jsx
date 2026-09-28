@@ -45,6 +45,10 @@ describe("SimpleControlPanel caret-position jog", () => {
 
     await jog(input, 2, "Increment"); // 33| → +1
     expect(input.value).toBe("34");
+
+    await jog(input, 0, "Increment"); // |34 → +100
+    expect(input.value).toBe("134");
+    expect(input.selectionEnd).toBe(1); // 1|34 — still the hundreds place
   });
 
   it("jogs a numeric string control, keeping decimal places", async () => {
