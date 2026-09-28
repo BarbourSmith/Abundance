@@ -6,6 +6,7 @@ import React, {
   useCallback,
 } from "react";
 import GlobalVariables from "../js/globalvariables.js";
+import { meshKey } from "../js/displayScheduler.js";
 import { fetchGitHubFileContent } from "../js/githubFileUtils.js";
 import { encodeProjectContentForGitHub } from "../js/projectContentCodec.js";
 import Molecule from "../molecules/molecule.js";
@@ -1332,15 +1333,19 @@ export function ProjectProvider({ children, cad, loadProject }) {
     }
 
     try {
-      const mesh = await GlobalVariables.pool
-        .proxy()
-        .then((worker) => {
-          return worker.generateDisplayMesh(
-            GlobalVariables.topLevelMolecule.value,
-            GlobalVariables.topLevelMolecule.getContext(),
-          );
-        })
-        .then((result) => result.mesh);
+      const value = GlobalVariables.topLevelMolecule.value;
+      const context = GlobalVariables.topLevelMolecule.getContext();
+      // Low-priority job; reuses the displayed mesh when it is already cached.
+      const meshTask = GlobalVariables.displayScheduler
+        ? GlobalVariables.displayScheduler.run(
+            "generateDisplayMesh",
+            [value, context],
+            meshKey(value, context),
+          )
+        : GlobalVariables.pool
+            .proxy()
+            .then((worker) => worker.generateDisplayMesh(value, context));
+      const mesh = await meshTask.then((result) => result.mesh);
 
       if (!mesh) {
         console.warn("No mesh generated for thumbnail");

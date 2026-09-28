@@ -11,7 +11,7 @@ import {
 import { Octokit } from "octokit";
 import { BOMEntry } from "../js/BOM";
 
-import { Status } from "../prototypes/observableEntity.js";
+import { ObservableEntity, Status } from "../prototypes/observableEntity.js";
 import { saveAs } from "file-saver";
 import { extractBomList, walkAssembly } from "../worker/util";
 
@@ -124,6 +124,27 @@ export default class Molecule extends Atom {
   // Returns a tuple of [READY_child_count, total_child_count]
   // Always computes total recursively to ensure progress bar never goes backwards
   getCompletionTuple() {
+    // This walks every nested molecule, and it runs for every molecule node on
+    // every canvas frame plus every progress refresh. The result only changes
+    // when some entity's status changes (tracked by statusEpoch) or when atoms
+    // are added or removed here, so cache it against both.
+    const epoch = ObservableEntity.statusEpoch;
+    const nodeCount = this.nodesOnTheScreen.length;
+    const cached = this._completionCache;
+    if (
+      cached &&
+      cached.epoch === epoch &&
+      cached.nodeCount === nodeCount &&
+      cached.status === this.status
+    ) {
+      return cached.tuple;
+    }
+    const tuple = this._computeCompletionTuple();
+    this._completionCache = { epoch, nodeCount, status: this.status, tuple };
+    return tuple;
+  }
+
+  _computeCompletionTuple() {
     let totalCount = 0;
     let readyCount = 0;
 

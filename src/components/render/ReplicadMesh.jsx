@@ -2,6 +2,7 @@ import React, {
   useImperativeHandle,
   useLayoutEffect,
   useEffect,
+  useMemo,
   useState,
   forwardRef,
 } from "react";
@@ -55,7 +56,53 @@ export default React.memo(
       // We have configured the canvas to only refresh when there is a change,
       // the invalidate function is here to tell it to recompute
       invalidate();
+      // Free the GPU buffers of the previous mesh once it is replaced. They
+      // were never released before, so every displayed atom leaked them.
+      return () => disposeMeshArray(meshArray);
     }, [mesh, invalidate]);
+
+    // Per-element geometries for face/edge selection mode. Built once per
+    // per-element result instead of on every render (each selection toggle
+    // re-renders), and disposed when replaced.
+    const selectionType = selectionModeAtom?.type;
+    const perElementSource = selectionModeAtom?._perElementMeshes;
+    const perElementGeoms = useMemo(() => {
+      if (
+        !perElementSource ||
+        (selectionType !== "faceselect" && selectionType !== "edgeselect")
+      ) {
+        return null;
+      }
+      const byLeaf = {};
+      Object.entries(perElementSource).forEach(([leafIndex, entries]) => {
+        if (!Array.isArray(entries)) return;
+        byLeaf[leafIndex] = entries.map((entry) => {
+          const g = new BufferGeometry();
+          if (selectionType === "faceselect") {
+            syncFaces(g, entry.faces);
+          } else {
+            syncLines(g, entry.edges);
+          }
+          return { index: entry.index, geom: g };
+        });
+      });
+      return byLeaf;
+    }, [perElementSource, selectionType]);
+
+    useEffect(() => {
+      invalidate();
+      return () => {
+        if (!perElementGeoms) return;
+        Object.values(perElementGeoms).forEach((list) =>
+          list.forEach(({ geom }) => geom.dispose()),
+        );
+      };
+    }, [perElementGeoms, invalidate]);
+
+    // Selection changes alter materials only; request a frame for them.
+    useEffect(() => {
+      invalidate();
+    }, [selectionVersion, selectionModeAtom, isSolid, invalidate]);
 
     function makeMeshes(meshes) {
       let meshArray = [];
@@ -167,11 +214,21 @@ export default React.memo(
       }
     }
 
+    function disposeMeshArray(meshArray) {
+      meshArray.forEach((m) => {
+        m.body?.dispose?.();
+        m.lines?.dispose?.();
+      });
+    }
+
     useImperativeHandle(ref, () => ({
       buildThumbnail: async (m) => {
         const meshArray = makeMeshes(m);
-        const svg = await meshArrayToSVG2(meshArray);
-        return svg;
+        try {
+          return await meshArrayToSVG2(meshArray);
+        } finally {
+          disposeMeshArray(meshArray);
+        }
       },
     }));
     /**
@@ -394,27 +451,9 @@ export default React.memo(
           // Per-element meshes loaded asynchronously by enterSelectionMode.
           // When ready, render one mesh per topological face / edge so
           // clicks map directly to shape.faces[i] / shape.edges[i].
-          const perElement = selectionModeAtom?._perElementMeshes?.[index];
-
-          // Build per-face BufferGeometries when in face-select mode
-          const perFaceGeoms =
-            isFaceMode && Array.isArray(perElement)
-              ? perElement.map((entry) => {
-                  const g = new BufferGeometry();
-                  syncFaces(g, entry.faces);
-                  return { index: entry.index, geom: g };
-                })
-              : null;
-
-          // Build per-edge BufferGeometries when in edge-select mode
-          const perEdgeGeoms =
-            isEdgeMode && Array.isArray(perElement)
-              ? perElement.map((entry) => {
-                  const g = new BufferGeometry();
-                  syncLines(g, entry.edges);
-                  return { index: entry.index, geom: g };
-                })
-              : null;
+          const perElement = perElementGeoms?.[index] || null;
+          const perFaceGeoms = isFaceMode ? perElement : null;
+          const perEdgeGeoms = isEdgeMode ? perElement : null;
 
           return (
             <group key={index}>
