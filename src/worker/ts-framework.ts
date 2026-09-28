@@ -38,6 +38,9 @@ interface AbundanceContext {
 
 declare const context: AbundanceContext;
 
+// Reports progress to the status bar and the CAD worker's stall watchdog.
+declare function progress(label?: string): void;
+
 /*
  * Representation of Abundance Assemblies for use in code atoms.
  *

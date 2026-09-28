@@ -22,15 +22,22 @@ export const CAD_PROGRESS_MESSAGE_TYPE = "cad-worker-progress";
  *
  * @param label Short human-readable description of the current sub-step,
  *   e.g. "cutting part 3/5".
+ * @param atomId The uniqueID of the atom whose call is reporting. The worker
+ *   runs several calls concurrently, so without it CadWorkerManager can only
+ *   guess which task the progress belongs to.
  */
-export function reportCadProgress(label: string): void {
+export function reportCadProgress(label: string, atomId?: string): void {
   if (
     typeof self !== "undefined" &&
     typeof (self as any).postMessage === "function" &&
     typeof (self as any).document === "undefined"
   ) {
     try {
-      (self as any).postMessage({ type: CAD_PROGRESS_MESSAGE_TYPE, label });
+      (self as any).postMessage({
+        type: CAD_PROGRESS_MESSAGE_TYPE,
+        label,
+        atomId,
+      });
     } catch {
       // Posting progress is best-effort; never let it break the operation.
     }

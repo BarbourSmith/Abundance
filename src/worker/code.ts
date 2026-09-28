@@ -64,6 +64,9 @@ function normalizeProjectUnits(unitsKey?: string | null): ProjectUnits {
   return "Unitless";
 }
 
+/** Minimum spacing between per-part progress messages posted to the main thread. */
+const PROGRESS_POST_INTERVAL_MS = 250;
+
 /**
  * Monotonically-increasing counter used to give each `executeTsCode` call its
  * own unique `globalThis` context key (the "timestamp" approach). Without this,
@@ -234,6 +237,7 @@ async function addAssemblyPartsToCache(
   assembly: Assembly<AnyGeom>,
   context: RequestContext,
   cacheId: string,
+  onPartCached: () => void = () => {},
 ): Promise<AbundanceObject> {
   const helperFunc = async (
     assembly: Assembly<AnyGeom>,
@@ -256,6 +260,7 @@ async function addAssemblyPartsToCache(
         cacheId,
         [context.nextId++], // Cache under the code atom's id + an offset within the result structure
       );
+      onPartCached();
       // meshOverride gets special treatment, tagged to this ID only.
       const metadata = { ...assembly.metadata };
       if (metadata.meshOverride) {
@@ -303,12 +308,7 @@ async function addAssemblyPartsToCache(
  * Levels of `console.*` calls captured from inside user code.
  */
 export type CodeAtomLogLevel =
-  | "log"
-  | "info"
-  | "warn"
-  | "error"
-  | "debug"
-  | "trace";
+  "log" | "info" | "warn" | "error" | "debug" | "trace";
 
 /**
  * Callback invoked once per `console.*` call inside the user's code atom.
@@ -463,6 +463,18 @@ async function executeTsCode(
     const cached = await util.geometryProvider!.getAssembly(cacheId, context);
     if (cached) return cached;
 
+    // Progress reporter for this execution. Phase changes always post; the
+    // frequent per-part updates are throttled so large assemblies don't flood
+    // the main thread. Tagging with the atom id lets the UI show the label
+    // next to this atom's task even while other calls run concurrently.
+    let lastProgressPost = 0;
+    const report = (label: string, force = true) => {
+      const now = Date.now();
+      if (!force && now - lastProgressPost < PROGRESS_POST_INTERVAL_MS) return;
+      lastProgressPost = now;
+      reportCadProgress(label, String(atomUniqueId));
+    };
+
     const batchId = "code-atom-" + cacheId;
     const batch: RequestContext | AbundanceObject =
       await util.geometryProvider!.startBatchOperation(context, batchId);
@@ -481,17 +493,31 @@ async function executeTsCode(
     // helper will wrap these into real AbundanceObj instances inside the
     // sandbox before invoking `run()`.
     // Trim out any empty geometries in the heirarchy.
+    let inputPartsLoaded = 0;
+    let inputPartsTotal = 0;
+    const countLeafs = (assembly: AbundanceObject): number =>
+      util.isLeaf(assembly)
+        ? 1
+        : (assembly.geometry as AbundanceObject[]).reduce(
+            (sum, child) => sum + countLeafs(child),
+            0,
+          );
     const assemblyAsPojo = async (
       assembly: AbundanceObject,
       context: RequestContext,
     ): Promise<any> => {
       if (util.isLeaf(assembly)) {
+        const geometry = await util.geometryProvider!.get(
+          assembly.geometry,
+          context,
+        );
+        report(
+          `loading input part ${++inputPartsLoaded}/${inputPartsTotal}`,
+          false,
+        );
         return {
           ...assembly,
-          geometry: await util.geometryProvider!.get(
-            assembly.geometry,
-            context,
-          ),
+          geometry,
           plane: util.asReplicadPlane(assembly.plane),
           __isRawAbundanceObj: true,
         };
@@ -515,6 +541,9 @@ async function executeTsCode(
     for (const [key, value] of Object.entries(argumentsArray)) {
       const actualValue = isNoGeometry(value) ? null : value;
       if (util.isAbundanceObject(actualValue)) {
+        inputPartsLoaded = 0;
+        inputPartsTotal = countLeafs(actualValue);
+        report(`loading input ${key}`);
         argumentsArray[key] = await assemblyAsPojo(actualValue, context);
         argsSignature.push(JSON.stringify(actualValue));
       } else {
@@ -556,6 +585,12 @@ async function executeTsCode(
     // refactor — here we just surface the supersession so it can be debugged).
     _atomLatestSerial.set(atomUniqueId, callSerial);
 
+    // `progress()` inside user code. Timeouts are owned by CadWorkerManager's
+    // inactivity watchdog, which each posted progress message resets.
+    // Throttled so a tight loop calling progress() can't flood the main thread.
+    const sandboxProgress = (label?: unknown) =>
+      report(label === undefined ? "running code" : String(label), false);
+
     (globalThis as any)[CTX_KEY] = {
       replicad: util.replicad,
       context: {
@@ -563,6 +598,7 @@ async function executeTsCode(
       },
       args: { ...argumentsArray },
       console: sandboxConsole,
+      progress: sandboxProgress,
     };
 
     // Build the blob body. Order matters:
@@ -578,12 +614,13 @@ async function executeTsCode(
     const runArgs = runParamNames.join(", ");
     // `console` is shadowed at the top of the module scope so user code's
     // `console.log(...)` calls hit our shim (which forwards to the UI)
-    // rather than the worker's native console.
+    // rather than the worker's native console. `progress` is likewise a
+    // sandbox-provided global that reports progress to the UI and watchdog.
     // The framework module exports `makeAbundanceFramework(replicad)`; we
     // inline that source and immediately call it here so the resulting
     // `Assembly` / `__promoteInput` are bound to the sandbox's `replicad`.
     const body =
-      `const { replicad, context, args: __abundanceArgs, console } = globalThis[${JSON.stringify(CTX_KEY)}];\n` +
+      `const { replicad, context, args: __abundanceArgs, console, progress } = globalThis[${JSON.stringify(CTX_KEY)}];\n` +
       `delete globalThis[${JSON.stringify(CTX_KEY)}];\n` +
       `${ABUNDANCE_TS_FRAMEWORK_JS}\n` +
       `const { Assembly, __promoteInput } = makeAbundanceFramework(replicad);\n` +
@@ -596,16 +633,10 @@ async function executeTsCode(
 
     // Heartbeat at the execution boundary so the worker inactivity watchdog is
     // reset before the (potentially long) user code runs.
-    reportCadProgress("running code");
+    report("running code");
     let rawResult: any;
     try {
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error("Code execution timed out")), 60000);
-      });
-      const mod: any = await Promise.race([
-        import(/* @vite-ignore */ blobUrl),
-        timeoutPromise,
-      ]);
+      const mod: any = await import(/* @vite-ignore */ blobUrl);
       rawResult = mod.default;
     } finally {
       URL.revokeObjectURL(blobUrl);
@@ -656,18 +687,25 @@ async function executeTsCode(
     }
 
     // Promote raw geometries into the cache as singletons.
-    reportCadProgress("caching geometry");
+    const outputPartsTotal = rawResult.leafCount();
+    let outputPartsSaved = 0;
+    report("saving output");
     const abundanceObj = await addAssemblyPartsToCache(
       rawResult,
       context,
       cacheId,
+      () =>
+        report(
+          `saving output part ${++outputPartsSaved}/${outputPartsTotal}`,
+          false,
+        ),
     );
     // TODO: should we apply this claimsDisjoint check recursively? I feel like no?
     if (
       util.isAssembly(abundanceObj) &&
       !abundanceObj.metadata?.claimsDisjoint == true
     ) {
-      reportCadProgress("enforcing disjointness");
+      report("enforcing disjointness");
       const disjointAssembly = await assembly(abundanceObj.geometry, context);
 
       // Copy all properties from abundanceObj except geometry
