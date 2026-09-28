@@ -5,7 +5,6 @@ import {
   initializeInputsFromSaved,
 } from "../js/alwaysOneFreeInput.js";
 import GlobalVariables from "../js/globalvariables.js";
-import { assemblyOf } from "../worker/util";
 
 /**
  * This class creates the Assembly atom instance.
@@ -45,7 +44,6 @@ export default class Assembly extends Atom {
     this.description =
       "Pick between assembly and fusion to join input geometries. Assembly takes multiple shapes together into one, shapes higher in the inputs list will cut into shapes lower on the input list where they overlap. Fusion takes all shapes or sketches and fuses them permanently into a single shape";
 
-    this._addIOWithoutSubscribing("makeDisjoint", "boolean", true);
     this.setValues(values);
 
     //Initialize an appropriate number of input APs based on saved ioValues
@@ -119,26 +117,18 @@ export default class Assembly extends Atom {
     // Preserve order from this.inputs since assembly behavior is highly order dependent and
     // the inputs dict may not traverse in the same order by default.
     const nonnullInputIds = this.inputs
-      .filter((io) => io.connectors.length > 0 && io.valueType == "geometry")
+      .filter((io) => io.connectors.length > 0)
       .map((io) => inputs[io.name])
       .filter(Boolean);
-
-    const makeDisjoint = inputs.makeDisjoint;
-    if (makeDisjoint) {
-      return this.cad.assembly(nonnullInputIds, this.getContext());
-    } else {
-      const result = assemblyOf(nonnullInputIds);
-      result.metadata = { mightOverlap: true };
-      return Promise.resolve(result);
-    }
+    return this.cad.assembly(nonnullInputIds, this.getContext());
   }
 
   /**
-   * Override the default serialize function to save the inputs since this atom has variable numbers of inputs.
+   * Super class the default serialize function to save the inputs since this atom has variable numbers of inputs.
    */
   serialize(savedObject) {
-    return super.serialize(savedObject);
-    /*
+    var thisAsObject = super.serialize(savedObject);
+
     var ioValues = [];
     this.inputs.forEach((io) => {
       if (io.connectors.length > 0) {
@@ -177,6 +167,6 @@ export default class Assembly extends Atom {
     thisAsObject.unionType = this.unionType;
     thisAsObject.unionIndex = this.unionIndex;
 
-    return thisAsObject;*/
+    return thisAsObject;
   }
 }
