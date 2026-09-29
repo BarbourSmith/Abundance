@@ -42,6 +42,12 @@ const MAX_STRING = 400;
  */
 const NOT_ADDABLE = new Set(["Output", "Box", "GitHubMolecule"]);
 
+/**
+ * Default `type` for the atoms GlobalVariables.isReferencableByName covers,
+ * matching their constructors (src/molecules/input.js, constant.js).
+ */
+const DEFAULT_REFERENCABLE_TYPES = { Input: "number", Constant: "constant" };
+
 /** Name -> atom for atoms added earlier in the running apply_edits batch. */
 let batchAliases = null;
 const PARAM_TYPES = new Set([
@@ -1132,6 +1138,10 @@ const handlers = {
         obj.name || entry.atomType,
         mol,
       );
+      // Molecule#placeAtom copies `type` from this object for named Inputs
+      // and Constants (it expects a saved atom). Pass the default, or the new
+      // atom's type is blanked and it saves without one.
+      obj.type = DEFAULT_REFERENCABLE_TYPES[entry.atomType];
     }
 
     const placed = await mol.placeAtom(obj, false);

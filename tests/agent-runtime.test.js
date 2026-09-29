@@ -378,6 +378,16 @@ describe("editing", () => {
     );
   });
 
+  it("keeps the default type of named Inputs and Constants", async () => {
+    // Regression: placeAtom copied an undefined `type` onto named atoms.
+    await runTool("add_atom", { type: "Input", name: "Height" }, EDIT);
+    await runTool("add_atom", { type: "Constant", name: "Gap" }, EDIT);
+    expect(resolveAtom("Height").type).toBe("number");
+    expect(resolveAtom("Gap").type).toBe("constant");
+    const { params } = await runTool("get_atom", { atom: "Height" }, READ);
+    expect(params.find((p) => p.label === "Input Type").value).toBe("number");
+  });
+
   it("won't add helper or unknown atom types", async () => {
     for (const type of ["Box", "Output", "GitHubMolecule", "Sphere"]) {
       await expectToolError(
