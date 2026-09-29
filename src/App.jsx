@@ -97,12 +97,15 @@ function isProjectLoadSettled(topLevelMolecule) {
   return SETTLED_LOAD_STATUSES.has(topLevelMolecule?.getState?.().status);
 }
 
+// The worker runs calls concurrently, so the task that most recently
+// reported progress is the one actually computing; prefer it over the one
+// that merely started last.
 function getLatestActiveWorkerTask(taskMap) {
+  const activityTime = (task) =>
+    task?.lastProgressAt || task?.startedAt || task?.queuedAt || 0;
   let latestTask = null;
   taskMap.forEach((task) => {
-    const taskTime = task?.startedAt || task?.queuedAt || 0;
-    const latestTime = latestTask?.startedAt || latestTask?.queuedAt || 0;
-    if (!latestTask || taskTime >= latestTime) {
+    if (!latestTask || activityTime(task) >= activityTime(latestTask)) {
       latestTask = task;
     }
   });
@@ -376,7 +379,14 @@ function AppContent() {
     const handleWorkerTaskStart = (event) => {
       const detail = event?.detail || {};
       if (!detail.taskId) return;
-      activeWorkerTasksRef.current.set(detail.taskId, detail);
+      // A task announced early (it reported progress from behind the queue
+      // head) gets a second start event once it reaches the head; keep the
+      // progress it has already reported.
+      const existing = activeWorkerTasksRef.current.get(detail.taskId);
+      activeWorkerTasksRef.current.set(detail.taskId, {
+        ...existing,
+        ...detail,
+      });
       refreshUi();
     };
     const handleWorkerTaskFinished = (event) => {
@@ -391,6 +401,7 @@ function AppContent() {
       const task = activeWorkerTasksRef.current.get(detail.taskId);
       if (!task) return;
       task.subLabel = detail.label || null;
+      task.lastProgressAt = detail.at || Date.now();
       refreshUi();
     };
     const handleWorkerRestarted = () => {

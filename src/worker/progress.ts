@@ -45,6 +45,25 @@ export function reportCadProgress(label: string, atomId?: string): void {
 }
 
 /**
+ * Build a progress reporter for one atom's execution. Calls with
+ * `force = true` (phase changes) always post; the frequent per-part updates
+ * (`force = false`) are throttled to one per `intervalMs` so large assemblies
+ * don't flood the main thread.
+ */
+export function createProgressReporter(
+  atomId: string | number | undefined,
+  intervalMs = 250,
+): (label: string, force?: boolean) => void {
+  let lastPost = 0;
+  return (label, force = true) => {
+    const now = Date.now();
+    if (!force && now - lastPost < intervalMs) return;
+    lastPost = now;
+    reportCadProgress(label, atomId === undefined ? undefined : String(atomId));
+  };
+}
+
+/**
  * Message type posted by the worker immediately before and after each OCCT
  * boolean `.cut()` call, carrying the two input geometry ids.
  *

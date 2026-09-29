@@ -12,6 +12,7 @@ import { chamfer, fillet, move, rotate, scale } from "./actions";
 import { ReplicadObject } from "./geometryProvider";
 import { assembly, cutAssembly, intersect } from "./interaction";
 import * as util from "./util";
+import { createProgressReporter } from "./progress";
 import { AbundanceObject } from "./util";
 import * as replicad from "replicad";
 import { RequestContext } from "./geometryProvider";
@@ -97,6 +98,38 @@ export function validateUserCode(code: string): boolean {
  * A function which converts any input into Abundance style geometry. Input can be a library ID, an abundance object, or a single geometry object.
  * This is useful for allowing our functions to work within the Code atom or within the flow canvas.
  */
+/**
+ * Per-execution progress, keyed by the RequestContext each execution passes
+ * down to its helpers, so the shared helpers below can report without every
+ * signature taking a reporter. Counts are per kind of step.
+ */
+const progressByContext = new WeakMap<
+  object,
+  {
+    report: ReturnType<typeof createProgressReporter>;
+    counts: Map<string, number>;
+  }
+>();
+
+function trackProgress(
+  context: RequestContext,
+  progress: {
+    report: ReturnType<typeof createProgressReporter>;
+    counts: Map<string, number>;
+  },
+) {
+  progressByContext.set(context, progress);
+}
+
+/** Count one more `step` for this execution and report it (throttled). */
+function tickProgress(context: RequestContext, step: string) {
+  const progress = progressByContext.get(context);
+  if (!progress) return;
+  const n = (progress.counts.get(step) ?? 0) + 1;
+  progress.counts.set(step, n);
+  progress.report(`${step} ${n}`, false);
+}
+
 async function toGeometry(
   input: UserGeometryObj,
   name = "geometry",
@@ -166,7 +199,16 @@ async function executeCode(
   code: string,
   argumentsArray: { [key: string]: any },
   context: RequestContext,
+  atomUniqueId?: string | number,
 ): Promise<AbundanceObject | number | string | boolean | null | undefined> {
+  // Report progress for the otherwise-silent phases (loading inputs, passing
+  // assemblies between helpers, saving output) so a big assembly isn't
+  // mistaken for a stalled worker.
+  const progress = {
+    report: createProgressReporter(atomUniqueId),
+    counts: new Map<string, number>(),
+  };
+  trackProgress(context, progress);
   let startedBatch = false;
   let finishedBatch = false;
   let batchContext: RequestContext | null = null;
@@ -223,6 +265,7 @@ async function executeCode(
     context.nextId = 0;
     startedBatch = true;
     batchContext = context;
+    trackProgress(context, progress);
 
     // Validate code for dangerous patterns
     // TODO: we probably want to allow some of these but still need to warn about them before executing
@@ -399,6 +442,7 @@ async function executeCode(
     });
 
     // Get the raw result from user code
+    progress.report("running code");
     const rawResult = await Promise.race([
       userFunction(...inputValues),
       timeoutPromise,
@@ -414,6 +458,7 @@ async function executeCode(
     }
 
     // Otherwise, process as geometry
+    progress.report("saving output");
     const processedResult = await ensureDimension(rawResult);
     const abundanceObj = await addAssemblyPartsToCache(
       processedResult as RealizedAssembly,
@@ -570,9 +615,14 @@ export async function realizeAssembly(
   context: RequestContext,
 ): Promise<RealizedAssembly> {
   if (util.isLeaf(assembly)) {
+    const geometry = await util.geometryProvider!.get(
+      assembly.geometry,
+      context,
+    );
+    tickProgress(context, "loading part");
     return {
       ...assembly,
-      geometry: [await util.geometryProvider!.get(assembly.geometry, context)],
+      geometry: [geometry],
       plane: util.asReplicadPlane(assembly.plane),
     };
   } else {
@@ -610,14 +660,16 @@ export async function addAssemblyPartsToCache(
     assembly: RealizedAssembly,
   ): Promise<AbundanceObject> => {
     if (isRealizedLeaf(assembly)) {
+      const geometry = await util.geometryProvider!.addSingularToCache(
+        assembly.geometry[0],
+        context,
+        cacheId,
+        [context.nextId++], // Cache under the code atom's id + an offset within the result structure
+      );
+      tickProgress(context, "caching part");
       return {
         ...assembly,
-        geometry: await util.geometryProvider!.addSingularToCache(
-          assembly.geometry[0],
-          context,
-          cacheId,
-          [context.nextId++], // Cache under the code atom's id + an offset within the result structure
-        ),
+        geometry,
         plane: assembly.plane
           ? util.asSimplePlane(assembly.plane)
           : util.XYPlane,
