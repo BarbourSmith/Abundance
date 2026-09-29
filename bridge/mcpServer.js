@@ -46,6 +46,11 @@ Organize the project as a hierarchy of molecules. This matters as much as gettin
 - To build a molecule, in one apply_edits: add_atom type Molecule with a name and a ref such as "leg"; add atoms into it with molecule "leg" (each Input atom inside becomes an input of the molecule, named after the Input); connect the finished shape to "leg/Output", input "number or geometry" (add_atom also returns the Output atom's ID); then wire the molecule onward in the parent and set its inputs.
 - When you finish, tell the user which molecules you made and what each one builds.
 
+Fit parts together with Assembly instead of modeling the joints:
+- Assembly makes its parts disjoint: where parts overlap, a part higher in its inputs list cuts into the parts below it. So don't model slots, holes, notches, or pockets for parts that fit together. Build each part whole, position the parts overlapping as they sit in the finished design, and assemble them. Put the part that should stay whole above the part it cuts into; the input order decides which part gets cut.
+- For clearance around a joint, add keepout geometry: a slightly larger shape around the cutting part, colored "Keep Out" with a Color atom, placed above the part it should cut in the Assembly. Keepout geometry cuts like any part but is left out of fusions, cut layouts, and gcode, and Extract Tag's "Not Keep Out" option removes it.
+- Tag parts before they go into an Assembly when you may need them separately later (to lay out, export, or reuse); Extract Tag pulls tagged parts back out of the assembly.
+
 Edit:
 - Edit tools only work after the user ticks "Allow edits" in the AI agent chip at the top of the Abundance window. If edits are refused, ask them to, and don't retry until they have.
 - set_param uses the labels from get_atom's params. Number fields accept numbers or equations that reference inputs.
