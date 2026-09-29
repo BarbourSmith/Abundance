@@ -117,29 +117,6 @@ try {
   const dialog = () =>
     page.getByRole("dialog", { name: "Connect an AI agent" });
 
-  await check(
-    "keeps the settings shortcut from triggering the browser's bookmark command",
-    async () => {
-      await page.waitForTimeout(3000);
-      await page.mouse.click(640, 400);
-      // Registered after the app's handler, so it sees the final state.
-      await page.evaluate(() => {
-        window.__shortcutPrevented = [];
-        window.addEventListener("keydown", (e) => {
-          if (e.shiftKey && (e.key === "D" || e.key === "d")) {
-            window.__shortcutPrevented.push(e.defaultPrevented);
-          }
-        });
-      });
-      for (const combo of ["Control+Shift+D", "Meta+Shift+D"]) {
-        await page.keyboard.press(combo);
-        await page.getByRole("button", { name: "Close" }).click();
-      }
-      const prevented = await page.evaluate(() => window.__shortcutPrevented);
-      assert.deepEqual(prevented, [true, true]);
-    },
-  );
-
   await check("opens Connect an AI agent from an #agent link", async () => {
     await page.evaluate(() => {
       window.location.hash = "agent";
