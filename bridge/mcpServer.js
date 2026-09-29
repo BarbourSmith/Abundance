@@ -23,6 +23,7 @@ const SERVER_INSTRUCTIONS = `Tools for inspecting and editing the Abundance CAD 
 Connect:
 - Call bridge_status first. If no tab is connected, show the user its pairing_instructions and wait for them to pair.
 - If several tabs are connected, list_sessions and use_session to pick one.
+- Each Claude chat runs its own bridge and only one holds the connection. If bridge_status says another chat holds it, call take_over_bridge when the user wants to work on Abundance in this chat (ask if that's unclear). The page reconnects here within a few seconds, and the other chat loses access until it takes the bridge back.
 
 Understand before changing:
 - get_project for owner/repo, units, progress, errors, and whether edits are allowed.
@@ -77,6 +78,13 @@ const BRIDGE_TOOLS = [
       "Is the bridge listening, which Abundance tabs are connected, and how to pair a new tab. Call this first if other tools say no page is connected.",
     inputSchema: { type: "object", properties: {} },
     annotations: { readOnlyHint: true },
+  },
+  {
+    name: "take_over_bridge",
+    description:
+      "Move the Abundance connection to this chat from another Claude chat (or other AI app) whose bridge holds it. Connected tabs reconnect here within a few seconds; the other chat's Abundance tools stop working until it takes the bridge back.",
+    inputSchema: { type: "object", properties: {} },
+    annotations: { readOnlyHint: false, destructiveHint: false },
   },
   {
     name: "list_sessions",
@@ -134,12 +142,9 @@ function annotationsFor(tool) {
 /**
  * Build the MCP server that fronts a PageHub.
  * @param {import("./pageHub.js").PageHub} hub
- * @param {{ outDir: string, tokenInfo: { token: string, file: string | null }, version: string, getListenError?: () => Error | null }} options
+ * @param {{ outDir: string, tokenInfo: { token: string, file: string | null }, version: string }} options
  */
-export function createMcpServer(
-  hub,
-  { outDir, tokenInfo, version, getListenError },
-) {
+export function createMcpServer(hub, { outDir, tokenInfo, version }) {
   const server = new Server(
     { name: "abundance-bridge", version },
     { capabilities: { tools: {} }, instructions: SERVER_INSTRUCTIONS },
@@ -173,6 +178,11 @@ export function createMcpServer(
 
   async function callTool(name, args, request, extra) {
     if (name === "bridge_status") return textResult(status());
+    if (name === "take_over_bridge") {
+      await hub.claim();
+      await waitForSession(hub, 5_000);
+      return textResult(status());
+    }
     if (name === "get_code_atom_guide") {
       return { content: [{ type: "text", text: await codeAtomGuide() }] };
     }
@@ -191,13 +201,8 @@ export function createMcpServer(
       throw new ToolError(ERROR_CODES.METHOD_NOT_FOUND, `Unknown tool ${name}`);
     }
 
-    const listenError = getListenError?.();
-    if (listenError) {
-      throw new ToolError(
-        ERROR_CODES.NO_PROJECT,
-        `The bridge could not listen on port ${hub.port}: ${listenError.message}. Another bridge may already be running.`,
-      );
-    }
+    const notListening = notListeningMessage();
+    if (notListening) throw new ToolError(ERROR_CODES.NO_PROJECT, notListening);
 
     const sessionId = args.session_id;
     delete args.session_id;
@@ -238,11 +243,27 @@ export function createMcpServer(
     return textResult(result);
   }
 
+  /** Why this bridge can't reach any page, or null when it is listening. */
+  function notListeningMessage() {
+    if (hub.wss) return null;
+    if (hub.handedOff) {
+      return "Another Claude chat took over the Abundance bridge. If the user wants to work on Abundance in this chat again, call take_over_bridge.";
+    }
+    if (hub.listenError?.code === "EADDRINUSE") {
+      return `Another Claude chat (or another AI app) holds the Abundance bridge on port ${hub.port}. If the user wants to work on Abundance in this chat, call take_over_bridge.`;
+    }
+    if (hub.listenError) {
+      return `The bridge could not listen on port ${hub.port}: ${hub.listenError.message}.`;
+    }
+    return "The bridge is not listening yet.";
+  }
+
   function status() {
     const sessions = hub.listSessions();
-    const listenError = getListenError?.();
+    const listenError = hub.listenError;
+    const notListening = notListeningMessage();
     const pairing =
-      sessions.length > 0
+      sessions.length > 0 || notListening
         ? null
         : [
             "No Abundance tab is connected. To pair:",
@@ -253,8 +274,9 @@ export function createMcpServer(
             "5. To let the agent change the project, the user also turns on Allow edits in the AI agent chip.",
           ].join("\n");
     return {
-      listening: !listenError && !!hub.wss,
+      listening: !!hub.wss,
       port: hub.port,
+      not_listening: notListening,
       listen_error: listenError ? listenError.message : null,
       token_file: tokenInfo.file,
       output_dir: outDir,
@@ -281,6 +303,21 @@ export function createMcpServer(
   }
 
   return { server, status };
+}
+
+/** Give reconnecting pages a moment so the result can list them. */
+function waitForSession(hub, timeoutMs) {
+  if (hub.sessions.size > 0) return Promise.resolve();
+  return new Promise((resolve) => {
+    const done = () => {
+      clearTimeout(timer);
+      hub.off("session", done);
+      resolve();
+    };
+    const timer = setTimeout(done, timeoutMs);
+    timer.unref?.();
+    hub.on("session", done);
+  });
 }
 
 async function precompileCode(name, args) {

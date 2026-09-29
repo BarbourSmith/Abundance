@@ -208,6 +208,20 @@ describe("AgentBridgeClient against a real bridge", () => {
     expect(hub.listSessions()).toHaveLength(1);
   });
 
+  it("follows the bridge when another chat takes it over", async () => {
+    client.start();
+    client.updateSettings({ enabled: true, port, token: TOKEN });
+    await waitFor(() => client.getState().status === "connected");
+
+    const other = new PageHub({ token: TOKEN, port });
+    await other.claim();
+    const old = hub;
+    hub = other;
+    await old.stop();
+    await waitFor(() => other.listSessions().length === 1, 5000);
+    expect(client.getState().status).toBe("connected");
+  });
+
   it("retries at once when the tab regains focus instead of waiting out the backoff", async () => {
     await hub.stop();
     client.start();
