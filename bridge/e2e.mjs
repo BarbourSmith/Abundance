@@ -251,7 +251,7 @@ try {
           },
           {
             tool: "add_atom",
-            arguments: { type: "Equation", name: "E2E_Double" },
+            arguments: { type: "Equation", ref: "E2E_Double" },
           },
           {
             tool: "set_param",
@@ -322,7 +322,7 @@ try {
         edits: [
           {
             tool: "add_atom",
-            arguments: { type: "Rectangle", name: "E2E_Blade" },
+            arguments: { type: "Rectangle", ref: "E2E_Blade" },
           },
           {
             tool: "add_github_molecule",

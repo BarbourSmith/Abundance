@@ -30,7 +30,7 @@ Workflow:
 - Edits recompute asynchronously: after changes call wait_for_settle, then check its errors and render_image before reporting success.
 - Edit tools only work after the user ticks "Allow edits" in the page. If edits are refused, ask them to.
 - Each edit is one undo step; use apply_edits to group related edits into one step.
-- Equation atoms rename themselves to their equation; refer to them by ID afterwards.
+- Only Molecules, Inputs, and Constants have names you choose; every other atom keeps its standard name (Rectangle, Extrude, ...). Refer to atoms by the ID tools return, or by a "ref" you give add_atom inside apply_edits. Equation atoms rename themselves to their equation.
 - When set_code reuses an input name, the old value is kept. Set it explicitly if the default matters.
 - Autosave pauses while edits are allowed. Remind the user to save; only call save_project when they ask.
 

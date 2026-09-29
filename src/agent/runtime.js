@@ -156,6 +156,17 @@ function parseRepo(repo) {
   return { owner: match[1], repoName: match[2] };
 }
 
+/**
+ * The atoms the editor lets users rename (through a name field in the
+ * properties panel). Every other atom keeps its type's default name.
+ */
+const RENAMABLE_TYPES = new Set([
+  "Molecule",
+  "GitHubMolecule",
+  "Input",
+  "Constant",
+]);
+
 /** Name -> atom for atoms added earlier in the running apply_edits batch. */
 let batchAliases = null;
 const PARAM_TYPES = new Set([
@@ -1262,7 +1273,76 @@ const handlers = {
     };
   },
 
-  async add_github_molecule({ repo, molecule, name, x, y }) {
+  async reset_atom_names({ molecule }) {
+    const root = molecule ? resolveMolecule(molecule) : topLevel();
+    assertEditableContainer(root);
+    // Default names come from the atom classes themselves (some differ from
+    // the type, e.g. "Shrink Wrap"), read from a throwaway instance.
+    const types = GlobalVariables.availableTypes || {};
+    const MoleculeClass = types.molecule?.creator;
+    const sandbox = MoleculeClass
+      ? new MoleculeClass({
+          x: 0,
+          y: 0,
+          parent: null,
+          uniqueID: "agent-names-sandbox",
+        })
+      : null;
+    const defaults = new Map();
+    const defaultName = (atomType) => {
+      if (defaults.has(atomType)) return defaults.get(atomType);
+      const entry = Object.entries(types).find(
+        ([, t]) => t.atomType === atomType,
+      );
+      let value = null;
+      try {
+        if (entry) {
+          value = new entry[1].creator({
+            parent: sandbox,
+            uniqueID: `agent-names-${entry[0]}`,
+            x: 0.5,
+            y: 0.5,
+          }).name;
+        }
+      } catch {
+        value = null;
+      }
+      defaults.set(atomType, value);
+      return value;
+    };
+
+    const renamed = [];
+    const visit = (mol) => {
+      for (const atom of children(mol)) {
+        if (atom.atomType === "GitHubMolecule") continue; // its insides belong to another repo
+        if (isMolecule(atom)) visit(atom);
+        // Renamable atoms, Equations (named after their equation), and
+        // Outputs keep their names.
+        if (
+          RENAMABLE_TYPES.has(atom.atomType) ||
+          atom.atomType === "Equation" ||
+          atom.atomType === "Output"
+        ) {
+          continue;
+        }
+        const standard = defaultName(atom.atomType);
+        if (!standard || atom.name === standard) continue;
+        const from = atom.name;
+        atom.name = standard;
+        GlobalVariables.pushUndoCommand({
+          description: `Rename ${standard}`,
+          undo: async () => {
+            atom.name = from;
+          },
+        });
+        renamed.push({ id: String(atom.uniqueID), from, to: standard });
+      }
+    };
+    visit(root);
+    return { molecule: atomRef(root), renamed };
+  },
+
+  async add_github_molecule({ repo, molecule, name, x, y, ref }) {
     const { owner, repoName } = parseRepo(repo);
     const mol = resolveMolecule(molecule);
     assertEditableContainer(mol);
@@ -1345,7 +1425,7 @@ const handlers = {
     };
   },
 
-  async add_atom({ type, molecule, name, x, y, reason }) {
+  async add_atom({ type, molecule, name, x, y, reason, ref }) {
     const mol = resolveMolecule(molecule);
     assertEditableContainer(mol);
     const wanted = String(type).toLowerCase();
@@ -1357,6 +1437,13 @@ const handlers = {
       throw new ToolError(
         ERROR_CODES.NOT_FOUND,
         `Unknown atom type "${type}". Call list_atom_types for the options.`,
+      );
+    }
+    if (name && !RENAMABLE_TYPES.has(entry.atomType)) {
+      throw new ToolError(
+        ERROR_CODES.INVALID_PARAMS,
+        `${entry.atomType} atoms keep their standard name in Abundance; only Molecule, Input, and Constant atoms can be named. ` +
+          'Use "ref" to refer to it later in the same apply_edits batch, or use the ID this tool returns.',
       );
     }
     if (entry.atomType === "Code" && !String(reason || "").trim()) {
@@ -1398,13 +1485,8 @@ const handlers = {
         `Could not place a ${entry.atomType} atom.`,
       );
     }
-    if (
-      name &&
-      atom.name !== name &&
-      !GlobalVariables.isReferencableByName(atom)
-    ) {
-      atom.name = name;
-    }
+    // Molecules take their name from the placement object; Inputs and
+    // Constants were named (and de-duplicated) above. Nothing else is named.
     GlobalVariables.pushUndoCommand(
       new AddAtomCommand(atom.uniqueID, mol, `Add ${atom.atomType}`),
     );
@@ -1604,8 +1686,13 @@ async function runBatch(edits, ctx, results) {
     validateArgs(TOOLS_BY_NAME[tool], args, `Edit ${i + 1} (${tool}): `);
     try {
       const result = await handlers[tool](args, ctx);
-      if (tool === "add_atom" && args.name && result?.id) {
-        batchAliases.set(args.name, resolveAtom(result.id));
+      if (
+        (tool === "add_atom" || tool === "add_github_molecule") &&
+        result?.id
+      ) {
+        for (const handle of [args.ref, args.name]) {
+          if (handle) batchAliases.set(String(handle), resolveAtom(result.id));
+        }
       }
       results.push({ tool, result });
     } catch (err) {
@@ -1740,12 +1827,16 @@ function describeEdit(name, args) {
       return `set ${args.param} on ${nameFor(args.atom)}`;
     case "set_code":
       return `edit code of ${nameFor(args.atom)}`;
-    case "add_atom":
+    case "add_atom": {
+      const what = args.name ? `${args.type} "${args.name}"` : args.type;
       return args.reason
-        ? `add ${args.name || args.type} (${String(args.reason).slice(0, 80)})`
-        : `add ${args.name || args.type}`;
+        ? `add ${what} (${String(args.reason).slice(0, 80)})`
+        : `add ${what}`;
+    }
     case "add_github_molecule":
       return `import ${args.repo}`;
+    case "reset_atom_names":
+      return "restore standard atom names";
     case "connect":
       return `connect ${nameFor(args.from)} to ${nameFor(args.to)}`;
     case "disconnect":

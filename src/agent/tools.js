@@ -326,6 +326,11 @@ export const TOOLS = [
         },
         molecule: OPTIONAL_ATOM_REF,
         name: { type: "string", description: "Optional display name." },
+        ref: {
+          type: "string",
+          description:
+            "A handle for this molecule within the current apply_edits batch.",
+        },
         x: { type: "number", minimum: 0, maximum: 1 },
         y: { type: "number", minimum: 0, maximum: 1 },
       },
@@ -345,7 +350,16 @@ export const TOOLS = [
           description: "Atom type from list_atom_types, e.g. Rectangle.",
         },
         molecule: OPTIONAL_ATOM_REF,
-        name: { type: "string" },
+        name: {
+          type: "string",
+          description:
+            "Only for Molecule, Input, and Constant atoms, which the editor lets users name. Other atoms keep their standard name.",
+        },
+        ref: {
+          type: "string",
+          description:
+            'A handle for this atom within the current apply_edits batch, e.g. "blade". Later edits in the batch can use it in place of an ID. It does not change the atom\'s name.',
+        },
         x: { type: "number", minimum: 0, maximum: 1 },
         y: { type: "number", minimum: 0, maximum: 1 },
         reason: {
@@ -402,7 +416,7 @@ export const TOOLS = [
     name: "apply_edits",
     permission: "edit",
     description:
-      "Run several edit tools (set_param, set_code, add_atom, add_github_molecule, connect, disconnect, delete_atoms) as one change that the user can undo in a single step. Later edits may refer to atoms added earlier by the name they were given.",
+      "Run several edit tools (set_param, set_code, add_atom, add_github_molecule, connect, disconnect, delete_atoms) as one change that the user can undo in a single step. Later edits may refer to atoms added earlier in the batch by their ref (or name).",
     inputSchema: {
       type: "object",
       properties: {
@@ -424,6 +438,22 @@ export const TOOLS = [
         },
       },
       required: ["description", "edits"],
+    },
+  },
+  {
+    name: "reset_atom_names",
+    permission: "edit",
+    description:
+      "Give built-in atoms back their standard names (Rectangle, Extrude, Code, and so on) in a molecule and everything inside it. Earlier versions of this bridge could rename atoms the editor doesn't allow renaming; this repairs that. Molecules, Inputs, Constants, Equations, and imported GitHub molecules are left alone.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        molecule: {
+          ...ATOM_REF,
+          description:
+            ATOM_REF.description + " Omit to repair the whole project.",
+        },
+      },
     },
   },
   {

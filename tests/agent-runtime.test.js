@@ -54,9 +54,13 @@ async function valueOf(ref) {
   return (await runTool("get_atom", { atom: ref }, READ)).output?.value;
 }
 
+/** ID of the Equation built by buildWidthAndDouble (built-in atoms can't be named). */
+let D;
+const nameOf = (ref) => resolveAtom(ref).name;
+
 async function buildWidthAndDouble() {
   await runTool("add_atom", { type: "Constant", name: "Width" }, EDIT);
-  await runTool("add_atom", { type: "Equation", name: "Double" }, EDIT);
+  D = (await runTool("add_atom", { type: "Equation" }, EDIT)).id;
   GlobalVariables.undoCommandStack = [];
 }
 
@@ -93,8 +97,8 @@ describe("resolving atoms", () => {
   });
 
   it("explains ambiguous names with the IDs to use instead", async () => {
-    await runTool("add_atom", { type: "Equation", name: "Eq" }, EDIT);
-    await runTool("add_atom", { type: "Equation", name: "Eq" }, EDIT);
+    await runTool("add_atom", { type: "Molecule", name: "Eq" }, EDIT);
+    await runTool("add_atom", { type: "Molecule", name: "Eq" }, EDIT);
     const err = await expectToolError(
       runTool("get_atom", { atom: "Eq" }, READ),
       ERROR_CODES.CONFLICT,
@@ -110,7 +114,7 @@ describe("resolving atoms", () => {
     await expectToolError(
       runTool("get_atom", { atom: "Proj/Heigth" }, READ),
       ERROR_CODES.NOT_FOUND,
-      /It contains: Width, Double/,
+      /It contains: Width, /,
     );
   });
 });
@@ -119,7 +123,7 @@ describe("permissions and validation", () => {
   it("refuses every edit tool in read-only mode", async () => {
     await buildWidthAndDouble();
     for (const [name, args] of [
-      ["set_param", { atom: "Double", param: "x", value: 3 }],
+      ["set_param", { atom: D, param: "x", value: 3 }],
       ["add_atom", { type: "Constant" }],
       ["delete_atoms", { atoms: ["Width"] }],
       [
@@ -174,13 +178,13 @@ describe("reading the project", () => {
       can_save: false,
     });
     const { atoms } = await runTool("list_atoms", {}, READ);
-    expect(atoms.map((a) => a.name)).toEqual(["Width", "Double"]);
+    expect(atoms.map((a) => a.name)).toEqual(["Width", nameOf(D)]);
     expect(atoms[1].inputs.map((i) => i.name)).toEqual(["x", "y"]);
   });
 
   it("exposes the properties-panel fields as params", async () => {
     await buildWidthAndDouble();
-    const atom = await runTool("get_atom", { atom: "Double" }, READ);
+    const atom = await runTool("get_atom", { atom: D }, READ);
     expect(atom.params.map((p) => p.label)).toEqual([
       "x",
       "y",
@@ -207,20 +211,21 @@ describe("editing", () => {
     const onEdit = (e) => edits.push(e.detail.tool);
     window.addEventListener(AGENT_EDIT_EVENT, onEdit);
 
-    const id = resolveAtom("Double").uniqueID;
+    const id = D;
+    const before = nameOf(D);
     const result = await runTool(
       "set_param",
-      { atom: "Double", param: "Current Equation", value: "x * 10" },
+      { atom: D, param: "Current Equation", value: "x * 10" },
       EDIT,
     );
     // Equation atoms take their equation as their name; the result says so.
-    expect(result.renamed).toMatchObject({ from: "Double", to: "x * 10" });
+    expect(result.renamed).toMatchObject({ from: before, to: "x * 10" });
     expect(await valueOf(id)).toBe(10);
     expect(edits).toEqual(["set_param"]);
 
     const history = await runTool("get_undo_history", {}, READ);
     expect(history.steps).toEqual([
-      { description: "AI: set Current Equation on Double", by_agent: true },
+      { description: `AI: set Current Equation on ${before}`, by_agent: true },
     ]);
 
     await runTool("undo", {}, EDIT);
@@ -230,15 +235,15 @@ describe("editing", () => {
 
   it("accepts numbers for equation-backed number inputs", async () => {
     await buildWidthAndDouble();
-    await runTool("set_param", { atom: "Double", param: "x", value: 41 }, EDIT);
-    expect(await valueOf("Double")).toBe(42);
+    await runTool("set_param", { atom: D, param: "x", value: 41 }, EDIT);
+    expect(await valueOf(D)).toBe(42);
   });
 
   it("refuses to edit a parameter that is driven by a connection", async () => {
     await buildWidthAndDouble();
-    await runTool("connect", { from: "Width", to: "Double", input: "x" }, EDIT);
+    await runTool("connect", { from: "Width", to: D, input: "x" }, EDIT);
     await expectToolError(
-      runTool("set_param", { atom: "Double", param: "x", value: 5 }, EDIT),
+      runTool("set_param", { atom: D, param: "x", value: 5 }, EDIT),
       ERROR_CODES.CONFLICT,
       /driven by a connection/,
     );
@@ -251,7 +256,7 @@ describe("editing", () => {
       {
         description: "add a tripler",
         edits: [
-          { tool: "add_atom", arguments: { type: "Equation", name: "Triple" } },
+          { tool: "add_atom", arguments: { type: "Equation", ref: "Triple" } },
           {
             tool: "set_param",
             arguments: {
@@ -268,7 +273,7 @@ describe("editing", () => {
       },
       EDIT,
     );
-    // "Triple" renamed itself to "x * 3", but the batch could still use the name it gave.
+    // The new Equation renamed itself to "x * 3"; the batch used its ref.
     expect(await valueOf("x * 3")).toBe(30);
     expect(GlobalVariables.undoCommandStack).toHaveLength(1);
     expect(GlobalVariables.undoCommandStack[0].description).toBe(
@@ -277,9 +282,9 @@ describe("editing", () => {
 
     await runTool("undo", {}, EDIT);
     await settle();
-    expect(top.nodesOnTheScreen.map((a) => a.name)).toEqual([
-      "Width",
-      "Double",
+    expect(top.nodesOnTheScreen.map((a) => a.uniqueID)).toEqual([
+      resolveAtom("Width").uniqueID,
+      D,
     ]);
   });
 
@@ -291,10 +296,10 @@ describe("editing", () => {
         {
           description: "broken",
           edits: [
-            { tool: "add_atom", arguments: { type: "Equation", name: "Temp" } },
+            { tool: "add_atom", arguments: { type: "Equation", ref: "Temp" } },
             {
               tool: "set_param",
-              arguments: { atom: "Double", param: "x", value: 7 },
+              arguments: { atom: D, param: "x", value: 7 },
             },
             {
               tool: "set_param",
@@ -309,11 +314,11 @@ describe("editing", () => {
     expect(err.message).toMatch(
       /Edit 3 \(set_param\) failed, so none of the 3 edits were applied/,
     );
-    expect(top.nodesOnTheScreen.map((a) => a.name)).toEqual([
-      "Width",
-      "Double",
+    expect(top.nodesOnTheScreen.map((a) => a.uniqueID)).toEqual([
+      resolveAtom("Width").uniqueID,
+      D,
     ]);
-    expect(await valueOf("Double")).toBe(2);
+    expect(await valueOf(D)).toBe(2);
     expect(GlobalVariables.undoCommandStack).toHaveLength(0);
   });
 
@@ -331,24 +336,24 @@ describe("editing", () => {
 
   it("connects atoms, and undoing a fresh connection resets the input", async () => {
     await buildWidthAndDouble();
-    await runTool("connect", { from: "Width", to: "Double", input: "x" }, EDIT);
-    expect(await valueOf("Double")).toBe(11);
+    await runTool("connect", { from: "Width", to: D, input: "x" }, EDIT);
+    expect(await valueOf(D)).toBe(11);
 
     // Regression: undoing a fresh connection used to delete it silently, so
     // the target kept the removed upstream value and never recomputed.
     await runTool("undo", {}, EDIT);
-    expect(await valueOf("Double")).toBe(2);
+    expect(await valueOf(D)).toBe(2);
   });
 
   it("disconnects and deletes atoms, both undoable", async () => {
     await buildWidthAndDouble();
-    await runTool("connect", { from: "Width", to: "Double", input: "x" }, EDIT);
-    expect(await valueOf("Double")).toBe(11);
+    await runTool("connect", { from: "Width", to: D, input: "x" }, EDIT);
+    expect(await valueOf(D)).toBe(11);
 
-    await runTool("disconnect", { atom: "Double", input: "x" }, EDIT);
-    expect(await valueOf("Double")).toBe(2);
+    await runTool("disconnect", { atom: D, input: "x" }, EDIT);
+    expect(await valueOf(D)).toBe(2);
     await runTool("undo", {}, EDIT);
-    expect(await valueOf("Double")).toBe(11);
+    expect(await valueOf(D)).toBe(11);
 
     const { deleted } = await runTool(
       "delete_atoms",
@@ -356,24 +361,24 @@ describe("editing", () => {
       EDIT,
     );
     expect(deleted[0].path).toBe("Proj/Width");
-    expect(top.nodesOnTheScreen.map((a) => a.name)).toEqual(["Double"]);
+    expect(top.nodesOnTheScreen.map((a) => a.uniqueID)).toEqual([D]);
     await runTool("undo", {}, EDIT);
-    expect(top.nodesOnTheScreen.map((a) => a.name)).toEqual([
-      "Double",
-      "Width",
+    expect(top.nodesOnTheScreen.map((a) => a.uniqueID)).toEqual([
+      D,
+      resolveAtom("Width").uniqueID,
     ]);
-    expect(await valueOf("Double")).toBe(11);
+    expect(await valueOf(D)).toBe(11);
   });
 
   it("checks connection targets and types", async () => {
     await buildWidthAndDouble();
     await expectToolError(
-      runTool("connect", { from: "Width", to: "Double", input: "z" }, EDIT),
+      runTool("connect", { from: "Width", to: D, input: "z" }, EDIT),
       ERROR_CODES.NOT_FOUND,
       /Inputs: x, y/,
     );
     await expectToolError(
-      runTool("disconnect", { atom: "Double", input: "x" }, EDIT),
+      runTool("disconnect", { atom: D, input: "x" }, EDIT),
       ERROR_CODES.CONFLICT,
       /not connected/,
     );
@@ -440,10 +445,10 @@ describe("editing", () => {
 describe("errors and settling", () => {
   it("lists atoms that failed, with their paths", async () => {
     await buildWidthAndDouble();
-    const id = String(resolveAtom("Double").uniqueID);
+    const id = D;
     await runTool(
       "set_param",
-      { atom: "Double", param: "Current Equation", value: "x +" },
+      { atom: D, param: "Current Equation", value: "x +" },
       EDIT,
     );
     await settle();
@@ -726,7 +731,7 @@ describe("built-in catalog and molecule library", () => {
     try {
       await runTool(
         "add_atom",
-        { type: "Code", name: "Curl", reason: "spiral layout math" },
+        { type: "Code", reason: "spiral layout math" },
         EDIT,
       );
     } finally {
@@ -734,7 +739,7 @@ describe("built-in catalog and molecule library", () => {
     }
     const history = await runTool("get_undo_history", {}, READ);
     expect(history.steps[0].description).toBe(
-      "AI: add Curl (spiral layout math)",
+      "AI: add Code (spiral layout math)",
     );
   });
 
@@ -761,5 +766,82 @@ describe("built-in catalog and molecule library", () => {
     );
     expect(await valueOf("Doubler")).toBe(10);
     expect(GlobalVariables.undoCommandStack).toHaveLength(1);
+  });
+});
+
+describe("atom names follow the editor's rules", () => {
+  it("refuses to name atoms the editor doesn't let users rename", async () => {
+    for (const type of ["Rectangle", "Extrude", "Equation", "Code"]) {
+      await expectToolError(
+        runTool("add_atom", { type, name: "Blade", reason: "x" }, EDIT),
+        ERROR_CODES.INVALID_PARAMS,
+        /keep their standard name/,
+      );
+    }
+    expect(top.nodesOnTheScreen).toHaveLength(0);
+    // Molecules, Inputs, and Constants can be named.
+    await runTool("add_atom", { type: "Molecule", name: "Frame" }, EDIT);
+    await runTool("add_atom", { type: "Constant", name: "Gap" }, EDIT);
+    expect(nameOf("Frame")).toBe("Frame");
+    expect(nameOf("Gap")).toBe("Gap");
+  });
+
+  it("lets a batch refer to new atoms by ref without renaming them", async () => {
+    await buildWidthAndDouble();
+    const { results } = await runTool(
+      "apply_edits",
+      {
+        description: "times five",
+        edits: [
+          { tool: "add_atom", arguments: { type: "Equation", ref: "five" } },
+          {
+            tool: "set_param",
+            arguments: {
+              atom: "five",
+              param: "Current Equation",
+              value: "x * 5",
+            },
+          },
+          {
+            tool: "connect",
+            arguments: { from: "Width", to: "five", input: "x" },
+          },
+        ],
+      },
+      EDIT,
+    );
+    const id = results[0].result.id;
+    expect(await valueOf(id)).toBe(50);
+    expect(nameOf(id)).not.toBe("five");
+    // Refs only live for their batch.
+    await expectToolError(
+      runTool("get_atom", { atom: "five" }, READ),
+      ERROR_CODES.NOT_FOUND,
+    );
+  });
+
+  it("restores standard names changed by older bridge versions, undoably", async () => {
+    const realCad = GlobalVariables.cad;
+    GlobalVariables.cad = { code: async () => 0 };
+    try {
+      const { id } = await runTool(
+        "add_atom",
+        { type: "Code", reason: "test" },
+        EDIT,
+      );
+      await runTool("add_atom", { type: "Molecule", name: "Frame" }, EDIT);
+      await runTool("add_atom", { type: "Constant", name: "Gap" }, EDIT);
+      // Simulate the old bug: a built-in atom with a custom name.
+      resolveAtom(id).name = "Curl";
+      const result = await runTool("reset_atom_names", {}, EDIT);
+      expect(result.renamed).toEqual([{ id, from: "Curl", to: "Code" }]);
+      expect(nameOf(id)).toBe("Code");
+      expect(nameOf("Frame")).toBe("Frame");
+      expect(nameOf("Gap")).toBe("Gap");
+      await runTool("undo", {}, EDIT);
+      expect(nameOf(id)).toBe("Curl");
+    } finally {
+      GlobalVariables.cad = realCad;
+    }
   });
 });

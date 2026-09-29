@@ -38,7 +38,7 @@ Make a repeated part once as a molecule, then repeat it with a pattern molecule,
 - `set_param` uses the labels from `get_atom`'s `params`. Number fields accept numbers or equations that reference inputs.
 - Group related changes in `apply_edits` so the user can undo them in one step. If any edit fails, the whole batch rolls back.
 - After edits, call `wait_for_settle`, then check `errors` in its result, and `render_image` or `get_atom` bounding boxes to confirm the change did what you intended.
-- Equation atoms rename themselves to their equation; results include `renamed`. Use IDs after that.
+- Only Molecules, Inputs, and Constants can be named, as in the editor. Refer to other atoms by the ID a tool returns, or give `add_atom` a `ref` to use within the same `apply_edits` batch. Equation atoms rename themselves to their equation; results include `renamed`.
 - When names collide the error lists IDs; use an ID.
 - `undo` reverses your most recent change and refuses to touch the user's own changes.
 - Never call `save_project` unless the user asked to save. It asks them to confirm.
