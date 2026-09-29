@@ -272,3 +272,68 @@ describe("PageHub session IDs", () => {
     await hub.stop();
   });
 });
+
+describe("PageHub handoff", () => {
+  const hubs = [];
+  const makeHub = (opts) => {
+    const h = new PageHub({ token: TOKEN, helloTimeoutMs: 300, ...opts });
+    hubs.push(h);
+    return h;
+  };
+
+  afterEach(async () => {
+    await Promise.all(hubs.splice(0).map((h) => h.stop()));
+  });
+
+  it("takes the port from the bridge holding it", async () => {
+    const first = makeHub({ port: 0 });
+    const port = await first.start();
+    const oldPage = connectFakePage(port, { token: TOKEN });
+    await oldPage.hello;
+
+    const second = makeHub({ port });
+    await expect(second.start()).rejects.toMatchObject({
+      code: "EADDRINUSE",
+    });
+    expect(second.listenError.code).toBe("EADDRINUSE");
+
+    await second.claim();
+    expect(second.wss).not.toBeNull();
+    expect(second.listenError).toBeNull();
+    expect(first.wss).toBeNull();
+    expect(first.handedOff).toBe(true);
+    expect((await oldPage.closed).code).toBe(4007);
+
+    const newPage = connectFakePage(port, { token: TOKEN });
+    await newPage.hello;
+    expect(second.listSessions()).toHaveLength(1);
+    newPage.ws.terminate();
+
+    // And back again.
+    await first.claim();
+    expect(first.handedOff).toBe(false);
+    expect(second.handedOff).toBe(true);
+  });
+
+  it("keeps the port when the token doesn't match", async () => {
+    const first = makeHub({ port: 0 });
+    const port = await first.start();
+    const second = makeHub({ port, token: "some-other-token" });
+    await expect(second.claim()).rejects.toMatchObject({
+      code: ERROR_CODES.PERMISSION_DENIED,
+    });
+    expect(first.wss).not.toBeNull();
+    expect(first.handedOff).toBe(false);
+  });
+
+  it("refuses handoff requests from web pages without the token", async () => {
+    const first = makeHub({ port: 0 });
+    const port = await first.start();
+    const page = connectFakePage(port, {
+      token: TOKEN,
+      origin: "https://evil.example",
+    });
+    await expect(page.opened).rejects.toThrow("HTTP 403");
+    expect(first.wss).not.toBeNull();
+  });
+});

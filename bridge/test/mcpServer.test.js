@@ -72,6 +72,56 @@ describe("MCP server", () => {
     ).toBe(true);
   });
 
+  it("take_over_bridge moves the port from another chat's bridge", async () => {
+    const other = new PageHub({ token: TOKEN, port: 0 });
+    const otherPort = await other.start();
+    const standby = new PageHub({ token: TOKEN, port: otherPort });
+    await standby.start().catch(() => {});
+    const { server } = createMcpServer(standby, {
+      outDir,
+      tokenInfo: { token: TOKEN, file: "/tmp/token" },
+      version: "test",
+    });
+    const [clientTransport, serverTransport] =
+      InMemoryTransport.createLinkedPair();
+    await server.connect(serverTransport);
+    const standbyClient = new Client({ name: "second-chat", version: "1.0.0" });
+    await standbyClient.connect(clientTransport);
+    try {
+      const before = await standbyClient.callTool({
+        name: "get_project",
+        arguments: {},
+      });
+      expect(before.isError).toBe(true);
+      expect(before.content[0].text).toContain("take_over_bridge");
+      const held = text(
+        await standbyClient.callTool({ name: "bridge_status", arguments: {} }),
+      );
+      expect(held.listening).toBe(false);
+      expect(held.pairing_instructions).toBeNull();
+      expect(held.not_listening).toContain("take_over_bridge");
+
+      const reconnect = () => {
+        const p = connectFakePage(otherPort, { token: TOKEN });
+        pages.push(p);
+      };
+      setTimeout(reconnect, 200);
+      const after = text(
+        await standbyClient.callTool({
+          name: "take_over_bridge",
+          arguments: {},
+        }),
+      );
+      expect(after.listening).toBe(true);
+      expect(after.sessions).toHaveLength(1);
+      expect(other.handedOff).toBe(true);
+    } finally {
+      await standbyClient.close();
+      await standby.stop();
+      await other.stop();
+    }
+  });
+
   it("bridge_status explains pairing when no tab is connected", async () => {
     const status = text(
       await client.callTool({ name: "bridge_status", arguments: {} }),

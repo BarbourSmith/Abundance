@@ -98,13 +98,16 @@ async function main() {
   hub.on("rejected", ({ reason, origin }) =>
     log(`refused connection from ${origin || "unknown origin"}: ${reason}`),
   );
+  hub.on("handed-off", () =>
+    log("another bridge took over the port; take_over_bridge takes it back"),
+  );
 
-  let listenError = null;
+  // Another chat's bridge may hold the port. Leave it there until the
+  // take_over_bridge tool is called, so opening a chat doesn't steal it.
   try {
     const port = await hub.start();
     log(`listening on ws://127.0.0.1:${port}`);
   } catch (err) {
-    listenError = err;
     log(`could not listen on port ${opts.port}: ${err.message}`);
   }
   log(
@@ -116,7 +119,6 @@ async function main() {
     outDir: opts.outDir,
     tokenInfo,
     version: VERSION,
-    getListenError: () => listenError,
   });
   const transport = new StdioServerTransport();
   await server.connect(transport);

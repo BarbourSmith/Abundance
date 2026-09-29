@@ -46,7 +46,7 @@ npm publish
 
 | Permission | Tools |
 |---|---|
-| Always | `bridge_status`, `list_sessions`, `use_session` |
+| Always | `bridge_status`, `take_over_bridge`, `list_sessions`, `use_session` |
 | Read | `get_project`, `list_atoms`, `get_atom`, `list_atom_types`, `list_library_molecules`, `search_molecules`, `get_errors`, `wait_for_settle`, `get_state_report`, `get_worker_logs`, `get_bom`, `get_readme`, `render_image`, `export_geometry`, `get_gcode`, `get_undo_history` |
 | View | `select_atom`, `open_molecule` |
 | Edit | `set_param`, `set_code`, `add_atom`, `add_github_molecule`, `connect`, `disconnect`, `delete_atoms`, `apply_edits`, `undo`, `save_project` |
@@ -91,7 +91,7 @@ npm run agent:library
 
 - **"Can't reach the bridge"**: the bridge isn't running, or it's on a different port. Check `bridge_status`, then press Retry in the chip.
 - **"Pairing token does not match"**: copy the token again. The tab stops retrying until the token changes.
-- **Port already in use**: another bridge is running, often from a second Claude Code session. Stop it, or start this one with `--port` and change the port in Developer Settings.
+- **Port already in use**: each Claude chat starts its own bridge, and only one can hold the port. Ask the agent in the chat you want to use to take over the bridge (`take_over_bridge`). The bridge holding the port hands it over when the pairing token matches, and connected tabs reconnect within a few seconds. Bridges older than 0.1.3 can't hand over; close that chat or restart its MCP server.
 - **Safari**: Safari blocks secure sites from reaching programs on this computer. Use Chrome or Firefox.
 - **Edits turned off after a code change**: in the dev server, hot reload recreates the page's bridge client, which starts read-only again.
 

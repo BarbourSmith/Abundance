@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events";
-import { WebSocketServer } from "ws";
+import WebSocket, { WebSocketServer } from "ws";
 import {
   CLOSE_CODES,
   ERROR_CODES,
@@ -15,6 +15,12 @@ import { tokensMatch } from "./token.js";
 
 const HEARTBEAT_MS = 20_000;
 
+/** Path another bridge connects to when it takes over the port. */
+const HANDOFF_PATH = "/handoff";
+
+/** Close code for pages dropped because another bridge took over the port. */
+const HANDED_OFF = 4007;
+
 /**
  * Accepts WebSocket connections from Abundance pages and relays tool calls to
  * them. Each authenticated connection is a "session" (one browser tab).
@@ -24,6 +30,11 @@ const HEARTBEAT_MS = 20_000;
  *   "session-closed" (session, code)      a page went away
  *   "session-update" (session)            a page reported new project/mode info
  *   "rejected"       ({ reason, origin })  a connection was refused
+ *   "handed-off"     ()                    another bridge took over the port
+ *
+ * Every MCP client (each Claude chat) runs its own bridge, and only one can
+ * hold the port. claim() takes the port from whichever bridge holds it; pages
+ * reconnect to the new holder on their own.
  */
 export class PageHub extends EventEmitter {
   /**
@@ -61,6 +72,8 @@ export class PageHub extends EventEmitter {
     this._idsByClient = new Map();
     this.wss = null;
     this.listenError = null;
+    /** True after another bridge took the port from this one. */
+    this.handedOff = false;
   }
 
   /** Start listening. Resolves with the bound port. */
@@ -72,6 +85,12 @@ export class PageHub extends EventEmitter {
         maxPayload: 256 * 1024 * 1024,
         verifyClient: (info, done) => {
           const origin = info.origin || info.req.headers.origin;
+          // Browsers always send an Origin, so a handoff request without one
+          // comes from a local process. It still needs the pairing token.
+          if (info.req.url === HANDOFF_PATH && !origin) {
+            done(true);
+            return;
+          }
           if (!isAllowedOrigin(origin, this.extraOrigins)) {
             this.emit("rejected", { reason: "origin", origin });
             done(false, 403, "Origin not allowed");
@@ -90,6 +109,8 @@ export class PageHub extends EventEmitter {
         wss.on("error", (err) => this.emit("error", err));
         this.wss = wss;
         this.port = wss.address().port;
+        this.listenError = null;
+        this.handedOff = false;
         this._heartbeat = setInterval(() => this._pingAll(), HEARTBEAT_MS);
         this._heartbeat.unref?.();
         resolve(this.port);
@@ -105,10 +126,58 @@ export class PageHub extends EventEmitter {
       session.ws.terminate();
     }
     this.sessions.clear();
-    if (this.wss) {
-      await new Promise((resolve) => this.wss.close(() => resolve()));
-      this.wss = null;
+    await this._closeServer();
+  }
+
+  /**
+   * Listen on the port, taking it from another bridge if one holds it.
+   * Resolves with the bound port.
+   */
+  async claim() {
+    if (this.wss) return this.port;
+    try {
+      return await this.start();
+    } catch (err) {
+      if (err.code !== "EADDRINUSE") throw err;
     }
+    await requestHandoff({
+      host: this.host,
+      port: this.port,
+      token: this.token,
+    });
+    // The other bridge closes its server after answering; retry until it has.
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await this.start();
+      } catch (err) {
+        if (err.code !== "EADDRINUSE" || attempt >= 20) throw err;
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+    }
+  }
+
+  /** Give the port to another bridge. Pages reconnect to it on their own. */
+  async _handOff() {
+    clearInterval(this._heartbeat);
+    for (const session of this.sessions.values()) {
+      this._failPending(
+        session,
+        "Another Claude chat took over the Abundance bridge.",
+      );
+      session.ws.close(HANDED_OFF, "Another bridge took over");
+    }
+    this.sessions.clear();
+    this.handedOff = true;
+    await this._closeServer();
+    this.emit("handed-off");
+  }
+
+  async _closeServer() {
+    const wss = this.wss;
+    this.wss = null;
+    if (!wss) return;
+    for (const client of wss.clients) client.terminate();
+    await new Promise((resolve) => wss.close(() => resolve()));
   }
 
   // ------------------------------------------------------------------ sessions
@@ -209,6 +278,10 @@ export class PageHub extends EventEmitter {
   // ------------------------------------------------------------------ internals
 
   _onConnection(ws, req) {
+    if (req.url === HANDOFF_PATH) {
+      this._onHandoffConnection(ws);
+      return;
+    }
     const origin = req.headers.origin;
     ws.isAlive = true;
     ws.on("pong", () => {
@@ -247,6 +320,36 @@ export class PageHub extends EventEmitter {
         this._failPending(session, "The Abundance page disconnected.");
         this.emit("session-closed", session, code);
       }
+    });
+    ws.on("error", () => {});
+  }
+
+  _onHandoffConnection(ws) {
+    const timer = setTimeout(() => ws.terminate(), this.helloTimeoutMs);
+    timer.unref?.();
+    ws.once("message", (data) => {
+      clearTimeout(timer);
+      const msg = parseMessage(data.toString());
+      if (msg?.method !== "bridge.handoff" || msg.id === undefined) {
+        ws.close(CLOSE_CODES.HELLO_TIMEOUT, "Expected bridge.handoff");
+        return;
+      }
+      if (!tokensMatch(this.token, msg.params?.token)) {
+        this._send(
+          ws,
+          makeError(
+            msg.id,
+            ERROR_CODES.PERMISSION_DENIED,
+            "Pairing token does not match this bridge.",
+          ),
+        );
+        ws.close(CLOSE_CODES.BAD_TOKEN, "Bad pairing token");
+        this.emit("rejected", { reason: "handoff-token", origin: null });
+        return;
+      }
+      this._send(ws, makeResult(msg.id, { ok: true }));
+      ws.close();
+      this._handOff().catch((err) => this.emit("error", err));
     });
     ws.on("error", () => {});
   }
@@ -408,4 +511,46 @@ function pickInfo(params) {
     if (params[key] !== undefined) info[key] = params[key];
   }
   return info;
+}
+
+/**
+ * Ask the bridge listening on host:port to give up the port.
+ * @param {{ host: string, port: number, token: string, timeoutMs?: number }} options
+ */
+export function requestHandoff({ host, port, token, timeoutMs = 5_000 }) {
+  const refused = (detail) =>
+    new ToolError(
+      ERROR_CODES.CONFLICT,
+      `The program on port ${port} did not hand over the bridge (${detail}). It may be an older Abundance bridge: close the other Claude chat, or restart its abundance MCP server, then try again.`,
+    );
+  return new Promise((resolve, reject) => {
+    const ws = new WebSocket(`ws://${host}:${port}${HANDOFF_PATH}`);
+    const finish = (err) => {
+      clearTimeout(timer);
+      ws.removeAllListeners();
+      ws.on("error", () => {});
+      ws.terminate();
+      if (err) reject(err);
+      else resolve();
+    };
+    const timer = setTimeout(() => finish(refused("no answer")), timeoutMs);
+    timer.unref?.();
+    ws.on("open", () => {
+      ws.send(JSON.stringify(makeRequest(1, "bridge.handoff", { token })));
+    });
+    ws.on("message", (data) => {
+      const msg = parseMessage(data.toString());
+      if (msg?.id !== 1) return;
+      if (msg.error) {
+        finish(new ToolError(ERROR_CODES.PERMISSION_DENIED, msg.error.message));
+      } else {
+        finish();
+      }
+    });
+    ws.on("unexpected-response", (_req, res) =>
+      finish(refused(`HTTP ${res.statusCode}`)),
+    );
+    ws.on("error", (err) => finish(refused(err.message)));
+    ws.on("close", () => finish(refused("connection closed")));
+  });
 }
