@@ -30,7 +30,7 @@ import { AbundanceObject } from "./util";
 import { RequestContext } from "./geometryProvider";
 import { executeCode as executeLegacy, validateUserCode } from "./code-legacy";
 import { assembly } from "./interaction";
-import { reportCadProgress } from "./progress";
+import { createProgressReporter } from "./progress";
 
 // Pre-compiled Runtime JS for the user's code sandbox. Built from ts-framework.ts
 // Generated from src/worker/ts-framework.ts — run `npm run build:ts-framework`
@@ -63,9 +63,6 @@ function normalizeProjectUnits(unitsKey?: string | null): ProjectUnits {
   if (unitsKey === "Inches") return "Inches";
   return "Unitless";
 }
-
-/** Minimum spacing between per-part progress messages posted to the main thread. */
-const PROGRESS_POST_INTERVAL_MS = 250;
 
 /**
  * Monotonically-increasing counter used to give each `executeTsCode` call its
@@ -463,17 +460,9 @@ async function executeTsCode(
     const cached = await util.geometryProvider!.getAssembly(cacheId, context);
     if (cached) return cached;
 
-    // Progress reporter for this execution. Phase changes always post; the
-    // frequent per-part updates are throttled so large assemblies don't flood
-    // the main thread. Tagging with the atom id lets the UI show the label
-    // next to this atom's task even while other calls run concurrently.
-    let lastProgressPost = 0;
-    const report = (label: string, force = true) => {
-      const now = Date.now();
-      if (!force && now - lastProgressPost < PROGRESS_POST_INTERVAL_MS) return;
-      lastProgressPost = now;
-      reportCadProgress(label, String(atomUniqueId));
-    };
+    // Tagging progress with the atom id lets the UI show the label next to
+    // this atom's task even while other calls run concurrently.
+    const report = createProgressReporter(atomUniqueId);
 
     const batchId = "code-atom-" + cacheId;
     const batch: RequestContext | AbundanceObject =
@@ -751,7 +740,7 @@ export async function executeCode(
   onLog?: CodeAtomLogCallback,
 ): Promise<AbundanceObject | Primitive | Primitive[]> {
   if (interpreterVersion < 1) {
-    return executeLegacy(code, argumentsArray, context);
+    return executeLegacy(code, argumentsArray, context, atomUniqueId);
   }
   return executeTsCode(
     code,
