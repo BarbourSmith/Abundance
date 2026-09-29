@@ -309,11 +309,34 @@ export function AgentBridgeSettings() {
         <label htmlFor="agent-bridge-enabled">Connect local AI agent</label>
       </div>
       <p className="dev-setting-description">
-        Lets an AI agent running on this computer, such as Claude Code, inspect
-        this project through the Abundance bridge. It starts read-only; turn on
-        Allow edits in the chip at the top of the window to let it change
-        things.
+        Connect an MCP-compatible AI agent running on this computer to the
+        project open in this browser. The connection starts read-only.
       </p>
+      <ol className="agent-settings-steps">
+        <li>
+          Open your AI app on this computer and ask:
+          <code className="agent-settings-prompt">
+            Please find my Abundance pairing token. Start the Abundance
+            connection if needed, then tell me the pairing token and port to
+            enter on abundance.maslowcnc.com.
+          </code>
+        </li>
+        <li>
+          Paste the pairing token below, confirm the port, then turn on
+          <strong> Connect local AI agent</strong>.
+        </li>
+        <li>
+          Ask your AI agent:
+          <code className="agent-settings-prompt">
+            Connect to the Abundance project open in my browser. Tell me the
+            project name and whether access is read-only.
+          </code>
+        </li>
+        <li>
+          From there, prompt your AI directly to interact with the open
+          project.
+        </li>
+      </ol>
       <div className="agent-settings-row">
         <label htmlFor="agent-bridge-token">Pairing token</label>
         <input
@@ -357,10 +380,9 @@ export function AgentBridgeSettings() {
         {statusText(state)}
       </p>
       <p className="agent-settings-help">
-        Claude Code starts the bridge for you from this repository&apos;s{" "}
-        <code>.mcp.json</code>. To run it yourself:{" "}
-        <code>node bridge/index.js</code>. Print the token with{" "}
-        <code>node bridge/index.js --print-token</code>.
+        If your AI app does not recognize the Abundance server, ask it how to
+        add the Abundance MCP connection. Turn on <strong>Allow edits</strong> in
+        the connection chip only when you want the agent to change the project.
       </p>
     </div>
   );
