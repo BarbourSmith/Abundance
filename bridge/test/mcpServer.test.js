@@ -336,6 +336,12 @@ describe("parseArgs", () => {
     });
   });
 
+  it("exports to Abundance Exports by default, not the working directory", () => {
+    const opts = parseArgs([]);
+    expect(path.basename(opts.outDir)).toBe("Abundance Exports");
+    expect(opts.outDir.startsWith(os.homedir())).toBe(true);
+  });
+
   it("rejects unknown or malformed flags", () => {
     expect(() => parseArgs(["--nope"])).toThrow(/Unknown argument/);
     expect(() => parseArgs(["--port", "abc"])).toThrow(/--port/);

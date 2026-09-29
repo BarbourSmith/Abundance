@@ -1,0 +1,42 @@
+{
+  "name": "@maslowcnc/abundance-bridge",
+  "version": "0.1.0",
+  "description": "MCP server that lets AI agents such as Claude inspect and edit the Abundance CAD project open in your browser.",
+  "homepage": "https://abundance.maslowcnc.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BarbourSmith/Abundance.git",
+    "directory": "packages/abundance-bridge"
+  },
+  "license": "GPL-3.0-or-later",
+  "keywords": [
+    "abundance",
+    "cad",
+    "mcp",
+    "model-context-protocol",
+    "claude"
+  ],
+  "type": "module",
+  "bin": {
+    "abundance-bridge": "dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "prepack": "node build.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.31.0",
+    "esbuild": "^0.25.10",
+    "ws": "^8.22.0",
+    "zod": "^3.25.76"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

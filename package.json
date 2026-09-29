@@ -4,6 +4,7 @@
   "version": "0.14.6",
   "description": "A simple React app based on replicad.",
   "private": true,
+  "license": "GPL-3.0-or-later",
   "type": "module",
   "scripts": {
     "copy-types": "cp node_modules/replicad/dist/replicad.d.ts public/replicad.d.ts",
