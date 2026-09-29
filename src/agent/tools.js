@@ -75,8 +75,48 @@ export const TOOLS = [
     name: "list_atom_types",
     permission: "read",
     description:
-      "List the atom types that add_atom can create, grouped by category.",
+      "The built-in atoms add_atom can create, grouped by category, with each one's description, inputs (name, type, default), and extra panel fields. Check these before writing a Code atom: most modeling is a combination of built-ins.",
     inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "list_library_molecules",
+    permission: "read",
+    description:
+      "The curated library: the most-used shared GitHub molecules (patterns, rounded rectangles, offsets, fillets, cross sections, measurements), with what each does and its inputs. Import one with add_github_molecule instead of writing equivalent code." +
+      UNTRUSTED_NOTE,
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: {
+          type: "string",
+          description:
+            "Only return molecules whose name or description contains this text.",
+        },
+      },
+    },
+  },
+  {
+    name: "search_molecules",
+    permission: "read",
+    description:
+      "Search every public Abundance project that can be imported as a GitHub molecule. Results are ordered by how widely each is used (usage_tier 1-5). Prefer list_library_molecules for common needs." +
+      UNTRUSTED_NOTE,
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: {
+          type: "string",
+          description: "Text to look for in names and descriptions.",
+        },
+        limit: {
+          type: "integer",
+          minimum: 1,
+          maximum: 50,
+          description: "Default 10.",
+        },
+      },
+      required: ["query"],
+    },
   },
   {
     name: "get_errors",
@@ -261,7 +301,7 @@ export const TOOLS = [
     name: "set_code",
     permission: "edit",
     description:
-      "Replace the source of a Code atom and recompute it. TypeScript atoms use a run(...) function whose typed parameters become inputs.",
+      "Replace the source of a Code atom and recompute it. TypeScript atoms use a run(...) function whose typed parameters become inputs. Keep code atoms small and focused on the part built-ins can't do; when a reused input name keeps its old value, set it with set_param.",
     inputSchema: {
       type: "object",
       properties: {
@@ -272,10 +312,31 @@ export const TOOLS = [
     },
   },
   {
+    name: "add_github_molecule",
+    permission: "edit",
+    description:
+      "Import a shared GitHub molecule (from list_library_molecules or search_molecules) into a molecule, like choosing it from the editor's search menu. Returns its ID, path, and inputs. Imported molecules are read-only: wire them up and set their inputs.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        repo: {
+          type: "string",
+          description:
+            'The molecule\'s GitHub repository as "owner/name", e.g. "BarbourSmith/RotatePattern".',
+        },
+        molecule: OPTIONAL_ATOM_REF,
+        name: { type: "string", description: "Optional display name." },
+        x: { type: "number", minimum: 0, maximum: 1 },
+        y: { type: "number", minimum: 0, maximum: 1 },
+      },
+      required: ["repo"],
+    },
+  },
+  {
     name: "add_atom",
     permission: "edit",
     description:
-      "Add a new atom to a molecule. Returns its ID and path. Positions are fractions of the canvas (0 to 1); omit them to place it to the right of the existing atoms.",
+      "Add a new built-in atom to a molecule. Returns its ID and path. Positions are fractions of the canvas (0 to 1); omit them to place it to the right of the existing atoms. Code atoms are a last resort: use built-in atoms and library molecules where they can do the job.",
     inputSchema: {
       type: "object",
       properties: {
@@ -287,6 +348,11 @@ export const TOOLS = [
         name: { type: "string" },
         x: { type: "number", minimum: 0, maximum: 1 },
         y: { type: "number", minimum: 0, maximum: 1 },
+        reason: {
+          type: "string",
+          description:
+            "Required for Code atoms: why no built-in atom or library molecule does this job. Shown to the user in the undo history.",
+        },
       },
       required: ["type"],
     },
@@ -336,7 +402,7 @@ export const TOOLS = [
     name: "apply_edits",
     permission: "edit",
     description:
-      "Run several edit tools (set_param, set_code, add_atom, connect, disconnect, delete_atoms) as one change that the user can undo in a single step. Later edits may refer to atoms added earlier by the name they were given.",
+      "Run several edit tools (set_param, set_code, add_atom, add_github_molecule, connect, disconnect, delete_atoms) as one change that the user can undo in a single step. Later edits may refer to atoms added earlier by the name they were given.",
     inputSchema: {
       type: "object",
       properties: {
@@ -389,6 +455,7 @@ export const BATCHABLE_TOOLS = [
   "set_param",
   "set_code",
   "add_atom",
+  "add_github_molecule",
   "connect",
   "disconnect",
   "delete_atoms",

@@ -15,6 +15,7 @@ import { ERROR_CODES } from "../src/agent/protocol.js";
 import {
   AGENT_EDIT_EVENT,
   AGENT_SELECT_EVENT,
+  __test__,
   resolveAtom,
   runTool,
   summarizeValue,
@@ -397,7 +398,9 @@ describe("editing", () => {
       );
     }
     const { categories } = await runTool("list_atom_types", {}, READ);
-    const all = Object.values(categories).flat();
+    const all = Object.values(categories)
+      .flat()
+      .map((t) => t.type);
     expect(all).toContain("Equation");
     expect(all).not.toContain("Box");
   });
@@ -543,5 +546,220 @@ describe("waiting for a project", () => {
       runTool("wait_for_settle", { timeout_ms: 1000 }, READ),
       ERROR_CODES.NO_PROJECT,
     );
+  });
+});
+
+describe("built-in catalog and molecule library", () => {
+  const realFetchers = { ...__test__.fetchers };
+  afterEach(() => Object.assign(__test__.fetchers, realFetchers));
+
+  /** A tiny public "molecule": Width input wired straight to the Output. */
+  const fakeProject = () => ({
+    atomType: "Molecule",
+    name: "Doubler",
+    uniqueID: "fake-top",
+    topLevel: true,
+    allAtoms: [
+      { atomType: "Output", uniqueID: "fake-out", x: 0.9, y: 0.5 },
+      {
+        atomType: "Input",
+        name: "Width",
+        type: "number",
+        uniqueID: "fake-in",
+        x: 0.1,
+        y: 0.5,
+      },
+    ],
+    allConnectors: [
+      { ap1ID: "fake-in", ap2ID: "fake-out", ap2Name: "number or geometry" },
+    ],
+    ioValues: [{ name: "Width", ioValue: 7 }],
+  });
+
+  it("describes built-in atoms with their inputs and defaults", async () => {
+    const { categories } = await runTool("list_atom_types", {}, READ);
+    const all = Object.values(categories).flat();
+    const rect = all.find((t) => t.type === "Rectangle");
+    expect(rect.description).toMatch(/rectangle/i);
+    expect(rect.inputs).toEqual([
+      { name: "x length", type: "number", default: 10 },
+      { name: "y length", type: "number", default: 10 },
+    ]);
+    const move = all.find((t) => t.type === "Move");
+    expect(move.inputs.map((i) => i.name)).toEqual([
+      "geometry",
+      "xDist",
+      "yDist",
+      "zDist",
+    ]);
+    expect(all.find((t) => t.type === "Box")).toBeUndefined();
+  });
+
+  it("lists the curated library and filters it", async () => {
+    const all = await runTool("list_library_molecules", {}, READ);
+    expect(all.molecules.length).toBeGreaterThanOrEqual(20);
+    const patterns = await runTool(
+      "list_library_molecules",
+      { query: "pattern" },
+      READ,
+    );
+    const rotate = patterns.molecules.find(
+      (m) => m.repo === "BarbourSmith/RotatePattern",
+    );
+    expect(rotate.use_for).toMatch(/Angle = 360 \/ N/);
+    expect(rotate.inputs.map((i) => i.name)).toEqual([
+      "Shape",
+      "Number",
+      "Angle",
+    ]);
+  });
+
+  it("searches shared molecules, most used first, without private ones", async () => {
+    __test__.fetchers.search = async () => [
+      { owner: "a", repoName: "Rarely", ranking: 1, description: "x" },
+      { owner: "b", repoName: "Secret", ranking: 5, privateRepo: true },
+      { owner: "BarbourSmith", repoName: "RotatePattern", ranking: 3 },
+    ];
+    const { molecules } = await runTool(
+      "search_molecules",
+      { query: "pattern" },
+      READ,
+    );
+    expect(molecules.map((m) => m.repo)).toEqual([
+      "BarbourSmith/RotatePattern",
+      "a/Rarely",
+    ]);
+    expect(molecules[0].in_library).toBe(true);
+  });
+
+  it("imports a GitHub molecule as one undoable, read-only step", async () => {
+    const requested = [];
+    __test__.fetchers.search = async () => [];
+    __test__.fetchers.projectFile = async (owner, repo) => {
+      requested.push(`${owner}/${repo}`);
+      return fakeProject();
+    };
+    const result = await runTool(
+      "add_github_molecule",
+      { repo: "someone/Doubler", name: "Doubler" },
+      EDIT,
+    );
+    expect(requested).toEqual(["someone/Doubler"]);
+    expect(result).toMatchObject({
+      repo: "someone/Doubler",
+      path: "Proj/Doubler",
+    });
+    expect(result.inputs).toEqual([{ name: "Width", type: "number" }]);
+
+    const atom = resolveAtom(result.id);
+    expect(atom.atomType).toBe("GitHubMolecule");
+    expect(atom.parentRepo).toMatchObject({
+      owner: "someone",
+      repoName: "Doubler",
+      privateRepo: false,
+    });
+    expect(await valueOf(result.id)).toBe(7);
+
+    await runTool(
+      "set_param",
+      { atom: result.id, param: "Width", value: 9 },
+      EDIT,
+    );
+    expect(await valueOf(result.id)).toBe(9);
+
+    await expectToolError(
+      runTool("add_atom", { type: "Constant", molecule: result.id }, EDIT),
+      ERROR_CODES.PERMISSION_DENIED,
+      /read-only/,
+    );
+
+    const history = await runTool("get_undo_history", {}, READ);
+    expect(history.steps.map((s) => s.description)).toEqual([
+      "AI: set Width on Doubler",
+      "AI: import someone/Doubler",
+    ]);
+    await runTool("undo", {}, EDIT);
+    await runTool("undo", {}, EDIT);
+    expect(
+      top.nodesOnTheScreen.find((a) => a.name === "Doubler"),
+    ).toBeUndefined();
+  });
+
+  it("explains bad repository names and missing projects", async () => {
+    await expectToolError(
+      runTool("add_github_molecule", { repo: "not a repo" }, EDIT),
+      ERROR_CODES.INVALID_PARAMS,
+      /owner\/name/,
+    );
+    __test__.fetchers.search = async () => [];
+    __test__.fetchers.projectFile = async () => {
+      throw new Error("Not Found");
+    };
+    await expectToolError(
+      runTool("add_github_molecule", { repo: "nobody/Nothing" }, EDIT),
+      ERROR_CODES.NOT_FOUND,
+      /Couldn't load nobody\/Nothing/,
+    );
+    expect(GlobalVariables.undoCommandStack).toHaveLength(0);
+  });
+
+  it("refuses private molecules found by search", async () => {
+    __test__.fetchers.search = async () => [
+      { owner: "b", repoName: "Secret", privateRepo: true },
+    ];
+    await expectToolError(
+      runTool("add_github_molecule", { repo: "b/Secret" }, EDIT),
+      ERROR_CODES.PERMISSION_DENIED,
+      /private/,
+    );
+  });
+
+  it("requires a reason to add a Code atom and shows it in the undo history", async () => {
+    await expectToolError(
+      runTool("add_atom", { type: "Code" }, EDIT),
+      ERROR_CODES.INVALID_PARAMS,
+      /needs a "reason"/,
+    );
+    // Tests have no CAD worker; a stub lets the new Code atom compute.
+    const realCad = GlobalVariables.cad;
+    GlobalVariables.cad = { code: async () => 0 };
+    try {
+      await runTool(
+        "add_atom",
+        { type: "Code", name: "Curl", reason: "spiral layout math" },
+        EDIT,
+      );
+    } finally {
+      GlobalVariables.cad = realCad;
+    }
+    const history = await runTool("get_undo_history", {}, READ);
+    expect(history.steps[0].description).toBe(
+      "AI: add Curl (spiral layout math)",
+    );
+  });
+
+  it("can import inside apply_edits and wire the result by name", async () => {
+    __test__.fetchers.search = async () => [];
+    __test__.fetchers.projectFile = async () => fakeProject();
+    await runTool(
+      "apply_edits",
+      {
+        description: "import and wire",
+        edits: [
+          {
+            tool: "add_github_molecule",
+            arguments: { repo: "someone/Doubler", name: "Doubler" },
+          },
+          { tool: "add_atom", arguments: { type: "Constant", name: "Size" } },
+          {
+            tool: "connect",
+            arguments: { from: "Size", to: "Doubler", input: "Width" },
+          },
+        ],
+      },
+      EDIT,
+    );
+    expect(await valueOf("Doubler")).toBe(10);
+    expect(GlobalVariables.undoCommandStack).toHaveLength(1);
   });
 });

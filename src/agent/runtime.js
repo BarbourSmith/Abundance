@@ -25,6 +25,9 @@ import AttachmentPoint from "../prototypes/attachmentpoint.js";
 import { ObservableEntity, Status } from "../prototypes/observableEntity.js";
 import { extractBomList } from "../worker/util";
 import { isTranspilerReady } from "../molecules/code.js";
+import { fetchGitHubFileContent } from "../js/githubFileUtils.js";
+import { Octokit } from "octokit";
+import moleculeLibrary from "./moleculeLibrary.json";
 import { agentBridge } from "./bridgeClient.js";
 import { ERROR_CODES, ToolError } from "./protocol.js";
 import { BATCHABLE_TOOLS, TOOLS_BY_NAME, isToolAllowed } from "./tools.js";
@@ -47,6 +50,111 @@ const NOT_ADDABLE = new Set(["Output", "Box", "GitHubMolecule"]);
  * matching their constructors (src/molecules/input.js, constant.js).
  */
 const DEFAULT_REFERENCABLE_TYPES = { Input: "number", Constant: "constant" };
+
+/** The same molecule search the editor's GitHub search menu uses. */
+const SEARCH_URL =
+  "https://hg5gsgv9te.execute-api.us-east-2.amazonaws.com/abundance-stage/scan-search-abundance";
+
+/**
+ * Network access used by the library tools. Swappable so tests don't reach
+ * GitHub or the search service.
+ */
+const fetchers = {
+  /** Parsed project.abundance of a public GitHub molecule. */
+  async projectFile(owner, repo) {
+    const octokit = new Octokit({
+      headers: { "X-GitHub-Api-Version": "2022-11-28" },
+    });
+    const response = await octokit.request(
+      "GET /repos/{owner}/{repo}/contents/project.abundance",
+      { owner, repo },
+    );
+    return JSON.parse(await fetchGitHubFileContent(response.data, { octokit }));
+  },
+  /** Raw search results: [{ owner, repoName, description, ranking, ... }]. */
+  async search(query) {
+    const url =
+      `${SEARCH_URL}?attribute=searchField&yearShow=2&mode=all&query=` +
+      encodeURIComponent(query);
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`search failed (${res.status})`);
+    return (await res.json()).repos || [];
+  },
+};
+
+let atomCatalog = null;
+
+/**
+ * Describe every addable built-in atom by constructing one in a detached
+ * sandbox molecule and reading its description, inputs, and panel fields.
+ * Built once per page load; always matches the running code.
+ */
+function buildAtomCatalog() {
+  if (atomCatalog) return atomCatalog;
+  const types = GlobalVariables.availableTypes || {};
+  const MoleculeClass = types.molecule?.creator;
+  const sandbox = MoleculeClass
+    ? new MoleculeClass({
+        x: 0,
+        y: 0,
+        parent: null,
+        uniqueID: "agent-catalog-sandbox",
+      })
+    : null;
+  const categories = {};
+  for (const [key, entry] of Object.entries(types)) {
+    if (!entry.atomCategory || NOT_ADDABLE.has(entry.atomType)) continue;
+    const item = { type: entry.atomType };
+    try {
+      const probe = new entry.creator({
+        parent: sandbox,
+        uniqueID: `agent-catalog-${key}`,
+        x: 0.5,
+        y: 0.5,
+      });
+      if (probe.description && probe.description !== "none") {
+        item.description = summarizeValue(probe.description);
+      }
+      const inputs = (probe.inputs || []).map((ap) => {
+        const input = { name: ap.name, type: ap.valueType };
+        const def = ap.defaultValue ?? ap.value;
+        if (def !== undefined && def !== null && ap.valueType !== "geometry") {
+          input.default = summarizeValue(def);
+        }
+        return input;
+      });
+      if (inputs.length) item.inputs = inputs;
+      const inputNames = new Set(inputs.map((i) => i.name));
+      const fields = collectParams(probe)
+        .map((p) => p.label)
+        .filter((label) => !inputNames.has(label));
+      if (fields.length) item.panel_fields = fields;
+    } catch {
+      // Some atoms need a loaded project to construct; list them by name.
+    }
+    (categories[entry.atomCategory] ||= []).push(item);
+  }
+  atomCatalog = { categories };
+  return atomCatalog;
+}
+
+function libraryEntry(repo) {
+  const wanted = String(repo).toLowerCase();
+  return (moleculeLibrary.molecules || []).find(
+    (m) => m.repo.toLowerCase() === wanted,
+  );
+}
+
+function parseRepo(repo) {
+  const match = /^([\w.-]+)\/([\w.-]+)$/.exec(String(repo).trim());
+  if (!match) {
+    throw new ToolError(
+      ERROR_CODES.INVALID_PARAMS,
+      `"${repo}" is not a repository. Use "owner/name", e.g. "BarbourSmith/RotatePattern".`,
+    );
+  }
+  return { owner: match[1], repoName: match[2] };
+}
 
 /** Name -> atom for atoms added earlier in the running apply_edits batch. */
 let batchAliases = null;
@@ -752,12 +860,59 @@ const handlers = {
   },
 
   async list_atom_types() {
-    const groups = {};
-    for (const entry of Object.values(GlobalVariables.availableTypes || {})) {
-      if (!entry.atomCategory || NOT_ADDABLE.has(entry.atomType)) continue;
-      (groups[entry.atomCategory] ||= []).push(entry.atomType);
+    return buildAtomCatalog();
+  },
+
+  async list_library_molecules({ query }) {
+    const q = query ? String(query).toLowerCase() : null;
+    const molecules = (moleculeLibrary.molecules || [])
+      .filter(
+        (m) =>
+          !q ||
+          [m.repo, m.description, m.use_for]
+            .filter(Boolean)
+            .some((t) => t.toLowerCase().includes(q)),
+      )
+      .map((m) => ({
+        repo: m.repo,
+        ...(m.use_for ? { use_for: m.use_for } : {}),
+        description: summarizeValue(m.description || ""),
+        inputs: m.inputs,
+        usage_tier: m.usage_tier,
+      }));
+    return {
+      molecules,
+      note: "Import with add_github_molecule. Inputs are as last saved by the molecule's author; get_atom shows the live inputs after import.",
+    };
+  },
+
+  async search_molecules({ query, limit = 10 }) {
+    let results;
+    try {
+      results = await fetchers.search(query);
+    } catch (err) {
+      throw new ToolError(
+        ERROR_CODES.INTERNAL_ERROR,
+        `The molecule search is unavailable: ${err.message}`,
+      );
     }
-    return { categories: groups };
+    const molecules = results
+      .filter((r) => r && r.owner && r.repoName && !r.privateRepo)
+      .sort((a, b) => Number(b.ranking || 0) - Number(a.ranking || 0))
+      .slice(0, limit)
+      .map((r) => {
+        const repo = `${r.owner}/${r.repoName}`;
+        return {
+          repo,
+          description: summarizeValue(
+            String(r.description || "").slice(0, 240),
+          ),
+          usage_tier: Number(r.ranking || 0),
+          ...(r.topics?.length ? { topics: r.topics } : {}),
+          ...(libraryEntry(repo) ? { in_library: true } : {}),
+        };
+      });
+    return { query, molecules };
   },
 
   async get_errors() {
@@ -1107,7 +1262,90 @@ const handlers = {
     };
   },
 
-  async add_atom({ type, molecule, name, x, y }) {
+  async add_github_molecule({ repo, molecule, name, x, y }) {
+    const { owner, repoName } = parseRepo(repo);
+    const mol = resolveMolecule(molecule);
+    assertEditableContainer(mol);
+
+    // The source record the editor keeps on a GitHub molecule (used for
+    // reloading and shown in its panel). Small on purpose: it is saved.
+    let parentRepo = { owner, repoName, privateRepo: false };
+    const known = libraryEntry(`${owner}/${repoName}`);
+    if (known?.dateModified) parentRepo.dateModified = known.dateModified;
+    if (!known) {
+      try {
+        const hit = (await fetchers.search(repoName)).find(
+          (r) => r.owner === owner && r.repoName === repoName,
+        );
+        if (hit?.privateRepo) {
+          throw new ToolError(
+            ERROR_CODES.PERMISSION_DENIED,
+            `${owner}/${repoName} is private; the agent can only import public molecules.`,
+          );
+        }
+        if (hit?.dateModified) parentRepo.dateModified = hit.dateModified;
+      } catch (err) {
+        if (err instanceof ToolError) throw err;
+        // Search is only for metadata; carry on without it.
+      }
+    }
+
+    let project;
+    try {
+      project = await fetchers.projectFile(owner, repoName);
+    } catch (err) {
+      throw new ToolError(
+        ERROR_CODES.NOT_FOUND,
+        `Couldn't load ${owner}/${repoName} from GitHub: ${err.message}`,
+      );
+    }
+    if (!project || !Array.isArray(project.allAtoms)) {
+      throw new ToolError(
+        ERROR_CODES.NOT_FOUND,
+        `${owner}/${repoName} doesn't contain an Abundance project.`,
+      );
+    }
+
+    // Same steps as the editor's loader: fresh IDs, then place as a
+    // GitHubMolecule. Done here so it targets `mol` and can be awaited.
+    const copy = mol.remapIDs(project);
+    copy.atomType = "GitHubMolecule";
+    const uniqueID = GlobalVariables.generateUniqueID();
+    const siblings = children(mol).filter((a) => a.atomType !== "Output");
+    const maxX = siblings.reduce((m, a) => Math.max(m, Number(a.x) || 0), 0.1);
+    const placed = await mol.placeAtom(copy, false, {
+      uniqueID,
+      parentRepo,
+      x: x ?? Math.min(0.85, maxX + 0.08),
+      y: y ?? 0.2 + (siblings.length % 6) * 0.12,
+      topLevel: false,
+      lastReloadedFromGithubAt: Date.now(),
+    });
+    const atom =
+      (placed && String(placed.uniqueID) === String(uniqueID) && placed) ||
+      children(mol).find((a) => String(a.uniqueID) === String(uniqueID));
+    if (!atom) {
+      throw new ToolError(
+        ERROR_CODES.INTERNAL_ERROR,
+        `Could not place ${owner}/${repoName}.`,
+      );
+    }
+    if (name) atom.name = name;
+    GlobalVariables.pushUndoCommand(
+      new AddAtomCommand(atom.uniqueID, mol, `Add ${owner}/${repoName}`),
+    );
+    atom.enable?.();
+    return {
+      ...atomRef(atom),
+      repo: `${owner}/${repoName}`,
+      inputs: (atom.inputs || []).map((ap) => ({
+        name: ap.name,
+        type: ap.valueType,
+      })),
+    };
+  },
+
+  async add_atom({ type, molecule, name, x, y, reason }) {
     const mol = resolveMolecule(molecule);
     assertEditableContainer(mol);
     const wanted = String(type).toLowerCase();
@@ -1119,6 +1357,12 @@ const handlers = {
       throw new ToolError(
         ERROR_CODES.NOT_FOUND,
         `Unknown atom type "${type}". Call list_atom_types for the options.`,
+      );
+    }
+    if (entry.atomType === "Code" && !String(reason || "").trim()) {
+      throw new ToolError(
+        ERROR_CODES.INVALID_PARAMS,
+        'Adding a Code atom needs a "reason": say why no built-in atom (list_atom_types) or library molecule (list_library_molecules) can do this job.',
       );
     }
 
@@ -1497,7 +1741,11 @@ function describeEdit(name, args) {
     case "set_code":
       return `edit code of ${nameFor(args.atom)}`;
     case "add_atom":
-      return `add ${args.name || args.type}`;
+      return args.reason
+        ? `add ${args.name || args.type} (${String(args.reason).slice(0, 80)})`
+        : `add ${args.name || args.type}`;
+    case "add_github_molecule":
+      return `import ${args.repo}`;
     case "connect":
       return `connect ${nameFor(args.from)} to ${nameFor(args.to)}`;
     case "disconnect":
@@ -1548,4 +1796,4 @@ export async function runTool(name, args = {}, ctx = { mode: "read" }) {
   return result;
 }
 
-export const __test__ = { handlers, collectParams, withUndoGroup };
+export const __test__ = { handlers, collectParams, withUndoGroup, fetchers };

@@ -213,7 +213,10 @@ describe("PageHub", () => {
       method: "session.update",
       params: { focused: true },
     });
-    await new Promise((r) => setTimeout(r, 30));
+    // Wait for the update to land rather than a fixed delay (flaky under load).
+    for (let i = 0; i < 200 && hub.activeSession()?.id !== "tab-2"; i++) {
+      await new Promise((r) => setTimeout(r, 10));
+    }
     expect(await hub.call(undefined, "x", {})).toBe("B");
 
     hub.selectSession("tab-1");

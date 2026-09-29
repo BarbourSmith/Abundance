@@ -34,9 +34,9 @@ claude mcp add abundance -- node /path/to/Abundance/bridge/index.js
 | Permission | Tools |
 |---|---|
 | Always | `bridge_status`, `list_sessions`, `use_session` |
-| Read | `get_project`, `list_atoms`, `get_atom`, `list_atom_types`, `get_errors`, `wait_for_settle`, `get_state_report`, `get_worker_logs`, `get_bom`, `get_readme`, `render_image`, `export_geometry`, `get_gcode`, `get_undo_history` |
+| Read | `get_project`, `list_atoms`, `get_atom`, `list_atom_types`, `list_library_molecules`, `search_molecules`, `get_errors`, `wait_for_settle`, `get_state_report`, `get_worker_logs`, `get_bom`, `get_readme`, `render_image`, `export_geometry`, `get_gcode`, `get_undo_history` |
 | View | `select_atom`, `open_molecule` |
-| Edit | `set_param`, `set_code`, `add_atom`, `connect`, `disconnect`, `delete_atoms`, `apply_edits`, `undo`, `save_project` |
+| Edit | `set_param`, `set_code`, `add_atom`, `add_github_molecule`, `connect`, `disconnect`, `delete_atoms`, `apply_edits`, `undo`, `save_project` |
 
 The tool list and schemas live in `src/agent/tools.js`, shared by the page and the bridge. The page-side implementations are in `src/agent/runtime.js`.
 
@@ -45,6 +45,21 @@ Atoms are addressed by path, such as `Wall-Anchor/Bolt/Rotate`, or by the unique
 `set_param` changes the same fields the properties panel shows, through the same handlers, so equations and atom-specific behavior work as they do for a person. Equation atoms rename themselves to their equation. When that happens the result reports the new name.
 
 Exports, renders, and G-code go to `abundance-output/` in the directory the bridge was started from, or to `output_path` when given. Only the path and a summary go back to the model.
+
+## Built-ins and library molecules first
+
+The server instructions tell the agent to build with built-in atoms first, then shared GitHub molecules, and to write a Code atom only for what neither can do. The tools back that up:
+
+- `list_atom_types` describes every built-in atom with its inputs and defaults, read from the running app.
+- `list_library_molecules` returns the curated library in `src/agent/moleculeLibrary.json`: the 20 most-used public molecules, with their inputs.
+- `search_molecules` searches every public project, most used first, and `add_github_molecule` imports one as a read-only GitHub molecule.
+- `add_atom` refuses a Code atom without a `reason`, which appears in the user's undo history.
+
+Regenerate the library as usage changes, and add hand-written guidance for any molecule in `src/agent/moleculeLibrary.notes.json`:
+
+```bash
+npm run agent:library
+```
 
 ## Safety model
 

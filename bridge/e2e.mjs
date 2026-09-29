@@ -307,6 +307,63 @@ try {
     assert.equal((await call("list_atoms")).data.atoms.length, before);
   });
 
+  await check(
+    "imports RotatePattern from the library and patterns a part",
+    async () => {
+      const { data: lib } = await call("list_library_molecules", {
+        query: "pattern",
+      });
+      assert.ok(
+        lib.molecules.some((m) => m.repo === "BarbourSmith/RotatePattern"),
+      );
+      const before = (await call("list_atoms")).data.atoms.length;
+      await call("apply_edits", {
+        description: "e2e pattern check",
+        edits: [
+          {
+            tool: "add_atom",
+            arguments: { type: "Rectangle", name: "E2E_Blade" },
+          },
+          {
+            tool: "add_github_molecule",
+            arguments: {
+              repo: "BarbourSmith/RotatePattern",
+              name: "E2E_Pattern",
+            },
+          },
+          {
+            tool: "connect",
+            arguments: { from: "E2E_Blade", to: "E2E_Pattern", input: "Shape" },
+          },
+          {
+            tool: "set_param",
+            arguments: { atom: "E2E_Pattern", param: "Number", value: 4 },
+          },
+          {
+            tool: "set_param",
+            arguments: { atom: "E2E_Pattern", param: "Angle", value: 90 },
+          },
+        ],
+      });
+      await call("wait_for_settle", { timeout_ms: 120_000 });
+      const { data: pattern } = await call("get_atom", { atom: "E2E_Pattern" });
+      assert.equal(pattern.type, "GitHubMolecule");
+      assert.equal(
+        pattern.status,
+        "ready",
+        JSON.stringify(pattern.error || pattern.status),
+      );
+      assert.equal(
+        pattern.output?.part_count,
+        4,
+        JSON.stringify(pattern.output),
+      );
+      await call("undo");
+      await call("wait_for_settle", { timeout_ms: 120_000 });
+      assert.equal((await call("list_atoms")).data.atoms.length, before);
+    },
+  );
+
   if (firstGeometryAtom) {
     await check("selects an atom in the page", async () => {
       await call("select_atom", { atom: firstGeometryAtom.id });

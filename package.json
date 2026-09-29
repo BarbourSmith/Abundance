@@ -20,7 +20,8 @@
     "lint": "eslint src/**/*.ts src/**/*.tsx",
     "test:bridge": "vitest run --config=vitest.bridge.config.mjs",
     "test:bridge:e2e": "node bridge/e2e.mjs",
-    "bridge:token": "node bridge/index.js --print-token"
+    "bridge:token": "node bridge/index.js --print-token",
+    "agent:library": "node scripts/build-molecule-library.mjs"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
