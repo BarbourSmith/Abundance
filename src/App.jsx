@@ -45,6 +45,7 @@ import { TutorialProvider } from "./tutorial/TutorialManager";
 import { ProgressBarProvider } from "./components/secondary/ProgressBarManager.jsx";
 import { DevSettingsProvider } from "./contexts/DevSettingsContext.jsx";
 import DevSettingsModal from "./components/secondary/DevSettingsModal.jsx";
+import { AgentBridgeHost } from "./components/secondary/AgentBridge.jsx";
 
 /*Import style scripts*/
 import "./styles/maslowCreate.css";
@@ -957,6 +958,7 @@ function AppContent() {
         <div className={errorClass}>{errorNotification}</div>
       )}{" "}
       <DevSettingsModal />{" "}
+      <AgentBridgeHost />
       <Routes>
         <Route
           exact

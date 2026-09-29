@@ -23,6 +23,11 @@ export function setMonacoInstance(monaco) {
   _monaco = monaco;
 }
 
+/** True once the code editor has handed us Monaco's TypeScript worker. */
+export function isTranspilerReady() {
+  return _monaco !== null;
+}
+
 /**
  * Transpile a TypeScript source string to JavaScript using Monaco's
  * bundled TS language worker. Throws a descriptive Error on failure so the
@@ -378,9 +383,12 @@ return assembly;
    * In TypeScript mode this also transpiles the source to JavaScript and
    * stores it on `this.compiledCode` so the worker never sees TS syntax.
    */
-  async updateCode(code) {
+  async updateCode(code, precompiledJs = null) {
     if (!GlobalVariables.isUndoing) {
       const oldCode = this.code;
+      // Keep the old transpiled output so undo works even when the Monaco
+      // TypeScript worker has not been loaded (e.g. an AI agent edit).
+      const oldCompiled = this.compiledCode;
       GlobalVariables.pushUndoCommand(
         new ValueChangeCommand(
           this.uniqueID,
@@ -388,7 +396,7 @@ return assembly;
           "code",
           oldCode,
           (atom, val) => {
-            atom.updateCode(val);
+            atom.updateCode(val, oldCompiled || null);
           },
           `Change code "${this.name}"`,
         ),
@@ -398,7 +406,12 @@ return assembly;
 
     if ((this.interpreterVersion ?? 0) >= 1) {
       try {
-        this.compiledCode = await transpileTypeScript(code);
+        // Monaco's TS worker is the source of truth when the editor has
+        // loaded it; otherwise use JavaScript transpiled by the caller.
+        this.compiledCode =
+          precompiledJs !== null && !isTranspilerReady()
+            ? precompiledJs
+            : await transpileTypeScript(code);
       } catch (err) {
         this.compiledCode = "";
         this.setError(err);

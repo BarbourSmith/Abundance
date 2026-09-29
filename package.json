@@ -17,7 +17,10 @@
     "test:metrics": "node Puppet/metrics.js",
     "coverage": "vitest run --coverage",
     "unit": "vitest run --config=vitest.browser.config.ts",
-    "lint": "eslint src/**/*.ts src/**/*.tsx"
+    "lint": "eslint src/**/*.ts src/**/*.tsx",
+    "test:bridge": "vitest run --config=vitest.bridge.config.mjs",
+    "test:bridge:e2e": "node bridge/e2e.mjs",
+    "bridge:token": "node bridge/index.js --print-token"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -66,6 +69,7 @@
     "workerpool": "^9.3.3"
   },
   "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.31.0",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.8.0",
     "@testing-library/react": "^16.3.0",
@@ -80,7 +84,8 @@
     "vite": "^5.1.6",
     "vite-plugin-node-polyfills": "^0.23.0",
     "vite-plugin-pages": "^0.32.3",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.4",
+    "ws": "^8.22.0"
   },
   "browserslist": [
     ">0.2%",
