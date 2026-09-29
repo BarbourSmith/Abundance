@@ -17,3 +17,6 @@ test-*.html
 
 # Files the local AI agent bridge exports (bridge/README.md)
 /abundance-output/
+
+# Copied from the repository root by packages/abundance-bridge/build.mjs
+/packages/abundance-bridge/AI_PROMPT_FOR_CODE_ATOMS.md

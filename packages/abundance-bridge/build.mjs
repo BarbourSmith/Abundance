@@ -1,6 +1,7 @@
 // Bundle bridge/ and the shared src/agent/ files into dist/index.js so the
 // package runs without the rest of the Abundance repo. npm dependencies stay
-// external and install from this package's package.json.
+// external and install from this package's package.json. The code atom guide
+// is copied next to package.json, where the bundle expects it.
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -21,4 +22,8 @@ await build({
   logLevel: "warning",
 });
 fs.chmodSync(outfile, 0o755);
+fs.copyFileSync(
+  path.join(here, "..", "..", "AI_PROMPT_FOR_CODE_ATOMS.md"),
+  path.join(here, "AI_PROMPT_FOR_CODE_ATOMS.md"),
+);
 console.log(`built ${path.relative(process.cwd(), outfile)}`);
