@@ -2,7 +2,7 @@
   "mcpServers": {
     "abundance": {
       "command": "node",
-      "args": ["bridge/index.js"]
+      "args": ["bridge/index.js", "--out-dir", "abundance-output"]
     }
   }
 }

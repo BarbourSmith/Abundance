@@ -23,11 +23,24 @@ The browser tab connects out to the bridge. The website never accepts connection
 
 A chip at the top of the window shows the connection. The agent starts read-only. Tick **Allow edits** in the chip to let it change the project. Edit permission resets to read-only whenever the page reloads.
 
-To use the bridge from another directory or MCP client, point it at this file:
+Without a copy of this repository, install the published package instead. See [packages/abundance-bridge](../packages/abundance-bridge/README.md) for other MCP clients.
 
 ```bash
-claude mcp add abundance -- node /path/to/Abundance/bridge/index.js
+claude mcp add --scope user abundance -- npx -y @maslowcnc/abundance-bridge@latest
 ```
+
+Exported files go to `~/Documents/Abundance Exports` unless `--out-dir` says otherwise. This repository's `.mcp.json` uses `abundance-output/`.
+
+## Publishing the npm package
+
+`packages/abundance-bridge` bundles `bridge/` and the `src/agent/` files it imports into one `dist/index.js`. npm dependencies stay external. Bump its version, then:
+
+```bash
+cd packages/abundance-bridge
+npm publish
+```
+
+`prepack` rebuilds `dist/` first. Publish a new version whenever `PROTOCOL_VERSION` changes, because tabs on the live site refuse a bridge with a different protocol version.
 
 ## What the agent can do
 

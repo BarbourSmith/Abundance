@@ -616,6 +616,10 @@ We welcome contributions! Here's how you can help:
 - **Website:** [abundance.maslowcnc.com](https://abundance.maslowcnc.com)
 - **Documentation:** See this README and in-app help
 
+## License
+
+Abundance is licensed under the GNU General Public License v3.0 or later. See [LICENSE](LICENSE).
+
 ---
 
 **Built with ❤️ by the Maslow CNC community** 

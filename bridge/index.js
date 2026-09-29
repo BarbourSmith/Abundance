@@ -6,13 +6,16 @@
  * client) and listens on a loopback WebSocket for Abundance browser tabs.
  * Tool calls from the model are relayed to the connected tab.
  *
- * Usage: node bridge/index.js [--port 4455] [--out-dir ./abundance-output]
+ * Usage: node bridge/index.js [--port 4455] [--out-dir <folder>]
  *                             [--origin https://extra.example] [--print-token]
  *                             [--new-token]
+ *
+ * Also published to npm as @maslowcnc/abundance-bridge (packages/abundance-bridge).
  *
  * stdout is reserved for the MCP protocol; all logging goes to stderr.
  */
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -26,10 +29,21 @@ const VERSION = JSON.parse(
   fs.readFileSync(path.join(here, "..", "package.json"), "utf8"),
 ).version;
 
+/**
+ * Where exported files go when --out-dir isn't given. MCP clients such as
+ * Claude Desktop don't start the bridge in a meaningful folder, so this can't
+ * depend on the working directory.
+ */
+export function defaultOutDir() {
+  const documents = path.join(os.homedir(), "Documents");
+  const base = fs.existsSync(documents) ? documents : os.homedir();
+  return path.join(base, "Abundance Exports");
+}
+
 export function parseArgs(argv) {
   const opts = {
     port: Number(process.env.ABUNDANCE_BRIDGE_PORT) || DEFAULT_BRIDGE_PORT,
-    outDir: path.resolve("abundance-output"),
+    outDir: defaultOutDir(),
     origins: [],
     printToken: false,
     newToken: false,
@@ -117,14 +131,23 @@ async function main() {
   process.on("SIGTERM", shutdown);
 }
 
+function realPath(file) {
+  try {
+    return fs.realpathSync(file);
+  } catch {
+    return path.resolve(file);
+  }
+}
+
 function formatProject(project) {
   if (!project) return "(no project)";
   return `${project.owner}/${project.repo}`;
 }
 
+// npm runs the published bin through a symlink, so compare real paths.
 const isMain =
   process.argv[1] &&
-  path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+  realPath(process.argv[1]) === realPath(fileURLToPath(import.meta.url));
 if (isMain) {
   main().catch((err) => {
     log(err.stack || err.message);

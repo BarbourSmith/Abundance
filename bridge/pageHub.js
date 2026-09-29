@@ -257,7 +257,7 @@ export class PageHub extends EventEmitter {
       const message = `Protocol mismatch: page speaks v${params.protocolVersion}, bridge speaks v${PROTOCOL_VERSION}. Update ${
         (params.protocolVersion ?? 0) < PROTOCOL_VERSION
           ? "the page (reload it)"
-          : "the bridge"
+          : "the bridge (restart your AI app; installs using @maslowcnc/abundance-bridge@latest update on restart)"
       }.`;
       this._send(ws, makeError(msg.id, ERROR_CODES.INVALID_REQUEST, message));
       ws.close(CLOSE_CODES.VERSION_MISMATCH, "Protocol version mismatch");
