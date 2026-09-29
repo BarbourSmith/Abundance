@@ -31,6 +31,7 @@ import {
   useProject,
 } from "../../contexts/index.js";
 import { useDevSettings } from "../../contexts/DevSettingsContext.jsx";
+import { agentBridge } from "../../agent/bridgeClient.js";
 /**
  * Create mode component appears displays flow canvas, renderer and sidebar when
  * a user has been authorized access to a project.
@@ -283,6 +284,25 @@ function CreateMode() {
     }
   }, [activeAtom]);
 
+  /* LET A LOCAL AI AGENT ASK TO SAVE (the user always confirms) */
+  const saveProjectRef = useRef(saveProject);
+  saveProjectRef.current = saveProject;
+  useEffect(() => {
+    agentBridge.saveHandler = async (reason) => {
+      const ok = window.confirm(
+        `The AI agent wants to save this project to GitHub.\n\n${reason}\n\nSave now?`,
+      );
+      if (!ok) return { saved: false, message: "The user declined to save." };
+      await saveProjectRef.current(setSaveState, "User Save", true, () =>
+        setSavePopUp(true),
+      );
+      return { saved: true };
+    };
+    return () => {
+      agentBridge.saveHandler = null;
+    };
+  }, []);
+
   /* SET AUTOSAVE INTERVAL */
 
   useEffect(() => {
@@ -291,6 +311,10 @@ function CreateMode() {
       const isAutoSaveDisabled =
         localStorage.getItem("autoSaveDisabled") === "true";
       if (isAutoSaveDisabled) return;
+
+      // Don't auto-commit while a local AI agent may be editing: the user
+      // decides when the agent's changes are saved.
+      if (agentBridge.isEditMode()) return;
 
       // Skip auto-save when any popup is visible to avoid committing
       // unintended changes while the user is navigating away

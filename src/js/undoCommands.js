@@ -78,12 +78,16 @@ export class ReplaceConnectionCommand {
   async undo() {
     GlobalVariables.isUndoing = true;
     try {
-      // Remove the new connector from the target input
+      // Remove the new connector from the target input. Delete silently only
+      // when an old connector is about to be restored (that re-propagates).
+      // Undoing a fresh connection must reset the input to its default, or
+      // the target atom never recomputes and keeps the removed upstream value.
+      const restoring = this.oldConnectors.length > 0;
       this.parentMolecule.nodesOnTheScreen.forEach((atom) => {
         if (atom.uniqueID === this.newConnectorData.ap2ID) {
           atom.inputs.forEach((input) => {
             if (input.name === this.newConnectorData.ap2Name) {
-              [...input.connectors].forEach((c) => c.deleteSelf(true));
+              [...input.connectors].forEach((c) => c.deleteSelf(restoring));
             }
           });
         }
@@ -159,6 +163,30 @@ export class ValueChangeCommand {
       }
     } finally {
       GlobalVariables.isUndoing = false;
+    }
+  }
+}
+
+/**
+ * Several undo commands recorded as one step, undone newest-first. Used by the
+ * local AI agent bridge so that one agent request (which may add atoms, wire
+ * them, and set values) is a single entry in the user's undo history.
+ */
+export class CompositeCommand {
+  /**
+   * @param {object[]} commands - commands in the order they were recorded
+   * @param {string} description - label shown in the undo notification
+   * @param {{ agent?: boolean }} [options]
+   */
+  constructor(commands, description, { agent = false } = {}) {
+    this.commands = commands;
+    this.description = description;
+    this.isAgentCommand = agent;
+  }
+
+  async undo() {
+    for (let i = this.commands.length - 1; i >= 0; i--) {
+      await this.commands[i].undo();
     }
   }
 }

@@ -14,6 +14,7 @@ import {
   useProject,
 } from "../../contexts/index.js";
 import { useProgressBar } from "./ProgressBarManager.jsx";
+import { openAgentDialog } from "./AgentBridge.jsx";
 
 function TopMenu({
   savePopUp,
@@ -277,6 +278,10 @@ function TopMenu({
             privateRepo: GlobalVariables.currentAWSnode.privateRepo || false,
           });
         },
+      },
+      {
+        id: "AI Agent",
+        buttonFunc: openAgentDialog,
       },
       {
         id: "Settings",

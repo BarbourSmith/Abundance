@@ -1,0 +1,517 @@
+{
+  "generated": "2026-09-29",
+  "source": "Most-used public Abundance molecules; regenerate with scripts/build-molecule-library.mjs",
+  "molecules": [
+    {
+      "repo": "tristan-huber/ExtractFaces",
+      "owner": "tristan-huber",
+      "repoName": "ExtractFaces",
+      "description": "Extract faces from an assembly by click selection. Faces are identified by index within their leaf of the assembly. Returns a new assembly with just faces",
+      "inputs": [
+        {
+          "name": "Assembly",
+          "type": "faceselect",
+          "default": null
+        }
+      ],
+      "usage_tier": 3,
+      "used_in_listed_projects": 18,
+      "topics": [
+        "abundance-tool"
+      ],
+      "dateModified": "2026-07-24T20:38:04Z"
+    },
+    {
+      "repo": "tristan-huber/select.FacesByNormal",
+      "owner": "tristan-huber",
+      "repoName": "select.FacesByNormal",
+      "description": "Select faces from an assembly whose normal vector is in the given direction plus or minus some tolerance. Note the u,v location where the normal is taken can be set but defaults to center (0.5,0.5)",
+      "inputs": [
+        {
+          "name": "shape",
+          "type": "geometry",
+          "default": null
+        },
+        {
+          "name": "normal",
+          "type": "point3d",
+          "default": [
+            1,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "toleranceDeg",
+          "type": "number",
+          "default": 0
+        },
+        {
+          "name": "u",
+          "type": "number",
+          "default": 0.5
+        },
+        {
+          "name": "v",
+          "type": "number",
+          "default": 0.5
+        }
+      ],
+      "usage_tier": 3,
+      "used_in_listed_projects": 13,
+      "topics": [
+        "abundance-tool"
+      ],
+      "dateModified": "2026-09-03T20:47:11Z"
+    },
+    {
+      "repo": "tristan-huber/crv.Point",
+      "owner": "tristan-huber",
+      "repoName": "crv.Point",
+      "description": "Simple 3d Point defined by it's xyz position",
+      "inputs": [
+        {
+          "name": "X",
+          "type": "number",
+          "default": 0
+        },
+        {
+          "name": "Y",
+          "type": "number",
+          "default": 0
+        },
+        {
+          "name": "Z",
+          "type": "number",
+          "default": 0
+        }
+      ],
+      "usage_tier": 3,
+      "used_in_listed_projects": 12,
+      "topics": [
+        "abundance-tool"
+      ],
+      "dateModified": "2026-08-19T18:19:17Z"
+    },
+    {
+      "repo": "BarbourSmith/Width",
+      "owner": "BarbourSmith",
+      "repoName": "Width",
+      "description": "Takes a shape and returns the width as measurred by the shapes bounding box",
+      "use_for": "Measures a shape: returns its width as a number, for driving other parameters.",
+      "inputs": [
+        {
+          "name": "Shape",
+          "type": "geometry",
+          "default": null
+        }
+      ],
+      "usage_tier": 3,
+      "used_in_listed_projects": 9,
+      "topics": [],
+      "dateModified": "2025-12-04T21:53:36Z"
+    },
+    {
+      "repo": "BarbourSmith/Rectangle-Rounded",
+      "owner": "BarbourSmith",
+      "repoName": "Rectangle-Rounded",
+      "description": "A rectangle with rounded corners",
+      "inputs": [
+        {
+          "name": "Width",
+          "type": "number",
+          "default": 10
+        },
+        {
+          "name": "Height",
+          "type": "number",
+          "default": 10
+        },
+        {
+          "name": "Radius",
+          "type": "number",
+          "default": 1
+        }
+      ],
+      "usage_tier": 3,
+      "used_in_listed_projects": 6,
+      "topics": [],
+      "dateModified": "2024-12-15T06:44:54Z"
+    },
+    {
+      "repo": "tristan-huber/selected.Fillet",
+      "owner": "tristan-huber",
+      "repoName": "selected.Fillet",
+      "description": "Fillet the only the selected edges of an assembly. You can also input face or sub-assembly selections, edges will be filleted if they meet any of the selection criteria, eg on a selected subassembly, on a selected face. Default fillets all edges.",
+      "inputs": [
+        {
+          "name": "shape",
+          "type": "edgeselect",
+          "default": null
+        },
+        {
+          "name": "radius",
+          "type": "number",
+          "default": 1
+        }
+      ],
+      "usage_tier": 3,
+      "used_in_listed_projects": 6,
+      "topics": [
+        "abundance-tool"
+      ],
+      "dateModified": "2026-07-21T21:34:22Z"
+    },
+    {
+      "repo": "BarbourSmith/Center_XY",
+      "owner": "BarbourSmith",
+      "repoName": "Center_XY",
+      "description": "This takes an input shape and moves it to be centered on the XY plane",
+      "use_for": "Moves a shape so its bounding box is centered on the origin in X and Y.",
+      "inputs": [
+        {
+          "name": "Geometry",
+          "type": "geometry",
+          "default": null
+        }
+      ],
+      "usage_tier": 3,
+      "used_in_listed_projects": 6,
+      "topics": [],
+      "dateModified": "739887"
+    },
+    {
+      "repo": "BarbourSmith/Cross-Section",
+      "owner": "BarbourSmith",
+      "repoName": "Cross-Section",
+      "description": "Takes a cross section of the input",
+      "inputs": [
+        {
+          "name": "Geometry",
+          "type": "number",
+          "default": 10
+        },
+        {
+          "name": "Offset",
+          "type": "number",
+          "default": 0
+        },
+        {
+          "name": "Angle X",
+          "type": "number",
+          "default": 90
+        },
+        {
+          "name": "Angle Z",
+          "type": "number",
+          "default": 0
+        },
+        {
+          "name": "Angle Y",
+          "type": "number",
+          "default": 0
+        }
+      ],
+      "usage_tier": 3,
+      "used_in_listed_projects": 6,
+      "topics": [],
+      "dateModified": "2026-01-23T18:20:41Z"
+    },
+    {
+      "repo": "alzatin/Linear-Pattern",
+      "owner": "alzatin",
+      "repoName": "Linear-Pattern",
+      "description": "https://raw.githubusercontent.com/alzatin/Linear-Pattern/master/README.md?sanitize=true",
+      "use_for": "Linear pattern. Makes Number copies of Geometry; copy i is moved by i times (distX, distY, distZ).",
+      "inputs": [
+        {
+          "name": "Number",
+          "type": "number",
+          "default": 4
+        },
+        {
+          "name": "Geometry",
+          "type": "geometry",
+          "default": null
+        },
+        {
+          "name": "distX",
+          "type": "number",
+          "default": 11
+        },
+        {
+          "name": "distY",
+          "type": "number",
+          "default": 0
+        },
+        {
+          "name": "distZ",
+          "type": "number",
+          "default": 0
+        }
+      ],
+      "usage_tier": 3,
+      "used_in_listed_projects": 3,
+      "topics": [
+        "abundance-tool"
+      ],
+      "dateModified": "2026-06-03T16:57:00Z"
+    },
+    {
+      "repo": "BarbourSmith/Rounded_Rectangle",
+      "owner": "BarbourSmith",
+      "repoName": "Rounded_Rectangle",
+      "description": "Creates a 2D rectangle with rounded corners",
+      "inputs": [
+        {
+          "name": "X_Length",
+          "type": "number",
+          "default": 20
+        },
+        {
+          "name": "Y_Length",
+          "type": "number",
+          "default": 5
+        },
+        {
+          "name": "Radius",
+          "type": "number",
+          "default": 2
+        }
+      ],
+      "usage_tier": 3,
+      "used_in_listed_projects": 3,
+      "topics": [],
+      "dateModified": "2026-06-24T22:04:58Z"
+    },
+    {
+      "repo": "BarbourSmith/Round_End_Arc",
+      "owner": "BarbourSmith",
+      "repoName": "Round_End_Arc",
+      "description": "Creates an arc with rounded ends. The input angle is the arc not including the rounded ends",
+      "inputs": [
+        {
+          "name": "Angle",
+          "type": "number",
+          "default": 60
+        },
+        {
+          "name": "ID",
+          "type": "number",
+          "default": 30
+        },
+        {
+          "name": "OD",
+          "type": "number",
+          "default": 40
+        },
+        {
+          "name": "Thickness",
+          "type": "number",
+          "default": 1
+        }
+      ],
+      "usage_tier": 3,
+      "used_in_listed_projects": 1,
+      "topics": [],
+      "dateModified": "2026-04-22T03:57:13Z"
+    },
+    {
+      "repo": "BarbourSmith/RotatePattern",
+      "owner": "BarbourSmith",
+      "repoName": "RotatePattern",
+      "description": "https://raw.githubusercontent.com/BarbourSmith/RotatePattern/master/README.md?sanitize=true",
+      "use_for": "Circular pattern. Makes Number copies of Shape, each rotated a further Angle degrees about the Z axis through the origin. For N copies evenly around a full circle use Number = N and Angle = 360 / N. Move the shape off the origin first to set the pattern radius.",
+      "inputs": [
+        {
+          "name": "Shape",
+          "type": "geometry",
+          "default": null
+        },
+        {
+          "name": "Number",
+          "type": "number",
+          "default": 5
+        },
+        {
+          "name": "Angle",
+          "type": "number",
+          "default": 20
+        }
+      ],
+      "usage_tier": 3,
+      "used_in_listed_projects": 0,
+      "topics": [],
+      "dateModified": "2026-09-11T21:25:18Z"
+    },
+    {
+      "repo": "BarbourSmith/Twist_Extrude",
+      "owner": "BarbourSmith",
+      "repoName": "Twist_Extrude",
+      "description": "Takes an input shape and exrudes it to the specified height with the specified twist in degrees applied",
+      "inputs": [
+        {
+          "name": "Input",
+          "type": "geometry",
+          "default": null
+        },
+        {
+          "name": "Height",
+          "type": "number",
+          "default": 20
+        },
+        {
+          "name": "Angle",
+          "type": "number",
+          "default": 180
+        }
+      ],
+      "usage_tier": 3,
+      "used_in_listed_projects": 0,
+      "topics": [],
+      "dateModified": "2026-06-18T21:53:00Z"
+    },
+    {
+      "repo": "BarbourSmith/Offset_2D",
+      "owner": "BarbourSmith",
+      "repoName": "Offset_2D",
+      "description": "Takes an input 2D shape and offsets from it to produce a new 2D shape which is larger or smaller",
+      "inputs": [
+        {
+          "name": "2D_Shape",
+          "type": "geometry",
+          "default": null
+        },
+        {
+          "name": "Offset",
+          "type": "number",
+          "default": 10
+        }
+      ],
+      "usage_tier": 3,
+      "used_in_listed_projects": 0,
+      "topics": [],
+      "dateModified": "739888"
+    },
+    {
+      "repo": "BarbourSmith/2D_Slice",
+      "owner": "BarbourSmith",
+      "repoName": "2D_Slice",
+      "description": "Takes an input shape and generates a 2D slice of it where it meets the XY axis",
+      "inputs": [
+        {
+          "name": "Input",
+          "type": "geometry",
+          "default": null
+        }
+      ],
+      "usage_tier": 3,
+      "used_in_listed_projects": 0,
+      "topics": [],
+      "dateModified": "2026-06-26T18:02:14Z"
+    },
+    {
+      "repo": "BarbourSmith/Concentric_Circles",
+      "owner": "BarbourSmith",
+      "repoName": "Concentric_Circles",
+      "description": "Creates two concentric circles. The result is 2D",
+      "inputs": [
+        {
+          "name": "OD",
+          "type": "number",
+          "default": 30
+        },
+        {
+          "name": "ID",
+          "type": "number",
+          "default": 20
+        }
+      ],
+      "usage_tier": 3,
+      "used_in_listed_projects": 0,
+      "topics": [],
+      "dateModified": "2026-09-11T21:25:46Z"
+    },
+    {
+      "repo": "tristan-huber/select.EdgesOnFace",
+      "owner": "tristan-huber",
+      "repoName": "select.EdgesOnFace",
+      "description": "Translates a selection of faces into a selection of edges. The edges which are on a selected face become selected themselves.",
+      "inputs": [
+        {
+          "name": "faceSelection",
+          "type": "geometry",
+          "default": null
+        }
+      ],
+      "usage_tier": 2,
+      "used_in_listed_projects": 6,
+      "topics": [
+        "abundance-tool"
+      ],
+      "dateModified": "2026-08-20T19:59:49Z"
+    },
+    {
+      "repo": "tristan-huber/ExtractEdges",
+      "owner": "tristan-huber",
+      "repoName": "ExtractEdges",
+      "description": "Select edges from an assembly by clicking on them. Returns a new assembly of just those edges as wires. Selection is saved as index of each edge in it's leaf.",
+      "inputs": [
+        {
+          "name": "Input",
+          "type": "edgeselect",
+          "default": null
+        }
+      ],
+      "usage_tier": 2,
+      "used_in_listed_projects": 6,
+      "topics": [
+        "abundance-tool"
+      ],
+      "dateModified": "2026-07-27T20:58:07Z"
+    },
+    {
+      "repo": "tristan-huber/util.FuseWire",
+      "owner": "tristan-huber",
+      "repoName": "util.FuseWire",
+      "description": "Fuse a collection of wires into one wire object. Also called join wire, assemble wire, or concatenate wire. This is a thin wrapper of assembleWire and can return a branching wire.",
+      "inputs": [
+        {
+          "name": "wires",
+          "type": "geometry",
+          "default": null
+        }
+      ],
+      "usage_tier": 2,
+      "used_in_listed_projects": 6,
+      "topics": [
+        "abundance-tool"
+      ],
+      "dateModified": "2026-08-31T20:46:28Z"
+    },
+    {
+      "repo": "tristan-huber/util.Offset",
+      "owner": "tristan-huber",
+      "repoName": "util.Offset",
+      "description": "Offset an assembly of solids by some constant distance. Positive value corresponds to a larger result, negative offsets correspond to a smaller result.",
+      "inputs": [
+        {
+          "name": "Shape",
+          "type": "geometry",
+          "default": null
+        },
+        {
+          "name": "Offset",
+          "type": "number",
+          "default": 10
+        }
+      ],
+      "usage_tier": 2,
+      "used_in_listed_projects": 6,
+      "topics": [
+        "abundance-tool"
+      ],
+      "dateModified": "2026-09-03T21:11:22Z"
+    }
+  ]
+}

@@ -305,6 +305,14 @@ class GlobalVariables {
     this.undoCommandStack = [];
 
     /**
+     * When set to an array, pushUndoCommand collects commands into it instead
+     * of the undo stack. The AI agent bridge uses this to group the commands
+     * from one agent edit into a single CompositeCommand.
+     * @type {array|null}
+     */
+    this.undoCaptureStack = null;
+
+    /**
      * Set to true while an undo is executing to prevent cascading undo captures.
      * @type {boolean}
      */
@@ -795,6 +803,13 @@ class GlobalVariables {
    */
   pushUndoCommand(command) {
     if (this.isUndoing) return;
+
+    // While the local AI agent bridge applies an edit, commands are collected
+    // so the whole edit becomes one undo step (see src/agent/runtime.js).
+    if (this.undoCaptureStack) {
+      this.undoCaptureStack.push(command);
+      return;
+    }
 
     // Merge consecutive value changes for the same atom+field
     if (this.undoCommandStack.length > 0) {
