@@ -218,8 +218,9 @@ function TopMenu({
          */
         id: "Read Me",
         buttonFunc: () => {
+          const branch = GlobalVariables.currentRepo.default_branch || "master";
           var url =
-            GlobalVariables.currentRepo.html_url + "/blob/master/README.md";
+            GlobalVariables.currentRepo.html_url + "/blob/" + branch + "/README.md";
           window.open(url);
         },
       },
@@ -229,9 +230,10 @@ function TopMenu({
          */
         id: "Bill of Materials",
         buttonFunc: () => {
+          const branch = GlobalVariables.currentRepo.default_branch || "master";
           var url =
             GlobalVariables.currentRepo.html_url +
-            "/blob/master/BillOfMaterials.md";
+            "/blob/" + branch + "/BillOfMaterials.md";
           window.open(url);
         },
       },
