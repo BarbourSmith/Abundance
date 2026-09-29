@@ -288,6 +288,66 @@ describe("editing", () => {
     ]);
   });
 
+  it("builds a molecule and wires its inside in one batch", async () => {
+    await buildWidthAndDouble();
+    const { results } = await runTool(
+      "apply_edits",
+      {
+        description: "add a doubler part",
+        edits: [
+          {
+            tool: "add_atom",
+            arguments: { type: "Molecule", name: "Doubler", ref: "dbl" },
+          },
+          {
+            tool: "add_atom",
+            arguments: { type: "Input", name: "Size", molecule: "dbl" },
+          },
+          {
+            tool: "add_atom",
+            arguments: { type: "Equation", molecule: "dbl", ref: "twice" },
+          },
+          {
+            tool: "set_param",
+            arguments: {
+              atom: "twice",
+              param: "Current Equation",
+              value: "x * 2",
+            },
+          },
+          {
+            tool: "connect",
+            arguments: { from: "dbl/Size", to: "twice", input: "x" },
+          },
+          {
+            tool: "connect",
+            arguments: {
+              from: "twice",
+              to: "dbl/Output",
+              input: "number or geometry",
+            },
+          },
+          {
+            tool: "connect",
+            arguments: { from: "Width", to: "dbl", input: "Size" },
+          },
+        ],
+      },
+      EDIT,
+    );
+    const doubler = results[0].result;
+    expect(doubler.output).toEqual({
+      id: expect.any(String),
+      path: "Proj/Doubler/Output",
+    });
+    expect(nameOf(doubler.output.id)).toBe("Output");
+    expect(resolveAtom("Doubler").inputs.map((i) => i.name)).toContain(
+      "Size",
+    );
+    expect(await valueOf("Doubler")).toBe(20);
+    expect(GlobalVariables.undoCommandStack).toHaveLength(1);
+  });
+
   it("rolls back every edit in a batch when one fails", async () => {
     await buildWidthAndDouble();
     const err = await expectToolError(

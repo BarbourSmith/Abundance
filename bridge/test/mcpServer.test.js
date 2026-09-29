@@ -82,6 +82,16 @@ describe("MCP server", () => {
     expect(status.pairing_instructions).toContain(String(port));
   });
 
+  it("serves the code atom guide without a connected tab", async () => {
+    const result = await client.callTool({
+      name: "get_code_atom_guide",
+      arguments: {},
+    });
+    const guide = result.content[0].text;
+    expect(guide).toMatch(/^# Abundance Code Atom Development Guide/);
+    expect(guide).toContain("function run(");
+  });
+
   it("reports a clear error when no tab is connected", async () => {
     const result = await client.callTool({
       name: "get_project",

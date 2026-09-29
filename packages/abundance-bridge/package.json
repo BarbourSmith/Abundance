@@ -1,6 +1,6 @@
 {
   "name": "@maslowcnc/abundance-bridge",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "MCP server that lets AI agents such as Claude inspect and edit the Abundance CAD project open in your browser.",
   "homepage": "https://abundance.maslowcnc.com",
   "repository": {
@@ -21,7 +21,8 @@
     "abundance-bridge": "dist/index.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "AI_PROMPT_FOR_CODE_ATOMS.md"
   ],
   "engines": {
     "node": ">=18"

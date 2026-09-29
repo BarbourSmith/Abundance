@@ -282,7 +282,14 @@ export function resolveAtom(ref, { allowEmpty = true } = {}) {
     .filter((s) => s.length > 0);
   if (segments.length && segments[0] === top.name) segments.shift();
 
+  // A path may start from a molecule added earlier in the batch, such as
+  // "leg/Output", so the agent can wire inside a molecule it just made.
   let current = top;
+  const start = segments.length > 1 && batchAliases?.get(segments[0]);
+  if (start && ancestors(start)[0] === top) {
+    current = start;
+    segments.shift();
+  }
   for (let i = 0; i < segments.length; i++) {
     const name = segments[i];
     const matches = children(current).filter((a) => a.name === name);
@@ -1491,6 +1498,7 @@ const handlers = {
       new AddAtomCommand(atom.uniqueID, mol, `Add ${atom.atomType}`),
     );
     atom.enable?.();
+    const output = isMolecule(atom) ? atom.getOutputAtom?.() : null;
     return {
       ...atomRef(atom),
       type: atom.atomType,
@@ -1498,6 +1506,7 @@ const handlers = {
         name: ap.name,
         type: ap.valueType,
       })),
+      ...(output ? { output: atomRef(output) } : {}),
     };
   },
 
