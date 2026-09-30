@@ -287,7 +287,7 @@ function run(input: Assembly | undefined): Assembly {
 1. **Always provide default values** for parameters so the atom produces geometry immediately
 2. **Wrap all replicad geometry** in `new Assembly()` before returning
 3. **Use meaningful tags** to identify parts (e.g., `["screw", "M8", "fastener"]`)
-4. **Include BOM entries** for manufacturing and cost tracking
+4. **Leave BOM entries to an Add-BOM-Tag atom** after the code atom in the part's molecule, where the user can see and edit them; use the `bom` field only when the entry depends on values computed in code
 5. **Use console.log** for debugging parameter values
 6. **Handle undefined/null inputs** gracefully—check if optional parameters exist before using
 7. **Center geometry appropriately** using translate() for better visual alignment
