@@ -301,7 +301,7 @@ export const TOOLS = [
     name: "set_code",
     permission: "edit",
     description:
-      "Replace the source of a Code atom and recompute it. TypeScript atoms use a run(...) function whose typed parameters become inputs; call get_code_atom_guide for the API. Keep code atoms small and focused on the part built-ins can't do; when a reused input name keeps its old value, set it with set_param.",
+      "Replace the source of a Code atom and recompute it. TypeScript atoms use a run(...) function whose typed parameters become inputs; call get_code_atom_guide for the API. Keep code atoms small and focused on the part built-ins can't do, returning one part: several parts belong in molecules of their own; when a reused input name keeps its old value, set it with set_param.",
     inputSchema: {
       type: "object",
       properties: {
@@ -340,7 +340,7 @@ export const TOOLS = [
     name: "add_atom",
     permission: "edit",
     description:
-      "Add a new built-in atom to a molecule. Returns its ID and path; a new Molecule also returns its Output atom. Positions are fractions of the canvas (0 to 1); omit them to place it to the right of the existing atoms. Keep molecules small: when one already holds about 8 atoms, add a named Molecule for the new work and build inside it. Code atoms are a last resort: use built-in atoms and library molecules where they can do the job.",
+      "Add a new built-in atom to a molecule. Returns its ID and path; a new Molecule also returns its Output atom. Positions are fractions of the canvas (0 to 1); omit them to place it to the right of the existing atoms. Each physical part (a board, panel, bracket) goes in a Molecule of its own, named for the part; keep molecules to about 8 atoms, adding a named Molecule for new work beyond that. Code atoms are a last resort: use built-in atoms and library molecules where they can do the job, and never have one Code atom build several parts.",
     inputSchema: {
       type: "object",
       properties: {
@@ -364,7 +364,7 @@ export const TOOLS = [
         reason: {
           type: "string",
           description:
-            "Required for Code atoms: why no built-in atom or library molecule does this job. Shown to the user in the undo history.",
+            "Required for Code atoms: which single part this helps build and why no built-in atom or library molecule does the job. Shown to the user in the undo history.",
         },
       },
       required: ["type"],

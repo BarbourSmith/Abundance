@@ -865,6 +865,9 @@ const handlers = {
     if (atom.status === Status.READY) {
       if (isGeometryValue(atom.value)) {
         detail.output = await summarizeGeometry(atom);
+        if (atom.atomType === "Code" && detail.output.part_count > 1) {
+          detail.warning = `This Code atom builds ${detail.output.part_count} separate parts. Give each physical part a molecule of its own, built from built-in atoms where they can do the job, and keep code to the one part it can't.`;
+        }
       } else {
         detail.output = { value: summarizeValue(atom.value) };
       }
