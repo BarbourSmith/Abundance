@@ -312,14 +312,17 @@ export function AgentBridgeSettings() {
         Connect an MCP-compatible AI agent running on this computer to the
         project open in this browser. The connection starts read-only.
       </p>
+      <p className="agent-settings-intro">
+        Already set up on this computer? Skip to step 2.
+      </p>
       <ol className="agent-settings-steps">
         <li>
-          Open your AI app on this computer and ask:
-          <code className="agent-settings-prompt">
-            Please find my Abundance pairing token. Start the Abundance
-            connection if needed, then tell me the pairing token and port to
-            enter on abundance.maslowcnc.com.
-          </code>
+          Ask your AI app on this computer:
+          <CopyBlock text={INSTALL_PROMPT} />
+        </li>
+        <li>
+          Restart your AI app as it tells you, then in a new chat ask:
+          <CopyBlock text={TOKEN_PROMPT} />
         </li>
         <li>
           Paste the pairing token below, confirm the port, then turn on
@@ -327,14 +330,10 @@ export function AgentBridgeSettings() {
         </li>
         <li>
           Ask your AI agent:
-          <code className="agent-settings-prompt">
-            Connect to the Abundance project open in my browser. Tell me the
-            project name and whether access is read-only.
-          </code>
+          <CopyBlock text={CONNECT_PROMPT} />
         </li>
         <li>
-          From there, prompt your AI directly to interact with the open
-          project.
+          From there, prompt your AI directly to interact with the open project.
         </li>
       </ol>
       <div className="agent-settings-row">
@@ -380,10 +379,35 @@ export function AgentBridgeSettings() {
         {statusText(state)}
       </p>
       <p className="agent-settings-help">
-        If your AI app does not recognize the Abundance server, ask it how to
-        add the Abundance MCP connection. Turn on <strong>Allow edits</strong> in
-        the connection chip only when you want the agent to change the project.
+        Turn on <strong>Allow edits</strong> in the connection chip only when
+        you want the agent to change the project.
       </p>
+    </div>
+  );
+}
+
+const INSTALL_PROMPT =
+  "Set up the Abundance MCP server in the AI app I'm using right now. It's the npm package @maslowcnc/abundance-bridge, a stdio server started with \"npx -y @maslowcnc/abundance-bridge@latest\". First check that Node.js 18 or newer is installed, and install it if it isn't. Then add the server to this app's MCP configuration under the name \"abundance\". Finally, tell me what I need to restart so the new tools load.";
+const TOKEN_PROMPT =
+  "Please find my Abundance pairing token. Start the Abundance connection if needed, then tell me the pairing token and port to enter on abundance.maslowcnc.com.";
+const CONNECT_PROMPT =
+  "Connect to the Abundance project open in my browser. Tell me the project name and whether access is read-only.";
+
+/** Monospace block with a copy button. */
+function CopyBlock({ text }) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    navigator.clipboard?.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  };
+  return (
+    <div className="agent-settings-copy">
+      <code className="agent-settings-prompt">{text}</code>
+      <button className="agent-chip-button" onClick={copy}>
+        {copied ? "Copied" : "Copy"}
+      </button>
     </div>
   );
 }

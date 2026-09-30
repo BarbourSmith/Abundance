@@ -23,11 +23,11 @@ The browser tab connects out to the bridge. The website never accepts connection
 
 A chip at the top of the window shows the connection. The agent starts read-only. Tick **Allow edits** in the chip to let it change the project. Edit permission resets to read-only whenever the page reloads.
 
-Without a copy of this repository, install the published package instead. See [packages/abundance-bridge](../packages/abundance-bridge/README.md) for other MCP clients.
+Without a copy of this repository, have the AI app install the published package. Ask it:
 
-```bash
-claude mcp add --scope user abundance -- npx -y @maslowcnc/abundance-bridge@latest
-```
+> Set up the Abundance MCP server in the AI app I'm using right now. It's the npm package @maslowcnc/abundance-bridge, a stdio server started with "npx -y @maslowcnc/abundance-bridge@latest". First check that Node.js 18 or newer is installed, and install it if it isn't. Then add the server to this app's MCP configuration under the name "abundance". Finally, tell me what I need to restart so the new tools load.
+
+This works in any AI app that can run commands, such as Claude Code, Codex, GitHub Copilot in agent mode, and Cursor. The Connect an AI agent dialog shows the same prompt as its first step. See [packages/abundance-bridge](../packages/abundance-bridge/README.md) for setting it up by hand.
 
 Exported files go to `~/Documents/Abundance Exports` unless `--out-dir` says otherwise. This repository's `.mcp.json` uses `abundance-output/`.
 
