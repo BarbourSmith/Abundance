@@ -119,7 +119,19 @@ async function displayOrientation(
       return leaf;
     }
     let targetFaceIndex = orientations[index].downwardFaceIndex;
+    const savedFaceCount = orientations[index].faceCount;
     index++;
+    // Check before the cache below: a changed part can have been displayed
+    // (and cached) earlier, and a cache hit would skip any later check.
+    if (savedFaceCount !== undefined) {
+      const part = (await util.geometryProvider!.get(
+        leaf.geometry,
+        context,
+      )) as Shape3D;
+      if (part.faces.length !== savedFaceCount) {
+        throw new Error(STALE_ORIENTATIONS);
+      }
+    }
     const batchId = getCacheId(
       leaf.geometry,
       targetFaceIndex,
@@ -138,10 +150,6 @@ async function displayOrientation(
       leaf.geometry,
       cachedResultOrContext,
     )) as Shape3D;
-    const savedFaceCount = orientations[index - 1].faceCount;
-    if (savedFaceCount !== undefined && savedFaceCount !== geom.faces.length) {
-      throw new Error(STALE_ORIENTATIONS);
-    }
     targetFaceIndex = targetFaceIndex % geom.faces.length; // Ensure the index is within bounds
 
     let result = moveFaceToCuttingPlane(geom, geom.faces[targetFaceIndex]);
