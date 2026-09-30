@@ -51,6 +51,39 @@ describe("Cut Orient saved orientations", () => {
       displayOrientation(assemblyOf([disc]), staleForDisc, config, context),
     ).rejects.toThrow(/no longer match the parts/);
 
+    // Same face count but the faces are renumbered, as when a part is rebuilt:
+    // the saved face now points a different way.
+    const turned = await extrude(
+      await rectangle(100, 200, context),
+      19,
+      context,
+    );
+    const [, turnedOrientations] = await orient(
+      assemblyOf([turned]),
+      config,
+      context,
+    );
+    const renumbered = [
+      {
+        ...orientations[0],
+        downwardFaceIndex: (orientations[0].downwardFaceIndex + 2) % 6,
+      },
+    ];
+    await expect(
+      displayOrientation(assemblyOf([board]), renumbered, config, context),
+    ).rejects.toThrow(/no longer match the parts/);
+
+    // A resized part keeps its faces' directions, so its orientation is kept.
+    const wider = await extrude(
+      await rectangle(260, 100, context),
+      19,
+      context,
+    );
+    await expect(
+      displayOrientation(assemblyOf([wider]), orientations, config, context),
+    ).resolves.toBeDefined();
+    expect(turnedOrientations[0].faceNormal).toBeDefined();
+
     // Unchanged parts still reuse their saved orientations.
     await expect(
       displayOrientation(assemblyOf([board]), orientations, config, context),

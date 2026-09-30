@@ -210,6 +210,9 @@ export default class CutOrient extends Atom {
           if (indexNumber != null) {
             const orientation = this.orientations[indexNumber];
             orientation.downwardFaceIndex = value;
+            // A hand-picked face is the user's call: don't reject it later
+            // because it points a different way than the automatic pick.
+            delete orientation.faceNormal;
             this.setProcessing();
             this.saveAndDisplayOrientations(
               this.orientations,
