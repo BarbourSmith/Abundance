@@ -294,7 +294,7 @@ try {
         lib.molecules.some((m) => m.repo === "BarbourSmith/RotatePattern"),
       );
       const before = (await call("list_atoms")).data.atoms.length;
-      await call("apply_edits", {
+      const { data: batch } = await call("apply_edits", {
         description: "e2e pattern check",
         edits: [
           {
@@ -305,7 +305,7 @@ try {
             tool: "add_github_molecule",
             arguments: {
               repo: "BarbourSmith/RotatePattern",
-              name: "E2E_Pattern",
+              ref: "E2E_Pattern",
             },
           },
           {
@@ -323,7 +323,10 @@ try {
         ],
       });
       await call("wait_for_settle", { timeout_ms: 120_000 });
-      const { data: pattern } = await call("get_atom", { atom: "E2E_Pattern" });
+      const patternId = batch.results.find(
+        (r) => r.tool === "add_github_molecule",
+      ).result.id;
+      const { data: pattern } = await call("get_atom", { atom: patternId });
       assert.equal(pattern.type, "GitHubMolecule");
       assert.equal(
         pattern.status,

@@ -69,7 +69,7 @@ const Controls = React.memo(
         />
 
         {/* Mark the origin with a small sphere */}
-        <mesh position={[0, 0, 0]}>
+        <mesh name="origin" position={[0, 0, 0]}>
           <sphereGeometry args={[0.1, 32, 32]} />
           <meshBasicMaterial color="gray" />
         </mesh>
