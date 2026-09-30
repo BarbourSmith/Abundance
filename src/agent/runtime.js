@@ -1323,7 +1323,9 @@ const handlers = {
     }
     const coerced = coerceParamValue(target, value);
     const nameBefore = atom.name;
-    await target.config.onChange(coerced);
+    // The panel passes the field's key too; Cut Orient and Cut Layout need it
+    // to tell which part's field changed.
+    await target.config.onChange(coerced, target.key);
     refreshPanel(atom);
     const after = collectParams(atom).find((p) => p.label === target.label);
     const result = {

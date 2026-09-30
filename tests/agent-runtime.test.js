@@ -233,6 +233,27 @@ describe("editing", () => {
     window.removeEventListener(AGENT_EDIT_EVENT, onEdit);
   });
 
+  it("passes the field key to handlers that need it, like Cut Orient's faces", async () => {
+    const { id } = await runTool("add_atom", { type: "CutOrient" }, EDIT);
+    const orient = resolveAtom(id);
+    orient.orientations = [{ downwardFaceIndex: 1 }, { downwardFaceIndex: 1 }];
+    orient.orientationsFor = { geometry: [] };
+    const cad = GlobalVariables.cad;
+    GlobalVariables.cad = {
+      displayOrientation: async () => ({ geometry: [] }),
+    };
+    try {
+      await runTool(
+        "set_param",
+        { atom: id, param: "Underside Face pt1", value: 4 },
+        EDIT,
+      );
+    } finally {
+      GlobalVariables.cad = cad;
+    }
+    expect(orient.orientations.map((o) => o.downwardFaceIndex)).toEqual([1, 4]);
+  });
+
   it("accepts numbers for equation-backed number inputs", async () => {
     await buildWidthAndDouble();
     await runTool("set_param", { atom: D, param: "x", value: 41 }, EDIT);
