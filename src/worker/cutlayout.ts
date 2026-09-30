@@ -17,7 +17,13 @@ type OrientationConfig = {
 
 type Orientation = {
   downwardFaceIndex: number;
+  // Faces on the part when this orientation was chosen. A different count
+  // means the part has changed shape, so the face index no longer applies.
+  faceCount?: number;
 };
+
+/** Thrown when saved orientations belong to parts that have since changed. */
+const STALE_ORIENTATIONS = "Saved orientations no longer match the parts";
 
 type LayoutConfig = {
   width: number;
@@ -132,6 +138,10 @@ async function displayOrientation(
       leaf.geometry,
       cachedResultOrContext,
     )) as Shape3D;
+    const savedFaceCount = orientations[index - 1].faceCount;
+    if (savedFaceCount !== undefined && savedFaceCount !== geom.faces.length) {
+      throw new Error(STALE_ORIENTATIONS);
+    }
     targetFaceIndex = targetFaceIndex % geom.faces.length; // Ensure the index is within bounds
 
     let result = moveFaceToCuttingPlane(geom, geom.faces[targetFaceIndex]);
@@ -427,7 +437,10 @@ async function rotateForLayout(
     );
     if (filtered.length == 0) {
       // No planar faces... just take a wild guess using the largest face.
-      orientations.push({ downwardFaceIndex: orderedFaces[0].i });
+      orientations.push({
+        downwardFaceIndex: orderedFaces[0].i,
+        faceCount: geom.faces.length,
+      });
       return leaf;
     }
 
@@ -509,7 +522,10 @@ async function rotateForLayout(
       throw new Error("Failed to find a suitable face for layout");
     }
 
-    orientations.push({ downwardFaceIndex: bestCandidate.faceIndex });
+    orientations.push({
+      downwardFaceIndex: bestCandidate.faceIndex,
+      faceCount: geom.faces.length,
+    });
     return leaf;
   });
 

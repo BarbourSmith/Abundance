@@ -412,7 +412,7 @@ export const TOOLS = [
     name: "connect",
     permission: "edit",
     description:
-      "Wire the output of one atom into a named input of another atom in the same molecule. Replaces any existing connection to that input.",
+      "Wire the output of one atom into a named input of another atom in the same molecule. Replaces any existing connection to that input. Assembly, Fusion, ShrinkWrap, and Loft always keep one free ShapeN input: the result's next_free_input names it, so a batch can wire the next shape right away.",
     inputSchema: {
       type: "object",
       properties: {

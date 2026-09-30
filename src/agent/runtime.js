@@ -24,6 +24,7 @@ import {
 import AttachmentPoint from "../prototypes/attachmentpoint.js";
 import { ObservableEntity, Status } from "../prototypes/observableEntity.js";
 import { extractBomList } from "../worker/util";
+import { addOrDeletePorts } from "../js/alwaysOneFreeInput.js";
 import { isTranspilerReady } from "../molecules/code.js";
 import { fetchGitHubFileContent } from "../js/githubFileUtils.js";
 import { Octokit } from "octokit";
@@ -385,10 +386,24 @@ function assertEditableContainer(molecule) {
   }
 }
 
+/** Atoms that keep one free "ShapeN" input, adding the next as each fills. */
+const FREE_INPUT_TYPES = new Set([
+  "Assembly",
+  "Fusion",
+  "Shrink Wrap",
+  "ShrinkWrap",
+  "Loft",
+  "Group",
+]);
+
 function findInput(atom, name) {
-  const input = (atom.inputs || []).find(
-    (ap) => ap.name === name || ap.oldNames?.includes(name),
-  );
+  // Free inputs are named inconsistently ("Shape 1", "Shape2"), so match
+  // them with or without the space.
+  const squash = (n) => String(n).replace(/\s+/g, "");
+  const input =
+    (atom.inputs || []).find(
+      (ap) => ap.name === name || ap.oldNames?.includes(name),
+    ) || (atom.inputs || []).find((ap) => squash(ap.name) === squash(name));
   if (!input) {
     const names = (atom.inputs || []).map((ap) => ap.name);
     throw new ToolError(
@@ -1728,7 +1743,21 @@ const handlers = {
         `The editor refused to connect ${atomPath(source)} to "${ap.name}" on ${atomPath(target)}.`,
       );
     }
-    return { from: atomRef(source), to: atomRef(target), input: ap.name };
+    const result = {
+      from: atomRef(source),
+      to: atomRef(target),
+      input: ap.name,
+    };
+    if (FREE_INPUT_TYPES.has(target.atomType)) {
+      // These atoms only add their next free input when they recompute, so a
+      // batch couldn't wire a second shape. Add it now, as compute would.
+      addOrDeletePorts(target);
+      const free = (target.inputs || []).find(
+        (i) => i.name.startsWith("Shape") && !i.connectors?.length,
+      );
+      if (free) result.next_free_input = free.name;
+    }
+    return result;
   },
 
   async disconnect({ atom: ref, input }) {

@@ -166,19 +166,31 @@ export default class CutOrient extends Atom {
         new Error("No geometry to orient after keepout geometry is excluded"),
       );
     }
+    const reorient = () =>
+      GlobalVariables.cad
+        .orient(inputGeom, this.getOrientationConfig(), this.getContext())
+        .then(([result, orientations]) => {
+          return this.saveAndDisplayOrientations(orientations, inputGeom);
+        });
     if (
       util.leafCount(inputGeom) != this.orientationsForHashed ||
       this.orientations.length == 0
     ) {
       // No valid cached orientations, so we need to recompute them
-      return GlobalVariables.cad
-        .orient(inputGeom, this.getOrientationConfig(), this.getContext())
-        .then(([result, orientations]) => {
-          return this.saveAndDisplayOrientations(orientations, inputGeom);
-        });
+      return reorient();
     } else {
-      // We have valid cached orientations, so we can just display them
-      return this.saveAndDisplayOrientations(this.orientations, inputGeom);
+      // Reuse the cached orientations, which keeps faces the user picked. The
+      // worker rejects them if a part has changed shape (for example, the parts
+      // were rebuilt with the same count), and then we orient afresh.
+      return this.saveAndDisplayOrientations(
+        this.orientations,
+        inputGeom,
+      ).catch((err) => {
+        if (!String(err?.message).includes("no longer match the parts")) {
+          throw err;
+        }
+        return reorient();
+      });
     }
   }
 

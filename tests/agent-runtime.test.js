@@ -346,6 +346,50 @@ describe("editing", () => {
     expect(GlobalVariables.undoCommandStack).toHaveLength(1);
   });
 
+  it("wires several shapes into an Assembly in one batch", async () => {
+    const { results } = await runTool(
+      "apply_edits",
+      {
+        description: "assemble three parts",
+        edits: [
+          { tool: "add_atom", arguments: { type: "Molecule", name: "A" } },
+          { tool: "add_atom", arguments: { type: "Molecule", name: "B" } },
+          { tool: "add_atom", arguments: { type: "Molecule", name: "C" } },
+          { tool: "add_atom", arguments: { type: "Assembly", ref: "asm" } },
+          {
+            tool: "connect",
+            arguments: { from: "A", to: "asm", input: "Shape 1" },
+          },
+          {
+            tool: "connect",
+            arguments: { from: "B", to: "asm", input: "Shape 2" },
+          },
+          {
+            tool: "connect",
+            arguments: { from: "C", to: "asm", input: "Shape3" },
+          },
+        ],
+      },
+      EDIT,
+    );
+    const connects = results.filter((r) => r.tool === "connect");
+    expect(connects.map((r) => r.result.input)).toEqual([
+      "Shape 1",
+      "Shape2",
+      "Shape3",
+    ]);
+    expect(connects.map((r) => r.result.next_free_input)).toEqual([
+      "Shape2",
+      "Shape3",
+      "Shape4",
+    ]);
+    const asm = resolveAtom(results[3].result.id);
+    const free = asm.inputs.filter(
+      (i) => i.name.startsWith("Shape") && !i.connectors.length,
+    );
+    expect(free.map((i) => i.name)).toEqual(["Shape4"]);
+  });
+
   it("rolls back every edit in a batch when one fails", async () => {
     await buildWidthAndDouble();
     const err = await expectToolError(
