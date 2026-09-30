@@ -74,6 +74,12 @@ Fit parts together with Assembly instead of modeling the joints:
 - For clearance around a joint, add keepout geometry: a slightly larger shape around the cutting part, colored "Keep Out" with a Color atom, placed above the part it should cut in the Assembly. Keepout geometry cuts like any part but is left out of fusions, cut layouts, and gcode, and Extract Tag's "Not Keep Out" option removes it.
 - Tag parts before they go into an Assembly when you may need them separately later (to lay out, export, or reuse); Extract Tag pulls tagged parts back out of the assembly.
 
+Keep the project description up to date:
+- The description (get_project shows it) is what people see in the project list and search results, and what search_molecules matches when others look for a molecule to reuse. A missing or stale one makes good work hard to find.
+- When you create a project, or change what it makes or how it's built, call set_project_description with one to three plain sentences: what it makes, how it's made (such as "cut from 19 mm plywood on a CNC router"), and the main inputs a user can adjust. For a molecule meant to be reused, name the job it does in the words people would search for.
+- Check it at the end of every session of changes, not only the first. If the user wrote the current description, keep their wording where it's still accurate and tell them what you changed.
+- It's saved with the project, so remind the user to save.
+
 Edit:
 - Edit tools only work after the user ticks "Allow edits" in the AI agent chip at the top of the Abundance window. If edits are refused, ask them to, and don't retry until they have.
 - set_param uses the labels from get_atom's params. Number fields accept numbers or equations that reference inputs.

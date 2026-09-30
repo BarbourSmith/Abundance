@@ -840,6 +840,7 @@ const handlers = {
     const { errors } = collectErrors();
     return {
       project: projectInfo(),
+      description: GlobalVariables.currentAWSnode?.description || "",
       top_level: {
         id: String(top.uniqueID),
         name: top.name,
@@ -1357,6 +1358,32 @@ const handlers = {
       status: atom.status,
       ...(alertText(atom) ? { error: alertText(atom) } : {}),
     };
+  },
+
+  async set_project_description({ description }) {
+    const node = GlobalVariables.currentAWSnode;
+    if (!node) {
+      throw new ToolError(
+        ERROR_CODES.CONFLICT,
+        "This tab has no saved project to describe.",
+      );
+    }
+    const text = String(description).trim();
+    if (!text) {
+      throw new ToolError(
+        ERROR_CODES.INVALID_PARAMS,
+        "The description can't be empty.",
+      );
+    }
+    const before = node.description || "";
+    node.description = text;
+    GlobalVariables.pushUndoCommand({
+      description: "Change project description",
+      undo: async () => {
+        node.description = before;
+      },
+    });
+    return { description: text, previous: before };
   },
 
   async compute_cut_layout({ atom: ref, action = "compute" }, ctx) {
@@ -1967,6 +1994,16 @@ export function validateArgs(tool, args, prefix = "") {
         `${prefix}"${key}" needs at least ${prop.minItems} item(s).`,
       );
     }
+    if (
+      typeof value === "string" &&
+      prop.maxLength !== undefined &&
+      value.length > prop.maxLength
+    ) {
+      throw new ToolError(
+        ERROR_CODES.INVALID_PARAMS,
+        `${prefix}"${key}" must be at most ${prop.maxLength} characters.`,
+      );
+    }
   }
 }
 
@@ -1994,6 +2031,8 @@ function describeEdit(name, args) {
       return `import ${args.repo}`;
     case "reset_atom_names":
       return "restore standard atom names";
+    case "set_project_description":
+      return "update the project description";
     case "compute_cut_layout":
       return `${args.action === "reset" ? "reset" : "compute"} layout of ${nameFor(args.atom)}`;
     case "connect":

@@ -313,6 +313,24 @@ export const TOOLS = [
     },
   },
   {
+    name: "set_project_description",
+    permission: "edit",
+    description:
+      "Replace the project's description: the short summary shown in the project list and search results, and matched when people search for molecules to reuse. get_project shows the current one. Saved to GitHub with the project the next time it's saved.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        description: {
+          type: "string",
+          maxLength: 500,
+          description:
+            "One to three plain sentences: what the project makes, how it's made, and what can be adjusted.",
+        },
+      },
+      required: ["description"],
+    },
+  },
+  {
     name: "compute_cut_layout",
     permission: "edit",
     description:

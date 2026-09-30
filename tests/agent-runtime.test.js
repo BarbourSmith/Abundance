@@ -534,6 +534,44 @@ describe("errors and settling", () => {
   });
 });
 
+describe("project description", () => {
+  it("shows, replaces, and undoes the project description", async () => {
+    GlobalVariables.currentAWSnode.description = "Old words";
+    expect((await runTool("get_project", {}, READ)).description).toBe(
+      "Old words",
+    );
+    await expectToolError(
+      runTool("set_project_description", { description: "New" }, READ),
+      ERROR_CODES.PERMISSION_DENIED,
+    );
+    await expectToolError(
+      runTool(
+        "set_project_description",
+        { description: "x".repeat(501) },
+        EDIT,
+      ),
+      ERROR_CODES.INVALID_PARAMS,
+      /at most 500 characters/,
+    );
+    const result = await runTool(
+      "set_project_description",
+      { description: "  A chair cut from plywood.  " },
+      EDIT,
+    );
+    expect(result).toEqual({
+      description: "A chair cut from plywood.",
+      previous: "Old words",
+    });
+    expect(GlobalVariables.currentAWSnode.description).toBe(
+      "A chair cut from plywood.",
+    );
+    const { steps } = await runTool("get_undo_history", {}, READ);
+    expect(steps[0].description).toMatch(/project description/);
+    await runTool("undo", {}, EDIT);
+    expect(GlobalVariables.currentAWSnode.description).toBe("Old words");
+  });
+});
+
 describe("cut layout", () => {
   it("only runs Cut Layout atoms that have geometry to lay out", async () => {
     await buildWidthAndDouble();
