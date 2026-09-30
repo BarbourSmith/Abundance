@@ -170,7 +170,7 @@ export const TOOLS = [
     name: "get_bom",
     permission: "read",
     description:
-      "The bill of materials compiled from an atom's output (defaults to the top-level molecule): the Add-BOM-Tag items in it with quantities and costs. Check it after building; a part or piece of hardware missing here needs an Add-BOM-Tag.",
+      "The bill of materials compiled from an atom's output (defaults to the top-level molecule): the Add-BOM-Tag items in it with quantities and costs. It lists purchased parts only, not parts cut from stock. Check it after building; a purchased part missing here needs an Add-BOM-Tag.",
     inputSchema: { type: "object", properties: { atom: OPTIONAL_ATOM_REF } },
   },
   {

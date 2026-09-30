@@ -34,22 +34,23 @@ Understand before changing:
 - Use the project's units and design at the real size of the part. Projects are often in millimeters with parts meters long; test at that scale.
 
 Every physical part gets its own molecule. This is the rule users most often see broken:
-- A physical part is anything made or bought as one piece: a board, a panel, a bracket, a screw. If it would be its own line in a cut list or bill of materials, it is its own molecule, named for the part (Front Leg, Arm, Seat Slat).
+- A physical part is anything made or bought as one piece: a board, a panel, a bracket, a bolt. If it would be its own line in a cut list or bill of materials, it is its own molecule, named for the part (Front Leg, Arm, Seat Slat).
 - Groups of parts are molecules of part molecules: an "Arms and Legs" molecule contains a Front Leg, a Rear Post, and an Arm molecule and assembles them. Never build several parts inside one molecule's atoms, and never generate several parts from one Code atom.
 - The left and right copies of a part are one molecule used twice: the parent places a second copy with Move or Rotate. Many copies use a pattern molecule.
 - Before building, list the parts the design needs and plan one molecule for each; tell the user that plan.
 
-Put every part on the bill of materials with an Add-BOM-Tag atom wherever you can:
-- Each part molecule ends in an Add-BOM-Tag on the finished part, just before its Output. Name the item as a shopper or maker would ("Front leg, 19 mm plywood", "M6 x 40 hex bolt"). Number Needed counts that one placed copy: a molecule placed twice appears twice, and get_bom adds them up.
-- Purchased parts (screws, bolts, hinges, bearings, motors, extrusions) get a BOM tag even when they're modeled roughly or not at all. Hardware you don't model, such as the screws for a joint, goes on an Add-BOM-Tag wrapped around the assembly that uses it, with the full count in Number Needed.
-- Cost (USD) is the total for that tag's Number Needed. Fill in Cost and Source Link only from what the user gave you or what you looked up; otherwise leave them empty and tell the user which items need prices.
-- When you finish, call get_bom on the top level and check every part and piece of hardware is listed with the right count.
+Put every purchased part on the bill of materials with an Add-BOM-Tag atom:
+- The bill of materials is a shopping list: parts bought ready-made, such as bolts, screws, hinges, bearings, motors, solar panels, and electronics. Parts cut or made from stock (plywood panels, boards, printed parts) don't get a BOM tag; Tag them for the cut layout instead.
+- Each purchased part's molecule ends in an Add-BOM-Tag just before its Output, named as a shopper would search for it ("M6 x 40 mm hex bolt, zinc"). Number Needed counts that one placed copy: a molecule placed twice appears twice, and get_bom adds them up.
+- Purchased parts get a BOM tag even when they're modeled roughly or not at all. Hardware you don't model, such as the screws for a joint, goes on an Add-BOM-Tag wrapped around the assembly that uses it, with the full count in Number Needed.
+- Find real sources: if you can search the web, look up each item at a retailer that sells it, put the product page in Source Link, and set Cost (USD) from its current price. Cost is the total for the tag's Number Needed, so multiply the unit price, and for items sold in packs use the cost of the packs needed. Never guess a price or link: leave them empty when you can't look them up, and tell the user which items still need sourcing.
+- When you finish, call get_bom on the top level and check every purchased part is listed with the right count.
 
 Inside each part's molecule, build with what Abundance already has, in this order, and tell the user which you used:
-1. Built-in atoms (list_atom_types shows each one's inputs): shapes (Rectangle, Circle, RegularPolygon, Text), actions (Extrude, Move, Rotate), interactions (Difference, Intersection, Assembly, Fusion, Loft, ShrinkWrap), Equation and Constant for math, Tag and Add-BOM-Tag for cut lists and the bill of materials.
+1. Built-in atoms (list_atom_types shows each one's inputs): shapes (Rectangle, Circle, RegularPolygon, Text), actions (Extrude, Move, Rotate), interactions (Difference, Intersection, Assembly, Fusion, Loft, ShrinkWrap), Equation and Constant for math, Tag for cut lists and Add-BOM-Tag for purchased parts.
 2. Library molecules: list_library_molecules lists the most-used shared molecules (patterns such as RotatePattern and Linear-Pattern, rounded rectangles, 2D offsets, fillets on selected edges, cross sections, measurements). Import them with add_github_molecule, then wire and set their inputs like any atom. search_molecules finds others.
 3. A Code atom only for what no combination of the above can do, such as a custom curve or a computed layout, kept small and focused on that one job.
-Most parts are built-ins end to end. A flat sheet part is a 2D outline (Rectangle, Circle, RegularPolygon, combined with Difference, Fusion, Intersection, or ShrinkWrap, and angled edges cut with a rotated Rectangle), then Extrude by the thickness, then Rotate and Move into place, then Tag it for the cut layout and Add-BOM-Tag it. When one outline truly needs code, the Code atom draws only that outline and returns it; Extrude, Rotate, Move, and tagging stay built-in atoms beside it.
+Most parts are built-ins end to end. A flat sheet part is a 2D outline (Rectangle, Circle, RegularPolygon, combined with Difference, Fusion, Intersection, or ShrinkWrap, and angled edges cut with a rotated Rectangle), then Extrude by the thickness, then Rotate and Move into place, then Tag it for the cut layout. When one outline truly needs code, the Code atom draws only that outline and returns it; Extrude, Rotate, Move, and tagging stay built-in atoms beside it.
 
 Organize the project as a hierarchy of molecules. This matters as much as getting the geometry right: the user reads and edits the project as a graph on screen, and a molecule with dozens of atoms is unreadable.
 - Keep each molecule to about 8 atoms or fewer, doing one job. Before adding more to a molecule, group the new work into a molecule of its own.
@@ -58,7 +59,7 @@ Organize the project as a hierarchy of molecules. This matters as much as gettin
 - Make a part used more than once a single molecule and repeat it with a pattern molecule, instead of rebuilding it or generating copies in code.
 - In an existing project, learn its structure with list_atoms first and put new work in the molecule it belongs to.
 - To build a molecule, in one apply_edits: add_atom type Molecule with a name and a ref such as "leg"; add atoms into it with molecule "leg" (each Input atom inside becomes an input of the molecule, named after the Input); connect the finished shape to "leg/Output", input "number or geometry" (add_atom also returns the Output atom's ID); then wire the molecule onward in the parent and set its inputs.
-- When you finish, tell the user which molecules you made, what each one builds, and what's on the bill of materials.
+- When you finish, tell the user which molecules you made, what each one builds, and what's on the bill of materials, with any items still missing a source or price.
 
 Fit parts together with Assembly instead of modeling the joints:
 - Assembly makes its parts disjoint: where parts overlap, a part higher in its inputs list cuts into the parts below it. So don't model slots, holes, notches, or pockets for parts that fit together. Build each part whole, position the parts overlapping as they sit in the finished design, and assemble them. Put the part that should stay whole above the part it cuts into; the input order decides which part gets cut.
