@@ -149,10 +149,28 @@ export default class Atom extends ObservableEntity {
         message: "",
       };
     }
-    if (status == Status.READY && this.selected) {
+    if (status == Status.READY && this.selected && this.ownsDisplay()) {
       // if status just became ready and we're selected, update the render
       this.sendToRender();
     }
+  }
+
+  /**
+   * Whether this atom may push its value to the 3D view when it becomes ready.
+   *
+   * Several atoms can be selected at once (ctrl-click, box select), and during
+   * a recompute each of them used to re-render as it finished, so whichever
+   * finished last took over the viewport. The atom that most recently sent
+   * itself to the foreground owns the display; other selected atoms in the
+   * same project defer to it while it stays selected.
+   */
+  ownsDisplay() {
+    const owner = GlobalVariables.displayedAtom;
+    if (!owner || owner === this || !owner.selected) {
+      return true;
+    }
+    const ownerProject = owner.getContext?.()?.project;
+    return ownerProject !== this.getContext().project;
   }
 
   /**
@@ -572,6 +590,9 @@ export default class Atom extends ObservableEntity {
   disable() {
     // TODO(tristan): do something clever about preserving value for cases
     // where we'll be re-enabled.
+    // Discard any compute still in flight, so it can't flip this atom back to
+    // READY after it was disabled. enable() recomputes from fresh inputs.
+    this._computeGeneration = (this._computeGeneration || 0) + 1;
     this.setDisabled(false);
   }
 
@@ -1216,6 +1237,14 @@ export default class Atom extends ObservableEntity {
       return;
     }
 
+    // Every upstream change starts a new compute generation. A compute that
+    // was started for an older generation may settle after a newer one (its
+    // inputs changed while it ran); its result is stale and must not
+    // overwrite the newer state.
+    const generation = (this._computeGeneration =
+      (this._computeGeneration || 0) + 1);
+    const isCurrent = () => generation === this._computeGeneration;
+
     // Check for errors in inputs first
     if (this.inputsHaveErrors()) {
       this.setUpstreamError();
@@ -1228,8 +1257,10 @@ export default class Atom extends ObservableEntity {
       );
       this.setProcessing();
 
+      const handleError = this.alertingErrorHandler();
       this.compute(argsDict)
         .then((value) => {
+          if (!isCurrent()) return;
           this.buildNonReplicadGeom(value);
           this.setReady(value);
 
@@ -1240,7 +1271,10 @@ export default class Atom extends ObservableEntity {
             this.setInputChanged(this.status);
           }
         })
-        .catch(this.alertingErrorHandler());
+        .catch((err) => {
+          if (!isCurrent()) return;
+          handleError(err);
+        });
     } else {
       this.setWaiting();
     }
@@ -1251,6 +1285,7 @@ export default class Atom extends ObservableEntity {
    */
   sendToRender() {
     //Send code to JSxCAD to render
+    GlobalVariables.displayedAtom = this;
     try {
       GlobalVariables.writeToDisplay(
         this.value,

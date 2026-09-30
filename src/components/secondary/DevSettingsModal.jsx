@@ -2,6 +2,7 @@ import React, { useState, useCallback } from "react";
 import { useDevSettings } from "../../contexts/DevSettingsContext.jsx";
 import GlobalVariables from "../../js/globalvariables.js";
 import "../../styles/DevSettingsModal.css";
+import { AgentBridgeSettings } from "./AgentBridge.jsx";
 
 /**
  * Modal component for managing dev settings
@@ -82,6 +83,8 @@ const DevSettingsModal = () => {
               <p className="dev-setting-description">{setting.description}</p>
             </div>
           ))}
+
+          <AgentBridgeSettings />
 
           <div className="dev-setting-item dev-state-report-section">
             <div className="dev-state-report-header">

@@ -307,4 +307,39 @@ describe("Code atom TS-mode execution (executeCode, interpreterVersion=1)", () =
       expect(results).toContain(6);
     });
   });
+
+  describe("progress reporting", () => {
+    it("exposes a progress() global to user code", async () => {
+      const code = `function run() { return typeof progress; }`;
+      const result = await executeCode(
+        code,
+        {},
+        { project: "code-ts-progress-global" },
+        VERSION_TS,
+        ATOM_ID,
+      );
+      expect(result).toBe("function");
+    });
+
+    it("allows progress() to be called repeatedly, with or without a label", async () => {
+      const code = `async function run(n) {
+        let total = 0;
+        for (let i = 0; i < n; i++) {
+          progress(\`step \${i + 1}/\${n}\`);
+          total += i;
+          await Promise.resolve();
+        }
+        progress();
+        return total;
+      }`;
+      const result = await executeCode(
+        code,
+        { n: 50 },
+        { project: "code-ts-progress-loop" },
+        VERSION_TS,
+        ATOM_ID,
+      );
+      expect(result).toBe(1225);
+    });
+  });
 });

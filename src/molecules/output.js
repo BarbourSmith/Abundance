@@ -97,6 +97,9 @@ export default class Output extends Atom {
       const asWireOnly =
         this.parent.uniqueID == GlobalVariables.currentMolecule.uniqueID &&
         !this.selected;
+      if (!asWireOnly) {
+        GlobalVariables.displayedAtom = this;
+      }
       GlobalVariables.writeToDisplay(
         this.value,
         this.getContext(),

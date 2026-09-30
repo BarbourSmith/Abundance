@@ -7,6 +7,7 @@ import BackgroundModel from "./BackgroundModel.jsx";
 import GlobalVariables from "../../js/globalvariables.js";
 import { useRendering, useAuth } from "../../contexts/index.js";
 import ScreenshotCaptureComponent from "./ScreenshotCaptureComponent.jsx";
+import CameraClipping from "./CameraClipping.jsx";
 
 // We change the default orientation - threejs tends to use Y are the height,
 // while replicad uses Z. This is mostly a representation default.
@@ -48,16 +49,22 @@ export default function ext({ children, cameraZoom, ...otherProps }) {
     setAxesScale(gridScale / 2);
   }, [gridScale, cameraZoom]);
 
-  let previousZoomLevel = cameraZoom;
-  window.addEventListener("wheel", (e) => {
-    if (cameraRef.current) {
-      // Check if the zoom level change is greater than 5 points
-      if (Math.abs(cameraRef.current.zoom - previousZoomLevel) > 3) {
-        previousZoomLevel = cameraRef.current.zoom; // Update the previous zoom level
-        setGridScale(50 / cameraRef.current.zoom);
+  // Registered once per mount. This used to be added on every render without
+  // ever being removed, so each re-render stacked another wheel handler.
+  useEffect(() => {
+    let previousZoomLevel = cameraZoom;
+    const onWheel = () => {
+      if (cameraRef.current) {
+        // Check if the zoom level change is greater than 3 points
+        if (Math.abs(cameraRef.current.zoom - previousZoomLevel) > 3) {
+          previousZoomLevel = cameraRef.current.zoom; // Update the previous zoom level
+          setGridScale(50 / cameraRef.current.zoom);
+        }
       }
-    }
-  });
+    };
+    window.addEventListener("wheel", onWheel, { passive: true });
+    return () => window.removeEventListener("wheel", onWheel);
+  }, [cameraZoom]);
 
   return (
     <Suspense fallback={null}>
@@ -67,7 +74,9 @@ export default function ext({ children, cameraZoom, ...otherProps }) {
           backgroundColor: backColor,
         }}
         dpr={dpr}
-        frameloop="always"
+        // Render only when something changed. Controls, prop updates, and
+        // the mesh components call invalidate() to request a frame.
+        frameloop="demand"
         shadows={true}
         raycaster={{ params: { Line: { threshold: 0.02 } } }}
         onCreated={({ scene, camera, gl }) => {
@@ -83,6 +92,7 @@ export default function ext({ children, cameraZoom, ...otherProps }) {
           zoom={cameraZoom}
           position={[0, -5000, 3000]}
         />
+        <CameraClipping />
         {gridParam ? (
           <Grid
             name="grid"

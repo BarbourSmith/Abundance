@@ -13,6 +13,7 @@ import GlobalVariables from "./js/globalvariables.js";
 import { fetchGitHubFileContent } from "./js/githubFileUtils.js";
 import { filterGeometryByTags } from "./utils/geometryFilterByTags.js";
 import { CadWorkerManager } from "./worker/cadWorkerManager.js";
+import { DisplayScheduler, meshKey } from "./js/displayScheduler.js";
 import LoginMode from "./components/main-routes/LoginMode.jsx";
 import RunMode from "./components/main-routes/RunMode.jsx";
 import PullMode from "./components/main-routes/PullMode.jsx";
@@ -44,6 +45,7 @@ import { TutorialProvider } from "./tutorial/TutorialManager";
 import { ProgressBarProvider } from "./components/secondary/ProgressBarManager.jsx";
 import { DevSettingsProvider } from "./contexts/DevSettingsContext.jsx";
 import DevSettingsModal from "./components/secondary/DevSettingsModal.jsx";
+import { AgentBridgeHost } from "./components/secondary/AgentBridge.jsx";
 
 /*Import style scripts*/
 import "./styles/maslowCreate.css";
@@ -72,6 +74,19 @@ const pool = workerpool.pool(RenderURL, {
 // gets permanently stuck waiting for a computation that will never return.
 const cad = new CadWorkerManager(cadWorker, 90_000);
 window._debugWorkerHandle = cad;
+
+// Every mesh-worker request goes through this scheduler. It keeps one pending
+// request per display slot, runs one task at a time in priority order, and
+// caches finished meshes, so bursts of clicks collapse to the latest request
+// and stale results can never overwrite newer ones.
+const displayScheduler = new DisplayScheduler((method, args) =>
+  pool.exec(method, args),
+);
+GlobalVariables.displayScheduler = displayScheduler;
+
+// Stable placeholder shown when an atom has no value yet. A shared object keeps
+// its display key (and therefore the cached "No output" mesh) stable.
+const EMPTY_DISPLAY_VALUE = Object.freeze({ geometry: [] });
 // Statuses that mean the initial project load has SETTLED. A project whose
 // top-level molecule contains user-authored code that legitimately errors will
 // settle to "error"/"upstream_error" rather than "ready"; those are terminal
@@ -83,12 +98,15 @@ function isProjectLoadSettled(topLevelMolecule) {
   return SETTLED_LOAD_STATUSES.has(topLevelMolecule?.getState?.().status);
 }
 
+// The worker runs calls concurrently, so the task that most recently
+// reported progress is the one actually computing; prefer it over the one
+// that merely started last.
 function getLatestActiveWorkerTask(taskMap) {
+  const activityTime = (task) =>
+    task?.lastProgressAt || task?.startedAt || task?.queuedAt || 0;
   let latestTask = null;
   taskMap.forEach((task) => {
-    const taskTime = task?.startedAt || task?.queuedAt || 0;
-    const latestTime = latestTask?.startedAt || latestTask?.queuedAt || 0;
-    if (!latestTask || taskTime >= latestTime) {
+    if (!latestTask || activityTime(task) >= activityTime(latestTask)) {
       latestTask = task;
     }
   });
@@ -282,7 +300,7 @@ function AppContent() {
   );
 
   useEffect(() => {
-    const refreshUi = () => {
+    const refreshUiNow = () => {
       const topLevelMolecule = GlobalVariables.topLevelMolecule;
       const topLevelMoleculeId = topLevelMolecule?.uniqueID || null;
       if (topLevelMoleculeId !== currentTopLevelMoleculeIdRef.current) {
@@ -340,12 +358,36 @@ function AppContent() {
       }
     };
 
+    // Every atom status change fires "observable-entity-changed", and a full
+    // recompute produces thousands of them. Walking the molecule tree for each
+    // one made recomputes O(N^2) on the main thread, so refreshes are
+    // coalesced to at most one per animation frame.
+    let refreshHandle = null;
+    const hasRaf = typeof window.requestAnimationFrame === "function";
+    const refreshUi = () => {
+      if (refreshHandle !== null) return;
+      const run = () => {
+        refreshHandle = null;
+        refreshUiNow();
+      };
+      refreshHandle = hasRaf
+        ? window.requestAnimationFrame(run)
+        : setTimeout(run, 16);
+    };
+
     const handleTopLevelChanged = () => refreshUi();
     const handleObservableChanged = () => refreshUi();
     const handleWorkerTaskStart = (event) => {
       const detail = event?.detail || {};
       if (!detail.taskId) return;
-      activeWorkerTasksRef.current.set(detail.taskId, detail);
+      // A task announced early (it reported progress from behind the queue
+      // head) gets a second start event once it reaches the head; keep the
+      // progress it has already reported.
+      const existing = activeWorkerTasksRef.current.get(detail.taskId);
+      activeWorkerTasksRef.current.set(detail.taskId, {
+        ...existing,
+        ...detail,
+      });
       refreshUi();
     };
     const handleWorkerTaskFinished = (event) => {
@@ -360,6 +402,7 @@ function AppContent() {
       const task = activeWorkerTasksRef.current.get(detail.taskId);
       if (!task) return;
       task.subLabel = detail.label || null;
+      task.lastProgressAt = detail.at || Date.now();
       refreshUi();
     };
     const handleWorkerRestarted = () => {
@@ -387,9 +430,17 @@ function AppContent() {
       handleWorkerTaskProgress,
     );
     window.addEventListener("cad-worker-restarted", handleWorkerRestarted);
-    refreshUi();
+    refreshUiNow();
 
     return () => {
+      if (refreshHandle !== null) {
+        if (hasRaf) {
+          window.cancelAnimationFrame(refreshHandle);
+        } else {
+          clearTimeout(refreshHandle);
+        }
+        refreshHandle = null;
+      }
       window.removeEventListener(
         "top-level-molecule-changed",
         handleTopLevelChanged,
@@ -437,51 +488,58 @@ function AppContent() {
     }
   }, [renderProgress, setRenderBarVisible]);
 
+  /* Display bookkeeping. Each ref holds the mesh key currently wanted for a
+     view; results whose key no longer matches are discarded. Keys are computed
+     once per request (see displayScheduler.js) instead of re-stringifying
+     whole assembly trees for every comparison. */
+  const targetKeyRef = React.useRef(null); // foreground mesh key
+  const backgroundKeyRef = React.useRef(null); // background wireframe key
+  const topLevelKeyRef = React.useRef(null); // top-level wireframe key
+  const previousTagsRef = React.useRef(new Set()); // Track previous tags to avoid unnecessary recalculation
+  const activeAtomRef = React.useRef(activeAtom);
+  activeAtomRef.current = activeAtom;
+
+  // Mesh key of the top-level molecule's current value, memoized by value
+  // identity so it is only recomputed when the top-level value changes.
+  const topLevelKeyMemo = React.useRef({ value: undefined, key: null });
+  const currentTopLevelKey = () => {
+    const molecule = GlobalVariables.topLevelMolecule;
+    if (!molecule || molecule.value == null) return null;
+    const memo = topLevelKeyMemo.current;
+    if (memo.value !== molecule.value) {
+      memo.value = molecule.value;
+      memo.key = meshKey(molecule.value, molecule.getContext());
+    }
+    return memo.key;
+  };
+
   // Generate top-level molecule wireframe mesh when molecule is ready
   useEffect(() => {
-    if (renderProgress >= 100 && GlobalVariables.topLevelMolecule) {
-      const molecule = GlobalVariables.topLevelMolecule;
-      const moleculeId = molecule.uniqueID;
-      const moleculeValue = molecule.value;
-      const context = molecule.getContext();
-
-      // Check if we've already generated the mesh for this molecule
-      if (topLevelMesh.current && topLevelMesh.current.id === moleculeId) {
-        // Already generated for this molecule, just ensure it's set
-        if (topLevelMesh.current.mesh) {
-          setTopLevelWireMesh(topLevelMesh.current.mesh);
-        }
-        return;
-      }
-
-      if (moleculeValue && context) {
-        // Mark that we're generating for this molecule
-        topLevelMesh.current = { id: moleculeId, mesh: undefined };
-
-        pool
-          .proxy()
-          .then((worker) => {
-            return worker.generateDisplayMesh(moleculeValue, context);
-          })
-          .then((m) => {
-            // Check if the molecule ID still matches (avoid race condition)
-            if (
-              topLevelMesh.current &&
-              topLevelMesh.current.id === moleculeId
-            ) {
-              // Store the generated mesh
-              topLevelMesh.current.mesh = m.mesh;
-              setTopLevelWireMesh(m.mesh);
-            }
-          })
-          .catch((e) => {
-            console.error("Failed to generate top-level wireframe mesh:", e);
-            // Reset to allow retry
-            topLevelMesh.current = undefined;
-          });
-      }
+    const molecule = GlobalVariables.topLevelMolecule;
+    if (renderProgress < 100 || !molecule || molecule.value == null) {
+      return;
     }
-  }, [renderProgress, setTopLevelWireMesh, pool]);
+    const key = currentTopLevelKey();
+    if (topLevelKeyRef.current === key) {
+      return; // Already requested or displayed for this value.
+    }
+    topLevelKeyRef.current = key;
+    displayScheduler.request("topLevel", {
+      args: [molecule.value, molecule.getContext()],
+      key,
+      onResult: (m) => {
+        if (topLevelKeyRef.current === key) {
+          setTopLevelWireMesh(m.mesh);
+        }
+      },
+      onError: (e) => {
+        console.error("Failed to generate top-level wireframe mesh:", e);
+        if (topLevelKeyRef.current === key) {
+          topLevelKeyRef.current = null; // allow retry
+        }
+      },
+    });
+  }, [renderProgress, setTopLevelWireMesh]);
 
   /* Creates an element to check with Puppeteer if the molecule is fully loaded*/
   const createPuppeteerDiv = () => {
@@ -502,81 +560,17 @@ function AppContent() {
     localStorage.setItem("shortcuts", shortCutsOn);
   }, [shortCutsOn]);
 
-  /* Track in-flight rendering tasks, for the foreground and background*/
-  const inFlightMeshRender = React.useRef(undefined); // {task: Promise, value: atom.value}
-  const targetMesh = React.useRef(undefined); // id of most recently displayed mesh
-  const backgroundMesh = React.useRef(undefined); // {id: atom.value, mesh: generated mesh}
-  const topLevelMesh = React.useRef(undefined); // {id: molecule.uniqueID, mesh: generated mesh}
-  const filteredMeshCache = React.useRef(new Map()); // Cache: "tag1,tag2" -> mesh for filtered combinations
-  const previousTagsRef = React.useRef(new Set()); // Track previous tags to avoid unnecessary recalculation
-
-  function makeMesh() {
-    setOutdatedMesh(true);
-    pool.proxy().then((worker) => {
-      // No-op condition
-      if (
-        !targetMesh.current ||
-        JSON.stringify(targetMesh.current) ===
-          JSON.stringify(inFlightMeshRender.current?.value)
-      ) {
-        console.log("[makeMesh] Skipping - no targetMesh or already in flight");
-        return;
-      }
-      console.debug(
-        "[makeMesh] Starting mesh generation for: ",
-        targetMesh.current,
-      );
-
-      // Display geometry unfiltered - tag filtering only applies to top-level background view
-      const genTask = worker.generateDisplayMesh(
-        targetMesh.current,
-        GlobalVariables.topLevelMolecule.getContext(),
-      );
-      inFlightMeshRender.current = { task: genTask, value: targetMesh.current };
-      genTask
-        .then((m) => {
-          const mesh = m.mesh;
-          const id = m.id;
-          inFlightMeshRender.current = undefined;
-          if (JSON.stringify(id) !== JSON.stringify(targetMesh.current)) {
-            console.debug("discarding outdated mesh for: ", id);
-            return;
-          }
-          setMesh(mesh);
-          setOutdatedMesh(false);
-          setProcessing(false);
-          // Also update top-level wireframe if this is the top-level molecule's mesh
-          if (
-            GlobalVariables.topLevelMolecule &&
-            JSON.stringify(targetMesh.current) ===
-              JSON.stringify(GlobalVariables.topLevelMolecule.value)
-          ) {
-            setTopLevelWireMesh(mesh);
-          }
-          /*Set plane and geometry type for ThreeContext*/
-          setPlane(id?.plane);
-          setGeometryType(id?.dimension);
-        })
-        .catch((e) => {
-          console.error("Can't display Mesh " + e);
-          if (activeAtom) {
-            activeAtom.setError("Can't display Mesh " + e);
-          }
-        })
-        .finally(() => {
-          createPuppeteerDiv();
-        });
-    });
-  }
-
   useEffect(() => {
     GlobalVariables.resetView = () => {
+      GlobalVariables.displayedAtom = null;
       setOutdatedMesh(true);
-      targetMesh.current = undefined;
+      targetKeyRef.current = null;
+      backgroundKeyRef.current = null;
+      displayScheduler.cancel("foreground");
+      displayScheduler.cancel("background");
       setMesh([]);
       setWireMesh([]);
       setNonReplicadGeometry(null);
-      filteredMeshCache.current.clear(); // Clear mesh cache when resetting view
     };
     GlobalVariables.setSelectionModeAtom = setSelectionModeAtom;
     GlobalVariables.setOutdatedMesh = setOutdatedMesh;
@@ -587,12 +581,12 @@ function AppContent() {
       backgroundMolecule = false,
       nonReplicadGeometryFromAtom = null,
     ) => {
-      console.log(moleculeValue);
       if (!moleculeValue) {
-        console.warn(
-          "Received null molecule value for display, using empty geometry",
-        );
-        moleculeValue = { geometry: [] }; // use a non-null structure which still generates the default mesh
+        // A non-null structure which still generates the default mesh
+        moleculeValue = EMPTY_DISPLAY_VALUE;
+      }
+      if (!context) {
+        context = GlobalVariables.topLevelMolecule?.getContext();
       }
 
       /* Handle non-Replicad geometry - if otherGeometry is provided*/
@@ -610,92 +604,90 @@ function AppContent() {
         }
       }
 
+      const key = meshKey(moleculeValue, context);
+
       if (backgroundMolecule) {
-        if (
-          backgroundMesh.current &&
-          JSON.stringify(backgroundMesh.current.id) ===
-            JSON.stringify(moleculeValue)
-        ) {
-          setWireMesh(backgroundMesh.current.mesh);
-        } else {
-          backgroundMesh.current = { id: moleculeValue, mesh: undefined };
-          pool.proxy().then((worker) => {
-            worker.generateDisplayMesh(moleculeValue, context).then((m) => {
-              console.log(m);
-              backgroundMesh.current.mesh = m.mesh;
-              setWireMesh(m.mesh);
-              // Also update top-level wireframe if this is the top-level molecule's mesh
-              if (
-                GlobalVariables.topLevelMolecule &&
-                JSON.stringify(moleculeValue) ===
-                  JSON.stringify(GlobalVariables.topLevelMolecule.value)
-              ) {
-                setTopLevelWireMesh(m.mesh);
-              }
+        backgroundKeyRef.current = key;
+        displayScheduler.request("background", {
+          args: [moleculeValue, context],
+          key,
+          onResult: (m) => {
+            // A newer background request superseded this one.
+            if (backgroundKeyRef.current !== key) return;
+            setWireMesh(m.mesh);
+            if (key === currentTopLevelKey()) {
+              setTopLevelWireMesh(m.mesh);
+              topLevelKeyRef.current = key;
+            }
+            // Only clear the "outdated" tint when no foreground mesh is still
+            // on its way; otherwise the old foreground would look current.
+            if (!displayScheduler.isPending("foreground")) {
               setOutdatedMesh(false);
-            });
-          });
-        }
+            }
+          },
+          onError: (e) => {
+            console.error("Can't display background mesh", e);
+          },
+        });
         // We're showing wireframe background
         // Check if we're also viewing this as the main mesh
-        if (
-          targetMesh.current &&
-          JSON.stringify(targetMesh.current) === JSON.stringify(moleculeValue)
-        ) {
-          setIsViewingOutputMesh(true);
-        } else {
-          setIsViewingOutputMesh(false);
-        }
-      } else {
-        targetMesh.current = moleculeValue;
-        filteredMeshCache.current.clear(); // Clear cached meshes when switching molecules
-        setActiveTags(
-          new Set(GlobalVariables.topLevelMolecule?.projectAvailableTags || []),
-        ); // Trigger re-application of tag filtering to ensure correct tags are applied for new geometry
-
-        if (
-          !nonReplicadGeometryFromAtom?.hideMainMesh &&
-          JSON.stringify(targetMesh.current) ===
-            JSON.stringify(backgroundMesh.current?.id) &&
-          backgroundMesh.current?.mesh
-        ) {
-          // Special case where we're trying to show the output and have already prepared it as the
-          // wireframe background.
-
-          setMesh(backgroundMesh.current.mesh);
-          setOutdatedMesh(false);
-          setPlane(targetMesh.current?.plane);
-          setGeometryType(targetMesh.current?.dimension);
-          // We're viewing the output mesh directly, hide the wireframe
-          setIsViewingOutputMesh(true);
-        } else {
-          // General case - generate the mesh for selected atom
-          //Check if mesh should be hidden (a.e gcode)
-          if (!nonReplicadGeometryFromAtom?.hideMainMesh) {
-            makeMesh();
-          } else {
-            // Invalidate any in-flight mesh render so it doesn't override the
-            // non-replicad geometry (e.g. gcode visualization) after computing
-            targetMesh.current = null;
-            setMesh([]);
-            setOutdatedMesh(false);
-          }
-          // Check if we're viewing the same geometry as the wireframe
-          if (
-            backgroundMesh.current?.id &&
-            JSON.stringify(targetMesh.current) ===
-              JSON.stringify(backgroundMesh.current.id)
-          ) {
-            setIsViewingOutputMesh(true);
-          } else {
-            setIsViewingOutputMesh(false);
-          }
-        }
+        setIsViewingOutputMesh(targetKeyRef.current === key);
+        return;
       }
+
+      setActiveTags(
+        new Set(GlobalVariables.topLevelMolecule?.projectAvailableTags || []),
+      ); // Trigger re-application of tag filtering to ensure correct tags are applied for new geometry
+
+      if (nonReplicadGeometryFromAtom?.hideMainMesh) {
+        // Drop any pending mesh render so it doesn't override the
+        // non-replicad geometry (e.g. gcode visualization) after computing
+        targetKeyRef.current = null;
+        displayScheduler.cancel("foreground");
+        setMesh([]);
+        setOutdatedMesh(false);
+        setIsViewingOutputMesh(false);
+        return;
+      }
+
+      targetKeyRef.current = key;
+      setIsViewingOutputMesh(backgroundKeyRef.current === key);
+      setOutdatedMesh(true);
+      const displayedValue = moleculeValue;
+      // Display geometry unfiltered - tag filtering only applies to top-level background view
+      displayScheduler.request("foreground", {
+        args: [displayedValue, context],
+        key,
+        onResult: (m) => {
+          // Superseded by a newer foreground request (or a reset).
+          if (targetKeyRef.current !== key) return;
+          setMesh(m.mesh);
+          setOutdatedMesh(false);
+          setProcessing(false);
+          // Also update top-level wireframe if this is the top-level molecule's mesh
+          if (key === currentTopLevelKey()) {
+            setTopLevelWireMesh(m.mesh);
+            topLevelKeyRef.current = key;
+          }
+          /*Set plane and geometry type for ThreeContext*/
+          setPlane(displayedValue?.plane);
+          setGeometryType(displayedValue?.dimension);
+          createPuppeteerDiv();
+        },
+        onError: (e) => {
+          console.error("Can't display Mesh " + e);
+          if (targetKeyRef.current === key) {
+            setOutdatedMesh(false);
+            activeAtomRef.current?.setError?.("Can't display Mesh " + e);
+          }
+          createPuppeteerDiv();
+        },
+      });
     };
 
     GlobalVariables.cad = cad;
     GlobalVariables.pool = pool;
+    GlobalVariables.displayScheduler = displayScheduler;
 
     // Wire up worker restart notification so the user sees a warning banner
     // if the CAD worker hangs and has to be automatically restarted.
@@ -704,7 +696,6 @@ function AppContent() {
       setTimeout(() => setErrorNotification(null), 8000);
     };
   }, [
-    activeAtom,
     setMesh,
     setWireMesh,
     setOutdatedMesh,
@@ -712,7 +703,6 @@ function AppContent() {
     setTopLevelWireMesh,
     setIsViewingOutputMesh,
     setErrorNotification,
-    activeTags,
     setSelectionModeAtom,
     setSelectionVersion,
   ]);
@@ -734,38 +724,30 @@ function AppContent() {
 
     // Only filter if we're viewing the top-level molecule AND not in export/gcode preview mode
     if (activeAtom === GlobalVariables.topLevelMolecule && activeAtom?.value) {
-      const moleculeValue = activeAtom.value;
       const context = activeAtom.getContext();
-
-      // Create a cache key from the active tags
-      const tagKey = Array.from(activeTags).sort().join(",");
-
-      // Check if we have this mesh combination cached
-      if (filteredMeshCache.current.has(tagKey)) {
-        setMesh(filteredMeshCache.current.get(tagKey));
-        setOutdatedMesh(false);
-        return;
-      }
-
-      // Generate filtered mesh
-      pool
-        .proxy()
-        .then((worker) => {
-          const filteredGeometry = filterGeometryByTags(
-            moleculeValue,
-            activeTags,
-          );
-          return worker.generateDisplayMesh(filteredGeometry, context);
-        })
-        .then((m) => {
-          // Cache the generated mesh
-          filteredMeshCache.current.set(tagKey, m.mesh);
+      const filteredGeometry = filterGeometryByTags(activeAtom.value, activeTags);
+      // The foreground target this filter applies to. If the user displays
+      // something else before the filtered mesh is ready, it is discarded.
+      const baseKey = targetKeyRef.current;
+      displayScheduler.request("foreground", {
+        args: [filteredGeometry, context],
+        key: meshKey(filteredGeometry, context),
+        onResult: (m) => {
+          if (targetKeyRef.current !== baseKey) return;
           setMesh(m.mesh);
           setOutdatedMesh(false);
-        })
-        .catch((e) => {
+          setProcessing(false);
+          setPlane(filteredGeometry?.plane);
+          setGeometryType(filteredGeometry?.dimension);
+          // This request supersedes the unfiltered one, so it is responsible
+          // for signalling that the display settled.
+          createPuppeteerDiv();
+        },
+        onError: (e) => {
           console.error("[activeTags effect] Error regenerating mesh:", e);
-        });
+          createPuppeteerDiv();
+        },
+      });
     }
   }, [activeTags]);
 
@@ -976,6 +958,7 @@ function AppContent() {
         <div className={errorClass}>{errorNotification}</div>
       )}{" "}
       <DevSettingsModal />{" "}
+      <AgentBridgeHost />
       <Routes>
         <Route
           exact

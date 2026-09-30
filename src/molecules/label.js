@@ -389,8 +389,17 @@ export default class Label extends Atom {
    */
   async compute() {
     this.serializedLabel = await this.buildLabelGeometry();
-    let geom = this.findIOValue("geometry");
-    return GlobalVariables.cad.addNonReplicadGeom(geom, this.serializedLabel);
+    let assembly = this.findIOValue("geometry");
+
+    const prev = Array.isArray(assembly.nonReplicadSerialized)
+      ? assembly.nonReplicadSerialized
+      : assembly.nonReplicadSerialized
+        ? [assembly.nonReplicadSerialized]
+        : [];
+    return Promise.resolve({
+      ...assembly,
+      nonReplicadSerialized: [...prev, this.serializedLabel],
+    });
   }
 
   createInputParams(setInputChanged) {

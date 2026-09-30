@@ -1,0 +1,6 @@
+{
+  "BarbourSmith/RotatePattern": "Circular pattern. Makes Number copies of Shape, each rotated a further Angle degrees about the Z axis through the origin. For N copies evenly around a full circle use Number = N and Angle = 360 / N. Move the shape off the origin first to set the pattern radius.",
+  "alzatin/Linear-Pattern": "Linear pattern. Makes Number copies of Geometry; copy i is moved by i times (distX, distY, distZ).",
+  "BarbourSmith/Center_XY": "Moves a shape so its bounding box is centered on the origin in X and Y.",
+  "BarbourSmith/Width": "Measures a shape: returns its width as a number, for driving other parameters."
+}

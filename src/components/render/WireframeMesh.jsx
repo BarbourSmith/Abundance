@@ -52,6 +52,13 @@ export default React.memo(function ShapeMeshes() {
     // We have configured the canvas to only refresh when there is a change,
     // the invalidate function is here to tell it to recompute
     invalidate();
+    // Release the GPU buffers of this mesh once it is replaced or unmounted.
+    return () => {
+      meshArray.forEach((m) => {
+        m.body?.dispose?.();
+        m.lines?.dispose?.();
+      });
+    };
   }, [mesh, invalidate]);
 
   useEffect(

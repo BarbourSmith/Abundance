@@ -131,13 +131,14 @@ export default class Tag extends Atom {
   /**
    * Add a tag to the input geometry. The substance is not changed.
    */
-  /**
-   * Compute the tagged geometry.
-   */
   compute(inputs) {
-    const inputID = inputs.geometry;
+    const initialTags = inputs.geometry.tags;
     const tags = this.tags;
-    return GlobalVariables.cad.tag(inputID, tags);
+
+    return Promise.resolve({
+      ...inputs.geometry,
+      tags: [...new Set([...initialTags, ...tags])],
+    });
   }
 
   /**

@@ -143,7 +143,7 @@ class BooleanOpCache {
 
   /**
    * Dumps a project's in memory cache.
-  */
+   */
   forgetProject(projectId: string): void {
     this.pairCaches.delete(projectId);
     this.pairCacheLoading.delete(projectId);
@@ -228,14 +228,23 @@ class BooleanOpCache {
   /**
    * Removes any disjoint/occlusion pairs referencing an id not present in
    * `idsToRetain`, then immediately (not throttled) persists the result if
-   * anything changed. Returns the number of pairs pruned.
+   * anything changed. Returns the number of pairs pruned. `onPhase`, if given,
+   * is called as each sub-step begins so long sweeps can report progress.
    */
-  async sweep(idsToRetain: Set<string>, projectId: string): Promise<number> {
+  async sweep(
+    idsToRetain: Set<string>,
+    projectId: string,
+    onPhase?: (label: string) => void,
+  ): Promise<number> {
+    onPhase?.("loading pair cache");
     await this._ensureLoaded(projectId);
     const cache = this.pairCaches.get(projectId);
     if (!cache) {
       return 0;
     }
+    onPhase?.(
+      `pruning ${cache.disjoint.size} disjoint / ${cache.occlusion.size} occlusion pairs`,
+    );
     let prunedCount = 0;
     for (const key of cache.disjoint) {
       const [a, b] = key.split("\u0000");
@@ -258,6 +267,7 @@ class BooleanOpCache {
         clearTimeout(timer);
         this.pairCacheFlushTimers.delete(projectId);
       }
+      onPhase?.(`flushing pair cache (${prunedCount} pairs pruned)`);
       await this._flush(projectId);
     }
     return prunedCount;

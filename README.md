@@ -25,6 +25,7 @@ Abundance breaks with the tradition of CAD programs which inherit from drawing p
   - [Atom Menu](#atom-menu)
   - [Atoms Reference](#atoms-reference)
 - [Run Mode](#run-mode)
+- [Working with an AI Agent](#working-with-an-ai-agent)
 - [Development](#development)
   - [Setup Instructions](#setup-instructions)
   - [Available Scripts](#available-scripts)
@@ -416,6 +417,16 @@ If you are not the owner of a project or are not logged in, you can still see a 
 <img width="1436" alt="run-mode" src="https://github.com/user-attachments/assets/c3bed30e-f253-4245-a62c-67067a5319ee">
 
 
+# Working with an AI Agent
+
+An AI agent running on your computer, such as Claude Code, can look at and edit the project open in Abundance. It can list atoms, read errors, render images of parts, export files, change parameters, write code atoms, and wire atoms together.
+
+1. Start the agent bridge. Claude Code starts it automatically from this repository's `.mcp.json`. See [bridge/README.md](bridge/README.md) for other setups.
+2. In Abundance, open **Connect an AI agent**: the sparkle button on the right in Run Mode, or **AI Agent** in the menu in Create Mode. Adding `#agent` to the end of the page address opens it too.
+3. Paste the bridge's pairing token and turn on **Connect local AI agent**.
+
+The agent starts read-only. To let it make changes, tick **Allow edits** in the AI agent chip at the top of the window. Each change the agent makes is one step you can undo, labeled "AI:". While edits are allowed, autosave pauses, and the agent can only save after you confirm. Use Chrome or Firefox, since Safari blocks this connection.
+
 # Development
 
 ## Setup Instructions
@@ -474,6 +485,9 @@ If you are not the owner of a project or are not logged in, you can still see a 
 - **`npm run unit`** - Run unit tests with Vitest
 - **`npm test`** - Run end-to-end Puppeteer tests
 - **`npm run coverage`** - Generate test coverage report
+- **`npm run test:bridge`** - Test the local AI agent bridge
+- **`npm run test:bridge:e2e`** - Drive a live project through the agent bridge (needs `npm start`)
+- **`npm run bridge:token`** - Print the pairing token for the AI agent bridge
 
 ## Testing
 
@@ -601,6 +615,10 @@ We welcome contributions! Here's how you can help:
 - **Issues:** [GitHub Issues](https://github.com/BarbourSmith/Abundance/issues)
 - **Website:** [abundance.maslowcnc.com](https://abundance.maslowcnc.com)
 - **Documentation:** See this README and in-app help
+
+## License
+
+Abundance is licensed under the GNU General Public License v3.0 or later. See [LICENSE](LICENSE).
 
 ---
 

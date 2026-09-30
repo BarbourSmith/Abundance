@@ -179,7 +179,7 @@ export default class Input extends Atom {
                         : [],
                       inputAtom: this,
                     }
-                : this.options;
+                  : this.options;
 
       // parent should subscribe so it can manage it's ready/processing/etc state
       this.parentAP = this.parent.addIO(
@@ -1427,7 +1427,7 @@ export default class Input extends Atom {
       options: [
         "number",
         "string",
-          "dropdown",
+        "dropdown",
         "geometry",
         "array",
         "boolean",
@@ -1489,7 +1489,9 @@ export default class Input extends Atom {
               if (
                 Array.isArray(this.options) &&
                 this.options.length > 0 &&
-                (this.value === 10 || this.value === null || this.value === undefined)
+                (this.value === 10 ||
+                  this.value === null ||
+                  this.value === undefined)
               ) {
                 this.value = this.options[0];
                 if (this.output) {
@@ -1602,7 +1604,9 @@ export default class Input extends Atom {
           this.options = newOptions;
           if (
             newOptions.length > 0 &&
-            (this.value === 10 || this.value === null || this.value === undefined)
+            (this.value === 10 ||
+              this.value === null ||
+              this.value === undefined)
           ) {
             this.value = newOptions[0];
             if (this.output) {

@@ -225,21 +225,43 @@ export class CadWorkerManager {
     if (data.type !== CAD_PROGRESS_MESSAGE_TYPE) {
       return;
     }
-    // Attribute the progress to the task the worker is actively processing
-    // (the first call in the queue, whose timers are running).
+    // The entry whose watchdog is running (the first call in the queue).
     const activeEntry =
       this._pendingCalls.find((entry) => entry.startTime) ||
       this._pendingCalls[0];
     if (!activeEntry) {
       return;
-    }    // The operation is demonstrably making progress, so reset the inactivity
+    }
+    // The worker is demonstrably making progress, so reset the inactivity
     // watchdog. A long-running operation only times out if it goes silent for
     // `_timeoutMs` (truly stalled), not merely because it takes a long time.
     if (activeEntry.timeoutId) {
       this._armTimeout(activeEntry);
-    }    this._emitCadWorkerEvent("cad-worker-task-progress", {
-      taskId: activeEntry.taskId,
+    }
+    // The worker runs several calls concurrently, so the queue head is not
+    // necessarily the call that reported. Prefer the call from the reporting
+    // atom when the message says which one it was.
+    const reportingEntry =
+      (data.atomId &&
+        this._pendingCalls.find(
+          (entry) => entry.taskMeta?.atomId === data.atomId,
+        )) ||
+      activeEntry;
+    if (reportingEntry !== activeEntry && reportingEntry.timeoutId) {
+      this._armTimeout(reportingEntry);
+    }
+    // A call behind the queue head that reports progress is demonstrably
+    // running (possibly holding the worker thread while the head waits), so
+    // tell the UI it has started even though its watchdog isn't armed yet.
+    if (reportingEntry.startTime === null && !reportingEntry.announcedAt) {
+      reportingEntry.announcedAt = Date.now();
+      this._emitTaskStart(reportingEntry, reportingEntry.announcedAt);
+    }
+    reportingEntry.lastProgressAt = Date.now();
+    this._emitCadWorkerEvent("cad-worker-task-progress", {
+      taskId: reportingEntry.taskId,
       label: data.label || null,
+      at: reportingEntry.lastProgressAt,
     });
   };
 
@@ -285,18 +307,7 @@ export class CadWorkerManager {
    */
   _startTimers(entry) {
     entry.startTime = Date.now();
-    this._emitCadWorkerEvent("cad-worker-task-start", {
-      taskId: entry.taskId,
-      method: String(entry.method),
-      queuedAt: entry.queuedAt,
-      startedAt: entry.startTime,
-      queueWaitMs: entry.startTime - entry.queuedAt,
-      queueDepth: Math.max(this._pendingCalls.indexOf(entry), 0),
-      atomId: entry.taskMeta?.atomId || null,
-      atomType: entry.taskMeta?.atomType || null,
-      moleculeName: entry.taskMeta?.moleculeName || null,
-      displayLabel: this._formatTaskLabel(entry.method, entry.taskMeta),
-    });
+    this._emitTaskStart(entry, entry.announcedAt || entry.startTime);
 
     // Log progress every 5 seconds so it's visible in the console.
     entry.progressIntervalId = setInterval(() => {
@@ -304,13 +315,28 @@ export class CadWorkerManager {
       const remaining = Math.round(
         (this._timeoutMs - (Date.now() - entry.startTime)) / 1000,
       );
-
     }, 5000);
 
     // Arm the inactivity watchdog. It is reset every time the worker reports
     // mid-computation progress (see `_onWorkerMessage`), so it only fires when
     // the worker has been silent for `_timeoutMs`.
     this._armTimeout(entry);
+  }
+
+  /** Tell the UI a call is now running in the worker. */
+  _emitTaskStart(entry, startedAt) {
+    this._emitCadWorkerEvent("cad-worker-task-start", {
+      taskId: entry.taskId,
+      method: String(entry.method),
+      queuedAt: entry.queuedAt,
+      startedAt,
+      queueWaitMs: startedAt - entry.queuedAt,
+      queueDepth: Math.max(this._pendingCalls.indexOf(entry), 0),
+      atomId: entry.taskMeta?.atomId || null,
+      atomType: entry.taskMeta?.atomType || null,
+      moleculeName: entry.taskMeta?.moleculeName || null,
+      displayLabel: this._formatTaskLabel(entry.method, entry.taskMeta),
+    });
   }
 
   /**
@@ -533,8 +559,10 @@ export class CadWorkerManager {
 
   /**
    * Snapshot of the current worker queue for diagnostics (System State Report).
-   * The worker processes calls serially, so the entry with a `startTime` is the
-   * one actively blocking everything behind it.
+   * The entry with a `startTime` is the queue head, whose watchdog is armed.
+   * The worker runs calls concurrently, though, so a call further back may be
+   * the one actually holding the worker thread; `lastProgressAt` shows which
+   * calls have recently reported progress.
    * @returns {{
    *   timeoutMs: number,
    *   workerEpoch: number,
@@ -558,6 +586,7 @@ export class CadWorkerManager {
       startedAt: entry.startTime,
       queueWaitMs: entry.startTime ? entry.startTime - entry.queuedAt : null,
       runningMs: entry.startTime ? now - entry.startTime : null,
+      lastProgressAt: entry.lastProgressAt || null,
     });
 
     const activeEntry =
@@ -656,6 +685,8 @@ export class CadWorkerManager {
       clearTimeout(entry.timeoutId);
       entry.timeoutId = null;
       entry.startTime = null;
+      entry.announcedAt = null;
+      entry.lastProgressAt = null;
     });
 
     // Spawn the fresh worker (bumps `_workerEpoch`).

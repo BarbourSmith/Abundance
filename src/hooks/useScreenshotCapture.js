@@ -13,6 +13,36 @@ import * as THREE from "three";
  *   const { captureHighResScreenshot } = useScreenshotCapture(onScreenshotCallback);
  *   captureHighResScreenshot(1000, 1000); // captures at default resolution
  */
+/**
+ * The x/y extent of every visible mesh and line, in the camera's view space.
+ * Returns null when nothing with geometry is visible.
+ */
+function visibleBoundsInView(scene, camera) {
+  camera.updateMatrixWorld();
+  const bounds = new THREE.Box2();
+  const box = new THREE.Box3();
+  const corner = new THREE.Vector3();
+  const toView = new THREE.Matrix4();
+  scene.traverseVisible((obj) => {
+    if (!(obj.isMesh || obj.isLine) || !obj.geometry) return;
+    if (!obj.geometry.boundingBox) obj.geometry.computeBoundingBox();
+    box.copy(obj.geometry.boundingBox);
+    if (box.isEmpty()) return;
+    toView.multiplyMatrices(camera.matrixWorldInverse, obj.matrixWorld);
+    for (let i = 0; i < 8; i++) {
+      corner
+        .set(
+          i & 1 ? box.max.x : box.min.x,
+          i & 2 ? box.max.y : box.min.y,
+          i & 4 ? box.max.z : box.min.z,
+        )
+        .applyMatrix4(toView);
+      bounds.expandByPoint(corner);
+    }
+  });
+  return bounds.isEmpty() ? null : bounds;
+}
+
 export function useScreenshotCapture(onCaptureCallback) {
   const { scene, camera } = useThree();
 
@@ -20,7 +50,7 @@ export function useScreenshotCapture(onCaptureCallback) {
     try {
       // Step 1: Save visibility state and hide UI helper objects by name
       const visibilityState = new Map();
-      const objectsToHide = ["grid"]; // Named objects to exclude from screenshot
+      const objectsToHide = ["grid", "origin"]; // Named objects to exclude from screenshot
       const typesToHide = ["AxesHelper", "GizmoHelper", "BackgroundModel"]; // Types of objects to exclude
       scene.background = null; // Set background to transparent for screenshot
       scene.traverse((obj) => {
@@ -41,27 +71,38 @@ export function useScreenshotCapture(onCaptureCallback) {
         preserveDrawingBuffer: true,
         antialias: true,
         alpha: true,
-        logarithmicDepthBuffer: true, // Enables accurate depth precision for perspective camera
       });
       tempRenderer.setSize(width, height);
       tempRenderer.setPixelRatio(1); // Disable automatic scaling for consistent resolution
       //tempRenderer.setClearColor(0xf5f5f5); // Match ThreeContext background
 
-      // Step 3: Create a perspective camera matching the normal view
-      const perspectiveCamera = new THREE.PerspectiveCamera(
-        camera.fov || 75,
-        width / height,
-        camera.near,
-        camera.far,
-      );
-      perspectiveCamera.position.copy(camera.position);
-      perspectiveCamera.rotation.copy(camera.rotation);
-      perspectiveCamera.quaternion.copy(camera.quaternion);
-      perspectiveCamera.zoom = camera.zoom * 10;
-      perspectiveCamera.updateProjectionMatrix();
+      // Step 3: Copy the viewport camera so the thumbnail has the same angle
+      // and projection as the screen, then crop the frame to the model.
+      const shotCamera = camera.clone();
+      const aspect = width / height;
+      const bounds = visibleBoundsInView(scene, camera);
+      if (camera.isOrthographicCamera && bounds) {
+        const margin = 1.1;
+        const centerX = (bounds.min.x + bounds.max.x) / 2;
+        const centerY = (bounds.min.y + bounds.max.y) / 2;
+        const boundsWidth = bounds.max.x - bounds.min.x;
+        const boundsHeight = bounds.max.y - bounds.min.y;
+        const halfWidth =
+          (Math.max(boundsWidth, boundsHeight * aspect) * margin) / 2;
+        const halfHeight = halfWidth / aspect;
+        // View-space units; zoom 1 so the frame is exactly these bounds.
+        shotCamera.zoom = 1;
+        shotCamera.left = centerX - halfWidth;
+        shotCamera.right = centerX + halfWidth;
+        shotCamera.top = centerY + halfHeight;
+        shotCamera.bottom = centerY - halfHeight;
+      } else if (!camera.isOrthographicCamera) {
+        shotCamera.aspect = aspect;
+      }
+      shotCamera.updateProjectionMatrix();
 
-      // Step 4: Render the scene with the temporary renderer and perspective camera
-      tempRenderer.render(scene, perspectiveCamera);
+      // Step 4: Render the scene with the temporary renderer
+      tempRenderer.render(scene, shotCamera);
 
       // Step 5: Restore visibility state of all objects
       visibilityState.forEach((visible, obj) => {

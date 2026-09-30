@@ -5,6 +5,22 @@ import * as _replicad from "replicad";
 
 declare global {
   const replicad: typeof _replicad;
+  type ProjectUnits = "MM" | "Inches" | "Unitless";
+
+  interface AbundanceContext {
+    readonly units: ProjectUnits;
+  }
+
+  const context: AbundanceContext;
+
+  /**
+   * Report progress from a long-running code atom. The label is shown in
+   * the status bar, and each call tells the CAD worker the atom is still
+   * working, so call it periodically (e.g. once per loop iteration) to keep
+   * a slow but healthy computation from being treated as stalled.
+   * @param label Short description of the current step, e.g. "part 3/10".
+   */
+  function progress(label?: string): void;
 
   namespace replicad {
     type AnyShape = _replicad.AnyShape;

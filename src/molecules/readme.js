@@ -1,5 +1,6 @@
 import Atom from "../prototypes/atom";
 import GlobalVariables from "../js/globalvariables.js";
+import { meshKey } from "../js/displayScheduler.js";
 import { e, re } from "mathjs";
 import { Status } from "../prototypes/observableEntity.js";
 
@@ -132,12 +133,20 @@ export default class Readme extends Atom {
           return null;
         }
 
-        // Use the same approach as global thumbnail generation in ProjectContext.jsx
-        return GlobalVariables.pool
-          .proxy()
-          .then((worker) => {
-            return worker.generateDisplayMesh(value, this.getContext());
-          })
+        // Use the same approach as global thumbnail generation in ProjectContext.jsx.
+        // Thumbnails run as low-priority jobs so they never delay what the
+        // user is looking at, and reuse any mesh already cached for display.
+        const context = this.getContext();
+        const meshTask = GlobalVariables.displayScheduler
+          ? GlobalVariables.displayScheduler.run(
+              "generateDisplayMesh",
+              [value, context],
+              meshKey(value, context),
+            )
+          : GlobalVariables.pool
+              .proxy()
+              .then((worker) => worker.generateDisplayMesh(value, context));
+        return meshTask
           .then(async (m) => {
             const svg = await GlobalVariables.meshRef.current.buildThumbnail(
               m.mesh,

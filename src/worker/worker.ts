@@ -21,6 +21,7 @@ import {
   clearRotateCache,
 } from "./cutlayout";
 import { RequestContext } from "./geometryProvider";
+import { reportCadProgress } from "./progress";
 import {
   assembly,
   difference,
@@ -31,18 +32,7 @@ import {
   shrinkWrapSketches,
 } from "./interaction";
 import { circle, rectangle, regularPolygon, text, vertex } from "./shapes";
-import {
-  bom,
-  color,
-  addNonReplicadGeom,
-  extractAllTags,
-  extractBomList,
-  extractKeepOut,
-  extractTag,
-  extractTags,
-  tag,
-} from "./tags";
-import { AbundanceObject, AbundanceLeaf, geometryProvider } from "./util";
+import { AbundanceObject, AbundanceLeaf } from "./util";
 import * as util from "./util";
 
 // --- Type Definitions ---
@@ -128,7 +118,7 @@ function findFlatFaces(
 ): Promise<number[]> {
   return started.then(async () => {
     const zValues: number[] = [];
-    const geometryToFilter = extractKeepOut(input);
+    const geometryToFilter = util.extractKeepOut(input);
     if (!geometryToFilter) {
       throw new Error(
         "Geometry To Export has no geometry after keepout is applied",
@@ -208,7 +198,7 @@ function visExport(
       );
     }
 
-    const geometryToExport = extractKeepOut(input);
+    const geometryToExport = util.extractKeepOut(input);
     if (!geometryToExport) {
       throw new Error(
         "Geometry To Export has no geometry after keepout is applied",
@@ -253,6 +243,7 @@ function visExport(
  * @param {string} fileType - The file type for export ("STL", "STEP", "SVG", or "TXT")
  * @param {number} svgResolution - The resolution for SVG export
  * @param {string} units - The units for scaling ("Inches", "MM", or other)
+ * @param {number} [stlTolerance] - Max chordal deviation, in project units, when meshing for STL export
  * @returns {Promise<Blob>} A promise that resolves to a Blob containing the exported file data
  */
 async function downExport(
@@ -261,6 +252,7 @@ async function downExport(
   svgResolution: number,
   units: string,
   context: RequestContext,
+  stlTolerance?: number,
 ): Promise<Blob> {
   await started;
   // TXT export
@@ -280,7 +272,7 @@ async function downExport(
     );
   }
   // For 3D exports (STL, STEP) and SVG, we need to process the geometry
-  const geometryToExport = extractKeepOut(input);
+  const geometryToExport = util.extractKeepOut(input);
   if (!geometryToExport) {
     throw new Error(
       "Geometry To Export has no geometry after keepout is applied",
@@ -324,7 +316,12 @@ async function downExport(
       throw new Error("STL export requires 3D geometry");
     }
     const stlShape = geom.clone();
-    return (mmScale === 1 ? stlShape : stlShape.scale(mmScale)).blobSTL();
+    // Meshing happens after the mm conversion, so convert the tolerance too.
+    const tolerance =
+      stlTolerance && stlTolerance > 0 ? stlTolerance * mmScale : undefined;
+    return (mmScale === 1 ? stlShape : stlShape.scale(mmScale)).blobSTL({
+      tolerance,
+    });
   } else {
     if ("blobSTEP" in geom == false) {
       throw new Error("STEP export requires 3D geometry");
@@ -809,6 +806,11 @@ async function sweepCache(
   await started;
 
   // Filter down to the set of distinct geometry ids from the given abundance objects
+  // Callers pass an array at runtime despite the Set type, so count via spread.
+  console.warn(
+    `[sweepCache] phase: collecting ids to retain from ${[...shapesToRetain].length} objects`,
+  );
+  reportCadProgress("sweepCache: collecting ids to retain");
   const idsToRetainSet = new Set<string>();
   for (const abundanceObj of shapesToRetain) {
     for (const leaf of await util.flattenAssembly(abundanceObj)) {
@@ -837,7 +839,7 @@ async function getAsPoint3D(
  * @returns {AbundanceObject} The geometry with all keepout-tagged geometry removed
  */
 function extractNotKeepOut(input: AbundanceObject): AbundanceObject {
-  const result = extractKeepOut(input);
+  const result = util.extractKeepOut(input);
   if (!result) {
     throw new Error("No geometry remaining after removing keepout geometry");
   }
@@ -912,13 +914,11 @@ if (
     clearCache,
     clearRotateCache,
     circle,
-    color,
     code,
     regularPolygon,
     rectangle,
     extrude,
     fusion,
-    extractBomList,
     generateThumbnail,
     visExport,
     downExport,
@@ -930,17 +930,11 @@ if (
     findFlatFaces,
     chamfer,
     difference,
-    tag,
-    extractAllTags,
     layout,
     displayLayout,
     orient,
     displayOrientation,
     createAndDisplayDefaultLayout,
-    bom,
-    addNonReplicadGeom,
-    extractTag,
-    extractTags,
     extractNotKeepOut,
     intersect,
     assembly,
@@ -1009,23 +1003,17 @@ if (
 // Export functions for testing and ES module environments
 export {
   assembly,
-  bom,
-  addNonReplicadGeom,
   chamfer,
   circle,
   clearCache,
   clearRotateCache,
   code,
-  color,
   createAndDisplayDefaultLayout,
   difference,
   displayLayout,
   downExport,
-  extractAllTags,
   extractNotKeepOut,
   extractParts,
-  extractTag,
-  extractTags,
   extrude,
   fillet,
   findFlatFaces,
@@ -1046,7 +1034,6 @@ export {
   shrinkWrapSketches,
   started,
   sweepCache,
-  tag,
   text,
   vertex,
   visExport,

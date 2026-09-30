@@ -22,19 +22,45 @@ export const CAD_PROGRESS_MESSAGE_TYPE = "cad-worker-progress";
  *
  * @param label Short human-readable description of the current sub-step,
  *   e.g. "cutting part 3/5".
+ * @param atomId The uniqueID of the atom whose call is reporting. The worker
+ *   runs several calls concurrently, so without it CadWorkerManager can only
+ *   guess which task the progress belongs to.
  */
-export function reportCadProgress(label: string): void {
+export function reportCadProgress(label: string, atomId?: string): void {
   if (
     typeof self !== "undefined" &&
     typeof (self as any).postMessage === "function" &&
     typeof (self as any).document === "undefined"
   ) {
     try {
-      (self as any).postMessage({ type: CAD_PROGRESS_MESSAGE_TYPE, label });
+      (self as any).postMessage({
+        type: CAD_PROGRESS_MESSAGE_TYPE,
+        label,
+        atomId,
+      });
     } catch {
       // Posting progress is best-effort; never let it break the operation.
     }
   }
+}
+
+/**
+ * Build a progress reporter for one atom's execution. Calls with
+ * `force = true` (phase changes) always post; the frequent per-part updates
+ * (`force = false`) are throttled to one per `intervalMs` so large assemblies
+ * don't flood the main thread.
+ */
+export function createProgressReporter(
+  atomId: string | number | undefined,
+  intervalMs = 250,
+): (label: string, force?: boolean) => void {
+  let lastPost = 0;
+  return (label, force = true) => {
+    const now = Date.now();
+    if (!force && now - lastPost < intervalMs) return;
+    lastPost = now;
+    reportCadProgress(label, atomId === undefined ? undefined : String(atomId));
+  };
 }
 
 /**

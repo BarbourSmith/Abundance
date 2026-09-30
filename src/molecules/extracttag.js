@@ -1,6 +1,12 @@
 import Atom from "../prototypes/atom.js";
 import GlobalVariables from "../js/globalvariables.js";
-import { ObservableEntity, Status } from "../prototypes/observableEntity.js";
+import { Status } from "../prototypes/observableEntity.js";
+import {
+  filterAssembly,
+  walkAssembly,
+  extractKeepOut,
+  isLeaf,
+} from "../worker/util";
 
 /**
  * The cut away tag adds a tag to a part indicating that it should be cut away from the rest of the model in the next assembly. Essentially it creates a negitive version of itself.
@@ -193,17 +199,8 @@ export default class ExtractTag extends Atom {
     if (this.notKeepOut) {
       parts.push("Not Keep Out");
     }
-    this.name = parts.length > 0 ? `Extract ${parts.join(", ")}` : "Extract Tag";
-  }
-
-  compute(inputs) {
-    const input = inputs.input;
-    return GlobalVariables.cad.extractTags(
-      input,
-      this.selectedTags,
-      this.includeUntagged,
-      this.notKeepOut,
-    );
+    this.name =
+      parts.length > 0 ? `Extract ${parts.join(", ")}` : "Extract Tag";
   }
 
   /**
@@ -231,19 +228,19 @@ export default class ExtractTag extends Atom {
         throw new Error("inputs ready but couldn't find geometry id");
       }
 
+      // TODO(tristan): this geomId comparison is outdated I think? shouldn't we
+      // use deep equality on the abundance object?
       if (!this.tagList.source || this.tagList.source != geomId) {
         this.setProcessing();
-        GlobalVariables.cad
-          .extractAllTags(geomId)
-          .then((result) => {
-            // Update tagList and trigger another onUpstreamChange to check if we can proceed
-            this.tagList = { source: geomId, tags: result };
-            if (typeof this.setInputChanged === "function") {
-              this.setInputChanged(this.tagList.tags); // Mark input as changed to trigger re-render of tag checkboxes
-            }
-            this.onUpstreamChange();
-          })
-          .catch(this.alertingErrorHandler());
+
+        this.tagList = { source: geomId, tags: this.getTagList(geomId) };
+        if (typeof this.setInputChanged === "function") {
+          this.setInputChanged(this.tagList.tags); // Mark input as changed to trigger re-render of tag checkboxes
+        }
+        // TODO: this is oversensitive. There are scenarios where the
+        // extracted items haven't changed here.
+        this.onUpstreamChange();
+
         return;
       }
 
@@ -252,12 +249,14 @@ export default class ExtractTag extends Atom {
 
       if (hasCriteria) {
         // At least one criterion has been selected and we're ready to go!
-        this.setProcessing();
-        this.compute({ input: geomId })
-          .then((value) => {
-            this.setReady(value);
-          })
-          .catch(this.alertingErrorHandler());
+        this.setReady(
+          this.extractTags(
+            geomId,
+            this.selectedTags,
+            this.includeUntagged,
+            this.notKeepOut,
+          ),
+        );
       } else {
         this.setWaiting();
       }
@@ -284,5 +283,47 @@ export default class ExtractTag extends Atom {
     superSerialObject.notKeepOut = this.notKeepOut;
 
     return superSerialObject;
+  }
+
+  getTagList(abundanceObject) {
+    const tags = [];
+    walkAssembly(abundanceObject, (leaf) => {
+      tags.push(...(leaf.tags || []));
+    });
+
+    return ["Select Tag", ...new Set(tags)];
+  }
+
+  extractTags(geometry, selectedTags, includeUntagged, notKeepOut) {
+    const hasSelection = selectedTags.length > 0 || includeUntagged;
+
+    let result;
+    if (hasSelection) {
+      result = filterAssembly(geometry, (node) => {
+        const tags = node.tags || [];
+        if (selectedTags.some((tag) => tags.includes(tag))) {
+          return true;
+        }
+        if (includeUntagged && isLeaf(node) && tags.length === 0) {
+          return true;
+        }
+        return false;
+      });
+    } else {
+      result = geometry;
+    }
+
+    if (result !== undefined && notKeepOut) {
+      const filtered = extractKeepOut(result);
+      result = filtered === false ? undefined : filtered;
+    }
+
+    if (result === undefined) {
+      // Nothing matched the selected criteria. This is a valid result, so return
+      // an empty assembly (preserving the top-level metadata) rather than throwing.
+      return { ...geometry, geometry: [] };
+    }
+
+    return result;
   }
 }

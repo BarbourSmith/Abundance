@@ -29,6 +29,61 @@ let defaultMesh: any = undefined;
 const started: Promise<boolean> = util.init(false);
 void started.then(() => util.startHeapMonitor("meshWorker"));
 
+/**
+ * LRU of deserialized shapes, keyed by project and geometry id.
+ *
+ * Display requests carry no operation id, so geometryProvider.get() reads
+ * every leaf from IndexedDB and re-parses its BREP on every request. Clicking
+ * back to something shown a moment ago paid that full cost again. Geometry ids
+ * are content addressed, so a cached shape can never be stale; entries are
+ * only evicted to bound memory.
+ *
+ * workerpool runs one task at a time per worker, and eviction only happens
+ * between tasks (see withShapeCache), so a shape is never deleted while a task
+ * is still using it.
+ */
+const SHAPE_CACHE_MAX_ENTRIES = 256;
+const shapeCache = new Map<string, ReplicadObject>();
+
+async function getShapeCached(
+  id: string,
+  context: RequestContext,
+): Promise<ReplicadObject> {
+  const key = `${context?.project ?? ""}|${id}`;
+  const hit = shapeCache.get(key);
+  if (hit) {
+    // Refresh recency.
+    shapeCache.delete(key);
+    shapeCache.set(key, hit);
+    return hit;
+  }
+  const shape = await util.geometryProvider!.get(id, context);
+  shapeCache.set(key, shape);
+  return shape;
+}
+
+function trimShapeCache(): void {
+  while (shapeCache.size > SHAPE_CACHE_MAX_ENTRIES) {
+    const oldest = shapeCache.keys().next().value as string;
+    const shape = shapeCache.get(oldest);
+    shapeCache.delete(oldest);
+    try {
+      (shape as { delete?: () => void } | undefined)?.delete?.();
+    } catch {
+      // Already freed; nothing to do.
+    }
+  }
+}
+
+/** Run a worker task, trimming the shape cache once it has finished. */
+async function withShapeCache<T>(task: () => Promise<T>): Promise<T> {
+  try {
+    return await task();
+  } finally {
+    trimShapeCache();
+  }
+}
+
 function getLargestBoundingBox(meshArray: ReplicadObject[]):
   | {
       width: number;
@@ -236,10 +291,7 @@ async function generateDisplayMesh(
 
     for (let i = 0; i < flattened.length; i++) {
       const displayObject = flattened[i];
-      const geom = await util.geometryProvider!.get(
-        displayObject.geometry,
-        context,
-      );
+      const geom = await getShapeCached(displayObject.geometry, context);
       meshArray.push({
         sourceId: displayObject.geometry,
         color: displayObject.color,
@@ -380,10 +432,7 @@ async function generatePerFaceMeshes(
   });
   for (let leafIndex = 0; leafIndex < flattened.length; leafIndex++) {
     const displayObject = flattened[leafIndex];
-    const shape = await util.geometryProvider!.get(
-      displayObject.geometry,
-      context,
-    );
+    const shape = await getShapeCached(displayObject.geometry, context);
     // Only Shape (3D solids, faces) have a `.faces` accessor.
     if (
       !shape ||
@@ -429,10 +478,7 @@ async function generatePerEdgeMeshes(
   });
   for (let leafIndex = 0; leafIndex < flattened.length; leafIndex++) {
     const displayObject = flattened[leafIndex];
-    const shape = await util.geometryProvider!.get(
-      displayObject.geometry,
-      context,
-    );
+    const shape = await getShapeCached(displayObject.geometry, context);
     if (
       !shape ||
       shape instanceof replicad.Vertex ||
@@ -460,7 +506,10 @@ async function generatePerEdgeMeshes(
 }
 
 workerpool.worker({
-  generateDisplayMesh: generateDisplayMesh,
-  generatePerFaceMeshes: generatePerFaceMeshes,
-  generatePerEdgeMeshes: generatePerEdgeMeshes,
+  generateDisplayMesh: (id: AbundanceObject, context: RequestContext) =>
+    withShapeCache(() => generateDisplayMesh(id, context)),
+  generatePerFaceMeshes: (id: AbundanceObject, context: RequestContext) =>
+    withShapeCache(() => generatePerFaceMeshes(id, context)),
+  generatePerEdgeMeshes: (id: AbundanceObject, context: RequestContext) =>
+    withShapeCache(() => generatePerEdgeMeshes(id, context)),
 });

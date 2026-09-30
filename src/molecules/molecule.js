@@ -11,9 +11,9 @@ import {
 import { Octokit } from "octokit";
 import { BOMEntry } from "../js/BOM";
 
-import { Status } from "../prototypes/observableEntity.js";
+import { ObservableEntity, Status } from "../prototypes/observableEntity.js";
 import { saveAs } from "file-saver";
-import { re } from "mathjs";
+import { extractBomList, walkAssembly } from "../worker/util";
 
 /**
  * This class creates the Molecule atom.
@@ -124,6 +124,27 @@ export default class Molecule extends Atom {
   // Returns a tuple of [READY_child_count, total_child_count]
   // Always computes total recursively to ensure progress bar never goes backwards
   getCompletionTuple() {
+    // This walks every nested molecule, and it runs for every molecule node on
+    // every canvas frame plus every progress refresh. The result only changes
+    // when some entity's status changes (tracked by statusEpoch) or when atoms
+    // are added or removed here, so cache it against both.
+    const epoch = ObservableEntity.statusEpoch;
+    const nodeCount = this.nodesOnTheScreen.length;
+    const cached = this._completionCache;
+    if (
+      cached &&
+      cached.epoch === epoch &&
+      cached.nodeCount === nodeCount &&
+      cached.status === this.status
+    ) {
+      return cached.tuple;
+    }
+    const tuple = this._computeCompletionTuple();
+    this._completionCache = { epoch, nodeCount, status: this.status, tuple };
+    return tuple;
+  }
+
+  _computeCompletionTuple() {
     let totalCount = 0;
     let readyCount = 0;
 
@@ -417,9 +438,7 @@ export default class Molecule extends Atom {
   /**
    * Computes and returns an array of BOMEntry objects after looking at the tags of a geometry.*/
   async extractBomTags() {
-    var tag = "BOMitem";
-    let bomlist = await GlobalVariables.cad.extractBomList(this.value);
-    return bomlist;
+    return extractBomList(this.value);
   }
 
   /**
@@ -767,39 +786,38 @@ export default class Molecule extends Atom {
   }
 
   compileBom() {
-    let compiled = this.extractBomTags().then((result) => {
-      let bomList = [];
-      let compileBomItems = [];
-      if (result) {
-        result.forEach(function (bomElement) {
-          if (bomElement?.BOMitemName) {
-            if (!bomList[bomElement.BOMitemName]) {
-              //If the list of items doesn't already have one of these
-              bomList[bomElement.BOMitemName] = new BOMEntry(); //Create one
-              bomList[bomElement.BOMitemName].numberNeeded = 0; //Set the number needed to zerio initially
-              bomList[bomElement.BOMitemName].BOMitemName =
-                bomElement.BOMitemName; //With the information from the item
-              bomList[bomElement.BOMitemName].source = bomElement.source;
-              compileBomItems.push(bomList[bomElement.BOMitemName]);
-            }
-            bomList[bomElement.BOMitemName].numberNeeded +=
-              bomElement.numberNeeded;
-            // Round to nearest penny to avoid floating-point precision errors
-            bomList[bomElement.BOMitemName].costUSD =
-              Math.round(
-                (bomList[bomElement.BOMitemName].costUSD + bomElement.costUSD) *
-                  100,
-              ) / 100;
+    const result = extractBomList(this.value);
+    let bomList = [];
+    let compileBomItems = [];
+    if (result) {
+      result.forEach(function (bomElement) {
+        if (bomElement?.BOMitemName) {
+          if (!bomList[bomElement.BOMitemName]) {
+            //If the list of items doesn't already have one of these
+            bomList[bomElement.BOMitemName] = new BOMEntry(); //Create one
+            bomList[bomElement.BOMitemName].numberNeeded = 0; //Set the number needed to zerio initially
+            bomList[bomElement.BOMitemName].BOMitemName =
+              bomElement.BOMitemName; //With the information from the item
+            bomList[bomElement.BOMitemName].source = bomElement.source;
+            compileBomItems.push(bomList[bomElement.BOMitemName]);
           }
-        });
+          bomList[bomElement.BOMitemName].numberNeeded +=
+            bomElement.numberNeeded;
+          // Round to nearest penny to avoid floating-point precision errors
+          bomList[bomElement.BOMitemName].costUSD =
+            Math.round(
+              (bomList[bomElement.BOMitemName].costUSD + bomElement.costUSD) *
+                100,
+            ) / 100;
+        }
+      });
 
-        // Alphabetize by source
-        compileBomItems = compileBomItems.sort((a, b) =>
-          a.source > b.source ? 1 : b.source > a.source ? -1 : 0,
-        );
-        return compileBomItems;
-      }
-    });
+      // Alphabetize by source
+      compileBomItems = compileBomItems.sort((a, b) =>
+        a.source > b.source ? 1 : b.source > a.source ? -1 : 0,
+      );
+      return compileBomItems;
+    }
     return compiled;
   }
 
@@ -915,9 +933,11 @@ export default class Molecule extends Atom {
   async extractAndCacheTags() {
     try {
       if (this.value) {
-        const tags = await GlobalVariables.cad.extractAllTags(this.value);
-        // Filter out "Select Tag" which is added by extractAllTags
-        this.projectAvailableTags = tags.filter((tag) => tag !== "Select Tag");
+        const tags = [];
+        walkAssembly(this.value, (leaf) => {
+          tags.push(...(leaf.tags || []));
+        });
+        this.projectAvailableTags = [...new Set(tags)];
       }
     } catch (err) {
       console.error("Error extracting tags:", err);
@@ -960,14 +980,10 @@ export default class Molecule extends Atom {
       if (outputState.status == Status.READY) {
         this.nonReplicadGeom = outputAtom.nonReplicadGeom;
         this.setReady(outputState.value);
-        this.compileBom()
-          .then((bom) => {
-            this.compiledBom = bom;
-            if (this.setInputChanged) {
-              this.setInputChanged(bom);
-            }
-          })
-          .catch(this.alertingErrorHandler);
+        this.compiledBom = this.compileBom();
+        if (this.setInputChanged) {
+          this.setInputChanged(this.compiledBom);
+        }
         // Compile README as well
         this.requestReadme()
           .then((readme) => {
@@ -1312,12 +1328,9 @@ export default class Molecule extends Atom {
     //Find the target molecule in the list
     let promiseArray = [];
 
-    // Capture topLevel NOW before setValues() below can change it.
-    // When a GitHub repo's project.abundance (which has topLevel:true) is loaded as a
-    // non-top-level atom, valuesToOverwriteInLoadedVersion overrides topLevel:false via
-    // setValues(values). Without this capture, the .finally() below would check the
-    // post-setValues value of this.topLevel (false) and never clear the flag.
-    const wasTopLevel = this.topLevel;
+    // Save this value immutably to ensure we turn off 'projectIsLoading' if it gets set
+    // to true here.
+    const wasTopLevel = json.topLevel;
 
     // Set loading flag to block saves during deserialization of the top-level molecule
     if (wasTopLevel) {

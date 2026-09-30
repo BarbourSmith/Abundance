@@ -1,6 +1,7 @@
 import React, { memo, useEffect, useState, useRef } from "react";
 import GlobalVariables from "../../js/globalvariables.js";
 import Molecule from "../../molecules/molecule.js";
+import { ObservableEntity } from "../../prototypes/observableEntity.js";
 import { createCMenu, cmenu } from "../../js/NewMenu.js";
 import { DeleteAtomsCommand } from "../../js/undoCommands.js";
 import { useNavigate } from "react-router-dom";
@@ -636,23 +637,72 @@ export default memo(function FlowCanvas({
     GlobalVariables.currentMolecule.clickUp(canvasCoords.x, canvasCoords.y);
   };
 
+  // The render loop reads the latest draw function through a ref, so it is
+  // started once instead of being torn down and restarted on every render.
+  const drawRef = useRef(draw);
+  drawRef.current = draw;
+  // Any React re-render may have changed what the canvas shows.
+  const canvasDirtyRef = useRef(true);
+  canvasDirtyRef.current = true;
+
   useEffect(() => {
     const canvas = canvasRef.current;
     const context = canvas.getContext("2d");
     let frameCount = 0;
     let animationFrameId;
-    //Our draw came here
-    const render = () => {
-      frameCount++;
-      draw(context, frameCount);
+    let lastEpoch = -1;
+    let lastDrawAt = 0;
+    // Redrawing every atom at 60fps competes with the rest of the UI on large
+    // projects. Redraw only when the user interacted, an atom's status changed,
+    // or React re-rendered, plus a slow periodic redraw as a safety net for
+    // state changed by other code paths.
+    const SAFETY_REDRAW_MS = 250;
+    const markDirty = () => {
+      canvasDirtyRef.current = true;
+    };
+    const inputEvents = [
+      "pointermove",
+      "pointerdown",
+      "pointerup",
+      "mousemove",
+      "mousedown",
+      "mouseup",
+      "wheel",
+      "keydown",
+      "keyup",
+      "touchstart",
+      "touchmove",
+      "touchend",
+      "resize",
+    ];
+    inputEvents.forEach((type) =>
+      window.addEventListener(type, markDirty, { capture: true, passive: true }),
+    );
+
+    const render = (now = performance.now()) => {
+      const epoch = ObservableEntity.statusEpoch;
+      if (
+        canvasDirtyRef.current ||
+        epoch !== lastEpoch ||
+        now - lastDrawAt >= SAFETY_REDRAW_MS
+      ) {
+        canvasDirtyRef.current = false;
+        lastEpoch = epoch;
+        lastDrawAt = now;
+        frameCount++;
+        drawRef.current(context, frameCount);
+      }
       animationFrameId = window.requestAnimationFrame(render);
     };
     render();
 
     return () => {
       window.cancelAnimationFrame(animationFrameId);
+      inputEvents.forEach((type) =>
+        window.removeEventListener(type, markDirty, { capture: true }),
+      );
     };
-  }, [draw]);
+  }, []);
 
   useEffect(() => {
     createCMenu(circleMenu, setExpandedMenu, shortCuts);

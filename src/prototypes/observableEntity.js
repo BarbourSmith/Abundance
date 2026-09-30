@@ -30,6 +30,7 @@ class ObservableEntity {
       );
     }
     if (this.status != status || this.value !== value) {
+      ObservableEntity.statusEpoch++;
       if (this.status == Status.READY && status == Status.READY) {
         // Special case for transitioning from READY to READY with a different value.
         // Force all downstream subscribers into a WAITING status in between. For downstream
@@ -175,5 +176,12 @@ class ObservableEntity {
     }
   }
 }
+
+/**
+ * Incremented on every status or value change of any entity. Lets consumers
+ * that summarize the whole graph (progress counts, the flow canvas) cheaply
+ * tell whether anything changed since they last looked.
+ */
+ObservableEntity.statusEpoch = 0;
 
 export { ObservableEntity, Status };

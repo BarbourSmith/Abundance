@@ -10,9 +10,22 @@ import {
  * @param {Array} meshArray - Array of mesh objects from worker with { faces, edges, color, cameraZoom }
  * @param {number} width - Output width in pixels (default: 1000)
  * @param {number} height - Output height in pixels (default: 1000)
+ * @param {object} [options]
+ * @param {boolean} [options.fit] - Frame the part tightly using its bounding
+ *   sphere, so any shape fills the image without clipping. Without it the
+ *   original thumbnail framing is used.
+ * @param {"iso"|"top"|"front"|"right"} [options.view] - Camera direction when
+ *   `fit` is set. "iso" is a three-quarter view from the front right; the
+ *   others look straight down an axis with Z up, matching the 3D view.
  * @returns {Promise<string>} Base64-encoded PNG data URL
  */
-export async function generateMeshPNG(meshArray, width = 1000, height = 1000) {
+export async function generateMeshPNG(
+  meshArray,
+  width = 1000,
+  height = 1000,
+  options = {},
+) {
+  const view = options.view || "iso";
   if (!meshArray || !Array.isArray(meshArray) || meshArray.length === 0) {
     console.warn("No mesh data provided for PNG generation");
     return null;
@@ -73,41 +86,10 @@ export async function generateMeshPNG(meshArray, width = 1000, height = 1000) {
 
     // Calculate camera position from bounding box
     const boundingBox = new THREE.Box3().setFromObject(meshGroup);
-    const size = boundingBox.getSize(new THREE.Vector3());
     const center = boundingBox.getCenter(new THREE.Vector3());
-    const maxDim = Math.max(size.x, size.y, size.z) * 2.2; // Add padding
-
-    // Create perspective camera positioned to view the mesh
-    // Use near/far planes calculated from bounding box to prevent clipping
-    const distance = maxDim * 1.5;
-    const near = Math.max(0.1, distance - maxDim * 2);
-    const far = distance + maxDim * 2;
-
-    const camera = new THREE.PerspectiveCamera(
-      75, // fov
-      width / height,
-      near,
-      far,
-    );
-
-    // Position camera to look at the mesh center
-    // 30-degree elevation from the XY horizon plane
-    // tan(30°) ≈ 0.577, so vertical distance ≈ horizontal distance * 0.577
-    camera.position.set(
-      center.x + maxDim * 0.8,
-      center.y + maxDim * 0.2,
-      center.z + maxDim * 0.26,
-    );
-    camera.lookAt(center);
-
-    // Calculate appropriate zoom to frame the mesh properly
-    // This ensures consistent sizing compared to useScreenshotCapture
-    const vFOV = (camera.fov * Math.PI) / 180; // Convert to radians
-    const requiredDistance = Math.abs(maxDim / 2 / Math.tan(vFOV / 2));
-    const actualDistance = camera.position.distanceTo(center);
-    camera.zoom = actualDistance / requiredDistance;
-
-    camera.updateProjectionMatrix();
+    const camera = options.fit
+      ? fitCameraToBounds(boundingBox, center, width, height, view)
+      : thumbnailCamera(boundingBox, center, width, height);
 
     // Add lighting to match ThreeContext
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
@@ -115,7 +97,16 @@ export async function generateMeshPNG(meshArray, width = 1000, height = 1000) {
 
     // Directional light comes from the same direction as the camera
     const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
-    directionalLight.position.copy(camera.position);
+    if (options.fit) {
+      // Light from above and off to one side, not from the camera, so faces
+      // at different angles get different shading and edges read clearly.
+      const lightOffset = new THREE.Vector3(0.4, -0.8, 1.2)
+        .normalize()
+        .multiplyScalar(camera.position.distanceTo(center));
+      directionalLight.position.copy(center).add(lightOffset);
+    } else {
+      directionalLight.position.copy(camera.position);
+    }
     directionalLight.target.position.copy(center);
     scene.add(directionalLight);
     scene.add(directionalLight.target);
@@ -154,6 +145,79 @@ export async function generateMeshPNG(meshArray, width = 1000, height = 1000) {
     console.error("Error generating mesh PNG:", error);
     return null;
   }
+}
+
+const FOV_DEGREES = 75;
+/** Narrower lens for fitted renders: less perspective stretch on compact parts. */
+const FIT_FOV_DEGREES = 30;
+
+/** The original project-thumbnail camera: fixed angle, generous padding. */
+function thumbnailCamera(boundingBox, center, width, height) {
+  const size = boundingBox.getSize(new THREE.Vector3());
+  const maxDim = Math.max(size.x, size.y, size.z) * 2.2; // Add padding
+
+  // Use near/far planes calculated from bounding box to prevent clipping
+  const distance = maxDim * 1.5;
+  const near = Math.max(0.1, distance - maxDim * 2);
+  const far = distance + maxDim * 2;
+  const camera = new THREE.PerspectiveCamera(
+    FOV_DEGREES,
+    width / height,
+    near,
+    far,
+  );
+
+  // Position camera to look at the mesh center from a raised angle
+  camera.position.set(
+    center.x + maxDim * 0.8,
+    center.y + maxDim * 0.2,
+    center.z + maxDim * 0.26,
+  );
+  camera.lookAt(center);
+
+  // Calculate appropriate zoom to frame the mesh properly
+  // This ensures consistent sizing compared to useScreenshotCapture
+  const vFOV = (camera.fov * Math.PI) / 180;
+  const requiredDistance = Math.abs(maxDim / 2 / Math.tan(vFOV / 2));
+  const actualDistance = camera.position.distanceTo(center);
+  camera.zoom = actualDistance / requiredDistance;
+  camera.updateProjectionMatrix();
+  return camera;
+}
+
+const VIEW_DIRECTIONS = {
+  // Three-quarter view from the front right, above, so a box shows three faces.
+  iso: { dir: [1, -1, 0.8], up: [0, 0, 1] },
+  top: { dir: [0, 0, 1], up: [0, 1, 0] },
+  front: { dir: [0, -1, 0], up: [0, 0, 1] },
+  right: { dir: [1, 0, 0], up: [0, 0, 1] },
+};
+
+/**
+ * Place the camera so the part's bounding sphere just fits the narrower field
+ * of view. Works for any proportions: a cube, a long beam, or a flat panel.
+ */
+function fitCameraToBounds(boundingBox, center, width, height, view) {
+  const { dir, up } = VIEW_DIRECTIONS[view] || VIEW_DIRECTIONS.iso;
+  const sphere = boundingBox.getBoundingSphere(new THREE.Sphere());
+  const radius = Math.max(sphere.radius, 1e-6);
+  const aspect = width / height;
+  const vHalf = (FIT_FOV_DEGREES * Math.PI) / 360;
+  const hHalf = Math.atan(Math.tan(vHalf) * aspect);
+  const distance = (radius / Math.sin(Math.min(vHalf, hHalf))) * 1.05;
+
+  const camera = new THREE.PerspectiveCamera(
+    FIT_FOV_DEGREES,
+    aspect,
+    Math.max(distance - radius * 1.5, distance * 0.001),
+    distance + radius * 1.5,
+  );
+  camera.up.set(...up);
+  const offset = new THREE.Vector3(...dir).normalize().multiplyScalar(distance);
+  camera.position.copy(center).add(offset);
+  camera.lookAt(center);
+  camera.updateProjectionMatrix();
+  return camera;
 }
 
 /**

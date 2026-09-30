@@ -78,6 +78,10 @@ export function ThumbnailDialogProvider({ children }) {
       const downloadUrl = `https://raw.githubusercontent.com/${owner}/${repo}/main/project.png`;
       console.log("Thumbnail uploaded successfully:", downloadUrl);
 
+      // Mark the thumbnail as user-set locally so auto saves don't overwrite it
+      GlobalVariables.currentAWSnode.userSetAsThumbnail = true;
+      GlobalVariables.currentAWSnode.pngURL = downloadUrl;
+
       // Update AWS item with pngURL
       try {
         const apiUpdateUrl =
@@ -91,7 +95,7 @@ export function ThumbnailDialogProvider({ children }) {
             repoName: repo,
             attributeUpdates: {
               pngURL: downloadUrl,
-              userSetThumbnail: true,
+              userSetAsThumbnail: true,
             },
           }),
           headers: {
