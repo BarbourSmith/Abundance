@@ -233,6 +233,27 @@ describe("editing", () => {
     window.removeEventListener(AGENT_EDIT_EVENT, onEdit);
   });
 
+  it("passes the field key to handlers that need it, like Cut Orient's faces", async () => {
+    const { id } = await runTool("add_atom", { type: "CutOrient" }, EDIT);
+    const orient = resolveAtom(id);
+    orient.orientations = [{ downwardFaceIndex: 1 }, { downwardFaceIndex: 1 }];
+    orient.orientationsFor = { geometry: [] };
+    const cad = GlobalVariables.cad;
+    GlobalVariables.cad = {
+      displayOrientation: async () => ({ geometry: [] }),
+    };
+    try {
+      await runTool(
+        "set_param",
+        { atom: id, param: "Underside Face pt1", value: 4 },
+        EDIT,
+      );
+    } finally {
+      GlobalVariables.cad = cad;
+    }
+    expect(orient.orientations.map((o) => o.downwardFaceIndex)).toEqual([1, 4]);
+  });
+
   it("accepts numbers for equation-backed number inputs", async () => {
     await buildWidthAndDouble();
     await runTool("set_param", { atom: D, param: "x", value: 41 }, EDIT);
@@ -341,11 +362,53 @@ describe("editing", () => {
       path: "Proj/Doubler/Output",
     });
     expect(nameOf(doubler.output.id)).toBe("Output");
-    expect(resolveAtom("Doubler").inputs.map((i) => i.name)).toContain(
-      "Size",
-    );
+    expect(resolveAtom("Doubler").inputs.map((i) => i.name)).toContain("Size");
     expect(await valueOf("Doubler")).toBe(20);
     expect(GlobalVariables.undoCommandStack).toHaveLength(1);
+  });
+
+  it("wires several shapes into an Assembly in one batch", async () => {
+    const { results } = await runTool(
+      "apply_edits",
+      {
+        description: "assemble three parts",
+        edits: [
+          { tool: "add_atom", arguments: { type: "Molecule", name: "A" } },
+          { tool: "add_atom", arguments: { type: "Molecule", name: "B" } },
+          { tool: "add_atom", arguments: { type: "Molecule", name: "C" } },
+          { tool: "add_atom", arguments: { type: "Assembly", ref: "asm" } },
+          {
+            tool: "connect",
+            arguments: { from: "A", to: "asm", input: "Shape 1" },
+          },
+          {
+            tool: "connect",
+            arguments: { from: "B", to: "asm", input: "Shape 2" },
+          },
+          {
+            tool: "connect",
+            arguments: { from: "C", to: "asm", input: "Shape3" },
+          },
+        ],
+      },
+      EDIT,
+    );
+    const connects = results.filter((r) => r.tool === "connect");
+    expect(connects.map((r) => r.result.input)).toEqual([
+      "Shape 1",
+      "Shape2",
+      "Shape3",
+    ]);
+    expect(connects.map((r) => r.result.next_free_input)).toEqual([
+      "Shape2",
+      "Shape3",
+      "Shape4",
+    ]);
+    const asm = resolveAtom(results[3].result.id);
+    const free = asm.inputs.filter(
+      (i) => i.name.startsWith("Shape") && !i.connectors.length,
+    );
+    expect(free.map((i) => i.name)).toEqual(["Shape4"]);
   });
 
   it("rolls back every edit in a batch when one fails", async () => {
@@ -536,6 +599,89 @@ describe("errors and settling", () => {
   });
 });
 
+describe("project description", () => {
+  it("shows, replaces, and undoes the project description", async () => {
+    GlobalVariables.currentAWSnode.description = "Old words";
+    expect((await runTool("get_project", {}, READ)).description).toBe(
+      "Old words",
+    );
+    await expectToolError(
+      runTool("set_project_description", { description: "New" }, READ),
+      ERROR_CODES.PERMISSION_DENIED,
+    );
+    await expectToolError(
+      runTool(
+        "set_project_description",
+        { description: "x".repeat(501) },
+        EDIT,
+      ),
+      ERROR_CODES.INVALID_PARAMS,
+      /at most 500 characters/,
+    );
+    const result = await runTool(
+      "set_project_description",
+      { description: "  A chair cut from plywood.  " },
+      EDIT,
+    );
+    expect(result).toEqual({
+      description: "A chair cut from plywood.",
+      previous: "Old words",
+    });
+    expect(GlobalVariables.currentAWSnode.description).toBe(
+      "A chair cut from plywood.",
+    );
+    const { steps } = await runTool("get_undo_history", {}, READ);
+    expect(steps[0].description).toMatch(/project description/);
+    await runTool("undo", {}, EDIT);
+    expect(GlobalVariables.currentAWSnode.description).toBe("Old words");
+  });
+});
+
+describe("cut layout", () => {
+  it("only runs Cut Layout atoms that have geometry to lay out", async () => {
+    await buildWidthAndDouble();
+    await expectToolError(
+      runTool("compute_cut_layout", { atom: D }, EDIT),
+      ERROR_CODES.INVALID_PARAMS,
+      /not a Cut Layout atom/,
+    );
+    const { id } = await runTool("add_atom", { type: "CutLayout" }, EDIT);
+    await expectToolError(
+      runTool("compute_cut_layout", { atom: id }, EDIT),
+      ERROR_CODES.CONFLICT,
+      /no geometry to lay out/,
+    );
+    await expectToolError(
+      runTool("compute_cut_layout", { atom: id }, READ),
+      ERROR_CODES.PERMISSION_DENIED,
+    );
+  });
+
+  it("presses Compute Layout and waits for the nesting to finish", async () => {
+    const { id } = await runTool("add_atom", { type: "CutLayout" }, EDIT);
+    const layout = resolveAtom(id);
+    layout.inputsAreReady = () => true;
+    let pressed = 0;
+    layout.computeValueButton = () => {
+      pressed += 1;
+      layout.computing = true;
+      layout.setProcessing();
+      setTimeout(() => {
+        layout.placements = [[{ id: 0 }, { id: 1 }], [{ id: 2 }]];
+        layout.computing = false;
+        layout.setReady({ geometry: [] });
+      }, 600);
+    };
+    const result = await runTool("compute_cut_layout", { atom: id }, EDIT);
+    expect(pressed).toBe(1);
+    expect(result).toMatchObject({
+      status: "ready",
+      sheets: 2,
+      parts_placed: 3,
+    });
+  });
+});
+
 describe("navigation", () => {
   it("opens nested molecules and asks the UI to select atoms", async () => {
     await runTool("add_atom", { type: "Molecule", name: "Sub" }, EDIT);
@@ -695,6 +841,44 @@ describe("built-in catalog and molecule library", () => {
       "a/Rarely",
     ]);
     expect(molecules[0].in_library).toBe(true);
+  });
+
+  it("searches each word's stem and ranks by how many words match", async () => {
+    const searched = [];
+    const unroll = {
+      owner: "tristan-huber",
+      repoName: "crv.Unroll",
+      ranking: 2,
+      searchField:
+        "crv.unroll tristan-huber unroll a face to flat abundance-tool",
+    };
+    const vacuum = {
+      owner: "someone",
+      repoName: "FlatVacuum",
+      ranking: 4,
+      searchField: "flatvacuum someone a flat hose",
+    };
+    const copy = { ...unroll, repoName: "crv.Unroll-copy", ranking: 5 };
+    const fork = {
+      ...unroll,
+      owner: "other",
+      parentRepo: "tristan-huber/crv.Unroll",
+    };
+    __test__.fetchers.search = async (term) => {
+      searched.push(term);
+      return term === "flat" ? [vacuum, unroll, copy, fork] : [unroll];
+    };
+    const result = await runTool(
+      "search_molecules",
+      { query: "Flattening an unrollable face" },
+      READ,
+    );
+    expect(searched.sort()).toEqual(["fac", "flat", "unrol"]);
+    expect(result.molecules.map((m) => m.repo)).toEqual([
+      "tristan-huber/crv.Unroll",
+      "someone/FlatVacuum",
+    ]);
+    expect(result.copies_hidden).toBe(2);
   });
 
   it("imports a GitHub molecule as one undoable, read-only step", async () => {

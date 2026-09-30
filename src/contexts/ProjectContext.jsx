@@ -1392,6 +1392,23 @@ export function ProjectProvider({ children, cad, loadProject }) {
 
         base = repoResponse.data.default_branch;
 
+        // Keep the GitHub repository's description in step with the project's.
+        // GitHub rejects control characters, so collapse newlines to spaces.
+        const description = (GlobalVariables.currentAWSnode.description || "")
+          .replace(/\s+/g, " ")
+          .trim();
+        if (
+          description &&
+          description !== (repoResponse.data.description || "")
+        ) {
+          try {
+            await octokit.rest.repos.update({ owner, repo, description });
+          } catch (err) {
+            // Non-critical: the project itself still saves.
+            console.error("Error updating the GitHub description:", err);
+          }
+        }
+
         updateSaveProgress(50);
 
         const getExistingFileSha = async (path) => {

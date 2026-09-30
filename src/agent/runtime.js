@@ -24,6 +24,7 @@ import {
 import AttachmentPoint from "../prototypes/attachmentpoint.js";
 import { ObservableEntity, Status } from "../prototypes/observableEntity.js";
 import { extractBomList } from "../worker/util";
+import { addOrDeletePorts } from "../js/alwaysOneFreeInput.js";
 import { isTranspilerReady } from "../molecules/code.js";
 import { fetchGitHubFileContent } from "../js/githubFileUtils.js";
 import { Octokit } from "octokit";
@@ -59,6 +60,46 @@ const SEARCH_URL =
  * Network access used by the library tools. Swappable so tests don't reach
  * GitHub or the search service.
  */
+const SEARCH_STOP_WORDS = new Set([
+  "the",
+  "and",
+  "for",
+  "with",
+  "from",
+  "that",
+]);
+
+/**
+ * Lowercase stems of a search query's words: "Flattening curved faces" ->
+ * ["flat", "curv", "fac"]. Stems are matched as substrings, so they find the
+ * other forms of each word too.
+ */
+export function searchTerms(query) {
+  const words = String(query || "")
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((w) => w.length >= 3 && !SEARCH_STOP_WORDS.has(w));
+  const stems = words.map((word) => {
+    let stem = word;
+    for (let i = 0; i < 2; i++) {
+      const next = stem.replace(/(able|ible|ing|ed|es|en|er|ly|s|e)$/, "");
+      if (next.length < 3) break;
+      stem = next;
+    }
+    // "flatt" -> "flat"
+    if (/([b-df-hj-np-tv-z])\1$/.test(stem) && stem.length > 3) {
+      stem = stem.slice(0, -1);
+    }
+    return stem;
+  });
+  return [...new Set(stems)].slice(0, 6);
+}
+
+/** Copies and forks of another project, which clutter search results. */
+function isCopy(r) {
+  return Boolean(r.parentRepo) || /-copy\d*$/i.test(r.repoName);
+}
+
 const fetchers = {
   /** Parsed project.abundance of a public GitHub molecule. */
   async projectFile(owner, repo) {
@@ -345,10 +386,24 @@ function assertEditableContainer(molecule) {
   }
 }
 
+/** Atoms that keep one free "ShapeN" input, adding the next as each fills. */
+const FREE_INPUT_TYPES = new Set([
+  "Assembly",
+  "Fusion",
+  "Shrink Wrap",
+  "ShrinkWrap",
+  "Loft",
+  "Group",
+]);
+
 function findInput(atom, name) {
-  const input = (atom.inputs || []).find(
-    (ap) => ap.name === name || ap.oldNames?.includes(name),
-  );
+  // Free inputs are named inconsistently ("Shape 1", "Shape2"), so match
+  // them with or without the space.
+  const squash = (n) => String(n).replace(/\s+/g, "");
+  const input =
+    (atom.inputs || []).find(
+      (ap) => ap.name === name || ap.oldNames?.includes(name),
+    ) || (atom.inputs || []).find((ap) => squash(ap.name) === squash(name));
   if (!input) {
     const names = (atom.inputs || []).map((ap) => ap.name);
     throw new ToolError(
@@ -800,6 +855,7 @@ const handlers = {
     const { errors } = collectErrors();
     return {
       project: projectInfo(),
+      description: GlobalVariables.currentAWSnode?.description || "",
       top_level: {
         id: String(top.uniqueID),
         name: top.name,
@@ -865,6 +921,9 @@ const handlers = {
     if (atom.status === Status.READY) {
       if (isGeometryValue(atom.value)) {
         detail.output = await summarizeGeometry(atom);
+        if (atom.atomType === "Code" && detail.output.part_count > 1) {
+          detail.warning = `This Code atom builds ${detail.output.part_count} separate parts. Give each physical part a molecule of its own, built from built-in atoms where they can do the job, and keep code to the one part it can't.`;
+        }
       } else {
         detail.output = { value: summarizeValue(atom.value) };
       }
@@ -900,20 +959,51 @@ const handlers = {
   },
 
   async search_molecules({ query, limit = 10 }) {
-    let results;
+    // The search service matches one lowercase substring, so "Unroll" or
+    // "unroll face" find nothing. Search each word's stem on its own and rank
+    // projects by how many of the words they match.
+    const terms = searchTerms(query);
+    if (!terms.length) {
+      throw new ToolError(
+        ERROR_CODES.INVALID_PARAMS,
+        "Search for at least one word of three or more letters.",
+      );
+    }
+    let batches;
     try {
-      results = await fetchers.search(query);
+      batches = await Promise.all(terms.map((t) => fetchers.search(t)));
     } catch (err) {
       throw new ToolError(
         ERROR_CODES.INTERNAL_ERROR,
         `The molecule search is unavailable: ${err.message}`,
       );
     }
-    const molecules = results
-      .filter((r) => r && r.owner && r.repoName && !r.privateRepo)
-      .sort((a, b) => Number(b.ranking || 0) - Number(a.ranking || 0))
+    const byRepo = new Map();
+    for (const r of batches.flat()) {
+      if (!r || !r.owner || !r.repoName || r.privateRepo) continue;
+      byRepo.set(`${r.owner}/${r.repoName}`, r);
+    }
+    let copies = 0;
+    const scored = [];
+    for (const r of byRepo.values()) {
+      if (isCopy(r)) {
+        copies += 1;
+        continue;
+      }
+      const text = (
+        r.searchField ||
+        [r.repoName, r.owner, r.description, ...(r.topics || [])].join(" ")
+      ).toLowerCase();
+      scored.push({ r, matches: terms.filter((t) => text.includes(t)).length });
+    }
+    const molecules = scored
+      .sort(
+        (a, b) =>
+          b.matches - a.matches ||
+          Number(b.r.ranking || 0) - Number(a.r.ranking || 0),
+      )
       .slice(0, limit)
-      .map((r) => {
+      .map(({ r }) => {
         const repo = `${r.owner}/${r.repoName}`;
         return {
           repo,
@@ -925,7 +1015,12 @@ const handlers = {
           ...(libraryEntry(repo) ? { in_library: true } : {}),
         };
       });
-    return { query, molecules };
+    return {
+      query,
+      searched_for: terms,
+      molecules,
+      ...(copies ? { copies_hidden: copies } : {}),
+    };
   },
 
   async get_errors() {
@@ -1228,7 +1323,9 @@ const handlers = {
     }
     const coerced = coerceParamValue(target, value);
     const nameBefore = atom.name;
-    await target.config.onChange(coerced);
+    // The panel passes the field's key too; Cut Orient and Cut Layout need it
+    // to tell which part's field changed.
+    await target.config.onChange(coerced, target.key);
     refreshPanel(atom);
     const after = collectParams(atom).find((p) => p.label === target.label);
     const result = {
@@ -1278,6 +1375,102 @@ const handlers = {
       status: atom.status,
       ...(alertText(atom) ? { error: alertText(atom) } : {}),
     };
+  },
+
+  async set_project_description({ description }) {
+    const node = GlobalVariables.currentAWSnode;
+    if (!node) {
+      throw new ToolError(
+        ERROR_CODES.CONFLICT,
+        "This tab has no saved project to describe.",
+      );
+    }
+    const text = String(description).trim();
+    if (!text) {
+      throw new ToolError(
+        ERROR_CODES.INVALID_PARAMS,
+        "The description can't be empty.",
+      );
+    }
+    const before = node.description || "";
+    node.description = text;
+    GlobalVariables.pushUndoCommand({
+      description: "Change project description",
+      undo: async () => {
+        node.description = before;
+      },
+    });
+    return { description: text, previous: before };
+  },
+
+  async compute_cut_layout({ atom: ref, action = "compute" }, ctx) {
+    const atom = resolveAtom(ref, { allowEmpty: false });
+    assertEditable(atom);
+    if (typeof atom.computeValueButton !== "function") {
+      throw new ToolError(
+        ERROR_CODES.INVALID_PARAMS,
+        `${atomPath(atom)} is not a Cut Layout atom.`,
+      );
+    }
+    if (atom.computing || atom.status === Status.PROCESSING) {
+      throw new ToolError(
+        ERROR_CODES.CONFLICT,
+        `${atomPath(atom)} is already computing. Call wait_for_settle, then try again.`,
+      );
+    }
+    if (!atom.inputsAreReady()) {
+      throw new ToolError(
+        ERROR_CODES.CONFLICT,
+        `${atomPath(atom)} has no geometry to lay out yet. Connect its geometry input (usually from a Cut Orient atom) and call wait_for_settle first.`,
+      );
+    }
+    // The panel's buttons take the panel's setter; forward to it so an open
+    // properties panel keeps tracking the layout, as when the user clicks.
+    const existing = atom.setInputChanged;
+    const forward = (value) => {
+      if (typeof existing === "function") existing(value);
+    };
+    if (action === "reset") {
+      atom.placements = [];
+      atom.placementsFor = "";
+      atom.createDefaultPlacements();
+    } else {
+      atom.computeValueButton(forward);
+    }
+
+    const started = Date.now();
+    const TIMEOUT_MS = 4 * 60_000;
+    let lastProgressAt = 0;
+    while (atom.computing || atom.status === Status.PROCESSING) {
+      if (Date.now() - started > TIMEOUT_MS) {
+        throw new ToolError(
+          ERROR_CODES.TIMEOUT,
+          `${atomPath(atom)} was still laying out parts after ${TIMEOUT_MS / 60_000} minutes.`,
+        );
+      }
+      if (Date.now() - lastProgressAt > 1000) {
+        lastProgressAt = Date.now();
+        ctx.progress?.({
+          progress: Math.round((atom.progress || 0) * 100),
+          total: 100,
+          message: "Laying out parts",
+        });
+      }
+      await new Promise((r) => setTimeout(r, 250));
+    }
+    refreshPanel(atom);
+
+    const sheets = atom.getPlacements() || [];
+    const result = {
+      atom: atomRef(atom),
+      status: atom.status,
+      sheets: sheets.length,
+      parts_placed: sheets.flat().length,
+    };
+    const alert = alertText(atom);
+    if (alert)
+      result[atom.status === Status.ERROR ? "error" : "warning"] = alert;
+    return result;
   },
 
   async reset_atom_names({ molecule }) {
@@ -1552,7 +1745,21 @@ const handlers = {
         `The editor refused to connect ${atomPath(source)} to "${ap.name}" on ${atomPath(target)}.`,
       );
     }
-    return { from: atomRef(source), to: atomRef(target), input: ap.name };
+    const result = {
+      from: atomRef(source),
+      to: atomRef(target),
+      input: ap.name,
+    };
+    if (FREE_INPUT_TYPES.has(target.atomType)) {
+      // These atoms only add their next free input when they recompute, so a
+      // batch couldn't wire a second shape. Add it now, as compute would.
+      addOrDeletePorts(target);
+      const free = (target.inputs || []).find(
+        (i) => i.name.startsWith("Shape") && !i.connectors?.length,
+      );
+      if (free) result.next_free_input = free.name;
+    }
+    return result;
   },
 
   async disconnect({ atom: ref, input }) {
@@ -1818,6 +2025,16 @@ export function validateArgs(tool, args, prefix = "") {
         `${prefix}"${key}" needs at least ${prop.minItems} item(s).`,
       );
     }
+    if (
+      typeof value === "string" &&
+      prop.maxLength !== undefined &&
+      value.length > prop.maxLength
+    ) {
+      throw new ToolError(
+        ERROR_CODES.INVALID_PARAMS,
+        `${prefix}"${key}" must be at most ${prop.maxLength} characters.`,
+      );
+    }
   }
 }
 
@@ -1845,6 +2062,10 @@ function describeEdit(name, args) {
       return `import ${args.repo}`;
     case "reset_atom_names":
       return "restore standard atom names";
+    case "set_project_description":
+      return "update the project description";
+    case "compute_cut_layout":
+      return `${args.action === "reset" ? "reset" : "compute"} layout of ${nameFor(args.atom)}`;
     case "connect":
       return `connect ${nameFor(args.from)} to ${nameFor(args.to)}`;
     case "disconnect":

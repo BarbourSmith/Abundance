@@ -2,6 +2,12 @@
 
 You are assisting with writing code for an Abundance Code Atom. Abundance is a web-based CAD platform that uses the Replicad library for 3D geometry operations.
 
+## Scope: One Part, and Only What Built-in Atoms Can't Do
+
+A code atom helps build **one physical part**, inside that part's own molecule. Every board, panel, or bracket in a design gets its own molecule; left and right copies are one molecule placed twice with Move or Rotate. Never generate several parts from one code atom.
+
+Inside the part's molecule, use built-in atoms (Rectangle, Circle, Difference, Extrude, Rotate, Move, Tag, Add-BOM-Tag) and library molecules for everything they can do. Keep the code atom to the piece they can't, such as an unusual 2D outline, and return it so built-in atoms extrude, place, and tag it. Don't model slots or holes for mating parts: position the parts overlapping and let an Assembly cut them.
+
 ## Code Structure Requirements
 
 ### Default: TypeScript with `run()` Function
@@ -15,10 +21,9 @@ function run(
   thickness: number = 5,
   color: string = "#5B9BD5",
   addFillet: boolean = true,
-): Assembly[] {
-  // return Assembly or Assembly[]
+): Assembly {
   // ... implementation ...
-  return results;
+  return result;
 }
 ```
 
@@ -231,27 +236,20 @@ function run(
 }
 ```
 
-### 5. Returning Multiple Parts as Array
+### 5. Returning a 2D Outline for Built-in Atoms
+
+When only a part's outline needs code, return the sketch and let Extrude, Rotate, Move, and Tag atoms in the molecule do the rest:
 
 ```typescript
-function run(count: number = 3, size: number = 10): Assembly[] {
-  const parts: Assembly[] = [];
-
-  for (let i = 0; i < count; i++) {
-    const part = replicad
-      .makeBaseBox(size, size, size)
-      .translate(i * size * 1.2, 0, 0);
-
-    parts.push(
-      new Assembly({
-        geometry: part,
-        tags: ["part", `part-${i}`],
-        color: "#" + Math.floor(Math.random() * 16777215).toString(16),
-      }),
-    );
-  }
-
-  return parts;
+function run(width: number = 90, height: number = 580, sweep: number = 20): Assembly {
+  const offset = height * Math.tan((sweep * Math.PI) / 180);
+  const outline = replicad
+    .draw([0, 0])
+    .lineTo([width, 0])
+    .lineTo([width + offset, height])
+    .lineTo([offset, height])
+    .close();
+  return new Assembly({ geometry: outline });
 }
 ```
 
@@ -289,11 +287,11 @@ function run(input: Assembly | undefined): Assembly {
 1. **Always provide default values** for parameters so the atom produces geometry immediately
 2. **Wrap all replicad geometry** in `new Assembly()` before returning
 3. **Use meaningful tags** to identify parts (e.g., `["screw", "M8", "fastener"]`)
-4. **Include BOM entries** for manufacturing and cost tracking
+4. **Leave BOM entries to an Add-BOM-Tag atom** after the code atom in the part's molecule, and only for purchased parts (not parts cut from stock), where the user can see and edit them; use the `bom` field only when the entry depends on values computed in code
 5. **Use console.log** for debugging parameter values
 6. **Handle undefined/null inputs** gracefully—check if optional parameters exist before using
 7. **Center geometry appropriately** using translate() for better visual alignment
-8. **Return Assembly or Assembly[]** for geometry; primitives (number/string) for calculations
+8. **Return one Assembly** for geometry (one part, or a 2D outline of one part); primitives (number/string) for calculations
 9. **Use templateStrings for dynamic BOM** e.g., `` `Box ${width}×${depth} mm` ``
 10. **Comment complex geometric operations** to help LLMs understand the intent
 
@@ -306,6 +304,8 @@ function run(input: Assembly | undefined): Assembly {
 5. ❌ Not providing reasonable default values for all parameters
 6. ❌ Returning raw replicad objects instead of Assembly instances
 7. ❌ Using old JavaScript `Inputs` array syntax in new code
+8. ❌ Building several parts in one code atom instead of one molecule per part
+9. ❌ Cutting slots, tabs' mating holes, or dogbones for other parts by hand instead of letting an Assembly cut them
 
 ## Example: Complete TypeScript Code Atom
 
@@ -362,4 +362,4 @@ function run(
 - Add **comments with units** (e.g., `// depth in mm`)
 - Use **console.log() to inspect** intermediate geometry during development
 - Extend `Assembly | undefined` for optional geometry inputs
-- Use **array return types** when parts should remain separate in BOM/cut-layout atoms
+- Keep each code atom to **one part**; parts that stay separate in the BOM or cut layout each get their own molecule

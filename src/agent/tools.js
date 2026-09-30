@@ -99,14 +99,15 @@ export const TOOLS = [
     name: "search_molecules",
     permission: "read",
     description:
-      "Search every public Abundance project that can be imported as a GitHub molecule. Results are ordered by how widely each is used (usage_tier 1-5). Prefer list_library_molecules for common needs." +
+      "Search every public Abundance project that can be imported as a GitHub molecule, including specialized tools (topic abundance-tool) such as unrolling curved surfaces flat. Each word is matched on its own, in any form (flatten finds flat), and results matching the most words come first, then the most used (usage_tier 1-5); copies of other projects are left out. Search with one to three plain words and try synonyms when nothing fits (flatten, unroll, develop). Check list_library_molecules first for common needs." +
       UNTRUSTED_NOTE,
     inputSchema: {
       type: "object",
       properties: {
         query: {
           type: "string",
-          description: "Text to look for in names and descriptions.",
+          description:
+            "A few words to look for in names, descriptions, and topics.",
         },
         limit: {
           type: "integer",
@@ -170,7 +171,7 @@ export const TOOLS = [
     name: "get_bom",
     permission: "read",
     description:
-      "The bill of materials compiled from an atom's output (defaults to the top-level molecule).",
+      "The bill of materials compiled from an atom's output (defaults to the top-level molecule): the Add-BOM-Tag items in it with quantities and costs. It lists purchased parts only, not parts cut from stock. Check it after building; a purchased part missing here needs an Add-BOM-Tag.",
     inputSchema: { type: "object", properties: { atom: OPTIONAL_ATOM_REF } },
   },
   {
@@ -301,7 +302,7 @@ export const TOOLS = [
     name: "set_code",
     permission: "edit",
     description:
-      "Replace the source of a Code atom and recompute it. TypeScript atoms use a run(...) function whose typed parameters become inputs; call get_code_atom_guide for the API. Keep code atoms small and focused on the part built-ins can't do; when a reused input name keeps its old value, set it with set_param.",
+      "Replace the source of a Code atom and recompute it. TypeScript atoms use a run(...) function whose typed parameters become inputs; call get_code_atom_guide for the API. Keep code atoms small and focused on the part built-ins can't do, returning one part: several parts belong in molecules of their own; when a reused input name keeps its old value, set it with set_param.",
     inputSchema: {
       type: "object",
       properties: {
@@ -309,6 +310,43 @@ export const TOOLS = [
         code: { type: "string" },
       },
       required: ["atom", "code"],
+    },
+  },
+  {
+    name: "set_project_description",
+    permission: "edit",
+    description:
+      "Replace the project's description: the short summary shown in the project list and search results, and matched when people search for molecules to reuse. get_project shows the current one. Saved the next time the project is saved, which also updates the GitHub repository's description.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        description: {
+          type: "string",
+          maxLength: 500,
+          description:
+            "One to three plain sentences: what the project makes, how it's made, and what can be adjusted.",
+        },
+      },
+      required: ["description"],
+    },
+  },
+  {
+    name: "compute_cut_layout",
+    permission: "edit",
+    description:
+      'Run a Cut Layout atom\'s nesting, like pressing its Compute Layout button, and wait for it to finish (up to about 2 minutes). Returns the number of sheets and parts placed, plus any warning such as parts too big for the sheet. Use action "reset" to put every part back at the default position instead. Run it after the parts or the sheet settings change, once wait_for_settle reports the project settled.',
+    inputSchema: {
+      type: "object",
+      properties: {
+        atom: ATOM_REF,
+        action: {
+          type: "string",
+          enum: ["compute", "reset"],
+          description:
+            "compute (default) nests the parts; reset returns them to default placements.",
+        },
+      },
+      required: ["atom"],
     },
   },
   {
@@ -340,7 +378,7 @@ export const TOOLS = [
     name: "add_atom",
     permission: "edit",
     description:
-      "Add a new built-in atom to a molecule. Returns its ID and path; a new Molecule also returns its Output atom. Positions are fractions of the canvas (0 to 1); omit them to place it to the right of the existing atoms. Keep molecules small: when one already holds about 8 atoms, add a named Molecule for the new work and build inside it. Code atoms are a last resort: use built-in atoms and library molecules where they can do the job.",
+      "Add a new built-in atom to a molecule. Returns its ID and path; a new Molecule also returns its Output atom. Positions are fractions of the canvas (0 to 1); omit them to place it to the right of the existing atoms. Each physical part (a board, panel, bracket) goes in a Molecule of its own, named for the part; keep molecules to about 8 atoms, adding a named Molecule for new work beyond that. Code atoms are a last resort: use built-in atoms and library molecules where they can do the job, and never have one Code atom build several parts.",
     inputSchema: {
       type: "object",
       properties: {
@@ -364,7 +402,7 @@ export const TOOLS = [
         reason: {
           type: "string",
           description:
-            "Required for Code atoms: why no built-in atom or library molecule does this job. Shown to the user in the undo history.",
+            "Required for Code atoms: which single part this helps build and why no built-in atom or library molecule does the job. Shown to the user in the undo history.",
         },
       },
       required: ["type"],
@@ -374,7 +412,7 @@ export const TOOLS = [
     name: "connect",
     permission: "edit",
     description:
-      "Wire the output of one atom into a named input of another atom in the same molecule. Replaces any existing connection to that input.",
+      "Wire the output of one atom into a named input of another atom in the same molecule. Replaces any existing connection to that input. Assembly, Fusion, ShrinkWrap, and Loft always keep one free ShapeN input: the result's next_free_input names it, so a batch can wire the next shape right away.",
     inputSchema: {
       type: "object",
       properties: {

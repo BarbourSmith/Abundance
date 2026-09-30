@@ -45,7 +45,7 @@ export default class CutLayout extends Atom {
      * @type {string}
      */
     this.description =
-      "Extracts all parts tagged for cutting and lays them out on a sheet to cut.";
+      "Lays out every part in the input flat on sheets for cutting. Press Compute Layout to nest them; feed it from Cut Orient so parts lie flat, and filter with Extract Tag to lay out only the parts to cut.";
     /**
      * The array of placements returned by the layout function
      * @type {array}

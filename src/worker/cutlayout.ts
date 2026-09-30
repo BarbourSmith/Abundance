@@ -17,7 +17,20 @@ type OrientationConfig = {
 
 type Orientation = {
   downwardFaceIndex: number;
+  // The part's face count and the chosen face's outward normal when this
+  // orientation was picked. If either no longer matches, the part has changed
+  // shape and the face index points at a different face.
+  faceCount?: number;
+  faceNormal?: [number, number, number];
 };
+
+function normalOf(face: Face): [number, number, number] {
+  const n = face.normalAt();
+  return [n.x, n.y, n.z];
+}
+
+/** Thrown when saved orientations belong to parts that have since changed. */
+const STALE_ORIENTATIONS = "Saved orientations no longer match the parts";
 
 type LayoutConfig = {
   width: number;
@@ -113,7 +126,33 @@ async function displayOrientation(
       return leaf;
     }
     let targetFaceIndex = orientations[index].downwardFaceIndex;
+    const { faceCount: savedFaceCount, faceNormal: savedNormal } =
+      orientations[index];
     index++;
+    // Check before the cache below: a changed part can have been displayed
+    // (and cached) earlier, and a cache hit would skip any later check.
+    if (savedFaceCount !== undefined || savedNormal !== undefined) {
+      const part = (await util.geometryProvider!.get(
+        leaf.geometry,
+        context,
+      )) as Shape3D;
+      if (
+        savedFaceCount !== undefined &&
+        part.faces.length !== savedFaceCount
+      ) {
+        throw new Error(STALE_ORIENTATIONS);
+      }
+      if (savedNormal !== undefined) {
+        const [x, y, z] = normalOf(
+          part.faces[targetFaceIndex % part.faces.length],
+        );
+        const dot =
+          x * savedNormal[0] + y * savedNormal[1] + z * savedNormal[2];
+        if (dot < 0.999) {
+          throw new Error(STALE_ORIENTATIONS);
+        }
+      }
+    }
     const batchId = getCacheId(
       leaf.geometry,
       targetFaceIndex,
@@ -427,7 +466,10 @@ async function rotateForLayout(
     );
     if (filtered.length == 0) {
       // No planar faces... just take a wild guess using the largest face.
-      orientations.push({ downwardFaceIndex: orderedFaces[0].i });
+      orientations.push({
+        downwardFaceIndex: orderedFaces[0].i,
+        faceCount: geom.faces.length,
+      });
       return leaf;
     }
 
@@ -509,7 +551,11 @@ async function rotateForLayout(
       throw new Error("Failed to find a suitable face for layout");
     }
 
-    orientations.push({ downwardFaceIndex: bestCandidate.faceIndex });
+    orientations.push({
+      downwardFaceIndex: bestCandidate.faceIndex,
+      faceCount: geom.faces.length,
+      faceNormal: normalOf(geom.faces[bestCandidate.faceIndex]),
+    });
     return leaf;
   });
 
