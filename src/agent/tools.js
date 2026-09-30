@@ -316,7 +316,7 @@ export const TOOLS = [
     name: "set_project_description",
     permission: "edit",
     description:
-      "Replace the project's description: the short summary shown in the project list and search results, and matched when people search for molecules to reuse. get_project shows the current one. Saved to GitHub with the project the next time it's saved.",
+      "Replace the project's description: the short summary shown in the project list and search results, and matched when people search for molecules to reuse. get_project shows the current one. Saved the next time the project is saved, which also updates the GitHub repository's description.",
     inputSchema: {
       type: "object",
       properties: {
