@@ -160,12 +160,7 @@ function parseRepo(repo) {
  * The atoms the editor lets users rename (through a name field in the
  * properties panel). Every other atom keeps its type's default name.
  */
-const RENAMABLE_TYPES = new Set([
-  "Molecule",
-  "GitHubMolecule",
-  "Input",
-  "Constant",
-]);
+const RENAMABLE_TYPES = new Set(["Molecule", "Input", "Constant"]);
 
 /** Name -> atom for atoms added earlier in the running apply_edits batch. */
 let batchAliases = null;
@@ -1221,9 +1216,14 @@ const handlers = {
       );
     }
     if (target.config.disabled) {
+      const connected = (atom.inputs || []).some(
+        (ap) => ap.name === target.label && ap.connectors?.length,
+      );
       throw new ToolError(
         ERROR_CODES.CONFLICT,
-        `"${param}" on ${atomPath(atom)} is driven by a connection. Disconnect it first.`,
+        connected
+          ? `"${param}" on ${atomPath(atom)} is driven by a connection. Disconnect it first.`
+          : `"${param}" on ${atomPath(atom)} is locked in the editor and can't be changed.`,
       );
     }
     const coerced = coerceParamValue(target, value);
@@ -1349,7 +1349,7 @@ const handlers = {
     return { molecule: atomRef(root), renamed };
   },
 
-  async add_github_molecule({ repo, molecule, name, x, y, ref }) {
+  async add_github_molecule({ repo, molecule, x, y, ref }) {
     const { owner, repoName } = parseRepo(repo);
     const mol = resolveMolecule(molecule);
     assertEditableContainer(mol);
@@ -1417,7 +1417,6 @@ const handlers = {
         `Could not place ${owner}/${repoName}.`,
       );
     }
-    if (name) atom.name = name;
     GlobalVariables.pushUndoCommand(
       new AddAtomCommand(atom.uniqueID, mol, `Add ${owner}/${repoName}`),
     );

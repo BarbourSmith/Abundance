@@ -706,7 +706,7 @@ describe("built-in catalog and molecule library", () => {
     };
     const result = await runTool(
       "add_github_molecule",
-      { repo: "someone/Doubler", name: "Doubler" },
+      { repo: "someone/Doubler" },
       EDIT,
     );
     expect(requested).toEqual(["someone/Doubler"]);
@@ -813,7 +813,7 @@ describe("built-in catalog and molecule library", () => {
         edits: [
           {
             tool: "add_github_molecule",
-            arguments: { repo: "someone/Doubler", name: "Doubler" },
+            arguments: { repo: "someone/Doubler", ref: "Doubler" },
           },
           { tool: "add_atom", arguments: { type: "Constant", name: "Size" } },
           {
@@ -826,6 +826,35 @@ describe("built-in catalog and molecule library", () => {
     );
     expect(await valueOf("Doubler")).toBe(10);
     expect(GlobalVariables.undoCommandStack).toHaveLength(1);
+  });
+
+  it("keeps an imported GitHub molecule's name from its project", async () => {
+    __test__.fetchers.search = async () => [];
+    __test__.fetchers.projectFile = async () => fakeProject();
+    await expectToolError(
+      runTool(
+        "add_github_molecule",
+        { repo: "someone/Doubler", name: "Blade" },
+        EDIT,
+      ),
+      ERROR_CODES.INVALID_PARAMS,
+      /unknown argument "name"/,
+    );
+    const { id } = await runTool(
+      "add_github_molecule",
+      { repo: "someone/Doubler" },
+      EDIT,
+    );
+    await expectToolError(
+      runTool(
+        "set_param",
+        { atom: id, param: "Molecule Name", value: "Blade" },
+        EDIT,
+      ),
+      ERROR_CODES.CONFLICT,
+      /locked/,
+    );
+    expect(resolveAtom(id).name).toBe("Doubler");
   });
 });
 

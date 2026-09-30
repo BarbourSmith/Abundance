@@ -315,7 +315,7 @@ export const TOOLS = [
     name: "add_github_molecule",
     permission: "edit",
     description:
-      "Import a shared GitHub molecule (from list_library_molecules or search_molecules) into a molecule, like choosing it from the editor's search menu. Returns its ID, path, and inputs. Imported molecules are read-only: wire them up and set their inputs.",
+      "Import a shared GitHub molecule (from list_library_molecules or search_molecules) into a molecule, like choosing it from the editor's search menu. Returns its ID, path, and inputs. Imported molecules are read-only, including their names: wire them up and set their inputs.",
     inputSchema: {
       type: "object",
       properties: {
@@ -325,11 +325,10 @@ export const TOOLS = [
             'The molecule\'s GitHub repository as "owner/name", e.g. "BarbourSmith/RotatePattern".',
         },
         molecule: OPTIONAL_ATOM_REF,
-        name: { type: "string", description: "Optional display name." },
         ref: {
           type: "string",
           description:
-            "A handle for this molecule within the current apply_edits batch.",
+            "A handle for this molecule within the current apply_edits batch. It does not change the molecule's name, which comes from its project and can't be changed.",
         },
         x: { type: "number", minimum: 0, maximum: 1 },
         y: { type: "number", minimum: 0, maximum: 1 },
