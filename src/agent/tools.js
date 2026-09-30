@@ -99,14 +99,15 @@ export const TOOLS = [
     name: "search_molecules",
     permission: "read",
     description:
-      "Search every public Abundance project that can be imported as a GitHub molecule. Results are ordered by how widely each is used (usage_tier 1-5). Prefer list_library_molecules for common needs." +
+      "Search every public Abundance project that can be imported as a GitHub molecule, including specialized tools (topic abundance-tool) such as unrolling curved surfaces flat. Each word is matched on its own, in any form (flatten finds flat), and results matching the most words come first, then the most used (usage_tier 1-5); copies of other projects are left out. Search with one to three plain words and try synonyms when nothing fits (flatten, unroll, develop). Check list_library_molecules first for common needs." +
       UNTRUSTED_NOTE,
     inputSchema: {
       type: "object",
       properties: {
         query: {
           type: "string",
-          description: "Text to look for in names and descriptions.",
+          description:
+            "A few words to look for in names, descriptions, and topics.",
         },
         limit: {
           type: "integer",

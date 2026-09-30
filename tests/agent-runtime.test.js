@@ -740,6 +740,44 @@ describe("built-in catalog and molecule library", () => {
     expect(molecules[0].in_library).toBe(true);
   });
 
+  it("searches each word's stem and ranks by how many words match", async () => {
+    const searched = [];
+    const unroll = {
+      owner: "tristan-huber",
+      repoName: "crv.Unroll",
+      ranking: 2,
+      searchField:
+        "crv.unroll tristan-huber unroll a face to flat abundance-tool",
+    };
+    const vacuum = {
+      owner: "someone",
+      repoName: "FlatVacuum",
+      ranking: 4,
+      searchField: "flatvacuum someone a flat hose",
+    };
+    const copy = { ...unroll, repoName: "crv.Unroll-copy", ranking: 5 };
+    const fork = {
+      ...unroll,
+      owner: "other",
+      parentRepo: "tristan-huber/crv.Unroll",
+    };
+    __test__.fetchers.search = async (term) => {
+      searched.push(term);
+      return term === "flat" ? [vacuum, unroll, copy, fork] : [unroll];
+    };
+    const result = await runTool(
+      "search_molecules",
+      { query: "Flattening an unrollable face" },
+      READ,
+    );
+    expect(searched.sort()).toEqual(["fac", "flat", "unrol"]);
+    expect(result.molecules.map((m) => m.repo)).toEqual([
+      "tristan-huber/crv.Unroll",
+      "someone/FlatVacuum",
+    ]);
+    expect(result.copies_hidden).toBe(2);
+  });
+
   it("imports a GitHub molecule as one undoable, read-only step", async () => {
     const requested = [];
     __test__.fetchers.search = async () => [];

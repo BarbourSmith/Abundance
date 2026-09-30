@@ -59,6 +59,46 @@ const SEARCH_URL =
  * Network access used by the library tools. Swappable so tests don't reach
  * GitHub or the search service.
  */
+const SEARCH_STOP_WORDS = new Set([
+  "the",
+  "and",
+  "for",
+  "with",
+  "from",
+  "that",
+]);
+
+/**
+ * Lowercase stems of a search query's words: "Flattening curved faces" ->
+ * ["flat", "curv", "fac"]. Stems are matched as substrings, so they find the
+ * other forms of each word too.
+ */
+export function searchTerms(query) {
+  const words = String(query || "")
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((w) => w.length >= 3 && !SEARCH_STOP_WORDS.has(w));
+  const stems = words.map((word) => {
+    let stem = word;
+    for (let i = 0; i < 2; i++) {
+      const next = stem.replace(/(able|ible|ing|ed|es|en|er|ly|s|e)$/, "");
+      if (next.length < 3) break;
+      stem = next;
+    }
+    // "flatt" -> "flat"
+    if (/([b-df-hj-np-tv-z])\1$/.test(stem) && stem.length > 3) {
+      stem = stem.slice(0, -1);
+    }
+    return stem;
+  });
+  return [...new Set(stems)].slice(0, 6);
+}
+
+/** Copies and forks of another project, which clutter search results. */
+function isCopy(r) {
+  return Boolean(r.parentRepo) || /-copy\d*$/i.test(r.repoName);
+}
+
 const fetchers = {
   /** Parsed project.abundance of a public GitHub molecule. */
   async projectFile(owner, repo) {
@@ -903,20 +943,51 @@ const handlers = {
   },
 
   async search_molecules({ query, limit = 10 }) {
-    let results;
+    // The search service matches one lowercase substring, so "Unroll" or
+    // "unroll face" find nothing. Search each word's stem on its own and rank
+    // projects by how many of the words they match.
+    const terms = searchTerms(query);
+    if (!terms.length) {
+      throw new ToolError(
+        ERROR_CODES.INVALID_PARAMS,
+        "Search for at least one word of three or more letters.",
+      );
+    }
+    let batches;
     try {
-      results = await fetchers.search(query);
+      batches = await Promise.all(terms.map((t) => fetchers.search(t)));
     } catch (err) {
       throw new ToolError(
         ERROR_CODES.INTERNAL_ERROR,
         `The molecule search is unavailable: ${err.message}`,
       );
     }
-    const molecules = results
-      .filter((r) => r && r.owner && r.repoName && !r.privateRepo)
-      .sort((a, b) => Number(b.ranking || 0) - Number(a.ranking || 0))
+    const byRepo = new Map();
+    for (const r of batches.flat()) {
+      if (!r || !r.owner || !r.repoName || r.privateRepo) continue;
+      byRepo.set(`${r.owner}/${r.repoName}`, r);
+    }
+    let copies = 0;
+    const scored = [];
+    for (const r of byRepo.values()) {
+      if (isCopy(r)) {
+        copies += 1;
+        continue;
+      }
+      const text = (
+        r.searchField ||
+        [r.repoName, r.owner, r.description, ...(r.topics || [])].join(" ")
+      ).toLowerCase();
+      scored.push({ r, matches: terms.filter((t) => text.includes(t)).length });
+    }
+    const molecules = scored
+      .sort(
+        (a, b) =>
+          b.matches - a.matches ||
+          Number(b.r.ranking || 0) - Number(a.r.ranking || 0),
+      )
       .slice(0, limit)
-      .map((r) => {
+      .map(({ r }) => {
         const repo = `${r.owner}/${r.repoName}`;
         return {
           repo,
@@ -928,7 +999,12 @@ const handlers = {
           ...(libraryEntry(repo) ? { in_library: true } : {}),
         };
       });
-    return { query, molecules };
+    return {
+      query,
+      searched_for: terms,
+      molecules,
+      ...(copies ? { copies_hidden: copies } : {}),
+    };
   },
 
   async get_errors() {
