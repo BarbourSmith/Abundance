@@ -1596,6 +1596,14 @@ export function ProjectProvider({ children, cad, loadProject }) {
           GlobalVariables.topLevelMolecule,
         );
 
+        // Extract Input atoms from the molecule
+        const projectInputs = GlobalVariables.topLevelMolecule.nodesOnTheScreen
+          .filter((atom) => atom.atomType === "Input")
+          .map((inputAtom) => ({
+            name: inputAtom.name || "Unnamed",
+            type: inputAtom.type || "number",
+          }));
+
         /*aws dynamo update-item lambda, also updates dateModified on aws side*/
         const apiUpdateUrl =
           "https://hg5gsgv9te.execute-api.us-east-2.amazonaws.com/abundance-stage/update-item";
@@ -1618,6 +1626,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
           githubMoleculesUsed: githubMoleculeUsedList,
           description: GlobalVariables.currentAWSnode.description,
           topics: GlobalVariables.currentAWSnode.topics,
+          projectInputs: projectInputs,
         };
 
         // Only update pngURL if user hasn't manually set a thumbnail

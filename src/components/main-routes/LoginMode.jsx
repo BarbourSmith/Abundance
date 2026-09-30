@@ -51,12 +51,12 @@ const getRankingColor = (ranking) => {
  * Get tooltip text for ranking based on value
  */
 const getRankingTooltip = (ranking) => {
-  if (!ranking || ranking === 0) return "Not ranked";
-  if (ranking >= 4.5) return "Widely used";
-  if (ranking >= 3.5) return "Moderately used";
-  if (ranking >= 2.5) return "Somewhat used";
-  if (ranking >= 1.5) return "Rarely used";
-  return "Barely used";
+  if (!ranking || ranking === 0) return "Unranked";
+  if (ranking >= 4.5) return "Highly popular";
+  if (ranking >= 3.5) return "Popular";
+  if (ranking >= 2.5) return "Established";
+  if (ranking >= 1.5) return "Early stage";
+  return "Unranked";
 };
 
 /**
