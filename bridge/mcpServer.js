@@ -50,7 +50,7 @@ Inside each part's molecule, build with what Abundance already has, in this orde
 1. Built-in atoms (list_atom_types shows each one's inputs): shapes (Rectangle, Circle, RegularPolygon, Text), actions (Extrude, Move, Rotate), interactions (Difference, Intersection, Assembly, Fusion, Loft, ShrinkWrap), Equation and Constant for math, Tag for cut lists and Add-BOM-Tag for purchased parts.
 2. Library molecules: list_library_molecules lists the most-used shared molecules (patterns such as RotatePattern and Linear-Pattern, rounded rectangles, 2D offsets, fillets on selected edges, cross sections, measurements). Import them with add_github_molecule, then wire and set their inputs like any atom. search_molecules finds others.
 3. A Code atom only for what no combination of the above can do, such as a custom curve or a computed layout, kept small and focused on that one job.
-Most parts are built-ins end to end. A flat sheet part is a 2D outline (Rectangle, Circle, RegularPolygon, combined with Difference, Fusion, Intersection, or ShrinkWrap, and angled edges cut with a rotated Rectangle), then Extrude by the thickness, then Rotate and Move into place, then Tag it for the cut layout. When one outline truly needs code, the Code atom draws only that outline and returns it; Extrude, Rotate, Move, and tagging stay built-in atoms beside it.
+Most parts are built-ins end to end. A flat sheet part is a 2D outline (Rectangle, Circle, RegularPolygon, combined with Difference, Fusion, Intersection, or ShrinkWrap, and angled edges cut with a rotated Rectangle), then Extrude by the thickness, then Rotate and Move into place, then Tag it with its stock for the cut layout. When one outline truly needs code, the Code atom draws only that outline and returns it; Extrude, Rotate, Move, and tagging stay built-in atoms beside it.
 
 Organize the project as a hierarchy of molecules. This matters as much as getting the geometry right: the user reads and edits the project as a graph on screen, and a molecule with dozens of atoms is unreadable.
 - Keep each molecule to about 8 atoms or fewer, doing one job. Before adding more to a molecule, group the new work into a molecule of its own.
@@ -60,6 +60,12 @@ Organize the project as a hierarchy of molecules. This matters as much as gettin
 - In an existing project, learn its structure with list_atoms first and put new work in the molecule it belongs to.
 - To build a molecule, in one apply_edits: add_atom type Molecule with a name and a ref such as "leg"; add atoms into it with molecule "leg" (each Input atom inside becomes an input of the molecule, named after the Input); connect the finished shape to "leg/Output", input "number or geometry" (add_atom also returns the Output atom's ID); then wire the molecule onward in the parent and set its inputs.
 - When you finish, tell the user which molecules you made, what each one builds, and what's on the bill of materials, with any items still missing a source or price.
+
+Lay out parts cut from sheet stock for cutting:
+- In each cut part's molecule, a Tag atom tags the part with its stock, such as "19mm plywood". Cut Layout lays out every part it receives, so the tag is how hardware and other stock stay out.
+- At the top level, run the finished assembly through Extract Tag, then Cut Orient, then Cut Layout, in that order. Extract Tag: set_param the stock's tag (listed once the assembly reaches it) to true. Cut Orient lays each part flat on the face it picks as the underside; if a part lands on its edge, set that part's "Underside Face pt<n>" param on Cut Orient to another face index. Cut Layout: set Sheet Width and Sheet Height to the stock sheet and Part Padding to at least the cutting bit's diameter.
+- Make one chain per stock, since each needs its own sheets.
+- Cut Layout doesn't nest parts on its own. After wait_for_settle, call compute_cut_layout; it returns the sheet count and warns about parts too big for the sheet. Then render_image the Cut Layout from the top to check it. Run it again whenever the parts or sheet settings change.
 
 Fit parts together with Assembly instead of modeling the joints:
 - Assembly makes its parts disjoint: where parts overlap, a part higher in its inputs list cuts into the parts below it. So don't model slots, holes, notches, or pockets for parts that fit together. Build each part whole, position the parts overlapping as they sit in the finished design, and assemble them. Put the part that should stay whole above the part it cuts into; the input order decides which part gets cut.
@@ -137,6 +143,7 @@ function timeoutFor(name, args) {
     case "export_geometry":
     case "get_gcode":
     case "apply_edits":
+    case "compute_cut_layout":
       return 5 * 60_000;
     default:
       return undefined;

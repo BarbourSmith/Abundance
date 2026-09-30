@@ -341,9 +341,7 @@ describe("editing", () => {
       path: "Proj/Doubler/Output",
     });
     expect(nameOf(doubler.output.id)).toBe("Output");
-    expect(resolveAtom("Doubler").inputs.map((i) => i.name)).toContain(
-      "Size",
-    );
+    expect(resolveAtom("Doubler").inputs.map((i) => i.name)).toContain("Size");
     expect(await valueOf("Doubler")).toBe(20);
     expect(GlobalVariables.undoCommandStack).toHaveLength(1);
   });
@@ -533,6 +531,51 @@ describe("errors and settling", () => {
     expect(result.settled).toBe(true);
     expect(result.errors).toEqual([]);
     expect(progress.length).toBeGreaterThan(0);
+  });
+});
+
+describe("cut layout", () => {
+  it("only runs Cut Layout atoms that have geometry to lay out", async () => {
+    await buildWidthAndDouble();
+    await expectToolError(
+      runTool("compute_cut_layout", { atom: D }, EDIT),
+      ERROR_CODES.INVALID_PARAMS,
+      /not a Cut Layout atom/,
+    );
+    const { id } = await runTool("add_atom", { type: "CutLayout" }, EDIT);
+    await expectToolError(
+      runTool("compute_cut_layout", { atom: id }, EDIT),
+      ERROR_CODES.CONFLICT,
+      /no geometry to lay out/,
+    );
+    await expectToolError(
+      runTool("compute_cut_layout", { atom: id }, READ),
+      ERROR_CODES.PERMISSION_DENIED,
+    );
+  });
+
+  it("presses Compute Layout and waits for the nesting to finish", async () => {
+    const { id } = await runTool("add_atom", { type: "CutLayout" }, EDIT);
+    const layout = resolveAtom(id);
+    layout.inputsAreReady = () => true;
+    let pressed = 0;
+    layout.computeValueButton = () => {
+      pressed += 1;
+      layout.computing = true;
+      layout.setProcessing();
+      setTimeout(() => {
+        layout.placements = [[{ id: 0 }, { id: 1 }], [{ id: 2 }]];
+        layout.computing = false;
+        layout.setReady({ geometry: [] });
+      }, 600);
+    };
+    const result = await runTool("compute_cut_layout", { atom: id }, EDIT);
+    expect(pressed).toBe(1);
+    expect(result).toMatchObject({
+      status: "ready",
+      sheets: 2,
+      parts_placed: 3,
+    });
   });
 });
 

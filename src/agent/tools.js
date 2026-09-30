@@ -312,6 +312,25 @@ export const TOOLS = [
     },
   },
   {
+    name: "compute_cut_layout",
+    permission: "edit",
+    description:
+      'Run a Cut Layout atom\'s nesting, like pressing its Compute Layout button, and wait for it to finish (up to about 2 minutes). Returns the number of sheets and parts placed, plus any warning such as parts too big for the sheet. Use action "reset" to put every part back at the default position instead. Run it after the parts or the sheet settings change, once wait_for_settle reports the project settled.',
+    inputSchema: {
+      type: "object",
+      properties: {
+        atom: ATOM_REF,
+        action: {
+          type: "string",
+          enum: ["compute", "reset"],
+          description:
+            "compute (default) nests the parts; reset returns them to default placements.",
+        },
+      },
+      required: ["atom"],
+    },
+  },
+  {
     name: "add_github_molecule",
     permission: "edit",
     description:

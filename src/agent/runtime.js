@@ -1283,6 +1283,76 @@ const handlers = {
     };
   },
 
+  async compute_cut_layout({ atom: ref, action = "compute" }, ctx) {
+    const atom = resolveAtom(ref, { allowEmpty: false });
+    assertEditable(atom);
+    if (typeof atom.computeValueButton !== "function") {
+      throw new ToolError(
+        ERROR_CODES.INVALID_PARAMS,
+        `${atomPath(atom)} is not a Cut Layout atom.`,
+      );
+    }
+    if (atom.computing || atom.status === Status.PROCESSING) {
+      throw new ToolError(
+        ERROR_CODES.CONFLICT,
+        `${atomPath(atom)} is already computing. Call wait_for_settle, then try again.`,
+      );
+    }
+    if (!atom.inputsAreReady()) {
+      throw new ToolError(
+        ERROR_CODES.CONFLICT,
+        `${atomPath(atom)} has no geometry to lay out yet. Connect its geometry input (usually from a Cut Orient atom) and call wait_for_settle first.`,
+      );
+    }
+    // The panel's buttons take the panel's setter; forward to it so an open
+    // properties panel keeps tracking the layout, as when the user clicks.
+    const existing = atom.setInputChanged;
+    const forward = (value) => {
+      if (typeof existing === "function") existing(value);
+    };
+    if (action === "reset") {
+      atom.placements = [];
+      atom.placementsFor = "";
+      atom.createDefaultPlacements();
+    } else {
+      atom.computeValueButton(forward);
+    }
+
+    const started = Date.now();
+    const TIMEOUT_MS = 4 * 60_000;
+    let lastProgressAt = 0;
+    while (atom.computing || atom.status === Status.PROCESSING) {
+      if (Date.now() - started > TIMEOUT_MS) {
+        throw new ToolError(
+          ERROR_CODES.TIMEOUT,
+          `${atomPath(atom)} was still laying out parts after ${TIMEOUT_MS / 60_000} minutes.`,
+        );
+      }
+      if (Date.now() - lastProgressAt > 1000) {
+        lastProgressAt = Date.now();
+        ctx.progress?.({
+          progress: Math.round((atom.progress || 0) * 100),
+          total: 100,
+          message: "Laying out parts",
+        });
+      }
+      await new Promise((r) => setTimeout(r, 250));
+    }
+    refreshPanel(atom);
+
+    const sheets = atom.getPlacements() || [];
+    const result = {
+      atom: atomRef(atom),
+      status: atom.status,
+      sheets: sheets.length,
+      parts_placed: sheets.flat().length,
+    };
+    const alert = alertText(atom);
+    if (alert)
+      result[atom.status === Status.ERROR ? "error" : "warning"] = alert;
+    return result;
+  },
+
   async reset_atom_names({ molecule }) {
     const root = molecule ? resolveMolecule(molecule) : topLevel();
     assertEditableContainer(root);
@@ -1848,6 +1918,8 @@ function describeEdit(name, args) {
       return `import ${args.repo}`;
     case "reset_atom_names":
       return "restore standard atom names";
+    case "compute_cut_layout":
+      return `${args.action === "reset" ? "reset" : "compute"} layout of ${nameFor(args.atom)}`;
     case "connect":
       return `connect ${nameFor(args.from)} to ${nameFor(args.to)}`;
     case "disconnect":
