@@ -7,6 +7,7 @@ import BackgroundModel from "./BackgroundModel.jsx";
 import GlobalVariables from "../../js/globalvariables.js";
 import { useRendering, useAuth } from "../../contexts/index.js";
 import ScreenshotCaptureComponent from "./ScreenshotCaptureComponent.jsx";
+import CameraClipping from "./CameraClipping.jsx";
 
 // We change the default orientation - threejs tends to use Y are the height,
 // while replicad uses Z. This is mostly a representation default.
@@ -91,6 +92,7 @@ export default function ext({ children, cameraZoom, ...otherProps }) {
           zoom={cameraZoom}
           position={[0, -5000, 3000]}
         />
+        <CameraClipping />
         {gridParam ? (
           <Grid
             name="grid"

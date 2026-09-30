@@ -51,7 +51,9 @@ export function useScreenshotCapture(onCaptureCallback) {
       const perspectiveCamera = new THREE.PerspectiveCamera(
         camera.fov || 75,
         width / height,
-        camera.near,
+        // The viewport's orthographic camera may use a negative near plane,
+        // which a perspective camera can't.
+        Math.max(camera.near, 0.1),
         camera.far,
       );
       perspectiveCamera.position.copy(camera.position);
