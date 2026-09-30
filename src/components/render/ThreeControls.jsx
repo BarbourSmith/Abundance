@@ -1,8 +1,113 @@
 import React from "react";
 import { OrbitControls, GizmoHelper, GizmoViewport } from "@react-three/drei";
 import * as THREE from "three";
+import { useThree } from "@react-three/fiber";
 import { useRendering } from "../../contexts";
 import { useRef, useEffect, useState } from "react";
+
+// How close (in screen pixels) a double-click must land to the origin marker
+// or to an edge/point to pick it. The origin sphere is far too small to hit
+// directly at millimeter scale, so it is matched in screen space instead.
+const PIVOT_PICK_PX = 10;
+const PIVOT_ANIMATION_MS = 250;
+
+function isShown(object) {
+  for (let o = object; o; o = o.parent) {
+    if (!o.visible) return false;
+  }
+  return true;
+}
+
+// Helpers drawn in the scene that should never become the pivot.
+function isPivotCandidate(object) {
+  if (object.name === "grid" || object.name === "workplane") return false;
+  if (object.type === "AxesHelper") return false;
+  return object.isMesh || object.isLine || object.isPoints;
+}
+
+/**
+ * Double-clicking the model moves the orbit pivot to the clicked point, and
+ * double-clicking the origin marker moves it back to the origin. OrbitControls
+ * always looks at its pivot, so the camera slides by the same offset and the
+ * picked point glides to the center of the view without changing the viewing
+ * angle or zoom.
+ */
+function useDoubleClickPivot(orbitRef) {
+  const { gl, camera, scene, invalidate } = useThree();
+
+  useEffect(() => {
+    const element = gl.domElement;
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+    const origin = new THREE.Vector3();
+    const originOnScreen = new THREE.Vector3();
+    let animationFrame = null;
+
+    const stopAnimation = () => {
+      if (animationFrame !== null) cancelAnimationFrame(animationFrame);
+      animationFrame = null;
+    };
+
+    const pickPoint = (event) => {
+      const rect = element.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+
+      originOnScreen.copy(origin).project(camera);
+      const originX = (originOnScreen.x * 0.5 + 0.5) * rect.width;
+      const originY = (1 - (originOnScreen.y * 0.5 + 0.5)) * rect.height;
+      if (Math.hypot(originX - x, originY - y) <= PIVOT_PICK_PX) {
+        return origin.clone();
+      }
+
+      pointer.set((x / rect.width) * 2 - 1, -(y / rect.height) * 2 + 1);
+      raycaster.setFromCamera(pointer, camera);
+      // The orthographic camera maps one screen pixel to 1/zoom world units.
+      const tolerance = PIVOT_PICK_PX / (camera.zoom || 1);
+      raycaster.params.Line.threshold = tolerance;
+      raycaster.params.Points.threshold = tolerance;
+
+      const hit = raycaster
+        .intersectObjects(scene.children, true)
+        .find((i) => isPivotCandidate(i.object) && isShown(i.object));
+      return hit ? hit.point.clone() : null;
+    };
+
+    const onDoubleClick = (event) => {
+      const controls = orbitRef.current;
+      if (!controls) return;
+      const point = pickPoint(event);
+      if (!point) return;
+
+      stopAnimation();
+      const startTarget = controls.target.clone();
+      const startPosition = camera.position.clone();
+      const endPosition = startPosition.clone().add(point).sub(startTarget);
+      const startTime = performance.now();
+
+      const step = (now) => {
+        const t = Math.min((now - startTime) / PIVOT_ANIMATION_MS, 1);
+        const eased = 1 - Math.pow(1 - t, 3);
+        controls.target.lerpVectors(startTarget, point, eased);
+        camera.position.lerpVectors(startPosition, endPosition, eased);
+        controls.update();
+        invalidate();
+        animationFrame = t < 1 ? requestAnimationFrame(step) : null;
+      };
+      animationFrame = requestAnimationFrame(step);
+    };
+
+    // Grabbing the view mid-animation hands control straight back to the user.
+    const controls = orbitRef.current;
+    controls?.addEventListener("start", stopAnimation);
+    element.addEventListener("dblclick", onDoubleClick);
+    return () => {
+      stopAnimation();
+      controls?.removeEventListener("start", stopAnimation);
+      element.removeEventListener("dblclick", onDoubleClick);
+    };
+  }, [gl, camera, scene, invalidate, orbitRef]);
+}
 
 const Controls = React.memo(
   React.forwardRef(function Controls(
@@ -37,6 +142,8 @@ const Controls = React.memo(
 
     const planeRef = useRef();
     const axesRef = useRef();
+    const orbitRef = useRef();
+    useDoubleClickPivot(orbitRef);
 
     useEffect(() => {
       if (planeRef.current && axesRef.current) {
@@ -62,6 +169,7 @@ const Controls = React.memo(
     return (
       <>
         <OrbitControls
+          ref={orbitRef}
           makeDefault
           panSpeed={1.5}
           zoomSpeed={0.5}
@@ -76,7 +184,7 @@ const Controls = React.memo(
 
         {/* Add a visible ground plane under the origin */}
         {plane && extraPlane && geometryType == "2D" ? (
-          <mesh ref={planeRef}>
+          <mesh ref={planeRef} name="workplane">
             <planeGeometry args={[100, 100]} />
             <meshStandardMaterial
               color="#38341b"
