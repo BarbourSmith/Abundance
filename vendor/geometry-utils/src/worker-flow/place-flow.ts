@@ -213,7 +213,10 @@ export function placePaths(buffer: ArrayBuffer, config: WorkerConfig): ArrayBuff
         }
 
         if (minWidth) {
-            fitness += minWidth / placeContent.area;
+            // The bin area is a signed area, negative for a clockwise bin. Dividing by
+            // it unsigned made wider layouts score better, so the search spread parts
+            // out across the whole sheet.
+            fitness += minWidth / Math.abs(placeContent.area);
         }
 
         for (i = 0; i < placed.length; ++i) {
