@@ -23,7 +23,7 @@ import {
 } from "../js/meshPNGGenerator.js";
 import AttachmentPoint from "../prototypes/attachmentpoint.js";
 import { ObservableEntity, Status } from "../prototypes/observableEntity.js";
-import { extractBomList } from "../worker/util";
+import { extractBomList, flattenAssembly } from "../worker/util";
 import { addOrDeletePorts } from "../js/alwaysOneFreeInput.js";
 import { isTranspilerReady } from "../molecules/code.js";
 import { fetchGitHubFileContent } from "../js/githubFileUtils.js";
@@ -677,6 +677,113 @@ async function summarizeGeometry(atom) {
   return summary;
 }
 
+// ---------------------------------------------------------------------------
+// Geometry diagnostics (run in the mesh worker pool, only when asked)
+// ---------------------------------------------------------------------------
+
+/** geometryProvider.EMPTY_SHAPE_SENTINEL: a part cut away to nothing. */
+const EMPTY_SHAPE = "emptyshape";
+
+/** Parts in the order the mesh worker numbers them. */
+function partsOf(value) {
+  return flattenAssembly(value).filter((leaf) => leaf.geometry !== EMPTY_SHAPE);
+}
+
+function partOf(atom, value, index) {
+  const parts = partsOf(value);
+  if (!parts[index]) {
+    throw new ToolError(
+      ERROR_CODES.NOT_FOUND,
+      `${atomPath(atom)} has ${parts.length} part(s), numbered from 0; there is no part ${index}.`,
+    );
+  }
+  return parts[index];
+}
+
+function minFeatureFor(value) {
+  if (value !== undefined) {
+    if (!(value > 0)) {
+      throw new ToolError(
+        ERROR_CODES.INVALID_PARAMS,
+        '"min_feature" must be greater than 0.',
+      );
+    }
+    return value;
+  }
+  return topLevel().unitsKey === "Inches" ? 0.01 : 0.25;
+}
+
+async function meshWorkerCall(method, args, timeoutMs) {
+  if (!GlobalVariables.pool) {
+    throw new ToolError(
+      ERROR_CODES.CONFLICT,
+      "The page's mesh workers aren't running yet.",
+    );
+  }
+  const worker = await GlobalVariables.pool.proxy();
+  return withTimeout(worker[method](...args), timeoutMs);
+}
+
+function inspectParts(atom, value, opts) {
+  return meshWorkerCall(
+    "inspectParts",
+    [value, atom.getContext(), opts],
+    opts.budgetMs + 60000,
+  );
+}
+
+/** The parts of an inspectParts report that have problems, for the agent. */
+function problemParts(report) {
+  return report.parts
+    .filter((p) => p.problems.length)
+    .map((p) => ({
+      part: p.index,
+      ...(p.tags?.length ? { tags: p.tags } : {}),
+      problems: p.problems,
+      ...(p.bounding_box ? { bounding_box: p.bounding_box } : {}),
+      ...(p.unmeshed_faces ? { unmeshed_faces: p.unmeshed_faces } : {}),
+      ...(p.sliver_faces ? { sliver_faces: p.sliver_faces } : {}),
+    }));
+}
+
+function describePart(p) {
+  const { index, ...rest } = p;
+  return { index, ...rest };
+}
+
+/**
+ * geometry_warnings for get_atom: a short check, so get_atom stays quick on
+ * big assemblies. check_geometry runs the full one.
+ */
+async function geometryWarnings(atom, value, part) {
+  const minFeature = minFeatureFor(undefined);
+  if (part !== undefined) {
+    partOf(atom, value, part);
+    const report = await inspectParts(atom, value, {
+      part,
+      minFeature,
+      budgetMs: 20000,
+    });
+    return { part: describePart(report.parts[0]) };
+  }
+  const report = await inspectParts(atom, value, {
+    minFeature,
+    budgetMs: 3000,
+  });
+  const result = {};
+  const warnings = problemParts(report);
+  if (warnings.length) {
+    result.geometry_warnings = warnings.slice(0, 10);
+    if (warnings.length > 10) {
+      result.geometry_warnings_more = warnings.length - 10;
+    }
+  }
+  if (report.checked < report.part_count) {
+    result.geometry_check_note = `Checked ${report.checked} of ${report.part_count} parts for broken geometry; call check_geometry for the rest.`;
+  }
+  return result;
+}
+
 function withTimeout(promise, ms) {
   let timer;
   return Promise.race([
@@ -881,8 +988,9 @@ const handlers = {
     };
   },
 
-  async get_atom({ atom: ref }) {
+  async get_atom({ atom: ref, part }) {
     const atom = resolveAtom(ref, { allowEmpty: false });
+    if (part !== undefined) requireGeometry(atom);
     const detail = {
       id: String(atom.uniqueID),
       name: atom.name,
@@ -923,6 +1031,13 @@ const handlers = {
         detail.output = await summarizeGeometry(atom);
         if (atom.atomType === "Code" && detail.output.part_count > 1) {
           detail.warning = `This Code atom builds ${detail.output.part_count} separate parts. Give each physical part a molecule of its own, built from built-in atoms where they can do the job, and keep code to the one part it can't.`;
+        }
+        try {
+          Object.assign(detail, await geometryWarnings(atom, atom.value, part));
+        } catch (err) {
+          // A bad part index should fail; the routine check shouldn't.
+          if (part !== undefined) throw err;
+          detail.geometry_check_note = `Couldn't check the geometry: ${err?.message || err}`;
         }
       } else {
         detail.output = { value: summarizeValue(atom.value) };
@@ -1025,6 +1140,128 @@ const handlers = {
 
   async get_errors() {
     return collectErrors();
+  },
+
+  async check_geometry({ atom: ref, part, min_feature }) {
+    const atom = ref
+      ? resolveAtom(ref)
+      : GlobalVariables.currentMolecule || topLevel();
+    const value = requireGeometry(atom);
+    const minFeature = minFeatureFor(min_feature);
+    if (part !== undefined) partOf(atom, value, part);
+    const report = await inspectParts(atom, value, {
+      part,
+      minFeature,
+      budgetMs: 120000,
+    });
+    const result = {
+      atom: atomRef(atom),
+      units: topLevel().unitsKey || null,
+      min_feature: minFeature,
+    };
+    if (part !== undefined) {
+      result.part = describePart(report.parts[0]);
+      return result;
+    }
+    const problems = problemParts(report);
+    result.part_count = report.part_count;
+    result.checked = report.checked;
+    if (report.checked < report.part_count) {
+      result.note = `Ran out of time after ${report.checked} of ${report.part_count} parts. Check a sub-molecule or Assembly on its own for the rest.`;
+    }
+    result.parts_ok = report.checked - problems.length;
+    result.parts_with_problems = problems;
+    return result;
+  },
+
+  async check_interference({ atom: ref, min_feature }) {
+    const atom = ref
+      ? resolveAtom(ref)
+      : GlobalVariables.currentMolecule || topLevel();
+    const minFeature = minFeatureFor(min_feature);
+    const isAssembly = atom.atomType === "Assembly";
+    let groups;
+    let makeDisjoint = false;
+    if (isAssembly) {
+      makeDisjoint = !!findInput(atom, "makeDisjoint").getValue();
+      groups = (atom.inputs || [])
+        .filter((io) => io.valueType === "geometry" && io.connectors.length)
+        .map((io) => {
+          const source = io.connectors[0].attachmentPoint1?.parentMolecule;
+          return {
+            label: source ? `${io.name} (${atomPath(source)})` : io.name,
+            value: io.getValue(),
+          };
+        })
+        .filter((g) => isGeometryValue(g.value));
+      if (groups.length < 2) {
+        throw new ToolError(
+          ERROR_CODES.CONFLICT,
+          `${atomPath(atom)} has fewer than two computed geometry inputs to compare.`,
+        );
+      }
+    } else {
+      groups = [{ label: atomPath(atom), value: requireGeometry(atom) }];
+    }
+
+    const report = await meshWorkerCall(
+      "checkInterference",
+      [
+        groups,
+        atom.getContext(),
+        { minVolume: minFeature ** 3 * 1e-3, budgetMs: 120000 },
+      ],
+      180000,
+    );
+
+    const overlaps = report.overlaps.map((o) => {
+      if (o.error) return o;
+      const sliver = o.thickness < minFeature;
+      const entry = { kind: sliver ? "sliver" : "overlap", ...o };
+      if (isAssembly) {
+        entry.result = makeDisjoint
+          ? "The Assembly cuts this overlap out of part a."
+          : "Kept as is: makeDisjoint is off, so nothing is cut.";
+      }
+      if (sliver) {
+        entry.note = `Thinner than ${minFeature}: almost certainly two surfaces meant to touch. ${isAssembly && makeDisjoint ? "The cut leaves a hairline groove in part a, which can render see-through and can't be machined. " : ""}Derive both surfaces from the same equation so they meet exactly.`;
+      }
+      return entry;
+    });
+    const rank = (o) => (o.error ? 0 : o.kind === "sliver" ? 1 : 2);
+    overlaps.sort(
+      (x, y) => rank(x) - rank(y) || (y.volume || 0) - (x.volume || 0),
+    );
+
+    const MAX_OVERLAPS = 50;
+    return {
+      atom: atomRef(atom),
+      compared: isAssembly
+        ? "the Assembly's inputs with each other, before it cuts them"
+        : "the parts of this atom's output with each other",
+      ...(isAssembly
+        ? {
+            cut_order: makeDisjoint
+              ? "Each ShapeN input is cut by every input after it, so part a (the earlier input) is the one cut."
+              : "makeDisjoint is off: overlaps are kept, nothing is cut.",
+          }
+        : {}),
+      units: topLevel().unitsKey || null,
+      min_feature: minFeature,
+      parts: report.parts,
+      ...(report.skipped_non_solid
+        ? { skipped_non_solid: report.skipped_non_solid }
+        : {}),
+      pairs_intersected: report.pairs_intersected,
+      ...(report.incomplete
+        ? {
+            note: "Ran out of time before comparing every pair. Check a smaller Assembly for the rest.",
+          }
+        : {}),
+      slivers: overlaps.filter((o) => o.kind === "sliver").length,
+      overlap_count: overlaps.length,
+      overlaps: overlaps.slice(0, MAX_OVERLAPS),
+    };
   },
 
   async wait_for_settle({ timeout_ms = 120000 }, ctx) {
@@ -1167,11 +1404,12 @@ const handlers = {
     return result;
   },
 
-  async render_image({ atom: ref, view = "iso", size = 800 }) {
+  async render_image({ atom: ref, part, view = "iso", size = 800 }) {
     const atom = ref
       ? resolveAtom(ref)
       : GlobalVariables.currentMolecule || topLevel();
-    const value = requireGeometry(atom);
+    let value = requireGeometry(atom);
+    if (part !== undefined) value = partOf(atom, value, part);
     const context = atom.getContext();
     const meshTask = GlobalVariables.displayScheduler
       ? GlobalVariables.displayScheduler.run(
@@ -1204,6 +1442,7 @@ const handlers = {
       base64: extractBase64FromDataURL(dataUrl),
       mimeType: "image/png",
       atom: atomRef(atom),
+      ...(part !== undefined ? { part } : {}),
       view,
       size,
     };

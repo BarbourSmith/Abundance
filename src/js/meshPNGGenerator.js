@@ -14,9 +14,10 @@ import {
  * @param {boolean} [options.fit] - Frame the part tightly using its bounding
  *   sphere, so any shape fills the image without clipping. Without it the
  *   original thumbnail framing is used.
- * @param {"iso"|"top"|"front"|"right"} [options.view] - Camera direction when
- *   `fit` is set. "iso" is a three-quarter view from the front right; the
- *   others look straight down an axis with Z up, matching the 3D view.
+ * @param {"iso"|"iso_below"|"top"|"bottom"|"front"|"back"|"left"|"right"} [options.view]
+ *   Camera direction when `fit` is set. "iso" is a three-quarter view from the
+ *   front right and above, "iso_below" the same from below; the others look
+ *   straight down an axis with Z up, matching the 3D view.
  * @returns {Promise<string>} Base64-encoded PNG data URL
  */
 export async function generateMeshPNG(
@@ -100,7 +101,9 @@ export async function generateMeshPNG(
     if (options.fit) {
       // Light from above and off to one side, not from the camera, so faces
       // at different angles get different shading and edges read clearly.
-      const lightOffset = new THREE.Vector3(0.4, -0.8, 1.2)
+      // Views from below get the light from below, so undersides are lit.
+      const below = camera.position.z < center.z - 1e-9;
+      const lightOffset = new THREE.Vector3(0.4, -0.8, below ? -1.2 : 1.2)
         .normalize()
         .multiplyScalar(camera.position.distanceTo(center));
       directionalLight.position.copy(center).add(lightOffset);
@@ -188,8 +191,14 @@ function thumbnailCamera(boundingBox, center, width, height) {
 const VIEW_DIRECTIONS = {
   // Three-quarter view from the front right, above, so a box shows three faces.
   iso: { dir: [1, -1, 0.8], up: [0, 0, 1] },
+  // The same from below, to see undersides.
+  iso_below: { dir: [1, -1, -0.8], up: [0, 0, 1] },
   top: { dir: [0, 0, 1], up: [0, 1, 0] },
+  // Looking up from underneath, with +Y up in the image like the top view.
+  bottom: { dir: [0, 0, -1], up: [0, 1, 0] },
   front: { dir: [0, -1, 0], up: [0, 0, 1] },
+  back: { dir: [0, 1, 0], up: [0, 0, 1] },
+  left: { dir: [-1, 0, 0], up: [0, 0, 1] },
   right: { dir: [1, 0, 0], up: [0, 0, 1] },
 };
 

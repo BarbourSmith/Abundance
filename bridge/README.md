@@ -47,7 +47,7 @@ npm publish
 | Permission | Tools |
 |---|---|
 | Always | `bridge_status`, `take_over_bridge`, `list_sessions`, `use_session` |
-| Read | `get_project`, `list_atoms`, `get_atom`, `list_atom_types`, `list_library_molecules`, `search_molecules`, `get_errors`, `wait_for_settle`, `get_state_report`, `get_worker_logs`, `get_bom`, `get_readme`, `render_image`, `export_geometry`, `get_gcode`, `get_undo_history` |
+| Read | `get_project`, `list_atoms`, `get_atom`, `list_atom_types`, `list_library_molecules`, `search_molecules`, `get_errors`, `wait_for_settle`, `get_state_report`, `get_worker_logs`, `get_bom`, `get_readme`, `check_geometry`, `check_interference`, `render_image`, `export_geometry`, `get_gcode`, `get_undo_history` |
 | View | `select_atom`, `open_molecule` |
 | Edit | `set_param`, `set_code`, `add_atom`, `add_github_molecule`, `connect`, `disconnect`, `delete_atoms`, `apply_edits`, `undo`, `save_project` |
 

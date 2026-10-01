@@ -3,8 +3,15 @@ import type { ShapeMesh } from "replicad";
 import * as replicad from "replicad";
 import { ReplicadObject, RequestContext } from "./geometryProvider";
 import { text } from "./shapes";
-import type { AbundanceObject } from "./util";
+import type { AbundanceLeaf, AbundanceObject } from "./util";
 import * as util from "./util";
+import {
+  Bounds,
+  boundsOverlap,
+  diagnoseShape,
+  measureOverlap,
+  shapeBounds,
+} from "./geometryDiagnostics";
 
 type DisplayMesh = {
   cameraZoom: number;
@@ -505,6 +512,141 @@ async function generatePerEdgeMeshes(
   return result;
 }
 
+/** The parts of a value in display order, the order agent tools number them. */
+function partsOf(value: AbundanceObject): AbundanceLeaf[] {
+  if (!util.isAbundanceObject(value)) return [];
+  return util.flattenAssembly(value).filter((part) => {
+    return part.geometry !== util.geometryProvider?.EMPTY_SHAPE_SENTINEL;
+  });
+}
+
+/**
+ * Agent diagnostics: check each part (or one part) for invalid shapes, faces
+ * that fail to mesh, and sliver faces. Stops after budgetMs and reports how
+ * many parts it checked.
+ */
+async function inspectParts(
+  value: AbundanceObject,
+  context: RequestContext,
+  opts: { part?: number; minFeature: number; budgetMs: number },
+) {
+  await started;
+  const parts = partsOf(value);
+  if (opts.part !== undefined && !parts[opts.part]) {
+    return { part_count: parts.length, checked: 0, parts: [] };
+  }
+  const indices =
+    opts.part !== undefined ? [opts.part] : parts.map((_, i) => i);
+  const start = performance.now();
+  const results = [];
+  for (const index of indices) {
+    if (performance.now() - start > opts.budgetMs) break;
+    const leaf = parts[index];
+    try {
+      const shape = await getShapeCached(leaf.geometry, context);
+      results.push({
+        index,
+        tags: leaf.tags,
+        ...diagnoseShape(shape, opts.minFeature),
+      });
+    } catch (e) {
+      results.push({
+        index,
+        tags: leaf.tags,
+        kind: "other",
+        problems: [`Could not check this part: ${(e as Error).message || e}`],
+      });
+    }
+  }
+  return { part_count: parts.length, checked: results.length, parts: results };
+}
+
+/**
+ * Agent diagnostics: find parts that overlap. With several groups (an
+ * Assembly's inputs) only parts from different groups are compared; with one
+ * group, every pair of its parts is.
+ */
+async function checkInterference(
+  groups: { label: string; value: AbundanceObject }[],
+  context: RequestContext,
+  opts: { minVolume: number; budgetMs: number },
+) {
+  await started;
+  type Entry = {
+    group: number;
+    part: number;
+    leaf: AbundanceLeaf;
+    shape: replicad.Shape3D;
+    bounds: Bounds;
+  };
+  const entries: Entry[] = [];
+  let skippedNonSolid = 0;
+  for (const [group, { value }] of groups.entries()) {
+    const parts = partsOf(value);
+    for (const [part, leaf] of parts.entries()) {
+      const shape = await getShapeCached(leaf.geometry, context);
+      if (
+        !(shape instanceof replicad.Shape) ||
+        shape instanceof replicad.Vertex ||
+        shape instanceof replicad.Wire
+      ) {
+        skippedNonSolid++;
+        continue;
+      }
+      const bounds = shapeBounds(shape as replicad.Shape3D);
+      if (!bounds) continue;
+      entries.push({
+        group,
+        part,
+        leaf,
+        shape: shape as replicad.Shape3D,
+        bounds,
+      });
+    }
+  }
+
+  const describe = (e: Entry) => ({
+    input: groups[e.group].label,
+    part: e.part,
+    ...(e.leaf.tags?.length ? { tags: e.leaf.tags } : {}),
+  });
+  const start = performance.now();
+  const overlaps = [];
+  let compared = 0;
+  let incomplete = false;
+  outer: for (let i = 0; i < entries.length; i++) {
+    for (let j = i + 1; j < entries.length; j++) {
+      const a = entries[i];
+      const b = entries[j];
+      if (groups.length > 1 && a.group === b.group) continue;
+      if (!boundsOverlap(a.bounds, b.bounds)) continue;
+      if (performance.now() - start > opts.budgetMs) {
+        incomplete = true;
+        break outer;
+      }
+      compared++;
+      try {
+        const overlap = measureOverlap(a.shape, b.shape, opts.minVolume);
+        if (overlap)
+          overlaps.push({ a: describe(a), b: describe(b), ...overlap });
+      } catch (e) {
+        overlaps.push({
+          a: describe(a),
+          b: describe(b),
+          error: `Intersection failed: ${(e as Error).message || e}`,
+        });
+      }
+    }
+  }
+  return {
+    parts: entries.length,
+    ...(skippedNonSolid ? { skipped_non_solid: skippedNonSolid } : {}),
+    pairs_intersected: compared,
+    incomplete,
+    overlaps,
+  };
+}
+
 workerpool.worker({
   generateDisplayMesh: (id: AbundanceObject, context: RequestContext) =>
     withShapeCache(() => generateDisplayMesh(id, context)),
@@ -512,4 +654,14 @@ workerpool.worker({
     withShapeCache(() => generatePerFaceMeshes(id, context)),
   generatePerEdgeMeshes: (id: AbundanceObject, context: RequestContext) =>
     withShapeCache(() => generatePerEdgeMeshes(id, context)),
+  inspectParts: (
+    value: AbundanceObject,
+    context: RequestContext,
+    opts: { part?: number; minFeature: number; budgetMs: number },
+  ) => withShapeCache(() => inspectParts(value, context, opts)),
+  checkInterference: (
+    groups: { label: string; value: AbundanceObject }[],
+    context: RequestContext,
+    opts: { minVolume: number; budgetMs: number },
+  ) => withShapeCache(() => checkInterference(groups, context, opts)),
 });
