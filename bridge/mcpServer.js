@@ -30,7 +30,8 @@ Understand before changing:
 - list_atoms to see the graph and wiring; use depth 2 or more to see nested molecules.
 - get_atom for one atom's params, inputs, output summary (bounding box, part count, tags), and code.
 - get_errors lists atoms in an error state; get_worker_logs shows CAD-worker failures.
-- render_image shows any atom's output from iso, top, front, or right.
+- render_image shows any atom's output, or one part of it, from iso, iso_below, top, bottom, front, back, left, or right. Look at undersides (bottom, iso_below) too: a broken face often shows from one side only.
+- Broken geometry usually computes without an error. get_atom's geometry_warnings and check_geometry report invalid shapes, faces that fail to mesh (the part looks see-through), and sliver faces; check_interference on an Assembly finds the parts whose overlap caused them.
 - Use the project's units and design at the real size of the part. Projects are often in millimeters with parts meters long; test at that scale.
 
 Every physical part gets its own molecule. This is the rule users most often see broken:
@@ -71,8 +72,11 @@ Lay out the wooden parts for cutting:
 - Cut Layout doesn't nest parts on its own. After wait_for_settle, call compute_cut_layout; it returns the sheet count and warns about parts too big for the sheet. Then render_image the Cut Layout from the top to check it. Run it again whenever the parts or sheet settings change.
 
 Fit parts together with Assembly instead of modeling the joints:
-- Assembly makes its parts disjoint: where parts overlap, a part higher in its inputs list cuts into the parts below it. So don't model slots, holes, notches, or pockets for parts that fit together. Build each part whole, position the parts overlapping as they sit in the finished design, and assemble them. Put the part that should stay whole above the part it cuts into; the input order decides which part gets cut.
-- For clearance around a joint, add keepout geometry: a slightly larger shape around the cutting part, colored "Keep Out" with a Color atom, placed above the part it should cut in the Assembly. Keepout geometry cuts like any part but is left out of fusions, cut layouts, and gcode, and Extract Tag's "Not Keep Out" option removes it.
+- Assembly makes its parts disjoint: where parts overlap, each ShapeN input is cut by every input after it (Shape 1 is cut by Shape2, Shape3, and so on; the last input is never cut). So don't model slots, holes, notches, or pockets for parts that fit together. Build each part whole, position the parts overlapping as they sit in the finished design, and assemble them. Connect the part that should stay whole to a later input than the part it cuts into; the input order decides which part gets cut.
+- For clearance around a joint, add keepout geometry: a slightly larger shape around the cutting part, colored "Keep Out" with a Color atom, connected to a later input than the part it should cut. Keepout geometry cuts like any part but is left out of fusions, cut layouts, and gcode, and Extract Tag's "Not Keep Out" option removes it.
+- Parts meant to touch must meet exactly, not almost. A surface that ends up a hundredth of a millimeter inside its neighbor makes the Assembly cut a hairline groove that can't be machined and can make the part render see-through. Derive both surfaces from the same equation or the same placed shape instead of computing each separately, and use the same rotation for parts that share a slope.
+- ShrinkWrap wraps the outside of its shapes. Small helper shapes used as corner points (a 1 mm square at the corner of an outline) push the edge out to their far corners, not their centers. Place helpers so their outer corner sits on the intended point, or use points from an equation.
+- After assembling, run check_interference on each Assembly whose parts fit together, and check_geometry on the top level. Fix every sliver it reports before finishing.
 - Tag parts before they go into an Assembly when you may need them separately later (to lay out, export, or reuse); Extract Tag pulls tagged parts back out of the assembly.
 
 Keep the project description up to date:
@@ -149,6 +153,8 @@ function timeoutFor(name, args) {
     case "save_project":
       return 10 * 60_000;
     case "render_image":
+    case "check_geometry":
+    case "check_interference":
     case "export_geometry":
     case "get_gcode":
     case "apply_edits":
