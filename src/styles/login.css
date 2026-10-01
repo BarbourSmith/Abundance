@@ -1330,7 +1330,7 @@
   pointer-events: auto;
   user-select: text;
   white-space: normal;
-  z-index: 5;
+  z-index: 10;
 }
 
 /* Position panel on the left when it would overflow on the right */

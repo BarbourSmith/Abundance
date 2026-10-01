@@ -455,7 +455,6 @@ export function ProjectProvider({ children, cad, loadProject }) {
       searchField: searchField,
       repoName: result.data.name,
       forks: result.data.forks_count,
-      topMoleculeID: GlobalVariables.topLevelMolecule.uniqueID,
       topics: topics,
       html_url: result.data.html_url,
       privateRepo: result.data.private,
@@ -720,7 +719,6 @@ export function ProjectProvider({ children, cad, loadProject }) {
         searchField: searchField,
         repoName: forkData.name,
         forks: forkData.forks_count,
-        topMoleculeID: GlobalVariables.topLevelMolecule.uniqueID,
         topics: forkData.topics || [],
         readme:
           "https://raw.githubusercontent.com/" +
@@ -1064,7 +1062,6 @@ export function ProjectProvider({ children, cad, loadProject }) {
         ).toLowerCase(),
         repoName: newRepo.data.name,
         forks: 0,
-        topMoleculeID: GlobalVariables.topLevelMolecule?.uniqueID || "",
         topics: currentRepo.topics || [],
         html_url: newRepo.data.html_url,
         parentRepo: null,
@@ -1621,6 +1618,14 @@ export function ProjectProvider({ children, cad, loadProject }) {
           GlobalVariables.topLevelMolecule,
         );
 
+        // Extract Input atoms from the molecule
+        const projectInputs = GlobalVariables.topLevelMolecule.nodesOnTheScreen
+          .filter((atom) => atom.atomType === "Input")
+          .map((inputAtom) => ({
+            name: inputAtom.name || "Unnamed",
+            type: inputAtom.type || "number",
+          }));
+
         /*aws dynamo update-item lambda, also updates dateModified on aws side*/
         const apiUpdateUrl =
           "https://hg5gsgv9te.execute-api.us-east-2.amazonaws.com/abundance-stage/update-item";
@@ -1643,6 +1648,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
           githubMoleculesUsed: githubMoleculeUsedList,
           description: GlobalVariables.currentAWSnode.description,
           topics: GlobalVariables.currentAWSnode.topics,
+          projectInputs: projectInputs,
         };
 
         // Only update pngURL if user hasn't manually set a thumbnail

@@ -6,6 +6,48 @@ import { useQuery } from "react-query";
 import useDebounce from "../../hooks/useDebounce.js";
 import { useAuth } from "../../contexts/AuthContext";
 
+/**
+ * Get color for ranking star based on value
+ * 0 = grey, 3 = yellow, 5 = green with gradient between
+ */
+const getRankingColor = (ranking) => {
+  if (!ranking || ranking === 0) return "#999999"; // grey
+  if (ranking >= 5) return "#22c55e"; // green
+  if (ranking >= 4) return "#84cc16"; // lime
+  if (ranking >= 3) return "#eab308"; // yellow
+  if (ranking >= 2) return "#f97316"; // orange
+  return "#ef4444"; // red
+};
+
+/**
+ * Get ranking category text based on value
+ */
+const getRankingCategory = (ranking) => {
+  if (!ranking || ranking === 0) return "Unranked";
+  if (ranking >= 5) return "Highly popular";
+  if (ranking >= 4) return "Popular";
+  if (ranking >= 3) return "Established";
+  if (ranking >= 2) return "Early stage";
+  return "Unranked";
+};
+
+/**
+ * Format date into readable format
+ */
+const formatDate = (dateString) => {
+  if (!dateString) return "Unknown";
+  try {
+    const date = new Date(dateString);
+    return date.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  } catch (e) {
+    return dateString;
+  }
+};
+
 export default function GitSearchMenu({
   activeAtom,
   id,
@@ -297,8 +339,25 @@ export default function GitSearchMenu({
               key={item.id}
               className={`github-repo ${isSelected ? "selected" : ""}`}
               title="GitHub Repository"
+              style={{ display: "flex", alignItems: "center", gap: "8px" }}
             >
               {item.repoName}
+              <svg
+                viewBox="0 0 16 16"
+                xmlns="http://www.w3.org/2000/svg"
+                title={`Ranking: ${item.ranking || 0}`}
+                style={{
+                  transform: "scale(.7)",
+                  fill: getRankingColor(item.ranking),
+                  pointerEvents: "auto",
+                  cursor: "pointer",
+                  flexShrink: 0,
+                }}
+                width="16"
+                height="16"
+              >
+                <path d="M8 .2l4.9 15.2L0 6h16L3.1 15.4z" />
+              </svg>
             </div>
           );
         }
@@ -486,19 +545,91 @@ export default function GitSearchMenu({
               }}
               alt={panelItem.isLocal ? panelItem.atomType : panelItem.repoName}
             />
-            <div style={{ display: "flex", alignItems: "center" }}>
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                style={{ transform: "scale(.7)" }}
-                width="16"
-                height="16"
+            {!panelItem.isLocal && (
+              <div
+                style={{ display: "flex", flexDirection: "column", gap: "8px" }}
               >
-                <path d="M8 .2l4.9 15.2L0 6h16L3.1 15.4z" />
-              </svg>
-              <p style={{ fontSize: "0.5em" }}>
-                {panelItem.ranking || (panelItem.isLocal ? "Local" : "")}
-              </p>
-            </div>
+                <div
+                  style={{ display: "flex", alignItems: "center", gap: "4px" }}
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    style={{
+                      transform: "scale(.7)",
+                      fill: getRankingColor(panelItem.ranking),
+                    }}
+                    width="16"
+                    height="16"
+                  >
+                    <path d="M8 .2l4.9 15.2L0 6h16L3.1 15.4z" />
+                  </svg>
+                  <p style={{ fontSize: "0.75em", margin: 0 }}>
+                    {getRankingCategory(panelItem.ranking)}
+                  </p>
+                </div>
+                <div
+                  style={{ display: "flex", alignItems: "center", gap: "8px" }}
+                >
+                  {panelItem.userRanking !== undefined && (
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "4px",
+                      }}
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        style={{
+                          transform: "scale(.65)",
+                          fill:
+                            panelItem.userRanking > 0 ? "#ef4444" : "#999999",
+                        }}
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                      >
+                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                      </svg>
+                      <span style={{ fontSize: "0.75em" }}>
+                        {panelItem.userRanking}
+                      </span>
+                    </div>
+                  )}
+                  {panelItem.parentRepo && (
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "2px",
+                      }}
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        style={{
+                          transform: "scale(.65)",
+                          fill: "#999999",
+                        }}
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                      >
+                        <path d="M6 3a3 3 0 0 0-3 3v2.5H1v2h2V18a3 3 0 0 0 3 3h12a3 3 0 0 0 3-3V10.5h2v-2h-2V6a3 3 0 0 0-3-3H6zm0 2h12a1 1 0 0 1 1 1v2.5H5V6a1 1 0 0 1 1-1zm0 12a1 1 0 0 1-1-1v-6h14v6a1 1 0 0 1-1 1H6z" />
+                      </svg>
+                      <span
+                        style={{
+                          fontSize: "0.7em",
+                          color: "#999",
+                        }}
+                        title={`Fork of ${panelItem.parentRepo}`}
+                      >
+                        Fork
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="GitInfo">
@@ -543,8 +674,27 @@ export default function GitSearchMenu({
                 </div>
                 <div>
                   <strong>Created: </strong>
-                  <span>{panelItem.dateCreated}</span>
+                  <span>{formatDate(panelItem.dateCreated)}</span>
                 </div>
+                {panelItem.projectInputs &&
+                  panelItem.projectInputs.length > 0 && (
+                    <div>
+                      <strong>Molecule Inputs: </strong>
+                      <div style={{ marginLeft: "10px", marginTop: "4px" }}>
+                        {panelItem.projectInputs.map((input, idx) => (
+                          <div
+                            key={idx}
+                            style={{ fontSize: "0.9em", marginBottom: "4px" }}
+                          >
+                            <span>{input.name}</span>
+                            <span style={{ color: "#999", marginLeft: "4px" }}>
+                              ({input.type})
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
               </>
             )}
           </div>
