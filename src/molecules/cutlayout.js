@@ -59,6 +59,13 @@ export default class CutLayout extends Atom {
 
     this.cancelationHandle = undefined;
 
+    /**
+     * Counts displayLayout requests so a slow display of an older layout
+     * can't overwrite a newer one.
+     * @type {number}
+     */
+    this.displayRequest = 0;
+
     this.addAllIOs([
       { name: "geometry", valueType: "geometry", type: "input" },
       {
@@ -298,9 +305,12 @@ export default class CutLayout extends Atom {
 
     if (this.inputsAreReady()) {
       var inputGeom = this.findIOValue("geometry");
-      this.displaySheet(placements.length);
       const priorStatus = this.status;
       this.setProcessing();
+      // While nesting runs, each new best layout is displayed as it arrives.
+      // Displays can finish out of order, so only the latest request may
+      // update the value; an older layout must not replace a newer one.
+      const request = ++this.displayRequest;
       return GlobalVariables.cad
         .displayLayout(
           inputGeom,
@@ -313,18 +323,25 @@ export default class CutLayout extends Atom {
           this.getContext(),
         )
         .then((result) => {
-          if (this.selected) {
-            this.sendToRender();
+          if (request !== this.displayRequest) {
+            return;
           }
+          this.displaySheet(placements.length);
           // Only update our status if this is the final placement
           if (isFinalPlacement) {
+            // setReady stores the value and re-renders a selected atom.
             this.setReady(result);
             if (this.setInputChanged) {
               this.setInputChanged(this.status);
             }
           } else {
             this.setStatus(priorStatus);
+            // Set the value before rendering, or the view shows the
+            // previous layout and only catches up when the atom is clicked.
             this.value = result;
+            if (this.selected && this.ownsDisplay()) {
+              this.sendToRender();
+            }
           }
         });
     } else {
