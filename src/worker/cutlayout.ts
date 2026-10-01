@@ -7,6 +7,7 @@ import { reportCadProgress } from "./progress";
 import type { AbundanceLeaf, AbundanceObject } from "./util";
 import * as util from "./util";
 import shrinkWrap from "replicad-shrink-wrap";
+import * as wasmNesting from "wasm-nesting";
 import * as replicad from "replicad";
 
 type SimpleXY = { x: number; y: number };
@@ -71,6 +72,12 @@ const NESTING_RUNTIME_MS = 30000;
 // returning a layout that places nothing. The first result for a large part
 // count regularly arrives after 30s.
 const NESTING_MAX_RUNTIME_MS = 120000;
+
+// Resolves once the nesting engine's WASM module has loaded. Its type
+// declarations come from the generated wasm-bindgen output, which doesn't
+// include this export from the package's own entry point.
+const nestingWasmReady = (wasmNesting as unknown as { ready: Promise<void> })
+  .ready;
 
 const rotateMemoCache = new Map<
   string,
@@ -632,12 +639,23 @@ async function applyLayout(
   return result;
 }
 
+const MAX_ROTATIONS = 16;
+
 function checkConfig(layoutConfig: LayoutConfig) {
   if (layoutConfig.width <= 0 || layoutConfig.height <= 0) {
     throw new Error("Sheet width and height must be greater than zero.");
   }
-  if (layoutConfig.rotations < 1 || !Number.isInteger(layoutConfig.rotations)) {
-    throw new Error("Orientations must be an integer of 1 or more.");
+  // The nesting engine keys its no-fit polygon cache on a 4-bit rotation index,
+  // so above 16 orientations different rotations share cache entries and parts
+  // get placed using another rotation's outline.
+  if (
+    layoutConfig.rotations < 1 ||
+    layoutConfig.rotations > MAX_ROTATIONS ||
+    !Number.isInteger(layoutConfig.rotations)
+  ) {
+    throw new Error(
+      "Orientations must be a whole number from 1 to " + MAX_ROTATIONS + ".",
+    );
   }
 }
 
@@ -691,13 +709,17 @@ function createDefaultPlacements(
 /**
  * Use the packing engine, this is potentially time consuming step.
  */
-function computePositions(
+async function computePositions(
   shapesForLayout: ShapeForLayout[],
   progressCallback: (progress: number, cancel: () => void) => void,
   placementsCallback: (placements: Placement[][]) => void,
   layoutConfig: LayoutConfig,
   previousPlacements: Placement[][] | undefined = undefined,
 ): Promise<Placement[][] | undefined> {
+  // The packer's geometry helpers call into this WASM module as soon as it
+  // starts. On a cold start the first layout could run before it finished
+  // loading and fail with "could not place any parts".
+  await nestingWasmReady;
   const tolerance = 0.2;
   const runtimeMs = NESTING_RUNTIME_MS;
   const maxRuntimeMs = NESTING_MAX_RUNTIME_MS;
@@ -1041,3 +1063,6 @@ export {
   LayoutConfig,
   Placement,
 };
+
+// Internals exposed for tests only.
+export { prepShapesForLayout, computePositions, applyLayout };

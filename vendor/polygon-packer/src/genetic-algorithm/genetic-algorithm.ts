@@ -13,6 +13,8 @@ export default class GeneticAlgorithm {
 
     #trashold: number = 0;
 
+    #angleCandidates: Map<number, { fitting: number[]; compact: number[] }> = new Map();
+
     public init(nodes: PolygonNode[], bounds: BoundRectF32, config: NestConfig): void {
         if (!this.#isEmpty) {
             return;
@@ -63,6 +65,7 @@ export default class GeneticAlgorithm {
         this.#trashold = 0;
         this.#binBounds = null;
         this.#population.length = 0;
+        this.#angleCandidates.clear();
     }
 
     // returns a mutated individual with the given mutation rate
@@ -128,36 +131,60 @@ export default class GeneticAlgorithm {
 
     // returns a random angle of insertion
     private randomAngle(polygon: PolygonF32, node: PolygonNode): number {
-        const lastIndex: number = this.#rotations - 1;
-        const angles: number[] = [];
+        const { fitting, compact } = this.candidateAngles(polygon, node);
+
+        if (fitting.length === 0) {
+            return 0;
+        }
+
+        // Usually pick one of the angles that give the part its smallest bounding box.
+        // Those pack best, especially for the rectangular parts that make up most
+        // sheet-goods projects; picking uniformly from every angle meant the search
+        // spent most of its time on layouts full of parts sitting at 30 degrees. The
+        // rest of the time any angle is fair game, so odd shapes still get explored.
+        const pool: number[] = Math.random() < GeneticAlgorithm.COMPACT_ANGLE_BIAS ? compact : fitting;
+
+        return pool[Math.floor(Math.random() * pool.length)];
+    }
+
+    // Angles at which the part fits in the bin, and the subset of those whose rotated
+    // bounding box is (within 1%) the smallest. Cached per part, since it only depends
+    // on the part's outline and the rotation count.
+    private candidateAngles(polygon: PolygonF32, node: PolygonNode): { fitting: number[]; compact: number[] } {
+        const cached = this.#angleCandidates.get(node.source);
+
+        if (cached !== undefined) {
+            return cached;
+        }
+
         const step: number = 360 / this.#rotations;
+        const fitting: number[] = [];
+        const areas: number[] = [];
         let angle: number = 0;
         let i: number = 0;
-        let j: number = 0;
 
         for (i = 0; i < this.#rotations; ++i) {
-            angles.push(Math.round(i * step));
-        }
-
-        for (i = lastIndex; i > 0; --i) {
-            j = Math.floor(Math.random() * (i + 1));
-            angle = angles[i];
-            angles[i] = angles[j];
-            angles[j] = angle;
-        }
-
-        for (i = 0; i < this.#rotations; ++i) {
+            angle = Math.round(i * step);
             polygon.bind(node.memSeg.slice());
-            polygon.rotate(angles[i]);
+            polygon.rotate(angle);
 
             // don't use obviously bad angles where the part doesn't fit in the bin
             if (polygon.size.x < this.#binBounds.width && polygon.size.y < this.#binBounds.height) {
-                return angles[i];
+                fitting.push(angle);
+                areas.push(polygon.size.x * polygon.size.y);
             }
         }
 
-        return 0;
+        const minArea: number = Math.min(...areas);
+        const compact: number[] = fitting.filter((_, index) => areas[index] <= minArea * 1.01);
+        const result = { fitting, compact };
+
+        this.#angleCandidates.set(node.source, result);
+
+        return result;
     }
+
+    private static COMPACT_ANGLE_BIAS: number = 0.8;
 
     public get individual(): Phenotype {
         const populationSize: number = this.#population.length;

@@ -1,31 +1,22 @@
 import type { CalculateConfig } from '../types';
 
-// Import the geometry-utils module directly
-// Assuming the module exports a function called "calculate"
 import { calculate } from 'geometry-utils';
+//@ts-ignore - the generated type declarations don't include the loader's `ready` export
+import { ready } from 'wasm-nesting';
 
 const config: CalculateConfig = { isInit: false, pointPool: null };
-let isWasmInitialized = false;
 
-const trigger = (event: MessageEvent<ArrayBuffer>) => {
-    if (isWasmInitialized) {
-        //@ts-ignore
-        const buffer = calculate(config, event.data);
+// Wait on the loader's promise rather than its 'wasmReady' event: the event fires
+// once, so a worker whose first message arrived after the module had loaded
+// waited for it forever and the nesting run stalled.
+self.onmessage = async (event: MessageEvent<ArrayBuffer>) => {
+    await ready;
 
-        //@ts-ignore
-        self.postMessage(buffer, [buffer]);
-    } else {
-        const handler = () => {
-            self.removeEventListener('wasmReady', handler);
-            isWasmInitialized = true;
-            trigger(event);
-        };
-        self.addEventListener('wasmReady', handler);
-    }
-};
+    //@ts-ignore
+    const buffer = calculate(config, event.data);
 
-self.onmessage = (event: MessageEvent<ArrayBuffer>) => {
-    trigger(event);
+    //@ts-ignore
+    self.postMessage(buffer, [buffer]);
 };
 
 // Make sure TypeScript knows this is a module

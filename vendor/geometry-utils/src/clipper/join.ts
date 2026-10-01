@@ -182,7 +182,9 @@ export default class Join {
             //update all OutRec2.Pts Idx's ...
             outRec2.updateOutPtIdxs();
 
-            if (!outRec2.joinCommonEdges(outRec2, isReverseSolution)) {
+            // Is the new fragment inside the old one? (Comparing outRec2 with itself
+            // here made it its own FirstLeft, and walking that cycle hung forever.)
+            if (!outRec2.joinCommonEdges(outRec1, isReverseSolution)) {
                 outRec2.IsHole = outRec1.IsHole;
                 outRec2.FirstLeft = outRec1.FirstLeft;
                 outRec1.joinCommonEdges(outRec2, isReverseSolution);

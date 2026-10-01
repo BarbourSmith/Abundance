@@ -82,4 +82,17 @@ describe('Rotation Angle Cache', () => {
       expect(rotationData.length).toBe(2); // sin and cos values
     }
   });
+
+  it('should rotate by exactly the cached angle', () => {
+    // Placements are reported, and applied to the real parts, in whole degrees.
+    // The cache must rotate by exactly that angle: it used to store 330 degrees
+    // as 327.3 (10 steps of the 11-way split), so parts nested at 330 overlapped
+    // their neighbours once laid out.
+    for (let angle = 0; angle < 360; angle++) {
+      const [sin, cos] = ANGLE_CACHE.get(angle);
+      const radians = (angle * Math.PI) / 180;
+      expect(sin).toBeCloseTo(Math.sin(radians), 6);
+      expect(cos).toBeCloseTo(Math.cos(radians), 6);
+    }
+  });
 });
