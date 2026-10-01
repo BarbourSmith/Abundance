@@ -555,9 +555,21 @@ function walkAssembly(
 
 function extractBomList(assembly: AbundanceObject): any[] {
   const bomList: any[] = [];
-  walkAssembly(assembly, (node: AbundanceObject) => {
-    bomList.push(...node.bom);
-  });
+  const visit = (node: AbundanceObject) => {
+    // Keepout geometry isn't a real part, so it never counts toward the BOM.
+    const leaves = flattenAssembly(node);
+    if (
+      leaves.length > 0 &&
+      leaves.every((leaf) => (leaf.tags || []).includes("keepout"))
+    ) {
+      return;
+    }
+    bomList.push(...(node.bom || []));
+    if (!isLeaf(node)) {
+      (node.geometry as AbundanceObject[]).forEach(visit);
+    }
+  };
+  visit(assembly);
   return bomList;
 }
 

@@ -460,6 +460,7 @@ async function executeCode(
     // Otherwise, process as geometry
     progress.report("saving output");
     const processedResult = await ensureDimension(rawResult);
+    dropBomDuplicatedByDescendants(processedResult);
     const abundanceObj = await addAssemblyPartsToCache(
       processedResult as RealizedAssembly,
       context,
@@ -482,6 +483,26 @@ async function executeCode(
     console.error("Code execution error:", error);
     throw new Error(`Code execution failed: ${(error as Error).message}`);
   }
+}
+
+/**
+ * Removes BOM entries a node shares with any of its descendants, so user code
+ * that wraps a result and copies the input's bom onto the wrapper doesn't
+ * count it twice. Returns the keys of every entry in the subtree.
+ */
+function dropBomDuplicatedByDescendants(node: RealizedAssembly): Set<string> {
+  const descendantKeys = new Set<string>();
+  if (!isRealizedLeaf(node)) {
+    for (const child of node.geometry) {
+      dropBomDuplicatedByDescendants(child).forEach((k) =>
+        descendantKeys.add(k),
+      );
+    }
+  }
+  const bom = Array.isArray(node.bom) ? node.bom : [];
+  node.bom = bom.filter((item) => !descendantKeys.has(JSON.stringify(item)));
+  bom.forEach((item) => descendantKeys.add(JSON.stringify(item)));
+  return descendantKeys;
 }
 
 export async function ensureDimension(
@@ -647,8 +668,15 @@ export function isRealizedLeaf(node: RealizedAssembly): node is RealizedLeaf {
   );
 }
 
+// Bump when executeCode's output processing changes, to invalidate cached results.
+const LEGACY_OUTPUT_VERSION = 1;
+
 export function composeID(code: string, argsSignature: string[]): string {
-  return [util.hashString(code), ...argsSignature].join("-");
+  return [
+    util.hashString(code),
+    `v${LEGACY_OUTPUT_VERSION}`,
+    ...argsSignature,
+  ].join("-");
 }
 
 export async function addAssemblyPartsToCache(
