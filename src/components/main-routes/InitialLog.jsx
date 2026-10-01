@@ -1,4 +1,5 @@
 import React from "react";
+import { Link } from "react-router-dom";
 import { useAuth } from "../../contexts/index.js";
 import { useRotatingFeaturedImage } from "../../hooks/useRotatingFeaturedImage.js";
 
@@ -12,35 +13,18 @@ const InitialLog = ({ setNoUserBrowsing }) => {
   return (
     <div className="login-page">
       <div id="rotate-feature">
-        <div>
+        <div className="featured-frame">
           {loading ? (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                height: "100%",
-                color: "#999",
-              }}
-            >
-              Loading...
-            </div>
+            <div className="featured-loading">Loading...</div>
           ) : imageUrl ? (
             <img
+              className="featured-image"
               src={imageUrl}
               alt={
                 project
                   ? `${project.owner}/${project.repoName}`
                   : "featured project"
               }
-              style={{
-                marginLeft: "10%",
-                marginBottom: "-10%",
-                width: "90%",
-                height: "80%",
-                objectFit: "cover",
-                overflow: "hidden",
-              }}
               onError={(e) => {
                 e.currentTarget.src =
                   import.meta.env.VITE_APP_PATH_FOR_PICS +
@@ -49,6 +33,7 @@ const InitialLog = ({ setNoUserBrowsing }) => {
             />
           ) : (
             <img
+              className="featured-image"
               src={
                 import.meta.env.VITE_APP_PATH_FOR_PICS +
                 "/imgs/rotate_feature.png"
@@ -56,15 +41,7 @@ const InitialLog = ({ setNoUserBrowsing }) => {
               alt="rotate feature"
             />
           )}
-          <p
-            className="message"
-            style={{
-              fontSize: "13px",
-              marginTop: "10px",
-              textAlign: "right",
-              paddingRight: "10px",
-            }}
-          >
+          <p className="message featured-caption">
             <a
               href={`https://abundance.maslowcnc.com/run/${project ? `${project.owner}/${project.repoName}` : ""}`}
               target="_blank"
@@ -76,14 +53,6 @@ const InitialLog = ({ setNoUserBrowsing }) => {
         </div>
       </div>
       <div className="logoButtonBlock">
-        <img
-          className="logo"
-          src={
-            import.meta.env.VITE_APP_PATH_FOR_PICS + "/imgs/abundance_logo.png"
-          }
-          alt="logo"
-        />
-
         {/* <div id="welcome">
           <img
             src={
@@ -94,9 +63,38 @@ const InitialLog = ({ setNoUserBrowsing }) => {
             className="login-logo"
           />
         </div> */}
-        <p style={{ padding: "0 18px", fontFamily: "Roboto, sans-serif" }}>
-          A web-based CAD program for cooperative design
-        </p>
+        <div className="landing-intro">
+          <h2>Open source CAD for designs you can share and remix</h2>
+          <p>
+            Abundance is a free, browser-based 3D CAD program. You build parts
+            by wiring together simple steps like shapes, cuts and joins, so
+            every design stays editable and can be reused inside other
+            designs.
+          </p>
+          <ul>
+            <li>
+              <strong>Parametric:</strong> change one dimension and the whole
+              design updates.
+            </li>
+            <li>
+              <strong>Reusable:</strong> drop anyone&apos;s design into yours as
+              a component.
+            </li>
+            <li>
+              <strong>Ready to make:</strong> export STL, STEP, SVG or G-code,
+              with automatic bills of materials and cut layouts.
+            </li>
+            <li>
+              <strong>Yours on GitHub:</strong> every project is saved to a
+              GitHub repository with full version history, ready to fork and
+              collaborate on.
+            </li>
+            <li>
+              <strong>Works with AI:</strong> connect an AI agent like Claude
+              to build and edit designs with you.
+            </li>
+          </ul>
+        </div>
         <div id="gitSide">
           <form className="login-form">
             <button
@@ -148,14 +146,8 @@ const InitialLog = ({ setNoUserBrowsing }) => {
             Explore our library
           </button>
           <p className="message" style={{ fontSize: "13px" }}>
-            What is Abundance?{" "}
-            <a
-              href="https://abundance.com/user-guide"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Take a look at our user guide
-            </a>
+            New to Abundance?{" "}
+            <Link to="/user-guide">Read the user guide</Link>
           </p>
         </div>
       </div>
