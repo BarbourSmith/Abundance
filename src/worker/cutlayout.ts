@@ -132,6 +132,22 @@ async function displayOrientation(
     if (!util.is3D(leaf)) {
       return leaf;
     }
+    if (leaf.tags.includes("unorientable")) {
+      // rotateForLayout never pushed an orientation entry for this leaf (it has
+      // no faces to orient on), so don't consume one here either.
+      return leaf;
+    }
+    // Peek at the geometry before consuming an orientations[] slot: a leaf whose
+    // tags weren't refreshed since rotateForLayout (e.g. cached orientations reused
+    // via saveAndDisplayOrientations) may still lack a face to orient on.
+    const geomForFaceCheck = (await util.geometryProvider!.get(
+      leaf.geometry,
+      context,
+    )) as Shape3D;
+    if (geomForFaceCheck.faces.length === 0) {
+      leaf.tags.push("unorientable");
+      return leaf;
+    }
     let targetFaceIndex = orientations[index].downwardFaceIndex;
     const { faceCount: savedFaceCount, faceNormal: savedNormal } =
       orientations[index];
@@ -178,9 +194,12 @@ async function displayOrientation(
       leaf.geometry,
       cachedResultOrContext,
     )) as Shape3D;
-    targetFaceIndex = targetFaceIndex % geom.faces.length; // Ensure the index is within bounds
+    // `faces` re-traverses the shape's topology on every access, so read it once
+    // instead of calling it twice for the length check and the lookup.
+    const faces = geom.faces;
+    targetFaceIndex = targetFaceIndex % faces.length; // Ensure the index is within bounds
 
-    let result = moveFaceToCuttingPlane(geom, geom.faces[targetFaceIndex]);
+    let result = moveFaceToCuttingPlane(geom, faces[targetFaceIndex]);
 
     // Translate and rotate so we accumulate a nonoverlapping stack
     let bbox = result.boundingBox;
@@ -467,7 +486,10 @@ async function rotateForLayout(
         area: replicad.measureArea(face),
       }))
       .sort((a, b) => b.area - a.area);
-
+    if (orderedFaces.length == 0) {
+      leaf.tags.push("unorientable");
+      return leaf;
+    }
     const filtered = orderedFaces.filter(
       ({ f: face }) => face.geomType == "PLANE",
     );
