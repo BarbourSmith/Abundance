@@ -365,6 +365,50 @@ class GlobalVariables {
     }
 
     /**
+     * Ring buffer of recent console output of every level, attached to bug reports.
+     * @type {Array<{timestamp: string, level: string, message: string}>}
+     */
+    this.recentConsole = [];
+    if (typeof console !== "undefined") {
+      const self = this;
+      ["log", "info", "warn", "error"].forEach((level) => {
+        const original = console[level];
+        if (typeof original !== "function") return;
+        const bound = original.bind(console);
+        console[level] = function (...args) {
+          try {
+            const message = args
+              .map((a) => {
+                if (typeof a !== "object" || a === null) return String(a);
+                if (a instanceof Error) return a.stack || a.message;
+                // Cap work so logging large geometry objects stays cheap.
+                let budget = 200;
+                try {
+                  return JSON.stringify(a, (k, v) => {
+                    if (--budget < 0) throw new Error("too large");
+                    return v;
+                  });
+                } catch {
+                  return `[${a.constructor?.name || "Object"}]`;
+                }
+              })
+              .join(" ")
+              .slice(0, 2000);
+            self.recentConsole.push({
+              timestamp: new Date().toISOString(),
+              level,
+              message,
+            });
+            if (self.recentConsole.length > 300) self.recentConsole.shift();
+          } catch {
+            // Never let capture break logging.
+          }
+          bound(...args);
+        };
+      });
+    }
+
+    /**
      * A string to indicate a stored user font for the canvas.
      * @type {string}
      */
