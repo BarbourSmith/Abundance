@@ -18,8 +18,8 @@ import {
   useFileImport,
 } from "../../contexts/index.js";
 import { useProgressBar } from "../secondary/ProgressBarManager.jsx";
-import { syncHeadWithBase } from "../../js/pullRequestSync.js";
-import { describeConflictValue } from "../../js/projectMerge.js";
+import { syncHeadWithBase, NO_CACHE } from "../../js/pullRequestSync.js";
+import { describeConflictValue, mergeProjects } from "../../js/projectMerge.js";
 
 function useWindowSize() {
   const [windowSize, setWindowSize] = useState({
@@ -68,42 +68,101 @@ function fetchGithubProjectSerialzed(owner, repo) {
 }
 
 /**
- * Fetches the base side of a pull request comparison: the project as it was at
- * the merge base (the commit the head fork branched from), like GitHub's diff.
- * Comparing against the base's current tip would also show every change made
- * on the base since the fork diverged. Falls back to the tip if the compare fails.
+ * Fetches both sides of a pull request comparison, showing what the base
+ * would look like after merging:
+ * - base: the base branch's latest commit
+ * - head: the head's changes merged onto it (see projectMerge.js). Showing the
+ *   head as-is would show every change made on the base since the fork last
+ *   merged it as if the pull request were undoing it.
+ * Projects are loaded by commit SHA: raw.githubusercontent.com caches branch
+ * names for up to five minutes, which would show a stale project right after
+ * a save or update. Falls back to both branch tips if the GitHub API fails,
+ * returning the error as fallbackError. conflicts lists values changed on both
+ * sides; the preview shows the head's value for those.
  */
-async function fetchMergeBaseProject(baseOwner, baseRepo, headOwner, octo) {
+async function fetchComparisonProjects(
+  baseOwner,
+  baseRepo,
+  headOwner,
+  headRepo,
+  octo,
+) {
+  // Pass values as params, not in the route: Octokit treats ":name" in a route
+  // as a placeholder, which breaks "owner:sha" in compare URLs. The browser
+  // may reuse GitHub API responses for 60 seconds; NO_CACHE makes it ask again.
+  const githubGet = async (route, params) => {
+    if (octo) {
+      return (
+        await octo.request(`GET ${route}`, { ...params, headers: NO_CACHE })
+      ).data;
+    }
+    const path = route.replace(/{(\w+)}/g, (_, key) =>
+      encodeURIComponent(params[key]),
+    );
+    const res = await fetch(`https://api.github.com${path}`, {
+      cache: "no-store",
+    });
+    if (!res.ok) throw new Error(`GitHub API ${res.status} for ${path}`);
+    return res.json();
+  };
+  const getBranchSha = async (owner, repo, branch) =>
+    (
+      await githubGet("/repos/{owner}/{repo}/git/ref/{ref}", {
+        owner,
+        repo,
+        ref: `heads/${branch}`,
+      })
+    ).object.sha;
+  const fetchProjectAt = async (owner, repo, sha) => {
+    const res = await fetch(
+      `https://raw.githubusercontent.com/${owner}/${repo}/${sha}/project.abundance`,
+    );
+    if (!res.ok) throw new Error(`No project.abundance in ${owner}/${repo}`);
+    return res.json();
+  };
+
+  let firstError;
   for (const branch of ["main", "master"]) {
     try {
-      const basehead = `${branch}...${headOwner}:${branch}`;
-      let compare;
-      if (octo) {
-        compare = (
-          await octo.request("GET /repos/{owner}/{repo}/compare/{basehead}", {
-            owner: baseOwner,
-            repo: baseRepo,
-            basehead,
-          })
-        ).data;
-      } else {
-        const res = await fetch(
-          `https://api.github.com/repos/${baseOwner}/${baseRepo}/compare/${basehead}`,
-        );
-        if (!res.ok) continue;
-        compare = await res.json();
-      }
-      const sha = compare?.merge_base_commit?.sha;
-      if (!sha) continue;
-      const res = await fetch(
-        `https://raw.githubusercontent.com/${baseOwner}/${baseRepo}/${sha}/project.abundance`,
+      const [baseSha, headSha] = await Promise.all([
+        getBranchSha(baseOwner, baseRepo, branch),
+        getBranchSha(headOwner, headRepo, branch),
+      ]);
+      const compare = await githubGet(
+        "/repos/{owner}/{repo}/compare/{basehead}",
+        {
+          owner: baseOwner,
+          repo: baseRepo,
+          basehead: `${baseSha}...${headOwner}:${headSha}`,
+        },
       );
-      if (res.ok) return res.json();
+      const mergeBaseSha = compare.merge_base_commit.sha;
+      const [baseProject, headProject, mergeBaseProject] = await Promise.all([
+        fetchProjectAt(baseOwner, baseRepo, baseSha),
+        fetchProjectAt(headOwner, headRepo, headSha),
+        mergeBaseSha === baseSha
+          ? null
+          : fetchProjectAt(baseOwner, baseRepo, mergeBaseSha),
+      ]);
+      if (!mergeBaseProject) return { baseProject, headProject, conflicts: [] };
+      const { merged, conflicts } = mergeProjects(
+        mergeBaseProject,
+        baseProject,
+        headProject,
+      );
+      return { baseProject, headProject: merged, conflicts };
     } catch (err) {
-      // Try the next branch name, then fall back to the tip below
+      // Try the next branch name, then fall back to the tips below.
+      // Report the first error: "main" is the usual branch.
+      firstError = firstError ?? err;
     }
   }
-  return fetchGithubProjectSerialzed(baseOwner, baseRepo);
+  console.warn("Could not compare against the merge base:", firstError);
+  const [baseProject, headProject] = await Promise.all([
+    fetchGithubProjectSerialzed(baseOwner, baseRepo),
+    fetchGithubProjectSerialzed(headOwner, headRepo),
+  ]);
+  return { baseProject, headProject, fallbackError: firstError };
 }
 
 /**
@@ -499,11 +558,29 @@ function PullMode({ setProcessing }) {
     GlobalVariables.currentRepo = null;
 
     // Fetch both GitHub projects and create template
-    Promise.all([
-      fetchMergeBaseProject(baseOwner, baseRepo, headOwner, authorizedUserOcto),
-      fetchGithubProjectSerialzed(headOwner, headRepo),
-    ])
-      .then(([baseProject, headProject]) => {
+    let cancelled = false;
+    fetchComparisonProjects(
+      baseOwner,
+      baseRepo,
+      headOwner,
+      headRepo,
+      authorizedUserOcto,
+    )
+      .then(({ baseProject, headProject, fallbackError, conflicts }) => {
+        // A newer run of this effect (e.g. after login finished) replaced this one
+        if (cancelled) return;
+        if (fallbackError) {
+          setNotification(
+            `Couldn't find where ${headOwner}/${headRepo} branched from ${baseOwner}/${baseRepo} (${fallbackError.message}), so this preview compares their latest versions and may include changes made in ${baseOwner}/${baseRepo}.`,
+            "error",
+          );
+        } else if (conflicts?.length > 0) {
+          setNotification(
+            `${conflicts.length} value(s) were changed in both ${baseOwner}/${baseRepo} and ${headOwner}/${headRepo}; this preview shows ${headOwner}'s version. You'll be asked which to keep when the pull request is updated.`,
+            "notice",
+          );
+        }
+
         // Create template with GitHub molecules embedded
         const templateProject = createPullModeTemplate(
           baseProject,
@@ -517,18 +594,21 @@ function PullMode({ setProcessing }) {
         return Promise.resolve(deserializeResult);
       })
       .then(() => {
+        if (cancelled) return;
         // Enable all molecules
         GlobalVariables.currentMolecule.enable();
         GlobalVariables.currentMolecule.enableAllChildren();
         setActiveAtom(GlobalVariables.currentMolecule);
       })
       .catch((err) => {
+        if (cancelled) return;
         setNotification(`Failed to set up pull mode: ${err.message}`, "error");
       });
 
     // Cleanup function: reset global state when leaving PullMode
     // This prevents PullMode's template from being mistaken for a loaded project in CreateMode
     return () => {
+      cancelled = true;
       GlobalVariables.topLevelMolecule = null;
       GlobalVariables.currentMolecule = null;
       GlobalVariables.currentAWSnode = null;
@@ -566,7 +646,12 @@ function PullMode({ setProcessing }) {
       pr = (
         await authorizedUserOcto.request(
           "GET /repos/{owner}/{repo}/pulls/{pull_number}",
-          { owner: baseOwner, repo: baseRepo, pull_number: number },
+          {
+            owner: baseOwner,
+            repo: baseRepo,
+            pull_number: number,
+            headers: NO_CACHE,
+          },
         )
       ).data;
       const headCaughtUp = !expectedHeadSha || pr.head.sha === expectedHeadSha;

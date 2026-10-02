@@ -18,6 +18,13 @@ import { decodeProjectContentFromGitHub } from "./projectContentCodec.js";
 
 const PROJECT_FILE = "project.abundance";
 
+/**
+ * Request headers that make the browser ask GitHub again instead of reusing a
+ * cached response (GitHub API responses are cacheable for 60 seconds, so
+ * branch tips and PR status would otherwise lag behind a recent push).
+ */
+export const NO_CACHE = { "If-None-Match": "" };
+
 function decodeBase64Utf8(base64) {
   const binary = atob(base64.replace(/\n/g, ""));
   const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
@@ -78,6 +85,7 @@ export async function syncHeadWithBase(
         owner,
         repo,
         ref: `heads/${branch}`,
+        headers: NO_CACHE,
       })
     ).data.object.sha;
   const [baseSha, headSha] = await Promise.all([
