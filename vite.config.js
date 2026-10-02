@@ -9,6 +9,8 @@ export default defineConfig({
   base: "/", //change to "/" for local development or to "/Abundance" for deployment
   build: {
     outDir: "dist",
+    // engine.js (Kiri:Moto) uses top-level await, which needs ES2022
+    target: "es2022",
   },
   server: {
     port: 4444,
