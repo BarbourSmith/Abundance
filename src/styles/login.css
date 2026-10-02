@@ -1,4 +1,6 @@
 @import url(https://fonts.googleapis.com/css?family=Roboto:300);
+/* Separate family so the bold landing-page title doesn't change Roboto's weight matching elsewhere */
+@import url("https://fonts.googleapis.com/css2?family=Roboto+Flex:wght@600&display=swap");
 @import url("https://fonts.googleapis.com/css?family=Montserrat&display=swap");
 
 #welcome {
@@ -1624,4 +1626,101 @@
   font-size: 11px;
   font-weight: bold;
   margin-left: 8px;
+}
+
+/* What-is-Abundance blurb on the logged-out landing page */
+.landing-intro {
+  padding: 0 18px;
+  font-family: Roboto, sans-serif;
+  color: #3c3a3a;
+}
+.landing-intro h2 {
+  font-family: "Roboto Flex", Roboto, sans-serif;
+  font-size: 30px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-wrap: balance;
+  text-align: center;
+  margin: 0 0 12px;
+}
+.landing-intro p {
+  font-size: 14px;
+  line-height: 1.45;
+  margin: 0 0 8px;
+}
+.landing-intro ul {
+  font-size: 13px;
+  line-height: 1.4;
+  margin: 0 0 12px;
+  padding-left: 18px;
+}
+.landing-intro li {
+  margin-bottom: 4px;
+}
+/* Only Roboto 300 is loaded, so mark labels with colour rather than weight */
+.landing-intro strong {
+  color: #5a0562;
+  font-weight: inherit;
+}
+.login-page > .logoButtonBlock {
+  overflow-y: auto;
+  /* Don't clip the top of the blurb when it is taller than the column */
+  justify-content: safe center;
+}
+@media (max-width: 768px) {
+  /* The featured image is hidden on phones, so let the blurb use the space */
+  .login-page > .logoButtonBlock {
+    flex: 1 1 auto;
+  }
+}
+
+/* Featured project image beside the blurb. On desktop the two columns share
+   one grid row sized to the blurb, and the image fills that row's height. */
+.featured-frame {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.featured-image {
+  flex: 1 1 0;
+  min-height: 0;
+  width: 100%;
+  object-fit: cover;
+}
+.featured-loading {
+  flex: 1 1 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #999;
+}
+.featured-caption {
+  font-size: 13px;
+  margin: 6px 0 0;
+  text-align: right;
+}
+@media (min-width: 768px) {
+  .login-page {
+    display: grid;
+    grid-template-columns: 45% 35%;
+    grid-template-rows: fit-content(100%);
+    column-gap: 5%;
+    padding-left: 5%;
+    justify-content: start;
+    align-content: center;
+  }
+  .login-page > :first-child,
+  .login-page > :nth-child(2) {
+    max-width: none;
+    margin-right: 0;
+    align-self: stretch;
+  }
+  /* Take no height of its own so the row is sized by the blurb alone */
+  #rotate-feature {
+    position: relative;
+  }
+  #rotate-feature > .featured-frame {
+    position: absolute;
+    inset: 0;
+  }
 }
