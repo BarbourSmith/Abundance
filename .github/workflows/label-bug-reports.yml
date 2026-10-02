@@ -1,0 +1,24 @@
+# Issue authors without push access can't set labels, so in-app reports are labeled here.
+name: Label in-app bug reports
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  issues: write
+
+jobs:
+  label:
+    if: startsWith(github.event.issue.body, '<!-- abundance-bug-report -->')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              labels: ["user-bug-report"],
+            });
