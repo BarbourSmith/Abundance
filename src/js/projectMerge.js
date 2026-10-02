@@ -12,6 +12,10 @@ const ID_FIELDS = ["uniqueID", "ap1ID", "ap2ID"];
 // Structural keys left out of the conflict labels shown to users
 const UNLABELED_KEYS = ["allAtoms", "allConnectors", "ioValues", "ioValue"];
 
+// An atom's position in the node editor. Moving the same atom on both sides
+// doesn't change the design, so it isn't a conflict: head's position wins.
+const LAYOUT_KEYS = ["x", "y"];
+
 const isPlainObject = (value) =>
   value !== null && typeof value === "object" && !Array.isArray(value);
 
@@ -78,15 +82,21 @@ function merge3(base, main, head, path, labels, context) {
     for (const key of Object.keys(head)) {
       if (!keys.includes(key)) keys.push(key);
     }
+    const isAtom = "atomType" in main || "atomType" in head;
     for (const key of keys) {
-      const value = merge3(
-        baseObject[key],
-        main[key],
-        head[key],
-        [...path, key],
-        UNLABELED_KEYS.includes(key) ? labels : [...labels, key],
-        context,
-      );
+      const value =
+        isAtom && LAYOUT_KEYS.includes(key)
+          ? deepEqual(baseObject[key], head[key])
+            ? main[key]
+            : head[key]
+          : merge3(
+              baseObject[key],
+              main[key],
+              head[key],
+              [...path, key],
+              UNLABELED_KEYS.includes(key) ? labels : [...labels, key],
+              context,
+            );
       if (value !== undefined) result[key] = value;
     }
     return result;

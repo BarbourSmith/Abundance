@@ -561,6 +561,7 @@ function PullMode({ setProcessing }) {
 
     // Fetch both GitHub projects and create template
     let cancelled = false;
+    let noticeTimeout = null;
     fetchComparisonProjects(
       baseOwner,
       baseRepo,
@@ -581,6 +582,9 @@ function PullMode({ setProcessing }) {
             `${conflicts.length} value(s) were changed in both ${baseOwner}/${baseRepo} and ${headOwner}/${headRepo}; this preview shows ${headOwner}'s version. You'll be asked which to keep when the pull request is updated.`,
             "notice",
           );
+        }
+        if (fallbackError || conflicts?.length > 0) {
+          noticeTimeout = setTimeout(() => setNotification(null), 10000);
         }
 
         // Create template with GitHub molecules embedded
@@ -611,6 +615,11 @@ function PullMode({ setProcessing }) {
     // This prevents PullMode's template from being mistaken for a loaded project in CreateMode
     return () => {
       cancelled = true;
+      // Don't leave this page's notice up after leaving it
+      if (noticeTimeout) {
+        clearTimeout(noticeTimeout);
+        setNotification(null);
+      }
       GlobalVariables.topLevelMolecule = null;
       GlobalVariables.currentMolecule = null;
       GlobalVariables.currentAWSnode = null;

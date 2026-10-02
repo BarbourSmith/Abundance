@@ -82,6 +82,22 @@ describe("mergeProjects", () => {
     expect(ioValue(merged, "id-3", "xDist")).toBe(5);
   });
 
+  it("doesn't report atoms moved on both sides of the node editor", () => {
+    const main = clone(base);
+    main.allAtoms[1].y = 0.3;
+    main.allAtoms[2].x = 0.9;
+    const head = clone(base);
+    head.allAtoms[1].y = 0.7;
+    head.allAtoms[1].ioValues[0].ioValue = 12;
+
+    const { merged, conflicts } = mergeProjects(base, main, head);
+
+    expect(conflicts).toEqual([]);
+    expect(merged.allAtoms[1].y).toBe(0.7);
+    expect(merged.allAtoms[2].x).toBe(0.9);
+    expect(ioValue(merged, "id-3", "xDist")).toBe(12);
+  });
+
   it("reports a conflict when both sides change the same value", () => {
     const main = clone(base);
     main.allAtoms[1].ioValues[0].ioValue = 25;
