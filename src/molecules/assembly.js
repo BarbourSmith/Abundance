@@ -45,7 +45,7 @@ export default class Assembly extends Atom {
     this.description =
       "Pick between assembly and fusion to join input geometries. Assembly takes multiple shapes together into one, shapes higher in the inputs list will cut into shapes lower on the input list where they overlap. Fusion takes all shapes or sketches and fuses them permanently into a single shape";
 
-    this._addIOWithoutSubscribing("makeDisjoint", "boolean", true);
+    this._addIOWithoutSubscribing("makeDisjoint", "boolean", true).noConnections = true;
     this.setValues(values);
 
     //Initialize an appropriate number of input APs based on saved ioValues
