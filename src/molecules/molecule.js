@@ -2118,7 +2118,9 @@ export default class Molecule extends Atom {
     });
 
     if (inputAttachmentPoint?.noConnections) {
-      console.warn(`Input "${inputAttachmentPoint.name}" does not accept connections`);
+      console.warn(
+        `Input "${inputAttachmentPoint.name}" does not accept connections`,
+      );
       return;
     }
 
