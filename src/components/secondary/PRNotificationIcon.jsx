@@ -5,7 +5,7 @@ import { useAuth } from "../../contexts/AuthContext.jsx";
 
 /**
  * PRNotificationIcon displays pull requests across user's projects
- * Shows notification count, dropdown with recent PRs, and modal for full list
+ * Always shows the bell and dropdown refresh, with a count badge for open PRs
  *
  * @param {Array} allProjects - All project nodes to scan for PRs
  */
@@ -104,10 +104,6 @@ function PRNotificationIcon({ allProjects = [] }) {
       setIsRefreshing(false);
     }
   };
-
-  if (totalCount === 0) {
-    return null;
-  }
 
   return (
     <>
