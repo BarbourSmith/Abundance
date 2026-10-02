@@ -66,6 +66,45 @@ function fetchGithubProjectSerialzed(owner, repo) {
 }
 
 /**
+ * Fetches the base side of a pull request comparison: the project as it was at
+ * the merge base (the commit the head fork branched from), like GitHub's diff.
+ * Comparing against the base's current tip would also show every change made
+ * on the base since the fork diverged. Falls back to the tip if the compare fails.
+ */
+async function fetchMergeBaseProject(baseOwner, baseRepo, headOwner, octo) {
+  for (const branch of ["main", "master"]) {
+    try {
+      const basehead = `${branch}...${headOwner}:${branch}`;
+      let compare;
+      if (octo) {
+        compare = (
+          await octo.request("GET /repos/{owner}/{repo}/compare/{basehead}", {
+            owner: baseOwner,
+            repo: baseRepo,
+            basehead,
+          })
+        ).data;
+      } else {
+        const res = await fetch(
+          `https://api.github.com/repos/${baseOwner}/${baseRepo}/compare/${basehead}`,
+        );
+        if (!res.ok) continue;
+        compare = await res.json();
+      }
+      const sha = compare?.merge_base_commit?.sha;
+      if (!sha) continue;
+      const res = await fetch(
+        `https://raw.githubusercontent.com/${baseOwner}/${baseRepo}/${sha}/project.abundance`,
+      );
+      if (res.ok) return res.json();
+    } catch (err) {
+      // Try the next branch name, then fall back to the tip below
+    }
+  }
+  return fetchGithubProjectSerialzed(baseOwner, baseRepo);
+}
+
+/**
  * Creates a serialized template for pull request comparison
  * Merges baseProject and headProject into a single 3-shape assembly
  * - Shape 1: Removing (red)
@@ -457,7 +496,7 @@ function PullMode({ setProcessing }) {
 
     // Fetch both GitHub projects and create template
     Promise.all([
-      fetchGithubProjectSerialzed(baseOwner, baseRepo),
+      fetchMergeBaseProject(baseOwner, baseRepo, headOwner, authorizedUserOcto),
       fetchGithubProjectSerialzed(headOwner, headRepo),
     ])
       .then(([baseProject, headProject]) => {
