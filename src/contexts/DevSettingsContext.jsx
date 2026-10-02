@@ -1,4 +1,11 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+} from "react";
 
 const DevSettingsContext = createContext();
 
@@ -20,6 +27,12 @@ export const DevSettingsProvider = ({ children }) => {
   });
 
   const [showDevModal, setShowDevModal] = useState(false);
+  // Pages with a Settings pop-up register here to show its Developer tab instead of the modal.
+  const devSettingsOpenerRef = useRef(null);
+  const openDevSettings = useCallback(() => {
+    if (devSettingsOpenerRef.current) devSettingsOpenerRef.current();
+    else setShowDevModal(true);
+  }, []);
 
   // Load settings from localStorage on mount
   useEffect(() => {
@@ -69,6 +82,8 @@ export const DevSettingsProvider = ({ children }) => {
     resetSettings,
     showDevModal,
     setShowDevModal,
+    openDevSettings,
+    devSettingsOpenerRef,
   };
 
   return (

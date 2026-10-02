@@ -15,6 +15,8 @@ import {
 } from "../../contexts/index.js";
 import { useProgressBar } from "./ProgressBarManager.jsx";
 import { openAgentDialog } from "./AgentBridge.jsx";
+import BugReportDialog from "./BugReportDialog.jsx";
+import { openBugReport, OPEN_BUG_REPORT_EVENT } from "../../js/bugReport.js";
 
 function TopMenu({
   savePopUp,
@@ -25,6 +27,7 @@ function TopMenu({
   currentMoleculeTop,
   settingsPopUp,
   setSettingsPopUp,
+  settingsInitialTab,
   duplicateDialog,
   setDuplicateDialog,
   recomputeVisible,
@@ -68,6 +71,13 @@ function TopMenu({
   let [renameDialog, setRenameDialog] = useState(false);
   let [renamingProject, setRenamingProject] = useState(false);
   let [renameProgress, setRenameProgress] = useState(0);
+  let [bugReport, setBugReport] = useState(null);
+
+  useEffect(() => {
+    const open = (e) => setBugReport(e.detail ?? {});
+    window.addEventListener(OPEN_BUG_REPORT_EVENT, open);
+    return () => window.removeEventListener(OPEN_BUG_REPORT_EVENT, open);
+  }, []);
 
   const navigate = useNavigate();
 
@@ -365,6 +375,11 @@ function TopMenu({
           navigate("/user-guide");
         },
       },
+      {
+        id: "Report Bug",
+        buttonFunc: () => openBugReport(),
+      },
+
     ],
     [
       navigate,
@@ -480,6 +495,7 @@ function TopMenu({
         <SettingsPopUp
           {...{
             setSettingsPopUp,
+            initialTab: settingsInitialTab,
             shortCutsOn,
             setShortCuts,
             gridParam,
@@ -532,6 +548,14 @@ function TopMenu({
           newProjectName={duplicatedProjectInfo.repoName}
           newProjectOwner={duplicatedProjectInfo.owner}
           newProjectRepoName={duplicatedProjectInfo.repoName}
+        />
+      ) : null}
+      {bugReport && authorizedUserOcto ? (
+        <BugReportDialog
+          onClose={() => setBugReport(null)}
+          octokit={authorizedUserOcto}
+          reason={bugReport.reason}
+          details={bugReport.details}
         />
       ) : null}
       {currentMoleculeTop ? <GoUpLevelButton /> : null}

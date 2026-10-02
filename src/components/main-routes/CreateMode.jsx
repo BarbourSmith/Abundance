@@ -21,6 +21,7 @@ import RenderProgressBar from "../secondary/RenderProgressBar.jsx";
 import { useTutorial } from "../../tutorial/TutorialManager";
 import { TutorialOverlay } from "../../tutorial/TutorialOverlay";
 import { useProgressBar } from "../secondary/ProgressBarManager.jsx";
+import { DEVELOPER_TAB_INDEX } from "../secondary/SettingsPopUp.jsx";
 
 // Import contexts
 import {
@@ -60,7 +61,7 @@ function CreateMode() {
     setNotification,
   } = useAppState();
 
-  const { setShowDevModal } = useDevSettings();
+  const { devSettingsOpenerRef } = useDevSettings();
   const {
     setMesh,
     setWireMesh,
@@ -190,9 +191,22 @@ function CreateMode() {
   // Ref to always have latest settingsPopUp value in event handlers
   const settingsPopUpRef = useRef(settingsPopUp);
 
+  const [settingsInitialTab, setSettingsInitialTab] = useState(0);
+
   useEffect(() => {
     settingsPopUpRef.current = settingsPopUp;
+    if (!settingsPopUp) setSettingsInitialTab(0);
   }, [settingsPopUp]);
+
+  useEffect(() => {
+    devSettingsOpenerRef.current = () => {
+      setSettingsInitialTab(DEVELOPER_TAB_INDEX);
+      setSettingsPopUp(true);
+    };
+    return () => {
+      devSettingsOpenerRef.current = null;
+    };
+  }, [devSettingsOpenerRef]);
 
   // Ref to always have latest exportPopUp value in event handlers
   const exportPopUpRef = useRef(exportPopUp);
@@ -407,12 +421,6 @@ function CreateMode() {
         key: "A",
         action: () => {
           setShowTopLevelWireframe(!showTopLevelWireframeRef.current);
-        },
-      },
-      {
-        key: "D",
-        action: () => {
-          setShowDevModal(true);
         },
       },
     ];
@@ -837,6 +845,7 @@ function CreateMode() {
             currentMoleculeTop,
             settingsPopUp,
             setSettingsPopUp,
+            settingsInitialTab,
             duplicateDialog,
             setDuplicateDialog,
             recomputeVisible,
