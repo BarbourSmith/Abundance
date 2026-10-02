@@ -76,7 +76,7 @@ function statusText(state) {
 export function AgentBridgeHost() {
   const state = useAgentBridgeState();
   const { setActiveAtom } = useAppState();
-  const { setShowDevModal } = useDevSettings();
+  const { openDevSettings } = useDevSettings();
   const [dialogOpen, setDialogOpen] = useState(false);
 
   useEffect(() => {
@@ -129,12 +129,12 @@ export function AgentBridgeHost() {
         // Firefox and Chrome bind this to "bookmark all tabs"; keep the
         // browser from also doing that.
         e.preventDefault();
-        setShowDevModal(true);
+        openDevSettings();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [setShowDevModal]);
+  }, [openDevSettings]);
 
   return (
     <>

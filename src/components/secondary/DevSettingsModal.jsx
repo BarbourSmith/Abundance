@@ -4,18 +4,9 @@ import GlobalVariables from "../../js/globalvariables.js";
 import "../../styles/DevSettingsModal.css";
 import { AgentBridgeSettings } from "./AgentBridge.jsx";
 
-/**
- * Modal component for managing dev settings
- * Shows only when the secret key sequence is triggered
- */
-const DevSettingsModal = () => {
-  const {
-    devSettings,
-    toggleSetting,
-    resetSettings,
-    showDevModal,
-    setShowDevModal,
-  } = useDevSettings();
+/** Developer settings content, shown in the Settings pop-up's Developer tab and in the standalone modal. */
+export const DevSettingsPanel = () => {
+  const { devSettings, toggleSetting, resetSettings } = useDevSettings();
 
   const [stateReport, setStateReport] = useState("");
   const [copyLabel, setCopyLabel] = useState("Copy to Clipboard");
@@ -45,8 +36,6 @@ const DevSettingsModal = () => {
     }
   }, []);
 
-  if (!showDevModal) return null;
-
   const settings = [
     {
       key: "allowGitHubMoleculeNavigation",
@@ -56,18 +45,7 @@ const DevSettingsModal = () => {
   ];
 
   return (
-    <div className="dev-settings-overlay">
-      <div className="dev-settings-modal">
-        <div className="dev-settings-header">
-          <h2>Developer Settings</h2>
-          <button
-            className="dev-settings-close-btn"
-            onClick={() => setShowDevModal(false)}
-          >
-            ✕
-          </button>
-        </div>
-
+    <>
         <div className="dev-settings-content">
           {settings.map((setting) => (
             <div key={setting.key} className="dev-setting-item">
@@ -119,6 +97,31 @@ const DevSettingsModal = () => {
           <button className="dev-settings-reset-btn" onClick={resetSettings}>
             Reset to Defaults
           </button>
+        </div>
+    </>
+  );
+};
+
+/** Standalone modal for pages without the Settings pop-up; opened with Ctrl/Cmd+Shift+D. */
+const DevSettingsModal = () => {
+  const { showDevModal, setShowDevModal } = useDevSettings();
+
+  if (!showDevModal) return null;
+
+  return (
+    <div className="dev-settings-overlay">
+      <div className="dev-settings-modal">
+        <div className="dev-settings-header">
+          <h2>Developer Settings</h2>
+          <button
+            className="dev-settings-close-btn"
+            onClick={() => setShowDevModal(false)}
+          >
+            ✕
+          </button>
+        </div>
+        <DevSettingsPanel />
+        <div className="dev-settings-footer">
           <button
             className="dev-settings-close-submit-btn"
             onClick={() => setShowDevModal(false)}

@@ -25,6 +25,7 @@ function TopMenu({
   currentMoleculeTop,
   settingsPopUp,
   setSettingsPopUp,
+  settingsInitialTab,
   duplicateDialog,
   setDuplicateDialog,
   recomputeVisible,
@@ -480,6 +481,7 @@ function TopMenu({
         <SettingsPopUp
           {...{
             setSettingsPopUp,
+            initialTab: settingsInitialTab,
             shortCutsOn,
             setShortCuts,
             gridParam,
