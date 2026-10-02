@@ -294,10 +294,6 @@ function TopMenu({
         buttonFunc: openAgentDialog,
       },
       {
-        id: "Report Bug",
-        buttonFunc: () => openBugReport(),
-      },
-      {
         id: "Settings",
         buttonFunc: () => {
           //placeholder for settings menu in progress
@@ -379,6 +375,11 @@ function TopMenu({
           navigate("/user-guide");
         },
       },
+      {
+        id: "Report Bug",
+        buttonFunc: () => openBugReport(),
+      },
+
     ],
     [
       navigate,
