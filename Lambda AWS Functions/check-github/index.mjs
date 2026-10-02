@@ -12,13 +12,14 @@ import { SESClient, SendEmailCommand } from "@aws-sdk/client-ses";
 
 const client = new DynamoDBClient({});
 const dynamo = DynamoDBDocumentClient.from(client);
-const date = new Date();
-const today = date.toISOString();
 
 const tableName = "abundance-projects";
 const recentlyDeletedTable = "recently-deleted-abundance";
 
 export const handler = async (event, context) => {
+  // Computed per invocation because warm Lambda containers reuse module scope
+  const today = new Date().toISOString();
+
   const octokit = new Octokit({
     auth: process.env.GIT_ACCESS,
   });
@@ -28,9 +29,10 @@ export const handler = async (event, context) => {
   let updatedCount = 0; // Counter for updated projects
   let deletedProjects = []; // Array to store deleted project names
   let notFoundProjects = []; // Array to store not found project names
+  let failedProjects = []; // Array to store projects that errored during the check
 
   /*Scans parameter to returns attributes owner, repoName, fork from all repositories in table*/
-  const command = new ScanCommand({
+  const scanInput = {
     ProjectionExpression:
       "#ow, #repoName, #forks, #lastFoundGit, #privateRepo, #contentURL",
     ExpressionAttributeNames: {
@@ -42,31 +44,8 @@ export const handler = async (event, context) => {
       "#contentURL": "contentURL",
     },
     TableName: tableName,
-  });
-
-  const tableItems = await dynamo.send(command);
-
-  var items = [];
-
-  const scanExecute = async () => {
-    try {
-      let result;
-      do {
-        result = await dynamo.send(command);
-        items = items.concat(result.Items);
-        command.ExclusiveStartKey = result.LastEvaluatedKey;
-      } while (result.LastEvaluatedKey);
-      return items;
-    } catch (err) {
-      throw err;
-    }
   };
 
-  items = await scanExecute();
-
-  //const moleculeUsageCounts = computeMoleculeUsageCounts(items);
-
-  console.log("Items to check:", items.length);
   await checkRateLimit();
 
   function sleep(ms) {
@@ -77,27 +56,49 @@ export const handler = async (event, context) => {
   const BATCH_SIZE = 5; // Number of repositories to process in parallel per batch
   const BATCH_DELAY_MS = 500; // Delay in milliseconds between each batch
 
-  let reposToCheck = items.filter((repo) => !repo.privateRepo);
-  for (let i = 0; i < reposToCheck.length; i += BATCH_SIZE) {
-    const batch = reposToCheck.slice(i, i + BATCH_SIZE);
-    await Promise.all(
-      batch.map((repo) =>
-        checkGithub(
-          repo.owner,
-          repo.repoName,
-          repo.forks,
-          repo.lastFoundGit,
-          repo.contentURL,
-        ),
-      ),
+  // Process one scan page at a time so memory stays bounded as the table grows
+  let lastEvaluatedKey;
+  let scannedCount = 0;
+  do {
+    const page = await dynamo.send(
+      new ScanCommand({ ...scanInput, ExclusiveStartKey: lastEvaluatedKey }),
     );
-    if (i + BATCH_SIZE < reposToCheck.length) {
-      await sleep(BATCH_DELAY_MS);
+    const pageItems = page.Items || [];
+    scannedCount += pageItems.length;
+
+    const reposToCheck = pageItems.filter((repo) => !repo.privateRepo);
+    for (let i = 0; i < reposToCheck.length; i += BATCH_SIZE) {
+      const batch = reposToCheck.slice(i, i + BATCH_SIZE);
+      await Promise.all(
+        batch.map((repo) =>
+          checkGithub(
+            repo.owner,
+            repo.repoName,
+            repo.forks,
+            repo.lastFoundGit,
+            repo.contentURL,
+          ).catch((error) => {
+            console.error(
+              `Failed to check ${repo.owner}/${repo.repoName}:`,
+              error,
+            );
+            failedProjects.push(`${repo.owner}/${repo.repoName}`);
+          }),
+        ),
+      );
+      if (i + BATCH_SIZE < reposToCheck.length) {
+        await sleep(BATCH_DELAY_MS);
+      }
     }
-  }
+
+    lastEvaluatedKey = page.LastEvaluatedKey;
+  } while (lastEvaluatedKey);
+
+  console.log("Items checked:", scannedCount);
 
   // Compose log report
   let logReport = [
+    `Items scanned: ${scannedCount}`,
     `Projects updated: ${updatedCount}`,
     deletedProjects.length > 0
       ? `Projects deleted: ${deletedProjects.length} (${deletedProjects.join(
@@ -109,6 +110,11 @@ export const handler = async (event, context) => {
           notFoundProjects.length
         } (${notFoundProjects.join(", ")})`
       : "All projects found.",
+    failedProjects.length > 0
+      ? `Projects failed to check: ${
+          failedProjects.length
+        } (${failedProjects.join(", ")})`
+      : "No check failures.",
   ].join("\n");
 
   console.log(logReport);
@@ -318,6 +324,9 @@ export const handler = async (event, context) => {
     };
     const getCommand = new GetCommand(params2);
     const responseGet = await dynamo.send(getCommand); //delete from abundance-projects table
+    if (!responseGet.Item) {
+      return null;
+    }
     responseGet.Item["deletedAt"] = today;
 
     const commandPut = new PutCommand({
