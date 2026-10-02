@@ -448,6 +448,8 @@ function PullMode({ setProcessing }) {
   const [showPRConfirm, setShowPRConfirm] = useState(false);
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [showExistingPRDialog, setShowExistingPRDialog] = useState(false);
+  // Whether the PR dialog is confirming a PR just created, or one found already open
+  const [prJustCreated, setPrJustCreated] = useState(false);
   const [showMergeErrorDialog, setShowMergeErrorDialog] = useState(false);
   const [mergeErrorMessage, setMergeErrorMessage] = useState("");
   const [prDescription, setPrDescription] = useState("");
@@ -749,6 +751,7 @@ function PullMode({ setProcessing }) {
       );
       setTimeout(() => setNotification(null), 5000);
       setShowPRConfirm(false);
+      setPrJustCreated(true);
       setShowExistingPRDialog(true);
     } catch (error) {
       setTimeout(() => setNotification(null), 5000);
@@ -790,6 +793,7 @@ function PullMode({ setProcessing }) {
         );
         setExistingPRData(pr);
         setExistingPRHasConflicts(hasConflicts);
+        setPrJustCreated(false);
         setShowExistingPRDialog(true);
       } else {
         // No existing PR, show description dialog
@@ -1320,7 +1324,11 @@ function PullMode({ setProcessing }) {
           }}
           className="share-dialog"
         >
-          <h3 style={{ margin: "0 0 15px 0" }}>Pull Request Already Exists</h3>
+          <h3 style={{ margin: "0 0 15px 0" }}>
+            {prJustCreated
+              ? "Pull Request Created"
+              : "Pull Request Already Exists"}
+          </h3>
 
           <p style={{ margin: "0 0 15px 0" }}>
             A pull request from{" "}
@@ -1331,7 +1339,7 @@ function PullMode({ setProcessing }) {
             <strong>
               {baseOwner}/{baseRepo}
             </strong>{" "}
-            already exists.
+            {prJustCreated ? "was created." : "already exists."}
           </p>
 
           {existingPRHasConflicts ? (
@@ -1420,46 +1428,48 @@ function PullMode({ setProcessing }) {
                 {isSyncingPR ? "Updating..." : "Update Pull Request"}
               </button>
             )}
-            <button
-              onClick={async () => {
-                setIsClosingPR(true);
-                try {
-                  await authorizedUserOcto.request(
-                    "PATCH /repos/{owner}/{repo}/pulls/{pull_number}",
-                    {
-                      owner: baseOwner,
-                      repo: baseRepo,
-                      pull_number: existingPRData.number,
-                      state: "closed",
-                    },
-                  );
-                  setNotification("Pull request closed.", "notice");
-                  setTimeout(() => setNotification(null), 3000);
-                  setShowExistingPRDialog(false);
-                  setExistingPRData(null);
-                  setExistingPRHasConflicts(false);
-                } catch (error) {
-                  setNotification(
-                    `Error closing pull request: ${error.message}`,
-                    "error",
-                  );
-                } finally {
-                  setIsClosingPR(false);
-                }
-              }}
-              disabled={isClosingPR}
-              style={{
-                padding: "8px 16px",
-                cursor: isClosingPR ? "not-allowed" : "pointer",
-                backgroundColor: "#dc3545",
-                color: "white",
-                border: "none",
-                borderRadius: "4px",
-                opacity: isClosingPR ? 0.6 : 1,
-              }}
-            >
-              {isClosingPR ? "Closing..." : "Close Pull Request"}
-            </button>
+            {!prJustCreated && (
+              <button
+                onClick={async () => {
+                  setIsClosingPR(true);
+                  try {
+                    await authorizedUserOcto.request(
+                      "PATCH /repos/{owner}/{repo}/pulls/{pull_number}",
+                      {
+                        owner: baseOwner,
+                        repo: baseRepo,
+                        pull_number: existingPRData.number,
+                        state: "closed",
+                      },
+                    );
+                    setNotification("Pull request closed.", "notice");
+                    setTimeout(() => setNotification(null), 3000);
+                    setShowExistingPRDialog(false);
+                    setExistingPRData(null);
+                    setExistingPRHasConflicts(false);
+                  } catch (error) {
+                    setNotification(
+                      `Error closing pull request: ${error.message}`,
+                      "error",
+                    );
+                  } finally {
+                    setIsClosingPR(false);
+                  }
+                }}
+                disabled={isClosingPR}
+                style={{
+                  padding: "8px 16px",
+                  cursor: isClosingPR ? "not-allowed" : "pointer",
+                  backgroundColor: "#dc3545",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  opacity: isClosingPR ? 0.6 : 1,
+                }}
+              >
+                {isClosingPR ? "Closing..." : "Close Pull Request"}
+              </button>
+            )}
           </div>
 
           <a
