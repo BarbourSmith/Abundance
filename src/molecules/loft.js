@@ -135,7 +135,10 @@ export default class Loft extends Atom {
       if (io.type == "input") {
         var saveIO = {
           name: io.name,
-          ioValue: io.getValue(),
+          // Only the input's name is needed to recreate it on load; computed
+          // geometry would make every save differ.
+          ioValue:
+            io.valueType === "geometry" ? "__GEOMETRY_INPUT__" : io.getValue(),
         };
         ioValues.push(saveIO);
       }

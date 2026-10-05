@@ -53,9 +53,6 @@ export function ProjectProvider({ children, cad, loadProject }) {
     octokitRef.current = authorizedUserOcto;
   }, [authorizedUserOcto]);
 
-  // Track last saved data to avoid unnecessary saves
-  const lastSaveData = useRef({});
-
   // Track current save progress to prevent regression
   const currentSaveProgress = useRef(0);
 
@@ -1408,133 +1405,16 @@ export function ProjectProvider({ children, cad, loadProject }) {
 
         updateSaveProgress(50);
 
-        const getExistingFileSha = async (path) => {
-          try {
-            const existingFile = await octokit.rest.repos.getContent({
-              owner,
-              repo,
-              path,
-              ref: base,
-            });
-            if (Array.isArray(existingFile.data)) {
-              return null;
-            }
-            return existingFile.data.sha;
-          } catch (error) {
-            if (error?.status === 404) {
-              return null;
-            }
-            throw error;
-          }
-        };
-
-        const commitViaContentsApi = async () => {
-          const files = Object.entries(changes.files);
-          let processed = 0;
-
-          for (const [path, fileContent] of files) {
-            let attempt = 0;
-            const maxAttempts = 3;
-
-            while (attempt < maxAttempts) {
-              attempt += 1;
-              const existingSha = await getExistingFileSha(path);
-
-              try {
-                if (fileContent == null) {
-                  if (existingSha) {
-                    await octokit.rest.repos.deleteFile({
-                      owner,
-                      repo,
-                      path,
-                      message: changes.commit,
-                      sha: existingSha,
-                      branch: base,
-                    });
-                  }
-                } else {
-                  // For PNG files, the content is already base64-encoded from the canvas
-                  // For other files, encode the text content
-                  let encodedContent;
-                  if (path === "project.png") {
-                    encodedContent = fileContent; // Already base64
-                  } else {
-                    encodedContent = window.btoa(
-                      GlobalVariables.toBinaryStr(fileContent),
-                    );
-                  }
-
-                  await octokit.rest.repos.createOrUpdateFileContents({
-                    owner,
-                    repo,
-                    path,
-                    message: changes.commit,
-                    content: encodedContent,
-                    branch: base,
-                    // only pass sha when truthy string
-                    ...(typeof existingSha === "string" &&
-                    existingSha.length > 0
-                      ? { sha: existingSha }
-                      : {}),
-                  });
-                }
-
-                break;
-              } catch (error) {
-                const msg = String(error?.message || "").toLowerCase();
-                const shaRelated =
-                  msg.includes("sha") ||
-                  msg.includes("does not match") ||
-                  msg.includes("already exists");
-
-                // Retry when branch moved (409) OR validation/SHA mismatch (422)
-                if (
-                  (error?.status === 409 ||
-                    error?.status === 422 ||
-                    shaRelated) &&
-                  attempt < maxAttempts
-                ) {
-                  continue;
-                }
-
-                throw error;
-              }
-            }
-
-            processed += 1;
-            const perFileProgress =
-              50 + Math.floor((processed / Math.max(files.length, 1)) * 20);
-            updateSaveProgress(perFileProgress);
-          }
-        };
-
-        // GitHub's Contents API cannot handle files whose base64-encoded payload
-        // exceeds ~1 MB (raw content ~750 KB).  For large projects we fall back to
-        // the Git Data API (blobs → tree → commit → ref) which supports files up
-        // to 100 MB and still produces standard, diff-able git commits.
-        const GIT_DATA_API_THRESHOLD_BYTES = 750_000;
-
+        // Commit every file in one commit through the Git Data API
+        // (blobs → tree → commit → ref). The Contents API makes one commit per
+        // file, including empty commits for files that haven't changed, and
+        // can't handle files over ~1 MB.
         const commitViaGitDataApi = async () => {
           const files = Object.entries(changes.files);
           let processed = 0;
 
-          // 1. Resolve the current HEAD commit on the branch.
-          const refResponse = await octokit.rest.git.getRef({
-            owner,
-            repo,
-            ref: `heads/${base}`,
-          });
-          const currentCommitSha = refResponse.data.object.sha;
-
-          // 2. Get the tree SHA from that commit.
-          const commitResponse = await octokit.rest.git.getCommit({
-            owner,
-            repo,
-            commit_sha: currentCommitSha,
-          });
-          const currentTreeSha = commitResponse.data.tree.sha;
-
-          // 3. Create blobs for each non-null file and build the tree entries.
+          // 1. Create blobs for each non-null file and build the tree entries.
+          // Blobs don't depend on the branch head, so they survive a retry.
           const treeEntries = [];
           for (const [path, fileContent] of files) {
             if (fileContent == null) {
@@ -1546,19 +1426,11 @@ export function ProjectProvider({ children, cad, loadProject }) {
                 sha: null,
               });
             } else {
-              // For PNG files, the content is already base64-encoded from the canvas
-              // For other files, encode the text content
-              let contentToBlob;
-              if (path === "project.png") {
-                contentToBlob = fileContent; // Already base64
-              } else {
-                contentToBlob = fileContent; // Text content
-              }
-
+              // PNG content is already base64-encoded from the canvas
               const blobResponse = await octokit.rest.git.createBlob({
                 owner,
                 repo,
-                content: contentToBlob,
+                content: fileContent,
                 encoding: path === "project.png" ? "base64" : "utf-8",
               });
               treeEntries.push({
@@ -1575,42 +1447,68 @@ export function ProjectProvider({ children, cad, loadProject }) {
             );
           }
 
-          // 4. Create a new tree that extends the current tree with our changes.
-          const newTreeResponse = await octokit.rest.git.createTree({
-            owner,
-            repo,
-            tree: treeEntries,
-            base_tree: currentTreeSha,
-          });
+          const maxAttempts = 3;
+          for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            // 2. Resolve the current HEAD commit and its tree.
+            const refResponse = await octokit.rest.git.getRef({
+              owner,
+              repo,
+              ref: `heads/${base}`,
+            });
+            const currentCommitSha = refResponse.data.object.sha;
+            const commitResponse = await octokit.rest.git.getCommit({
+              owner,
+              repo,
+              commit_sha: currentCommitSha,
+            });
+            const currentTreeSha = commitResponse.data.tree.sha;
 
-          // 5. Create the commit.
-          const newCommitResponse = await octokit.rest.git.createCommit({
-            owner,
-            repo,
-            message: changes.commit,
-            tree: newTreeResponse.data.sha,
-            parents: [currentCommitSha],
-          });
+            // 3. Create a new tree that extends the current tree with our changes.
+            const newTreeResponse = await octokit.rest.git.createTree({
+              owner,
+              repo,
+              tree: treeEntries,
+              base_tree: currentTreeSha,
+            });
 
-          // 6. Fast-forward the branch ref to the new commit.
-          await octokit.rest.git.updateRef({
-            owner,
-            repo,
-            ref: `heads/${base}`,
-            sha: newCommitResponse.data.sha,
-            force: false,
-          });
+            // Nothing differs from what's on GitHub: don't make an empty commit.
+            if (newTreeResponse.data.sha === currentTreeSha) {
+              return;
+            }
+
+            // 4. Create the commit.
+            const newCommitResponse = await octokit.rest.git.createCommit({
+              owner,
+              repo,
+              message: changes.commit,
+              tree: newTreeResponse.data.sha,
+              parents: [currentCommitSha],
+            });
+
+            // 5. Fast-forward the branch ref to the new commit. If the branch
+            // moved since step 2, rebuild on the new head and try again.
+            try {
+              await octokit.rest.git.updateRef({
+                owner,
+                repo,
+                ref: `heads/${base}`,
+                sha: newCommitResponse.data.sha,
+                force: false,
+              });
+              return;
+            } catch (error) {
+              if (
+                (error?.status === 409 || error?.status === 422) &&
+                attempt < maxAttempts
+              ) {
+                continue;
+              }
+              throw error;
+            }
+          }
         };
 
-        const hasLargeFile = Object.values(changes.files).some(
-          (content) =>
-            content != null && content.length > GIT_DATA_API_THRESHOLD_BYTES,
-        );
-        if (hasLargeFile) {
-          await commitViaGitDataApi();
-        } else {
-          await commitViaContentsApi();
-        }
+        await commitViaGitDataApi();
 
         updateSaveProgress(80);
 
@@ -1774,10 +1672,15 @@ export function ProjectProvider({ children, cad, loadProject }) {
         // Add filetypeVersion before change detection so it's consistent
         jsonRepOfProject.filetypeVersion = 1;
 
-        //Don't save again if nothing has changed (unless forceSave is true)
+        //Don't save again if nothing has changed since the project was
+        //loaded or last committed (unless forceSave is true)
+        const projectKey = `${GlobalVariables.currentAWSnode?.owner}/${GlobalVariables.currentAWSnode?.repoName}`;
         const currentSerialized = JSON.stringify(jsonRepOfProject);
-        const lastSerialized = JSON.stringify(lastSaveData.current);
-        const hasChanges = currentSerialized !== lastSerialized;
+        const lastSaved = GlobalVariables.lastSavedProject;
+        const hasChanges =
+          !lastSaved ||
+          lastSaved.projectKey !== projectKey ||
+          lastSaved.json !== currentSerialized;
         if (!forceSave && !hasChanges) {
           console.warn("No changes detected since last save. Save skipped.");
           return;
@@ -1919,9 +1822,8 @@ export function ProjectProvider({ children, cad, loadProject }) {
 
         // Add .gitattributes to prevent merge conflicts on binary thumbnails
         // merge=ours means Git always keeps the local version, preventing conflicts in PRs
-        filesObject[".gitattributes"] = window.btoa(
-          "project.png linguist-generated=true merge=ours\nproject.svg linguist-generated=true merge=ours\n",
-        );
+        filesObject[".gitattributes"] =
+          "project.png linguist-generated=true merge=ours\nproject.svg linguist-generated=true merge=ours\n";
 
         updateSaveProgress(30);
 
@@ -1943,7 +1845,10 @@ export function ProjectProvider({ children, cad, loadProject }) {
         );
 
         // Save snapshot only after a successful remote commit.
-        lastSaveData.current = jsonRepOfProject;
+        GlobalVariables.lastSavedProject = {
+          projectKey,
+          json: currentSerialized,
+        };
 
         if (typeSave !== "Auto Save") {
           const geomIds = GlobalVariables.topLevelMolecule.deepGeomList();
