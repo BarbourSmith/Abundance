@@ -8,10 +8,10 @@
 import { describe, it, expect, vi } from "vitest";
 import {
   DisplayScheduler,
-  MeshLruCache,
   displayKey,
   meshKey,
 } from "../src/js/displayScheduler.js";
+import { MeshLruCache } from "../src/js/meshCache.js";
 
 /** Fake worker pool whose tasks settle only when the test says so. */
 function makeFakeExec() {

@@ -1,4 +1,5 @@
 import Fonts from "../js/fonts.js";
+import { MeshLruCache } from "../js/meshCache.js";
 import * as workerpool from "workerpool";
 import type { ShapeMesh } from "replicad";
 import * as replicad from "replicad";
@@ -81,6 +82,29 @@ function trimShapeCache(): void {
       // Already freed; nothing to do.
     }
   }
+}
+
+/**
+ * Tessellated faces/edges per leaf, so a subcomponent shared by several
+ * assemblies is meshed once. Color and cameraZoom are applied per request.
+ */
+const TESSELLATION_CACHE_MAX_BYTES = 256 * 1024 * 1024;
+const tessellationCache = new MeshLruCache({
+  maxEntries: Infinity,
+  maxBytes: TESSELLATION_CACHE_MAX_BYTES,
+});
+
+type Tessellation = Pick<DisplayMesh, "faces" | "edges">;
+
+function tessellateCached(
+  key: string,
+  tessellate: () => Tessellation,
+): Tessellation {
+  const hit = tessellationCache.get(key) as Tessellation | undefined;
+  if (hit) return hit;
+  const result = tessellate();
+  tessellationCache.set(key, result);
+  return result;
 }
 
 /** Run a worker task, trimming the shape cache once it has finished. */
@@ -345,6 +369,7 @@ async function generateDisplayMesh(
           });
           continue;
         }
+        const shapeKey = `${context?.project ?? ""}|${meshObj.sourceId}`;
         if (meshObj.geometry instanceof replicad.Vertex) {
           // Point3D — emit a point coordinate, no mesh geometry
           finalMeshes.push({
@@ -354,26 +379,41 @@ async function generateDisplayMesh(
           });
         } else if (meshObj.geometry instanceof replicad.Wire) {
           // Wire — edges only, no faces
-          finalMeshes.push({
-            cameraZoom: cameraZoom,
-            edges: meshObj.geometry.meshEdges({
+          const wire = meshObj.geometry;
+          const { edges } = tessellateCached(`wire|${shapeKey}`, () => ({
+            edges: wire.meshEdges({
               tolerance: 0.03,
               angularTolerance: 0.1,
             }),
+          }));
+          finalMeshes.push({
+            cameraZoom: cameraZoom,
+            edges,
             color: meshObj.color,
           });
         } else if (meshObj.geometry instanceof replicad.Drawing) {
-          const sketchPlane = util.asReplicadPlane(meshObj.plane);
-          const threeDShape = meshObj.geometry
-            .sketchOnPlane(sketchPlane)
-            .extrude(0.0001);
-          const faces = threeDShape.mesh({
-            tolerance: 0.1,
-            angularTolerance: 0.5,
-          });
-          const edges = threeDShape.meshEdges({
-            tolerance: 0.1,
-            angularTolerance: 0.5,
+          const drawing = meshObj.geometry;
+          const plane = meshObj.plane;
+          // The mesh depends on the sketch plane, not just the drawing.
+          const key = `drawing|${shapeKey}|${JSON.stringify(plane)}`;
+          const { faces, edges } = tessellateCached(key, () => {
+            const threeDShape = drawing
+              .sketchOnPlane(util.asReplicadPlane(plane))
+              .extrude(0.0001);
+            try {
+              return {
+                faces: threeDShape.mesh({
+                  tolerance: 0.1,
+                  angularTolerance: 0.5,
+                }),
+                edges: threeDShape.meshEdges({
+                  tolerance: 0.1,
+                  angularTolerance: 0.5,
+                }),
+              };
+            } finally {
+              threeDShape.delete();
+            }
           });
           finalMeshes.push({
             cameraZoom: cameraZoom,
@@ -383,16 +423,21 @@ async function generateDisplayMesh(
           });
         } else {
           // Shape3D — mesh normally
+          const shape = meshObj.geometry;
+          const { faces, edges } = tessellateCached(`shape|${shapeKey}`, () => ({
+            faces: shape.mesh({
+              tolerance: 0.1,
+              angularTolerance: 0.5,
+            }),
+            edges: shape.meshEdges({
+              tolerance: 0.1,
+              angularTolerance: 0.5,
+            }),
+          }));
           finalMeshes.push({
             cameraZoom: cameraZoom,
-            faces: meshObj.geometry.mesh({
-              tolerance: 0.1,
-              angularTolerance: 0.5,
-            }),
-            edges: meshObj.geometry.meshEdges({
-              tolerance: 0.1,
-              angularTolerance: 0.5,
-            }),
+            faces,
+            edges,
             color: meshObj.color,
           });
         }
