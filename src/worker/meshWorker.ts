@@ -1,3 +1,4 @@
+import Fonts from "../js/fonts.js";
 import * as workerpool from "workerpool";
 import type { ShapeMesh } from "replicad";
 import * as replicad from "replicad";
@@ -32,7 +33,7 @@ type DisplayMesh = {
   vertexColors?: number[];
 };
 
-let defaultMesh: any = undefined;
+const textCache: Map<string, DisplayMesh[]> = new Map();
 const started: Promise<boolean> = util.init(false);
 void started.then(() => util.startHeapMonitor("meshWorker"));
 
@@ -231,40 +232,34 @@ function generateCameraPosition(meshArray: ReplicadObject[]): number {
  * @param {string} id - The unique identifier to store the default mesh in the library
  * @returns {Promise} A promise that resolves to the default text mesh
  */
-async function generateDefaultMesh(
-  context: RequestContext,
-): Promise<DisplayMesh[]> {
-  if (defaultMesh == undefined) {
-    const s = performance.now();
-    const textAssembly = await text(
-      "No output to display",
-      28,
-      "ROBOTO",
-      context,
-    );
-    const leaves = util.flattenAssembly(textAssembly);
-    const meshParts: DisplayMesh[] = [];
-    for (const leaf of leaves) {
-      const rObj = await util.geometryProvider?.get(leaf.geometry, context);
-      const meshShape = (rObj as replicad.Drawing)
-        .sketchOnPlane("XY")
-        .extrude(0.0001);
-      meshParts.push({
-        cameraZoom: 10,
-        faces: meshShape.mesh({ tolerance: 0.1, angularTolerance: 0.5 }),
-        edges: meshShape.meshEdges({
-          tolerance: 0.1,
-          angularTolerance: 0.5,
-        }),
-        color: util.defaultColor,
-      });
-    }
-    defaultMesh = meshParts;
-    console.debug("generated default mesh. took ", performance.now() - s, "ms");
-  } else {
-    console.debug("default mesh hit");
-  }
+async function generateDefaultMesh(): Promise<DisplayMesh[]> {
+  const s = performance.now();
+  const defaultMesh = textMesh("No output to display");
+  console.debug("generated default mesh. took ", performance.now() - s, "ms");
+
   return defaultMesh;
+}
+
+async function textMesh(text: string): Promise<DisplayMesh[]> {
+  await util.init();
+  await util.replicad.loadFont(Fonts["ROBOTO" as keyof typeof Fonts], "ROBOTO");
+
+  const drawing = replicad.drawText(text, {
+    fontFamily: "ROBOTO",
+    fontSize: 28,
+  });
+  const meshShape = drawing.sketchOnPlane("XY").extrude(0.0001);
+  return [
+    {
+      cameraZoom: 10,
+      faces: meshShape.mesh({ tolerance: 0.1, angularTolerance: 0.5 }),
+      edges: meshShape.meshEdges({
+        tolerance: 0.1,
+        angularTolerance: 0.5,
+      }),
+      color: util.defaultColor,
+    },
+  ];
 }
 
 async function generateDisplayMesh(
@@ -274,10 +269,18 @@ async function generateDisplayMesh(
   try {
     await started;
     let geom = undefined;
-    if (util.isAbundanceObject(id) && id.geometry.length !== 0) {
-      geom = id;
+    if (util.isAbundanceObject(id)) {
+      if (id.geometry.length !== 0) {
+        geom = id;
+      } else {
+        return { id: id, mesh: await generateDefaultMesh() };
+      }
     } else {
-      return { id: id, mesh: await generateDefaultMesh(context) };
+      // handle other content types
+      if (typeof id === "number" || typeof id === "string") {
+        return { id: id, mesh: await textMesh(String(id)) };
+      }
+      return { id: id, mesh: await generateDefaultMesh() };
     }
 
     // Flatten the assembly to remove hierarchy. Skip empty shapes
@@ -285,7 +288,7 @@ async function generateDisplayMesh(
       return part.geometry !== util.geometryProvider?.EMPTY_SHAPE_SENTINEL;
     });
     if (flattened.length === 0) {
-      return { id: id, mesh: await generateDefaultMesh(context) };
+      return { id: id, mesh: await generateDefaultMesh() };
     }
 
     const meshArray: {
@@ -406,14 +409,14 @@ async function generateDisplayMesh(
       console.error(
         "All geometry parts failed to mesh — falling back to default mesh",
       );
-      return { id: id, mesh: await generateDefaultMesh(context) };
+      return { id: id, mesh: await generateDefaultMesh() };
     }
     return { id: geom, mesh: finalMeshes };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("Error in generateDisplayMesh:", msg, e);
     // Fall back to default mesh while preserving the original id so callers can update UI state
-    return { id, mesh: await generateDefaultMesh(context) };
+    return { id, mesh: await generateDefaultMesh() };
   }
 }
 
