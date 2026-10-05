@@ -246,6 +246,12 @@ class GlobalVariables {
      */
     this.projectIsLoading = false;
     /**
+     * The project as last loaded from or committed to GitHub, used to skip
+     * saves when nothing has changed. `json` is the stringified project.
+     * @type {{projectKey: string, json: string} | null}
+     */
+    this.lastSavedProject = null;
+    /**
      * A flag to indicate if the project is a fork.
      * @type {boolean}
      */

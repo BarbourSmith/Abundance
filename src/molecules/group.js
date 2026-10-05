@@ -134,7 +134,8 @@ export default class Group extends Atom{
             if (io.connectors.length > 0){
                 var saveIO = {
                     name: io.name,
-                    ioValue: io.getValue()
+                    // Only the input's name is needed to recreate it on load
+                    ioValue: "__GEOMETRY_INPUT__"
                 }
                 ioValues.push(saveIO)
             }
