@@ -290,26 +290,30 @@ export default class Equation extends Atom {
     if (!this.currentEquation) {
       return false;
     }
-    
-    if (!this.inputs.every((input) => input.getState().status == Status.READY)) {
+
+    if (
+      !this.inputs.every((input) => input.getState().status == Status.READY)
+    ) {
       return false;
     }
-    
+
     // Second check: verify parent inputs referenced in equation are also READY
     const variables = this.extractVariablesFromEquation(this.currentEquation);
     const parentInputs = this.getInputsFromAncestors();
-    
+
     for (const variable of variables) {
       const parentInput = parentInputs.find((p) => p.name === variable);
       if (parentInput) {
         // Parent input is referenced in equation - it must be READY
-        const status = parentInput.getState?.() ? parentInput.getState().status : parentInput.status;
+        const status = parentInput.getState?.()
+          ? parentInput.getState().status
+          : parentInput.status;
         if (status !== Status.READY) {
           return false;
         }
       }
     }
-    
+
     return true;
   }
 
@@ -362,12 +366,5 @@ export default class Equation extends Atom {
     if (this.isEnabled() && this.inputs.length === 0) {
       this.onUpstreamChange();
     }
-  }
-
-  /**
-   * Send the value of this atom to the 3D display. Used to display the number
-   */
-  sendToRender() {
-    // No rendering for this atom
   }
 }

@@ -581,6 +581,7 @@ function AppContent() {
       backgroundMolecule = false,
       nonReplicadGeometryFromAtom = null,
     ) => {
+      console.trace(`writing to display called with : ${JSON.stringify(moleculeValue)}`)
       if (!moleculeValue) {
         // A non-null structure which still generates the default mesh
         moleculeValue = EMPTY_DISPLAY_VALUE;
