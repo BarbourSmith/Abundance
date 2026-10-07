@@ -198,6 +198,9 @@ export default class WasmNesting {
     #getImports() {
         return {
             wbg: {
+                __wbg_log_c0806fe64d8d69a9: (ptr: usize, len: usize): void => {
+                    console.log(new TextDecoder().decode(new Uint8Array(this.#wasm.memory.buffer, ptr, len)));
+                },
                 __wbg_buffer_609cc3eee51ed158: (arg0: usize): usize => {
                     const ret = this.#getObject<Uint8Array>(arg0).buffer;
 

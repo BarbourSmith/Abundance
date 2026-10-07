@@ -11,6 +11,19 @@ use crate::utils::number::Number;
 
 const NFP_INFO_START_INDEX: usize = 2;
 
+#[wasm_bindgen::prelude::wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen(js_namespace = console, js_name = log)]
+    fn console_log(s: &str);
+}
+
+pub(crate) fn debug_log(s: &str) {
+    #[cfg(target_arch = "wasm32")]
+    console_log(s);
+    #[cfg(not(target_arch = "wasm32"))]
+    println!("{}", s);
+}
+
 /// Convert Int32Array polygon points to f32 memory segment, scaling down by CLIPPER_SCALE
 fn to_mem_seg(polygon: &[Point<i32>]) -> Vec<f32> {
     let point_count = polygon.len();
@@ -346,8 +359,12 @@ pub fn place_paths(buffer: &[f32]) -> Vec<f32> {
     let mut min_width: f32 = 0.0;
     let mut placed: Vec<PolygonNode> = Vec::new();
     let mut placed_indices: Vec<usize> = Vec::new(); // Track indices to remove
+    let mut sheet_index = 0;
 
     while place_content.node_count() > 0 {
+        let (mut no_bin_nfp, mut broken_bin_nfp, mut missing_nfp, mut empty_final_nfp, mut no_position) =
+            (0, 0, 0, 0, 0);
+        let mut missing_pairs: Vec<String> = Vec::new();
         placed.clear();
         placed_indices.clear();
         placement.clear();
@@ -370,6 +387,7 @@ pub fn place_paths(buffer: &[f32]) -> Vec<f32> {
             // Get bin NFP
             let bin_nfp_option = place_content.get_bin_nfp(i);
             if bin_nfp_option.is_none() {
+                no_bin_nfp += 1;
                 continue;
             }
 
@@ -377,7 +395,22 @@ pub fn place_paths(buffer: &[f32]) -> Vec<f32> {
             let bin_nfp = NFPWrapper::new(bin_nfp_f32);
 
             // Part unplaceable, skip
-            if bin_nfp.is_broken() || place_content.get_nfp_error(&placed, &node) {
+            if bin_nfp.is_broken() {
+                broken_bin_nfp += 1;
+                continue;
+            }
+            if place_content.get_nfp_error(&placed, &node) {
+                missing_nfp += 1;
+                if missing_pairs.len() < 5 {
+                    let culprits = placed.iter().filter(|p| {
+                        let key = PolygonNode::generate_nfp_cache_key(place_content.rotations(), false, p, &node);
+                        !place_content.nfp_cache().contains_key(&key)
+                    }).count();
+                    missing_pairs.push(format!(
+                        "part {} @{}deg missing NFP vs {}/{} placed",
+                        node.source, node.rotation, culprits, placed.len()
+                    ));
+                }
                 continue;
             }
 
@@ -401,6 +434,7 @@ pub fn place_paths(buffer: &[f32]) -> Vec<f32> {
             let final_nfp = get_final_nfps(&place_content, &placed, &node, &bin_nfp, &placement);
 
             if final_nfp.is_empty() {
+                empty_final_nfp += 1;
                 continue;
             }
 
@@ -423,11 +457,21 @@ pub fn place_paths(buffer: &[f32]) -> Vec<f32> {
                 path_item.push(path_key);
                 placement.push(placement_data[2]);
                 placement.push(placement_data[1]);
+            } else {
+                no_position += 1;
             }
         }
 
+        debug_log(&format!(
+            "[nest] sheet {}: placed {}/{}; skipped: no bin NFP {}, broken bin NFP {}, missing pair NFP {}, empty final NFP {}, no position {}{}",
+            sheet_index, placed.len(), node_count, no_bin_nfp, broken_bin_nfp, missing_nfp, empty_final_nfp, no_position,
+            if missing_pairs.is_empty() { String::new() } else { format!("; e.g. {}", missing_pairs.join("; ")) }
+        ));
+        sheet_index += 1;
+
         if min_width != 0.0 {
-            fitness += min_width / place_content.area();
+            // Bin area is signed (negative for a clockwise bin); unsigned it rewards wider layouts.
+            fitness += min_width / place_content.area().abs();
         }
 
         // Remove placed nodes (remove from highest index to lowest to maintain index validity)

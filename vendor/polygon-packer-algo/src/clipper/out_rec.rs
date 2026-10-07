@@ -361,12 +361,6 @@ impl OutRec {
         }
     }
 
-    fn post_init(&mut self, rec_index: usize) {
-        self.set_hole(rec_index, !self.is_hole(rec_index));
-        self.set_first_left_index(rec_index, rec_index as u16);
-        self.reverse(rec_index);
-    }
-
     fn get_length(&self, index: usize) -> usize {
         let prev_index = self.prev(index);
 
@@ -1023,9 +1017,26 @@ impl OutRec {
         // splitting one polygon into two.
         self.set_point_index(out_rec1, out_pt1_index);
         let out_rec2 = self.create(out_pt2_index);
-        self.post_init(out_rec2);
+
+        if self.contains_poly(out_rec1, out_rec2) {
+            self.nest_inside(out_rec2, out_rec1);
+        } else {
+            self.set_hole(out_rec2, self.is_hole(out_rec1));
+            self.set_first_left_index(out_rec2, self.first_left_index(out_rec1) as u16);
+
+            if self.contains_poly(out_rec2, out_rec1) {
+                self.nest_inside(out_rec1, out_rec2);
+            }
+        }
 
         out_rec2
+    }
+
+    // Pointing first_left at itself (as an unconditional split used to) makes param1_right_of_param2 loop forever.
+    fn nest_inside(&mut self, inner: usize, outer: usize) {
+        self.set_hole(inner, !self.is_hole(outer));
+        self.set_first_left_index(inner, outer as u16);
+        self.reverse(inner);
     }
 
     // Should return tuple (i32, i32)

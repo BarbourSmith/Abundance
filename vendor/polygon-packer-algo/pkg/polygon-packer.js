@@ -279,6 +279,9 @@ let wasm_bindgen;
             const ret = getObject(arg0).length;
             return ret;
         };
+        imports.wbg.__wbg_log_c0806fe64d8d69a9 = function(arg0, arg1) {
+            console.log(getStringFromWasm0(arg0, arg1));
+        };
         imports.wbg.__wbg_msCrypto_a61aeb35a24c1329 = function(arg0) {
             const ret = getObject(arg0).msCrypto;
             return addHeapObject(ret);

@@ -98,13 +98,21 @@ pub fn offset_node_inner(
         let offset_scaled = (offset * (CLIPPER_SCALE as f32)) as i32;
         let result_path = clipper_offset.execute(&path, offset_scaled);
 
-        if result_path.len() != 1 {
-            // Error case - return empty or handle error
-            // In TypeScript it throws an error, but we'll return empty for Rust
+        if result_path.is_empty() {
             return Vec::new();
         }
 
-        res_mem_seg = clipper_utils::to_mem_seg(&result_path[0]);
+        // Offsetting a concave outline outwards can seal a notch into a void, returned as an extra path.
+        let outer = result_path
+            .iter()
+            .max_by(|a, b| {
+                Point::get_area_abs(a)
+                    .partial_cmp(&Point::get_area_abs(b))
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
+            .unwrap();
+
+        res_mem_seg = clipper_utils::to_mem_seg(outer);
 
         // Clean the result
         let cleaned = clean_node_inner(&res_mem_seg, curve_tolerance);
@@ -305,8 +313,8 @@ pub fn generate_tree(
         offset += seg_size;
     }
 
-    // Build the tree structure
-    nest_polygons(&mut nodes);
+    // Each input polygon is a separate part, even if it overlaps another one, so
+    // don't nest them into each other as holes.
 
     // Apply offset with alternating signs
     offset_nodes(&mut nodes, 1, spacing, curve_tolerance);

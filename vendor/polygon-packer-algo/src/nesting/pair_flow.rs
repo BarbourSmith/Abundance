@@ -10,6 +10,20 @@ use crate::utils::math::cycle_index;
 use crate::utils::mid_value::MidValue;
 use crate::utils::number::Number;
 use num_traits::ToPrimitive;
+use std::cell::Cell;
+
+thread_local! {
+    static NFP_FAIL_REASON: Cell<&'static str> = Cell::new("");
+    static NFP_FAIL_COUNT: Cell<u32> = Cell::new(0);
+}
+
+fn set_fail_reason(reason: &'static str) {
+    NFP_FAIL_REASON.with(|r| {
+        if r.get().is_empty() {
+            r.set(reason);
+        }
+    });
+}
 
 /// Helper structure for segment intersection checking during NFP calculation
 ///
@@ -1102,6 +1116,7 @@ unsafe fn no_fit_polygon<T: Number>(
     inside: bool,
 ) -> Vec<Vec<f32>> {
     if (*polygon_a).is_broken() || (*polygon_b).is_broken() {
+        set_fail_reason("broken input polygon");
         return Vec::new();
     }
 
@@ -1195,6 +1210,7 @@ unsafe fn no_fit_polygon<T: Number>(
             let max_dist = mem_seg[2].to_f64().unwrap().abs();
 
             if ti == -1.0 || max_dist.almost_equal(0.0, None) {
+                set_fail_reason(if ti == -1.0 { "orbit stuck: no translation vector" } else { "orbit stuck: zero slide distance" });
                 nfp.clear();
                 break;
             }
@@ -1221,6 +1237,10 @@ unsafe fn no_fit_polygon<T: Number>(
 
             (*offset).add(translate);
             counter += 1;
+        }
+
+        if counter >= condition {
+            set_fail_reason("orbit did not close within step limit");
         }
 
         if !nfp.is_empty() {
@@ -1295,6 +1315,7 @@ unsafe fn pair_outside<T: Number>(
 
     // if searchedges is active, only the first NFP is guaranteed to pass sanity check
     if f32::polygon_area(&mut result[0]).abs() < (*polygon_a).abs_area() {
+        set_fail_reason("NFP area smaller than part A");
         //pairContent.logError('NFP Area Error');
         //console.log('Area: ', tmpPolygon.absArea);
         result.clear();
@@ -1376,6 +1397,7 @@ pub unsafe fn pair_data(buffer: &[f32]) -> Vec<f32> {
     }
 
     let mut pair_content = PairContent::new();
+    NFP_FAIL_REASON.with(|r| r.set(""));
 
     pair_content.init(buffer);
 
@@ -1424,10 +1446,29 @@ pub unsafe fn pair_data(buffer: &[f32]) -> Vec<f32> {
 
     // sanity check
     if nfp.is_empty() {
-        //pairContent.logError('NFP Error');
+        let reason = NFP_FAIL_REASON.with(|r| r.replace(""));
+        let count = NFP_FAIL_COUNT.with(|c| {
+            c.set(c.get() + 1);
+            c.get()
+        });
+        if count <= 30 || count % 100 == 0 {
+            let (a, b) = (pair_content.first_node(), pair_content.second_node());
+            crate::nesting::place_flow::debug_log(&format!(
+                "[nfp] fail #{}: part {} @{}deg ({} pts) vs part {} @{}deg ({} pts): {}",
+                count, a.source, a.rotation, polygon_a.length(), b.source, b.rotation, polygon_b.length(),
+                if reason.is_empty() { "unknown" } else { reason }
+            ));
+            if count <= 3 {
+                crate::nesting::place_flow::debug_log(&format!(
+                    "[nfp-dump] {{\"a\":{:?},\"b\":{:?}}}",
+                    a.mem_seg[..a.seg_size].to_vec(), b.mem_seg[..b.seg_size].to_vec()
+                ));
+            }
+        }
 
         return Vec::new();
     }
+    NFP_FAIL_REASON.with(|r| r.set(""));
 
     // generate nfps for children (holes of parts) if any exist
     if pair_content.use_holes() {

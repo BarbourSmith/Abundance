@@ -39,6 +39,7 @@ type LayoutConfig = {
   partPadding: number;
   units?: string;
   rotations: number;
+  searchMinutes?: number;
 };
 
 type Placement = {
@@ -62,16 +63,6 @@ type OrientationCandidate = {
   thickness: number;
   innerWires: number;
 };
-
-// Soft budget: how long we let the nesting engine keep improving on a layout it
-// has already found. Reduced from 120000 (2 min) to 30 sec to prevent
-// long-running workers.
-const NESTING_RUNTIME_MS = 30000;
-// Hard budget: if the engine has not produced a single placement by the soft
-// budget we keep waiting rather than giving up, because the alternative is
-// returning a layout that places nothing. The first result for a large part
-// count regularly arrives after 30s.
-const NESTING_MAX_RUNTIME_MS = 120000;
 
 const rotateMemoCache = new Map<
   string,
@@ -291,8 +282,9 @@ async function layout(
       // placements the user already had, and gives them nothing to go on.
       throw new Error(
         "The nesting engine could not place any parts within " +
-          NESTING_MAX_RUNTIME_MS / 1000 +
-          " seconds. Your current placements have been left alone. Parts must " +
+          (layoutConfig.searchMinutes ?? 2) +
+          " minutes. Your current placements have been left alone. Try " +
+          "raising Search Time (minutes). Parts must also " +
           "lie flat on the XY plane to be nested - try feeding this atom " +
           "through an Orient atom first, or check that the sheet is big enough " +
           "for the largest part.",
@@ -429,6 +421,21 @@ function boundingBoxAsBoundary(shape: Shape3D): SimpleXY[] {
   ];
 }
 
+/** XY centre of a part's bounding box: the point placements rotate about. */
+function boundsCenter(bounds: number[][]): SimpleXY {
+  return {
+    x: (bounds[0][0] + bounds[1][0]) / 2,
+    y: (bounds[0][1] + bounds[1][1]) / 2,
+  };
+}
+
+// Also keeps the engine's f32 coordinates small; parts far from the origin
+// break its no-fit polygons.
+function centerOnOrigin(boundary: SimpleXY[], bounds: number[][]) {
+  const c = boundsCenter(bounds);
+  return boundary.map((p) => ({ x: p.x - c.x, y: p.y - c.y }));
+}
+
 /**
  * Collect the flat boundary of every placeable leaf in the assembly.
  *
@@ -461,7 +468,10 @@ async function prepShapesForLayout(
         console.error("Failed to get boundary of 2D part, skipping it", err);
         return undefined;
       }
-      result.push({ id: result.length, shape: boundary });
+      result.push({
+        id: result.length,
+        shape: centerOnOrigin(boundary, geom.boundingBox.bounds),
+      });
       return leaf;
     } else if (util.is3D(leaf)) {
       const geom = (await util.geometryProvider!.get(
@@ -493,7 +503,10 @@ async function prepShapesForLayout(
           return undefined;
         }
       }
-      result.push({ id: result.length, shape: boundary }); // Just pick the first one for now.
+      result.push({
+        id: result.length,
+        shape: centerOnOrigin(boundary, geom.boundingBox.bounds),
+      });
       return leaf;
     }
   });
@@ -678,13 +691,23 @@ async function applyLayout(
         console.warn("did not find transform for id: " + leafID);
         return leaf;
       }
-      // apply rotation first. All rotations are around (0, 0, 0)
-      // Additionally, shift by sheet-index * sheet height so that multiple
-      // sheet layouts are spaced out from one another.
-      // use cache for these operations since rotation+movement pairs often
-      // recur between layouts.
-      let newGeom = await util.geometryProvider!.rotate(
+      // Placements are relative to the part's bounding-box centre: centre it on
+      // the origin, rotate about the origin, then translate. Sheets after the
+      // first are shifted in +y so they don't overlap.
+      const part = (await util.geometryProvider!.get(
         leaf.geometry,
+        context,
+      )) as Shape3D | Drawing;
+      const c = boundsCenter(part.boundingBox.bounds);
+      let newGeom = await util.geometryProvider!.move(
+        leaf.geometry,
+        -c.x,
+        -c.y,
+        0,
+        context,
+      );
+      newGeom = await util.geometryProvider!.rotate(
+        newGeom,
         0,
         0,
         transform.rotate,
@@ -732,6 +755,9 @@ function checkConfig(layoutConfig: LayoutConfig) {
     throw new Error(
       "Orientations must be a whole number from 1 to " + MAX_ROTATIONS + ".",
     );
+  }
+  if (layoutConfig.searchMinutes !== undefined && !(layoutConfig.searchMinutes > 0)) {
+    throw new Error("Search Time (minutes) must be greater than zero.");
   }
 }
 
@@ -793,8 +819,7 @@ async function computePositions(
   previousPlacements: Placement[][] | undefined = undefined,
 ): Promise<Placement[][] | undefined> {
   const tolerance = 0.2;
-  const runtimeMs = NESTING_RUNTIME_MS;
-  const maxRuntimeMs = NESTING_MAX_RUNTIME_MS;
+  const runtimeMs = (layoutConfig.searchMinutes ?? 2) * 60000;
   const config = {
     curveTolerance: 0.1,
     // The engine packs spacing into 5 bits, so it must be a whole number from 0 to 31.
@@ -869,22 +894,10 @@ async function computePositions(
       }
     };
 
-    // Once the soft budget is up we take the best layout found so far. If the
-    // engine hasn't placed anything yet we keep checking back until the hard
-    // budget, then give up and report that rather than inventing a layout.
+    // When the search time is up, take the best layout found so far, if any.
     const finishWhenReady = () => {
-      const elapsed = Date.now() - nestingStartedAt;
-      if (bestPlacement != undefined) {
-        packer.stop(true);
-        resolve(bestPlacement as Placement[][]);
-        return;
-      }
-      if (elapsed >= maxRuntimeMs) {
-        packer.stop(true);
-        resolve(undefined);
-        return;
-      }
-      setTimeout(finishWhenReady, 1000);
+      packer.stop(true);
+      resolve(bestPlacement);
     };
 
     try {
@@ -922,7 +935,7 @@ function translatePlacements(placements: PlacementWrapper): Placement[][] {
     placements.bindPlacement(i);
     for (let j = 0; j < placements.size; j++) {
       // bindData returns the index into the input polygons; `id` is the engine's internal node id.
-      const sourceId = placements.bindData(j);
+      const sourceId = placements.bindData(j) as unknown as number;
       sheet.push({
         id: sourceId,
         rotate: placements.rotation,

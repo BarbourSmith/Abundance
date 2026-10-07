@@ -5,6 +5,9 @@ use crate::{
 };
 use rand::Rng;
 use std::cell::RefCell;
+use std::collections::HashMap;
+
+const COMPACT_ANGLE_BIAS: f32 = 0.8;
 
 thread_local! {
     static INSTANCE: RefCell<GeneticAlgorithm> = RefCell::new(GeneticAlgorithm::new());
@@ -29,6 +32,8 @@ pub struct GeneticAlgorithm {
     threshold: f32,
     /// Current source polygon index
     current_source: u16,
+    /// Per-part angles that fit the bin, and the subset with the smallest bounding box
+    angle_candidates: HashMap<i32, (Vec<u16>, Vec<u16>)>,
 }
 
 impl GeneticAlgorithm {
@@ -40,6 +45,7 @@ impl GeneticAlgorithm {
             rotations: 0,
             threshold: 0.0,
             current_source: 0,
+            angle_candidates: HashMap::new(),
         }
     }
 
@@ -101,6 +107,7 @@ impl GeneticAlgorithm {
         self.bin_height = 0.0;
         self.population.clear();
         self.current_source = 0;
+        self.angle_candidates.clear();
     }
 
     // Returns a mutated individual with the given mutation rate
@@ -116,8 +123,10 @@ impl GeneticAlgorithm {
             }
 
             if self.get_mutate() {
-                let placement_idx = clone.placement()[i] as usize;
-                clone.rotation_mut()[i] = self.random_angle(&nodes[placement_idx]);
+                let source = clone.placement()[i] as i32;
+                if let Some(node) = nodes.iter().find(|n| n.source == source) {
+                    clone.rotation_mut()[i] = self.random_angle(node);
+                }
             }
         }
 
@@ -168,37 +177,54 @@ impl GeneticAlgorithm {
     }
 
     // Returns a random angle of insertion
-    fn random_angle(&self, node: &PolygonNode) -> u16 {
-        let last_index = self.rotations as usize - 1;
+    // Usually picks an angle giving the smallest bounding box, which packs rectangular parts best.
+    fn random_angle(&mut self, node: &PolygonNode) -> u16 {
+        if !self.angle_candidates.contains_key(&node.source) {
+            let candidates = self.candidate_angles(node);
+            self.angle_candidates.insert(node.source, candidates);
+        }
+        let (fitting, compact) = &self.angle_candidates[&node.source];
+
+        if fitting.is_empty() {
+            return 0;
+        }
+
+        let mut rng = rand::thread_rng();
+        let pool = if rng.gen::<f32>() < COMPACT_ANGLE_BIAS { compact } else { fitting };
+
+        pool[rng.gen_range(0..pool.len())]
+    }
+
+    // Angles at which the part fits in the bin, and those within 1% of the smallest bounding box.
+    fn candidate_angles(&self, node: &PolygonNode) -> (Vec<u16>, Vec<u16>) {
         let step = 360.0 / self.rotations as f32;
-        let mut angles: Vec<u16> = Vec::with_capacity(self.rotations as usize);
+        let mut fitting: Vec<u16> = Vec::new();
+        let mut areas: Vec<f32> = Vec::new();
 
         for i in 0..self.rotations as usize {
-            angles.push((i as f32 * step).round() as u16);
-        }
-
-        // Shuffle angles
-        let mut rng = rand::thread_rng();
-        for i in (1..=last_index).rev() {
-            let j = rng.gen_range(0..=i);
-            angles.swap(i, j);
-        }
-
-        // Try each angle and find one that fits
-        for angle in &angles {
+            let angle = (i as f32 * step).round() as u16;
             let mut rotated = node.mem_seg.to_vec();
-            f32::rotate_polygon(&mut rotated, *angle as f32);
+            f32::rotate_polygon(&mut rotated, angle as f32);
 
             let size = rotated.len() >> 1;
             let bounds = f32::calculate_bounds(&rotated, 0, size);
 
             // Don't use obviously bad angles where the part doesn't fit in the bin
             if bounds[2] < self.bin_width && bounds[3] < self.bin_height {
-                return *angle;
+                fitting.push(angle);
+                areas.push(bounds[2] * bounds[3]);
             }
         }
 
-        0
+        let min_area = areas.iter().cloned().fold(f32::INFINITY, f32::min);
+        let compact = fitting
+            .iter()
+            .zip(&areas)
+            .filter(|(_, &area)| area <= min_area * 1.01)
+            .map(|(&angle, _)| angle)
+            .collect();
+
+        (fitting, compact)
     }
 
     pub fn get_individual(&mut self, nodes: &[PolygonNode]) -> Option<Phenotype> {

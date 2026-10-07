@@ -66,6 +66,9 @@ impl WasmPacker {
     /// * `configuration` - Configuration bit flags
     /// * `polygon_data` - Vector of polygon data chunks (size-prefixed f32 arrays)
     pub fn init(&mut self, configuration: u32, mut polygon_data: Vec<Vec<f32>>) {
+        std::panic::set_hook(Box::new(|info| {
+            crate::nesting::place_flow::debug_log(&format!("[panic] {}", info));
+        }));
         // `polygon_data` is expected as a Vec of polygons, where the last polygon
         // is the bin. Take the last element as the bin polygon and treat the
         // remaining polygons as the parts to place.
