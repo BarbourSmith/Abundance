@@ -257,7 +257,10 @@ export default class Export extends Atom {
     let fileType = this.findIOValue("File Type");
     let resolution = this.findIOValue("Resolution (dpi)");
     let stlTolerance = this.findIOValue("STL Tolerance");
-    let partName = this.findIOValue("Part Name");
+    // The Part Name input's value is null when its text contains a word that
+    // matches an Input atom's name (the text is treated as an equation), so
+    // fall back to the name typed in the panel, as the Gcode atom does.
+    let partName = this.findIOValue("Part Name") || this.partName || "output";
     let geometry = this.findIOValue("geometry");
     try {
       if (geometry == null) {
