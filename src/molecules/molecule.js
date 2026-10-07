@@ -332,6 +332,7 @@ export default class Molecule extends Atom {
       atom.setInputChanged = setInputChanged;
       const partName =
         atom.inputs.filter((input) => input.name === "Part Name")[0]?.value ||
+        atom.partName ||
         "Unnamed Part";
       exportParams[`${atom.uniqueID}-export`] = {
         type: "button",
