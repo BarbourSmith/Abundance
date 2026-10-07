@@ -11,7 +11,10 @@ import {
 
 import GlobalVariables from "./js/globalvariables.js";
 import { fetchGitHubFileContent } from "./js/githubFileUtils.js";
-import { loadSavedBom } from "./js/projectSaveBaseline.js";
+import {
+  loadSavedBom,
+  serializeProjectForChangeDetection,
+} from "./js/projectSaveBaseline.js";
 import { filterGeometryByTags } from "./utils/geometryFilterByTags.js";
 import { CadWorkerManager } from "./worker/cadWorkerManager.js";
 import { DisplayScheduler, meshKey } from "./js/displayScheduler.js";
@@ -882,13 +885,10 @@ function AppContent() {
           throw deserializeError;
         }
         // Remember the loaded state so saves can skip when nothing changed.
-        // Re-serialize rather than using rawFile: older files don't round-trip
-        // exactly, and the app's own form is what saves compare against.
-        const loadedSnapshot = targetMolecule.serialize();
-        loadedSnapshot.filetypeVersion = 1;
+        // Compare authored state; computation can continue after deserialization.
         GlobalVariables.lastSavedProject = {
           projectKey,
-          json: JSON.stringify(loadedSnapshot),
+          json: serializeProjectForChangeDetection(targetMolecule),
           bom: savedBom,
         };
         // Clear loading flag after deserialization completes

@@ -9,7 +9,10 @@ import GlobalVariables from "../js/globalvariables.js";
 import { meshKey } from "../js/displayScheduler.js";
 import { fetchGitHubFileContent } from "../js/githubFileUtils.js";
 import { encodeProjectContentForGitHub } from "../js/projectContentCodec.js";
-import { hasProjectChanges } from "../js/projectSaveBaseline.js";
+import {
+  hasProjectChanges,
+  serializeProjectForChangeDetection,
+} from "../js/projectSaveBaseline.js";
 import Molecule from "../molecules/molecule.js";
 import { Status } from "../prototypes/observableEntity.js";
 import { licenses } from "../js/licenseOptions.js";
@@ -1718,7 +1721,10 @@ export function ProjectProvider({ children, cad, loadProject }) {
         //Don't save again if nothing has changed since the project was
         //loaded or last committed (unless forceSave is true)
         const projectKey = `${GlobalVariables.currentAWSnode?.owner}/${GlobalVariables.currentAWSnode?.repoName}`;
-        const currentSerialized = JSON.stringify(jsonRepOfProject);
+        const currentSerialized = serializeProjectForChangeDetection(
+          GlobalVariables.topLevelMolecule,
+          jsonRepOfProject,
+        );
         const lastSaved = GlobalVariables.lastSavedProject;
         // The BOM is compiled once the model is ready. Until then there is
         // none, and the BOM file on GitHub is left alone.
@@ -1896,7 +1902,8 @@ export function ProjectProvider({ children, cad, loadProject }) {
           finalPNG,
         );
 
-        // Save snapshot only after a successful remote commit.
+        // Record the authored snapshot captured before the request, so edits
+        // made while saving remain detectable. Failed saves don't advance it.
         GlobalVariables.lastSavedProject = {
           projectKey,
           json: currentSerialized,
