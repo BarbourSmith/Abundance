@@ -11,6 +11,7 @@ import {
 
 import GlobalVariables from "./js/globalvariables.js";
 import { fetchGitHubFileContent } from "./js/githubFileUtils.js";
+import { loadSavedBom } from "./js/projectSaveBaseline.js";
 import { filterGeometryByTags } from "./utils/geometryFilterByTags.js";
 import { CadWorkerManager } from "./worker/cadWorkerManager.js";
 import { DisplayScheduler, meshKey } from "./js/displayScheduler.js";
@@ -853,6 +854,16 @@ function AppContent() {
           setActiveAtom(targetMolecule);
           return;
         }
+        const savedBom = await loadSavedBom(
+          octokit,
+          project.owner,
+          project.repoName,
+        );
+        // The BOM request may finish after navigation to a different project.
+        if (GlobalVariables.topLevelMolecule !== targetMolecule) {
+          GlobalVariables.loadingProjects.delete(projectKey);
+          return;
+        }
         targetMolecule.loadedProjectKey = projectKey;
 
         // Cancel any in-flight CAD calls from the previous project so their
@@ -878,6 +889,7 @@ function AppContent() {
         GlobalVariables.lastSavedProject = {
           projectKey,
           json: JSON.stringify(loadedSnapshot),
+          bom: savedBom,
         };
         // Clear loading flag after deserialization completes
         GlobalVariables.loadingProjects.delete(projectKey);

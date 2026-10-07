@@ -9,6 +9,7 @@ import GlobalVariables from "../js/globalvariables.js";
 import { meshKey } from "../js/displayScheduler.js";
 import { fetchGitHubFileContent } from "../js/githubFileUtils.js";
 import { encodeProjectContentForGitHub } from "../js/projectContentCodec.js";
+import { hasProjectChanges } from "../js/projectSaveBaseline.js";
 import Molecule from "../molecules/molecule.js";
 import { Status } from "../prototypes/observableEntity.js";
 import { licenses } from "../js/licenseOptions.js";
@@ -254,9 +255,10 @@ export function ProjectProvider({ children, cad, loadProject }) {
                 owner: owner,
                 repoName: repoName,
               });
-              GlobalVariables.topLevelMolecule.deserialize(projectData);
+              GlobalVariables.lastSavedProject = null;
               GlobalVariables.currentMolecule =
                 GlobalVariables.topLevelMolecule;
+              await GlobalVariables.topLevelMolecule.deserialize(projectData);
 
               // NOTE: Don't clean up localStorage here - wait until after loadProject completes.
               // If loadProject fails, we want to keep the recovery data in localStorage
@@ -267,6 +269,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
             } catch (error) {
               console.error("Error loading from localStorage:", error);
               // Fall through to GitHub load if localStorage parsing fails
+              loadSource = "fresh-url";
             }
           } else if (loadSource !== "fresh-url") {
             // No recovery data found for reauthentication or return - treat as fresh load
@@ -1724,13 +1727,12 @@ export function ProjectProvider({ children, cad, loadProject }) {
         )
           ? GlobalVariables.topLevelMolecule.formatBom()
           : null;
-        // A BOM that finished compiling after the last save also counts as a
-        // change. If it matches what's on GitHub, createCommit makes no commit.
-        const hasChanges =
-          !lastSaved ||
-          lastSaved.projectKey !== projectKey ||
-          lastSaved.json !== currentSerialized ||
-          (bomContent != null && bomContent !== lastSaved.bom);
+        const hasChanges = hasProjectChanges(
+          lastSaved,
+          projectKey,
+          currentSerialized,
+          bomContent,
+        );
         if (!forceSave && !hasChanges) {
           console.warn("No changes detected since last save. Save skipped.");
           return;
