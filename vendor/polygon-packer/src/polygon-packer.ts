@@ -1,215 +1,165 @@
-import {
-  ClipperWrapper,
-  getUint16,
-  readUint32FromF32,
-  PolygonF32,
-} from "geometry-utils";
+import Parallel from './parallel';
+import { DisplayCallback, f32, NestConfig, u32, usize } from './types';
+import BasePacker from './base-packer';
 
-import { GeneticAlgorithm } from "./genetic-algorithm";
-import { Parallel } from "./parallel";
-import NFPStore from "./nfp-store";
-import {
-  BoundRectF32,
-  DisplayCallback,
-  NestConfig,
-  PolygonNode,
-} from "./types";
+/**
+ * Multi-threaded polygon packer that uses Web Workers for parallel NFP calculation and placement.
+ * 
+ * This packer distributes the computational workload across multiple worker threads,
+ * making it suitable for large-scale nesting operations. It provides real-time progress
+ * updates and asynchronous result callbacks.
+ * 
+ * @example
+ * ```typescript
+ * const packer = new PolygonPacker();
+ * 
+ * packer.start(
+ *   config,
+ *   polygons,
+ *   binPolygon,
+ *   (progress) => console.log(`Progress: ${progress}%`),
+ *   (placement) => console.log('New placement:', placement)
+ * );
+ * ```
+ */
+export default class PolygonPacker extends BasePacker {
+    #isWorking: boolean = false;
 
-export default class PolygonPacker {
-  #geneticAlgorithm = new GeneticAlgorithm();
+    #progress: f32 = 0;
 
-  #binNode: PolygonNode = null;
+    #workerTimer: u32 = 0;
 
-  #binArea: number = 0;
+    #paralele: Parallel = new Parallel();
 
-  #binBounds: BoundRectF32 = null;
+    #workersReady = false;
 
-  #resultBounds: BoundRectF32 = null;
+    #chunkSize: usize = 512;
 
-  #isWorking: boolean = false;
+    /**
+     * Starts the multi-threaded nesting process.
+     * 
+     * This method initializes the nesting algorithm and launches worker threads
+     * to perform NFP calculations and placements in parallel. Progress and results
+     * are reported through callback functions.
+     * 
+     * @param configuration - Nesting configuration parameters (spacing, rotations, etc.)
+     * @param polygons - Array of polygons to nest, represented as Float32Arrays
+     * @param binPolygon - The container polygon (bin) to nest shapes into
+     * @param progressCallback - Optional callback invoked periodically with progress percentage (0-100)
+     * @param displayCallback - Optional callback invoked when a new placement is found
+     * 
+     * @example
+     * ```typescript
+     * packer.start(
+     *   { spacing: 0, rotations: 4 },
+     *   [polygon1, polygon2],
+     *   binPolygon,
+     *   (progress) => updateProgressBar(progress),
+     *   (result) => renderPlacement(result)
+     * );
+     * ```
+     */
+    public start(
+        configuration: NestConfig,
+        polygons: Float32Array[],
+        binPolygon: Float32Array,
+        progressCallback?: (progress: f32) => void,
+        displayCallback?: DisplayCallback
+    ): void {
+        super.start(configuration, polygons, binPolygon);
 
-  #best: Float32Array = null;
+        this.#isWorking = true;
 
-  #progress: number = 0;
+        this.#launchWorkers(displayCallback);
 
-  #workerTimer: number = 0;
-
-  #nfpStore: NFPStore = new NFPStore();
-
-  #paralele: Parallel = new Parallel();
-
-  #nodes: PolygonNode[] = [];
-
-  // progressCallback is called when progress is made
-  // displayCallback is called when a new placement has been made
-  public start(
-    configuration: NestConfig,
-    polygons: Float32Array[],
-    binPolygon: Float32Array,
-    progressCallback: (progress: number) => void,
-    displayCallback: DisplayCallback,
-  ): void {
-    const clipperWrapper = new ClipperWrapper(configuration);
-    const binData = clipperWrapper.generateBounds(binPolygon);
-
-    this.#binNode = binData.binNode;
-    this.#binBounds = binData.bounds;
-    this.#resultBounds = binData.resultBounds;
-    this.#binArea = binData.area;
-    this.#isWorking = true;
-    this.#nodes = clipperWrapper.generateTree(polygons, configuration.useHoles);
-
-    this.launchWorkers(configuration, displayCallback);
-
-    this.#workerTimer = setInterval(() => {
-      progressCallback(this.#progress);
-    }, 100) as unknown as number;
-  }
-
-  private onSpawn = (spawnCount: number): void => {
-    const totalPairs = this.#nfpStore.nfpPairs.length;
-    this.#progress = totalPairs === 0 ? 1 : spawnCount / totalPairs;
-  };
-
-  private startPlacementWorkers(
-    configuration: NestConfig,
-    displayCallback: DisplayCallback,
-  ): void {
-    this.#paralele.start(
-      this.#nfpStore.getPlacementData(this.#binArea),
-      (placements: ArrayBuffer[]) =>
-        this.onPlacement(configuration, placements, displayCallback),
-      this.onError,
-    );
-  }
-
-  launchWorkers(configuration: NestConfig, displayCallback: DisplayCallback) {
-    this.#geneticAlgorithm.init(this.#nodes, this.#resultBounds, configuration);
-    this.#nfpStore.init(
-      this.#geneticAlgorithm.individual,
-      this.#binNode,
-      configuration,
-    );
-
-    // When all required NFPs are already cached there is no pair work to spawn.
-    // Skip straight to placement workers instead of treating this as an error.
-    if (this.#nfpStore.nfpPairs.length === 0) {
-      this.startPlacementWorkers(configuration, displayCallback);
-      return;
+        this.#workerTimer = setInterval(() => progressCallback(this.#progress), 100) as unknown as u32;
     }
 
-    this.#paralele.start(
-      this.#nfpStore.nfpPairs,
-      (generatedNfp: ArrayBuffer[]) =>
-        this.onPair(configuration, generatedNfp, displayCallback),
-      this.onError,
-      this.onSpawn,
-    );
-  }
-
-  private onError(error: ErrorEvent) {
-    console.trace("Error in worker thread");
-    console.log(JSON.stringify(error));
-  }
-
-  private onPair(
-    configuration: NestConfig,
-    generatedNfp: ArrayBuffer[],
-    displayCallback: DisplayCallback,
-  ): void {
-    this.#nfpStore.update(generatedNfp);
-    this.startPlacementWorkers(configuration, displayCallback);
-  }
-
-  private onPlacement(
-    configuration: NestConfig,
-    placements: ArrayBuffer[],
-    displayCallback: DisplayCallback,
-  ): void {
-    if (placements.length === 0) {
-      return;
-    }
-
-    let i: number = 0;
-    let placementsData: Float32Array = new Float32Array(placements[0]);
-    let currentPlacement: Float32Array = null;
-    this.#nfpStore.fitness = placementsData[0];
-
-    for (i = 1; i < placements.length; ++i) {
-      currentPlacement = new Float32Array(placements[i]);
-      if (currentPlacement[0] < placementsData[0]) {
-        placementsData = currentPlacement;
-      }
-    }
-
-    let result = null;
-    let numParts: number = 0;
-    let numPlacedParts: number = 0;
-    let placePerecntage: number = 0;
-
-    if (!this.#best || placementsData[0] < this.#best[0]) {
-      this.#best = placementsData;
-
-      const binArea: number = Math.abs(this.#binArea);
-      const polygon: PolygonF32 = new PolygonF32();
-      const placementCount = placementsData[1];
-      let placedCount: number = 0;
-      let placedArea: number = 0;
-      let totalArea: number = 0;
-      let pathId: number = 0;
-      let itemData: number = 0;
-      let offset: number = 0;
-      let size: number = 0;
-      let i: number = 0;
-      let j: number = 0;
-
-      for (i = 0; i < placementCount; ++i) {
-        totalArea += binArea;
-        itemData = readUint32FromF32(placementsData, 2 + i);
-        offset = getUint16(itemData, 1);
-        size = getUint16(itemData, 0);
-        placedCount += size;
-
-        for (j = 0; j < size; ++j) {
-          pathId = getUint16(readUint32FromF32(placementsData, offset + j), 1);
-          polygon.bind(this.#nodes[pathId].memSeg);
-          placedArea += polygon.absArea;
+    /**
+     * Stops the nesting process and terminates all worker threads.
+     * 
+     * @param isClean - If true, cleans up internal state and resets the nesting algorithm.
+     *                  If false, only stops workers but preserves state for potential resume.
+     */
+    public stop(isClean: boolean): void {
+        if (!this.#isWorking) {
+            return;
         }
-      }
 
-      numParts = this.#nfpStore.placementCount;
-      numPlacedParts = placedCount;
-      placePerecntage = placedArea / totalArea;
-      result = {
-        placementsData,
-        nodes: this.#nodes,
-        bounds: this.#binBounds,
-        angleSplit: configuration.rotations,
-      };
+        this.#isWorking = false;
+
+        if (this.#workerTimer) {
+            clearInterval(this.#workerTimer);
+            this.#workerTimer = 0;
+        }
+
+        this.#paralele.terminate();
+        this.#setupWorkers();
+
+        if (isClean) {
+            super.stop(isClean);
+        }
     }
 
-    if (this.#isWorking) {
-      displayCallback(result, placePerecntage, numPlacedParts, numParts);
-      this.launchWorkers(configuration, displayCallback);
-    }
-  }
-
-  public stop(isClean: boolean): void {
-    this.#isWorking = false;
-
-    if (this.#workerTimer) {
-      clearInterval(this.#workerTimer);
-      this.#workerTimer = 0;
+    protected async initWasm() {
+        await super.initWasm();
+        await this.#setupWorkers();
     }
 
-    this.#paralele.terminate();
-
-    if (isClean) {
-      this.#nodes = [];
-      this.#best = null;
-      this.#binNode = null;
-      this.#geneticAlgorithm.clean();
-      this.#nfpStore.clean();
+    #setupWorkers(): Promise<void> {
+        this.#workersReady = false;
+        return new Promise(resolve => {
+            this.#paralele.start(
+                new Array(this.#paralele.threadCount).fill(0).map(() => this.cloneWasmBuffer()),
+                () => {
+                    this.#workersReady = true;
+                    resolve();
+                },
+                this.#onError
+            );
+        });
     }
-  }
+
+    #onSpawn = (_: usize, progress: f32): void => {
+        this.#progress = progress;
+    };
+
+    #launchWorkers(displayCallback: DisplayCallback) {
+        const serializedPairs = this.wasmNesting.getPairs(this.#chunkSize);
+        const pairs = serializedPairs.map(pair => pair.buffer as ArrayBuffer);
+        //console.log(pairs.map(p => p.byteLength));
+        this.#paralele.start(
+            pairs,
+            (generatedNfp: ArrayBuffer[]) => this.#onPair(generatedNfp, displayCallback),
+            this.#onError,
+            this.#onSpawn
+        );
+    }
+
+    #onError(error: ErrorEvent) {
+        console.log(error);
+    }
+
+    #onPair(generatedNfp: ArrayBuffer[], displayCallback: DisplayCallback): void {
+        const placementData = this.wasmNesting.getPlacementData(generatedNfp);
+
+        this.#paralele.start(
+            [placementData.buffer as ArrayBuffer],
+            (placements: ArrayBuffer[]) => this.#onPlacement(placements, displayCallback),
+            this.#onError
+        );
+    }
+
+    #onPlacement(placements: ArrayBuffer[], displayCallback: DisplayCallback): void {
+        if (placements.length === 0) {
+            return;
+        }
+
+        if (this.#isWorking) {
+            const placementWrapper = this.wasmNesting.getPlacementResult(placements);
+
+            displayCallback(placementWrapper);
+            this.#launchWorkers(displayCallback);
+        }
+    }
 }
