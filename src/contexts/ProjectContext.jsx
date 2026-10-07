@@ -1388,7 +1388,8 @@ export function ProjectProvider({ children, cad, loadProject }) {
   };
 
   /**
-   * Create a commit as part of the saving process.
+   * Create a commit as part of saving. Identical trees are successful no-ops:
+   * skip AWS (which updates dateModified), but let saveProject refresh its baseline.
    */
   const createCommit = async function (
     octokit,
@@ -1504,7 +1505,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
 
             // Nothing differs from what's on GitHub: don't make an empty commit.
             if (newTreeResponse.data.sha === currentTreeSha) {
-              return;
+              return { committed: false };
             }
 
             // 4. Create the commit.
@@ -1526,7 +1527,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
                 sha: newCommitResponse.data.sha,
                 force: false,
               });
-              return;
+              return { committed: true };
             } catch (error) {
               if (
                 (error?.status === 409 || error?.status === 422) &&
@@ -1539,9 +1540,13 @@ export function ProjectProvider({ children, cad, loadProject }) {
           }
         };
 
-        await commitViaGitDataApi();
+        const result = await commitViaGitDataApi();
 
         updateSaveProgress(80);
+        if (!result.committed) {
+          console.log("Project already matches GitHub. AWS update skipped.");
+          return result;
+        }
 
         const githubMoleculeUsedList = await searchGithubMolecules(
           GlobalVariables.topLevelMolecule,
@@ -1587,7 +1592,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
           attributeUpdates.userSetAsThumbnail = false; // Reset userSetAsThumbnail to false since we're updating the thumbnail
         }
 
-        await fetch(apiUpdateUrl, {
+        const updateResponse = await fetch(apiUpdateUrl, {
           method: "POST",
           body: JSON.stringify({
             owner: owner,
@@ -1598,8 +1603,14 @@ export function ProjectProvider({ children, cad, loadProject }) {
             "Content-type": "application/json; charset=UTF-8",
           },
         });
+        if (!updateResponse.ok) {
+          throw new Error(
+            `Project committed to GitHub, but AWS metadata update failed: ${updateResponse.status} ${updateResponse.statusText}`,
+          );
+        }
 
         console.warn("Project saved on git and aws updated");
+        return result;
       }
     } catch (error) {
       console.error("Error during commit creation:", error);
@@ -1886,7 +1897,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
         updateSaveProgress(30);
 
         // Use the current authorizedUserOcto from ref, not closure or parameter
-        await createCommit(
+        const result = await createCommit(
           octokitRef.current,
           {
             owner: GlobalVariables.currentUser,
@@ -1925,6 +1936,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
         }
 
         updateSaveProgress(100);
+        return result;
       } catch (error) {
         console.error("Error during project save:", error);
         // The createCommit function already handles authentication errors,
