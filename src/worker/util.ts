@@ -426,7 +426,7 @@ async function withAssemblyBoundingBoxes(
 }
 
 function isAbundanceObject(obj: any): obj is AbundanceObject {
-  return obj && typeof obj === "object" && "geometry" in obj && "plane" in obj;
+  return obj && typeof obj === "object" && "geometry" in obj;
 }
 
 function isLeaf(obj: AbundanceObject): obj is AbundanceLeaf {

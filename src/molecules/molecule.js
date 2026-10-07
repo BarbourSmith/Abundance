@@ -1246,11 +1246,21 @@ export default class Molecule extends Atom {
     );
     thisAsObject.allAtoms = allAtoms;
 
-    // Sort connectors by uniqueID for consistent ordering
-    allConnectors.sort((a, b) =>
-      String(a.uniqueID || "").localeCompare(String(b.uniqueID || "")),
-    );
-    thisAsObject.allConnectors = allConnectors;
+    // Sort connectors for consistent ordering. Connectors have no uniqueID, but
+    // the source atom, target atom, and target input name identify each one.
+    // Without this the order follows the in-memory atom order, which varies
+    // between loads and makes noisy diffs.
+    const connectorKey = (c) => [c.ap1ID, c.ap2ID, c.ap2Name].map(String);
+    thisAsObject.allConnectors = allConnectors
+      .filter((c) => c != null)
+      .sort((a, b) => {
+        const keyA = connectorKey(a);
+        const keyB = connectorKey(b);
+        for (let i = 0; i < keyA.length; i++) {
+          if (keyA[i] !== keyB[i]) return keyA[i] < keyB[i] ? -1 : 1;
+        }
+        return 0;
+      });
 
     // Check if there are Input atoms whose values aren't in ioValues
     // This handles cases where Input atoms exist but their attachment points weren't added to this.inputs
@@ -2117,6 +2127,13 @@ export default class Molecule extends Atom {
         });
       }
     });
+
+    if (inputAttachmentPoint?.noConnections) {
+      console.warn(
+        `Input "${inputAttachmentPoint.name}" does not accept connections`,
+      );
+      return;
+    }
 
     if (outputAttachmentPoint && inputAttachmentPoint) {
       //If we have found the output and input

@@ -2,9 +2,13 @@ import React, { useState, useRef, useEffect } from "react";
 import Globalvariables from "../../js/globalvariables.js";
 import CreatableSelect from "react-select/creatable";
 import topics from "../../js/maslowTopics.js";
+import { DevSettingsPanel } from "./DevSettingsModal.jsx";
+
+export const DEVELOPER_TAB_INDEX = 4;
 
 const SettingsPopUp = ({
   setSettingsPopUp,
+  initialTab = 0,
   shortCutsOn,
   setShortCuts,
   gridParam,
@@ -53,7 +57,10 @@ const SettingsPopUp = ({
     // are not part of the molecule serialization
     saveProject(setSaveState, "Settings Save", true, () => setSavePopUp(true));
   };
-  const [value, setValue] = React.useState(0);
+  const [value, setValue] = React.useState(initialTab);
+  useEffect(() => {
+    setValue(initialTab);
+  }, [initialTab]);
 
   // Custom Tabs implementation
   const tabLabels = [
@@ -61,6 +68,7 @@ const SettingsPopUp = ({
     "CANVAS SETTINGS",
     "PROJECT SETTINGS",
     "RENDER PREFERENCES",
+    "ADVANCED",
   ];
   function CustomTabPanel({ children, value, index }) {
     return value === index ? (
@@ -457,12 +465,20 @@ const SettingsPopUp = ({
               </span>
             </div>
           </CustomTabPanel>
-          <div className="settings-panel-button-row">
-            <button className="settings-panel-button" type="submit">
-              Save Changes
-            </button>
-          </div>
+          {value !== DEVELOPER_TAB_INDEX && (
+            <div className="settings-panel-button-row">
+              <button className="settings-panel-button" type="submit">
+                Save Changes
+              </button>
+            </div>
+          )}
         </form>
+        {/* Outside the form so its buttons and Enter key don't submit and close Settings */}
+        {value === DEVELOPER_TAB_INDEX && (
+          <div className="settings-panel-content">
+            <DevSettingsPanel />
+          </div>
+        )}
       </div>
     </div>
   );

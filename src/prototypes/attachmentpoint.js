@@ -43,7 +43,9 @@ export default class AttachmentPoint extends ObservableEntity {
    * @returns {number} The number of input attachment points
    */
   getInputCount() {
-    return this.parentMolecule.inputs.filter((ap) => ap.type == "input").length;
+    return this.parentMolecule.inputs.filter(
+      (ap) => ap.type == "input" && !ap.noConnections,
+    ).length;
   }
 
   // Constant dictates how much larger an AP becomes when it's activated for selection, ie, when clicking
@@ -126,6 +128,11 @@ export default class AttachmentPoint extends ObservableEntity {
      * even if they're in a WAITING state.
      */
     this.isOptional = false;
+
+    /**
+     * When true this AP is only editable from the atom control panel and never appears in the Flow Canvas.
+     */
+    this.noConnections = false;
 
     /**
      * Internal storage for currentEquation
@@ -360,6 +367,9 @@ export default class AttachmentPoint extends ObservableEntity {
    * @param {number} y - The y coordinate of the click
    */
   mouseMove(x, y) {
+    if (this.noConnections) {
+      return;
+    }
     // Calculate input count for dynamic expansion radius
     const inputCount = this.getInputCount();
     const distFromParent = AttachmentPoint.getDistFromParent(inputCount);
@@ -422,7 +432,7 @@ export default class AttachmentPoint extends ObservableEntity {
    */
   computePosition(boundary) {
     const inputList = this.parentMolecule.inputs.filter(
-      (ap) => ap.type == "input",
+      (ap) => ap.type == "input" && !ap.noConnections,
     );
 
     if (this.type == "output") {

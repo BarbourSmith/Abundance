@@ -261,7 +261,6 @@ body {
   color: var(--panel-foreground, #e0e5ef);
   font-size: 15px;
   min-height: 180px;
-  max-height: 420px;
   overflow-y: auto;
 }
 

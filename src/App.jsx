@@ -581,6 +581,7 @@ function AppContent() {
       backgroundMolecule = false,
       nonReplicadGeometryFromAtom = null,
     ) => {
+      console.trace(`writing to display called with : ${JSON.stringify(moleculeValue)}`)
       if (!moleculeValue) {
         // A non-null structure which still generates the default mesh
         moleculeValue = EMPTY_DISPLAY_VALUE;
@@ -869,6 +870,15 @@ function AppContent() {
           GlobalVariables.loadingProjects.delete(projectKey);
           throw deserializeError;
         }
+        // Remember the loaded state so saves can skip when nothing changed.
+        // Re-serialize rather than using rawFile: older files don't round-trip
+        // exactly, and the app's own form is what saves compare against.
+        const loadedSnapshot = targetMolecule.serialize();
+        loadedSnapshot.filetypeVersion = 1;
+        GlobalVariables.lastSavedProject = {
+          projectKey,
+          json: JSON.stringify(loadedSnapshot),
+        };
         // Clear loading flag after deserialization completes
         GlobalVariables.loadingProjects.delete(projectKey);
         GlobalVariables.currentMolecule = targetMolecule;

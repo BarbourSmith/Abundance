@@ -246,6 +246,12 @@ class GlobalVariables {
      */
     this.projectIsLoading = false;
     /**
+     * The project as last loaded from or committed to GitHub, used to skip
+     * saves when nothing has changed. `json` is the stringified project.
+     * @type {{projectKey: string, json: string} | null}
+     */
+    this.lastSavedProject = null;
+    /**
      * A flag to indicate if the project is a fork.
      * @type {boolean}
      */
@@ -362,6 +368,50 @@ class GlobalVariables {
         }
         _originalConsoleError(...args);
       };
+    }
+
+    /**
+     * Ring buffer of recent console output of every level, attached to bug reports.
+     * @type {Array<{timestamp: string, level: string, message: string}>}
+     */
+    this.recentConsole = [];
+    if (typeof console !== "undefined") {
+      const self = this;
+      ["log", "info", "warn", "error"].forEach((level) => {
+        const original = console[level];
+        if (typeof original !== "function") return;
+        const bound = original.bind(console);
+        console[level] = function (...args) {
+          try {
+            const message = args
+              .map((a) => {
+                if (typeof a !== "object" || a === null) return String(a);
+                if (a instanceof Error) return a.stack || a.message;
+                // Cap work so logging large geometry objects stays cheap.
+                let budget = 200;
+                try {
+                  return JSON.stringify(a, (k, v) => {
+                    if (--budget < 0) throw new Error("too large");
+                    return v;
+                  });
+                } catch {
+                  return `[${a.constructor?.name || "Object"}]`;
+                }
+              })
+              .join(" ")
+              .slice(0, 2000);
+            self.recentConsole.push({
+              timestamp: new Date().toISOString(),
+              level,
+              message,
+            });
+            if (self.recentConsole.length > 300) self.recentConsole.shift();
+          } catch {
+            // Never let capture break logging.
+          }
+          bound(...args);
+        };
+      });
     }
 
     /**
