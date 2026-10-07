@@ -1,5 +1,6 @@
 import { proxy } from "comlink";
-import { PlacementWrapper, PolygonPacker } from "polygon-packer";
+import { PolygonPacker } from "polygon-packer";
+import type PlacementWrapper from "polygon-packer/src/placement-wrapper";
 import type { DisplayCallback } from "polygon-packer/src/types";
 import { Drawing, Face, Shape3D } from "replicad";
 import { RequestContext } from "./geometryProvider";
@@ -7,7 +8,6 @@ import { reportCadProgress } from "./progress";
 import type { AbundanceLeaf, AbundanceObject } from "./util";
 import * as util from "./util";
 import shrinkWrap from "replicad-shrink-wrap";
-import * as wasmNesting from "wasm-nesting";
 import * as replicad from "replicad";
 
 type SimpleXY = { x: number; y: number };
@@ -72,12 +72,6 @@ const NESTING_RUNTIME_MS = 30000;
 // returning a layout that places nothing. The first result for a large part
 // count regularly arrives after 30s.
 const NESTING_MAX_RUNTIME_MS = 120000;
-
-// Resolves once the nesting engine's WASM module has loaded. Its type
-// declarations come from the generated wasm-bindgen output, which doesn't
-// include this export from the package's own entry point.
-const nestingWasmReady = (wasmNesting as unknown as { ready: Promise<void> })
-  .ready;
 
 const rotateMemoCache = new Map<
   string,
@@ -247,6 +241,22 @@ async function displayOrientation(
   return result;
 }
 
+/**
+ * Remove parts cut away to nothing (e.g. by a disjoint Assembly). Every layout
+ * entry point must call this first so placement ids index the same leaves.
+ */
+function dropEmptyShapes(assembly: AbundanceObject): Promise<AbundanceObject> {
+  return util.actOnLeafs(assembly, async (leaf: AbundanceLeaf) =>
+    leaf.geometry === util.geometryProvider!.EMPTY_SHAPE_SENTINEL
+      ? undefined
+      : leaf,
+  );
+}
+
+function isEmptyAssembly(assembly: AbundanceObject): boolean {
+  return Array.isArray(assembly.geometry) && assembly.geometry.length === 0;
+}
+
 async function layout(
   assembly: AbundanceObject,
   progressCallback: (progress: number, cancelCallback: () => void) => void,
@@ -257,6 +267,10 @@ async function layout(
   previousPlacements: Placement[][] | undefined = undefined,
 ): Promise<[AbundanceObject, Placement[][]]> {
   checkConfig(layoutConfig);
+  assembly = await dropEmptyShapes(assembly);
+  if (isEmptyAssembly(assembly)) {
+    return [assembly, []];
+  }
   const [assemblyWithMetadata, shapesForLayout] = await prepShapesForLayout(
     assembly,
     context,
@@ -324,6 +338,10 @@ async function displayLayout(
   layoutConfig: LayoutConfig,
   context: RequestContext,
 ): Promise<AbundanceObject> {
+  assembly = await dropEmptyShapes(assembly);
+  if (isEmptyAssembly(assembly)) {
+    return assembly;
+  }
   const result = await applyLayout(assembly, positions, layoutConfig, context);
   console.log(result);
   return result;
@@ -345,6 +363,10 @@ async function createAndDisplayDefaultLayout(
   layoutConfig: LayoutConfig,
   context: RequestContext,
 ): Promise<[AbundanceObject, Placement[][]]> {
+  assembly = await dropEmptyShapes(assembly);
+  if (isEmptyAssembly(assembly)) {
+    return [assembly, []];
+  }
   const [assemblyWithMetadata, shapesForLayout] = await prepShapesForLayout(
     assembly,
     context,
@@ -428,11 +450,17 @@ async function prepShapesForLayout(
         leaf.geometry,
         context,
       )) as Drawing;
-      const sketched = geom.sketchOnPlane();
-      const boundary =
-        sketched instanceof replicad.Sketches
-          ? shrinkWrapForBoundary(geom) // if disjoint shapes, shrinkwrap them all
-          : faceToPolygon(sketched.face());
+      let boundary;
+      try {
+        const sketched = geom.sketchOnPlane();
+        boundary =
+          sketched instanceof replicad.Sketches
+            ? shrinkWrapForBoundary(geom) // if disjoint shapes, shrinkwrap them all
+            : faceToPolygon(sketched.face());
+      } catch (err) {
+        console.error("Failed to get boundary of 2D part, skipping it", err);
+        return undefined;
+      }
       result.push({ id: result.length, shape: boundary });
       return leaf;
     } else if (util.is3D(leaf)) {
@@ -440,19 +468,29 @@ async function prepShapesForLayout(
         leaf.geometry,
         context,
       )) as Shape3D;
-      // query for face in XY plane.
-      const faces = facefinder.find(geom);
       let boundary;
-      if (faces.length === 1) {
-        // Happy case, a single face on the XY plane. Use it's boundary.
-        boundary = faceToPolygon(faces[0]);
-      } else {
-        // Either too many faces or none at all. In either case fall back to the
-        // projected boundary of this part.
-        boundary = projectAndWrapBoundary(geom);
-        if (boundary === undefined) {
-          // Fall back further to a bounding box rectangle
+      try {
+        // query for face in XY plane.
+        const faces = facefinder.find(geom);
+        if (faces.length === 1) {
+          // Happy case, a single face on the XY plane. Use it's boundary.
+          boundary = faceToPolygon(faces[0]);
+        } else {
+          // Either too many faces or none at all. In either case fall back to the
+          // projected boundary of this part.
+          boundary = projectAndWrapBoundary(geom);
+        }
+      } catch (err) {
+        console.error("Failed to get boundary of 3D part", err);
+      }
+      if (boundary === undefined) {
+        // Fall back further to a bounding box rectangle
+        try {
           boundary = boundingBoxAsBoundary(geom);
+          console.error(`devolving to bounding box: ${boundary}`);
+        } catch (err) {
+          console.error("Failed to get bounding box of part, skipping it", err);
+          return undefined;
         }
       }
       result.push({ id: result.length, shape: boundary }); // Just pick the first one for now.
@@ -754,16 +792,13 @@ async function computePositions(
   layoutConfig: LayoutConfig,
   previousPlacements: Placement[][] | undefined = undefined,
 ): Promise<Placement[][] | undefined> {
-  // The packer's geometry helpers call into this WASM module as soon as it
-  // starts. On a cold start the first layout could run before it finished
-  // loading and fail with "could not place any parts".
-  await nestingWasmReady;
   const tolerance = 0.2;
   const runtimeMs = NESTING_RUNTIME_MS;
   const maxRuntimeMs = NESTING_MAX_RUNTIME_MS;
   const config = {
     curveTolerance: 0.1,
-    spacing: layoutConfig.partPadding + tolerance * 2,
+    // The engine packs spacing into 5 bits, so it must be a whole number from 0 to 31.
+    spacing: Math.min(31, Math.ceil(layoutConfig.partPadding + tolerance * 2)),
     rotations: layoutConfig.rotations,
     populationSize: 8,
     mutationRate: 50,
@@ -785,6 +820,7 @@ async function computePositions(
   ]);
 
   const packer = new PolygonPacker();
+  await packer.ready;
 
   let progressCallbackCounter = 0;
   const nestingStartedAt = Date.now();
@@ -821,20 +857,11 @@ async function computePositions(
 
   const result = new Promise((resolve, reject) => {
     // See https://github.com/yuriilychak/SVGnest/blob/6ed19cf44cb458b11d7ae4abf1868a513c53420a/packages/polygon-packer/src/types.ts#L31
-    let callbackCounter = 0;
     let bestPlacement: Placement[][] | undefined = undefined;
-    const displayCallback: DisplayCallback = (
-      placementsData,
-      placementPercentage,
-      placedParts,
-      partCount,
-    ) => {
-      callbackCounter++;
-      if (placedParts > 0) {
+    const displayCallback: DisplayCallback = (placementWrapper) => {
+      if (placementWrapper.numPlacedParts > 0) {
         const placements = translatePlacements(
-          placementsData,
-          placedParts,
-          partCount,
+          placementWrapper as unknown as PlacementWrapper,
         );
 
         placementsCallback(placements);
@@ -867,7 +894,6 @@ async function computePositions(
         bin,
         callbackFunction,
         displayCallback,
-        previousPlacements,
       );
 
       setTimeout(finishWhenReady, runtimeMs);
@@ -889,24 +915,16 @@ async function computePositions(
  *  Each transform follows the structure: {id: "part_id", rotate: degrees, translate: {x: x, y: y}}
  */
 
-function translatePlacements(
-  placement: any,
-  placedParts: number,
-  partCount: number,
-): Placement[][] {
-  const placements = new PlacementWrapper(
-    placement.placementsData,
-    placement.angleSplit,
-  );
-
+function translatePlacements(placements: PlacementWrapper): Placement[][] {
   const result = [];
   for (let i = 0; i < placements.placementCount; i++) {
     const sheet = [];
     placements.bindPlacement(i);
     for (let j = 0; j < placements.size; j++) {
-      placements.bindData(j);
+      // bindData returns the index into the input polygons; `id` is the engine's internal node id.
+      const sourceId = placements.bindData(j);
       sheet.push({
-        id: placements.id,
+        id: sourceId,
         rotate: placements.rotation,
         translate: { x: placements.x, y: placements.y },
       });
