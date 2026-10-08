@@ -1269,8 +1269,9 @@ const ShowProjects = ({
     queryFn: fetchLikedRepos,
   });
 
+  const requestedTab = useLocation().state?.projectTab;
   useEffect(() => {
-    setProjectsToShow(user ? "owned" : "featured");
+    setProjectsToShow(requestedTab || (user ? "owned" : "featured"));
   }, [GlobalVariables.currentUser]);
 
   // Reset sort order to tab default when switching tabs

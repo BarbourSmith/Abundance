@@ -1,47 +1,71 @@
 /* Styles for the embedded README page - Abundance theme */
 
+/* Shares the .login-popup frame with the home page */
 .readme-page {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: var(--background-color, #232832);
+  padding: 0;
+  border: 10px solid #3e3d3d;
   overflow-y: auto;
   z-index: 1000;
+  user-select: text;
+  -webkit-user-select: text;
+  --text-color: #333;
+  --text-secondary: #545252;
+  --heading-color: #640080;
+  --border-color: #c4a3d5;
+  --link-color: #be3fe5;
+  --link-hover-color: #9c46b4;
+  --code-background: rgba(196, 163, 213, 0.15);
+  --code-text: #640080;
+  --table-alt-background: rgba(196, 163, 213, 0.1);
+  --table-header-background: #e9ddf2;
+  --table-background: #ffffff;
+  --image-background: #ffffff;
 }
 
 .readme-header {
-  position: static;
-  background: var(--header-background, #3f4243);
-  border-bottom: 1px solid var(--border-color, #c4a3d5);
-  padding: 1rem 2rem;
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
   gap: 1rem;
+  padding: 10px 2rem 10px 10px;
 }
 
-.readme-back-button {
+.readme-home-link {
+  cursor: pointer;
+}
+
+.readme-nav {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+}
+
+.readme-nav a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: "Roboto", sans-serif;
+  font-size: 18px;
+  color: var(--loginPopup-text);
+  text-decoration: none;
+}
+
+.readme-nav a:hover {
+  color: var(--link-color);
+}
+
+.readme-nav a.readme-nav-launch {
+  padding: 6px 18px;
+  border-radius: 6px;
   background: var(--button-background, #be3fe5);
   color: var(--button-text, #f2f0f0);
-  border: none;
-  padding: 0.5rem 1rem;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 600;
   transition: background 0.2s;
 }
 
-.readme-back-button:hover {
+.readme-nav a.readme-nav-launch:hover {
   background: var(--button-hover-background, #9c46b4);
-}
-
-.readme-title {
-  font-size: 1.5rem;
-  font-weight: 600;
-  color: var(--text-color, #f2f0f0);
-  margin: 0;
+  color: var(--button-text, #f2f0f0);
 }
 
 .readme-content {
@@ -52,6 +76,37 @@
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
   font-size: 16px;
   line-height: 1.5;
+}
+
+.readme-content table.feature-row {
+  table-layout: fixed;
+}
+
+.readme-content table.feature-row tr,
+.readme-content table.feature-row td {
+  background: none;
+  border: none;
+}
+
+.readme-content table.feature-row img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  margin: 0 0 8px;
+}
+
+.readme-video {
+  display: block;
+  max-width: 720px;
+  aspect-ratio: 16 / 9;
+  margin: 16px 0;
+}
+
+.readme-video iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: 6px;
 }
 
 .readme-loading,
@@ -233,11 +288,15 @@ html.light-theme .readme-page {
 /* Mobile responsiveness */
 @media (max-width: 768px) {
   .readme-header {
-    padding: 1rem;
+    padding: 10px;
   }
 
-  .readme-title {
-    font-size: 1.2rem;
+  .readme-nav {
+    gap: 1rem;
+  }
+
+  .readme-nav a {
+    font-size: 15px;
   }
 
   .readme-content {
