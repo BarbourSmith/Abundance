@@ -284,7 +284,9 @@ pub fn generate_tree(
     curve_tolerance: f64,
 ) -> Vec<PolygonNode> {
     let threshold = curve_tolerance * curve_tolerance;
-    let mut nodes = Vec::new();
+    let mut nodes: Vec<PolygonNode> = Vec::new();
+    let mut seen_shapes: std::collections::HashMap<Vec<i64>, usize> =
+        std::collections::HashMap::new();
     let mut offset = 0;
 
     // Parse polygons from flat arrays
@@ -295,6 +297,17 @@ pub fn generate_tree(
         }
 
         let mem_seg = values[offset..offset + seg_size].to_vec();
+
+        // Identical outlines (to 0.01 units) share one shape so their NFPs are computed once.
+        let shape_key: Vec<i64> = mem_seg.iter().map(|v| (v * 100.0).round() as i64).collect();
+        if let Some(&first) = seen_shapes.get(&shape_key) {
+            let mut copy = nodes[first].clone();
+            copy.source = i as i32;
+            nodes.push(copy);
+            offset += seg_size;
+            continue;
+        }
+
         let mut node = PolygonNode::new(i as i32, 0.0, mem_seg);
 
         // Clean the polygon
@@ -310,6 +323,7 @@ pub fn generate_tree(
         }
 
         nodes.push(node);
+        seen_shapes.insert(shape_key, nodes.len() - 1);
         offset += seg_size;
     }
 

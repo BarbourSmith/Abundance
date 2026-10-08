@@ -6,6 +6,8 @@
 pub struct PolygonNode {
     /// Source index identifying the original polygon
     pub source: i32,
+    /// Shared by geometrically identical polygons so they reuse cached NFPs
+    pub shape: i32,
     /// Rotation angle in radians
     pub rotation: f32,
     /// Size of the memory segment
@@ -39,6 +41,7 @@ impl PolygonNode {
         let seg_size = mem_seg.len();
         PolygonNode {
             source,
+            shape: source,
             rotation,
             seg_size,
             mem_seg: mem_seg.into_boxed_slice(),
@@ -80,7 +83,8 @@ impl PolygonNode {
 
         for _ in 0..count {
             let raw_source = buffer[idx].to_bits();
-            let source = raw_source.wrapping_sub(1) as i32;
+            let source = (raw_source & 0xFFFF).wrapping_sub(1) as i32;
+            let shape = (raw_source >> 16).wrapping_sub(1) as i32;
             idx += 1;
 
             // Rotation is also stored in big-endian by DataView.setFloat32()
@@ -101,6 +105,7 @@ impl PolygonNode {
 
             nodes.push(PolygonNode {
                 source,
+                shape,
                 seg_size,
                 rotation,
                 mem_seg,
@@ -130,7 +135,10 @@ impl PolygonNode {
     fn serialize_internal(nodes: &[PolygonNode], buffer: &mut [f32], offset: usize) -> usize {
         nodes.iter().fold(offset, |mut result, node| {
             // Write source as f32 (reinterpreting u32 bits) - big-endian to match deserialize
-            buffer[result] = f32::from_bits((node.source + 1) as u32);
+            // Source in the low 16 bits, shape in the high 16 bits (both +1)
+            buffer[result] = f32::from_bits(
+                ((node.source + 1) as u32 & 0xFFFF) | (((node.shape + 1) as u32) << 16),
+            );
             result += 1;
 
             // Write rotation - big-endian to match deserialize
@@ -178,8 +186,8 @@ impl PolygonNode {
         let rotation_index2 = Self::to_rotation_index(polygon2.rotation, rotation_split);
 
         let data = [
-            (polygon1.source + 1) as u16,
-            (polygon2.source + 1) as u16,
+            (polygon1.shape + 1) as u16,
+            (polygon2.shape + 1) as u16,
             rotation_index1 as u16,
             rotation_index2 as u16,
             if inside { 1u16 } else { 0u16 },
@@ -247,6 +255,7 @@ impl PolygonNode {
             .iter()
             .map(|node| PolygonNode {
                 source: node.source,
+                shape: node.shape,
                 rotation: node.rotation,
                 seg_size: node.seg_size,
                 mem_seg: node.mem_seg.clone(),

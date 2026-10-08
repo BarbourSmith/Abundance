@@ -1,6 +1,6 @@
 use crate::{nest_config::NestConfig, nesting::polygon_node::PolygonNode};
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 // Thread type constants
 const THREAD_TYPE_PLACEMENT: u32 = 1;
@@ -79,16 +79,17 @@ impl NFPStore {
         self.nfp_pairs.clear();
 
         let mut new_cache: HashMap<u32, Vec<f32>> = HashMap::new();
+        let mut queued: HashSet<u32> = HashSet::new();
 
         for i in 0..self.sources.len() {
             let mut node = nodes[self.sources[i] as usize].clone();
             node.rotation = self.rotations[i] as f32;
 
-            self.update_cache(bin_node, &node, true, &mut new_cache);
+            self.update_cache(bin_node, &node, true, &mut new_cache, &mut queued);
 
             for j in 0..i {
                 let node_j = &nodes[sources[j] as usize];
-                self.update_cache(node_j, &node, false, &mut new_cache);
+                self.update_cache(node_j, &node, false, &mut new_cache, &mut queued);
             }
         }
 
@@ -118,11 +119,16 @@ impl NFPStore {
         node2: &PolygonNode,
         inside: bool,
         new_cache: &mut HashMap<u32, Vec<f32>>,
+        queued: &mut HashSet<u32>,
     ) {
         let key =
             PolygonNode::generate_nfp_cache_key(self.angle_split as u32, inside, node1, node2);
 
         if !self.nfp_cache.contains_key(&key) {
+            // Identical shapes share keys, so queue each pair only once per cycle.
+            if !queued.insert(key) {
+                return;
+            }
             let nodes = [node1.clone(), node2.clone()];
             let f32_buffer = Self::generate_pair(key, &nodes, self.config_compressed);
             self.nfp_pairs.push(f32_buffer);

@@ -38,19 +38,6 @@ fn to_mem_seg(polygon: &[Point<i32>]) -> Vec<f32> {
     result
 }
 
-/// Fill point memory segment from a polygon node with an offset
-fn fill_point_mem_seg(node: &PolygonNode, offset: &Point<f32>) -> Vec<f32> {
-    let mut result = Vec::new();
-    let point_count = node.mem_seg.len() >> 1;
-
-    for i in 0..point_count {
-        result.push(node.mem_seg[i << 1] + offset.x);
-        result.push(node.mem_seg[(i << 1) + 1] + offset.y);
-    }
-
-    result
-}
-
 /// Get first placement position by finding leftmost point in bin NFP
 /// Takes f32 buffer directly from nfp_cache
 pub fn get_first_placement(nfp_buffer: &[f32], first_point: &Point<f32>) -> Vec<f32> {
@@ -136,6 +123,29 @@ pub fn get_placement_data(
     let mut cur_area: f32;
     let mut tmp_point = Point::<f32>::new(None, None);
 
+    // Bounds of the placed parts and of the node are fixed, so compute them once
+    // instead of re-scanning every placed point for each candidate position.
+    let (mut placed_min_x, mut placed_min_y) = (f32::INFINITY, f32::INFINITY);
+    let (mut placed_max_x, mut placed_max_y) = (f32::NEG_INFINITY, f32::NEG_INFINITY);
+    for m in 0..placed.len() {
+        let off_x = placement[m << 1];
+        let off_y = placement[(m << 1) + 1];
+        for p in placed[m].mem_seg.chunks_exact(2) {
+            placed_min_x = placed_min_x.min(p[0] + off_x);
+            placed_min_y = placed_min_y.min(p[1] + off_y);
+            placed_max_x = placed_max_x.max(p[0] + off_x);
+            placed_max_y = placed_max_y.max(p[1] + off_y);
+        }
+    }
+    let (mut node_min_x, mut node_min_y) = (f32::INFINITY, f32::INFINITY);
+    let (mut node_max_x, mut node_max_y) = (f32::NEG_INFINITY, f32::NEG_INFINITY);
+    for p in node.mem_seg.chunks_exact(2) {
+        node_min_x = node_min_x.min(p[0]);
+        node_min_y = node_min_y.min(p[1]);
+        node_max_x = node_max_x.max(p[0]);
+        node_max_y = node_max_y.max(p[1]);
+    }
+
     for j in 0..final_nfp.len() {
         let nfp_size = final_nfp[j].len();
         let mem_seg1 = to_mem_seg(&final_nfp[j]);
@@ -145,25 +155,15 @@ pub fn get_placement_data(
         }
 
         for k in 0..nfp_size {
-            let mut buffer = Vec::new();
-
-            for m in 0..placed.len() {
-                tmp_point.x = placement[m << 1];
-                tmp_point.y = placement[(m << 1) + 1];
-                buffer.extend(fill_point_mem_seg(&placed[m], &tmp_point));
-            }
-
             tmp_point.x = mem_seg1[k << 1] - first_point.x;
             tmp_point.y = mem_seg1[(k << 1) + 1] - first_point.y;
 
-            buffer.extend(fill_point_mem_seg(node, &tmp_point));
-
-            let mem_seg2 = buffer.into_boxed_slice();
-            let point_count = mem_seg2.len() >> 1;
-
-            let bounds = f32::calculate_bounds(&mem_seg2, 0, point_count);
+            let width = placed_max_x.max(node_max_x + tmp_point.x)
+                - placed_min_x.min(node_min_x + tmp_point.x);
+            let height = placed_max_y.max(node_max_y + tmp_point.y)
+                - placed_min_y.min(node_min_y + tmp_point.y);
             // weigh width more, to help compress in direction of gravity
-            cur_area = bounds[2] * 2.0 + bounds[3];
+            cur_area = width * 2.0 + height;
 
             if min_area.is_nan()
                 || cur_area < min_area
@@ -171,7 +171,7 @@ pub fn get_placement_data(
                     && (min_x.is_nan() || tmp_point.x < min_x))
             {
                 min_area = cur_area;
-                min_width = bounds[2];
+                min_width = width;
                 position_x = tmp_point.x;
                 position_y = tmp_point.y;
                 min_x = tmp_point.x;
