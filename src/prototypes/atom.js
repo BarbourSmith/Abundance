@@ -658,6 +658,7 @@ export default class Atom extends ObservableEntity {
     //returns true if something was done with the click
     let xInPixels = GlobalVariables.widthToPixels(this.x);
     let yInPixels = GlobalVariables.heightToPixels(this.y);
+    let radiusInPixels = GlobalVariables.widthToPixels(this.radius);
     var clickProcessed = false;
 
     var distFromClick = GlobalVariables.distBetweenPoints(
@@ -667,7 +668,7 @@ export default class Atom extends ObservableEntity {
       yInPixels,
     );
 
-    if (distFromClick < xInPixels) {
+    if (distFromClick < radiusInPixels) {
       clickProcessed = true;
     }
 
