@@ -756,7 +756,10 @@ function checkConfig(layoutConfig: LayoutConfig) {
       "Orientations must be a whole number from 1 to " + MAX_ROTATIONS + ".",
     );
   }
-  if (layoutConfig.searchMinutes !== undefined && !(layoutConfig.searchMinutes > 0)) {
+  if (
+    layoutConfig.searchMinutes !== undefined &&
+    !(layoutConfig.searchMinutes > 0)
+  ) {
     throw new Error("Search Time (minutes) must be greater than zero.");
   }
 }
@@ -901,13 +904,7 @@ async function computePositions(
     };
 
     try {
-      packer.start(
-        config,
-        polygons,
-        bin,
-        callbackFunction,
-        displayCallback,
-      );
+      packer.start(config, polygons, bin, callbackFunction, displayCallback);
 
       setTimeout(finishWhenReady, runtimeMs);
     } catch (err) {
