@@ -195,6 +195,9 @@ class GeometryProvider {
    * @param args
    * @param context
    * @param operation
+   * @param resultCanBeArg - which args the result may legitimately equal. A
+   *     volume match against any other arg is a coincidence, so the result is
+   *     stored as a new shape instead of being replaced by that arg.
    * @returns
    */
   private async maybeOp(
@@ -204,6 +207,7 @@ class GeometryProvider {
     operation: (
       inputs: replicad.Shape3D[] | replicad.Drawing[],
     ) => replicad.Shape3D | replicad.Drawing,
+    resultCanBeArg: (index: number) => boolean = () => true,
   ): Promise<BooleanResult> {
     // check shape cache
     if (
@@ -279,7 +283,8 @@ class GeometryProvider {
         };
       } else {
         const volumeMatchIndex = volumes.findIndex(
-          (inputVol) =>
+          (inputVol, index) =>
+            resultCanBeArg(index) &&
             Math.abs(resVol - inputVol) < GeometryProvider.BOOLEAN_TOLERANCE,
         );
         if (volumeMatchIndex >= 0) {
@@ -1023,19 +1028,16 @@ class GeometryProvider {
       context,
       //@ts-expect-error type checking happens in maybeop
       (args) => args[0].cut(args[1]),
+      // The cutter can never be the result, so a volume match against it is a
+      // coincidence and the cut must still be stored.
+      (index) => index === 0,
     );
 
     if (boolResult.outcome == BooleanOutcome.EmptyShape) {
       this.booleanOpCache.recordOcclusion(toCut, cutter, context.project);
     }
     if (boolResult.outcome == BooleanOutcome.InputShape) {
-      if (boolResult.inputIndexAsResult == 0) {
-        this.booleanOpCache.recordDisjoint(toCut, cutter, context.project);
-      } else if (boolResult.inputIndexAsResult == 1) {
-        // Special case. This volume-match is erronious since the cutter
-        // cannot be the result. Return resultId instead.
-        return resultId;
-      }
+      this.booleanOpCache.recordDisjoint(toCut, cutter, context.project);
     }
     if (boolResult.outcome == BooleanOutcome.NewShape) {
       this.booleanOpCache.recordDisjoint(resultId, cutter, context.project);
