@@ -588,14 +588,17 @@ export default memo(function FlowCanvas({
     // Convert viewport coordinates to canvas-relative coordinates
     const canvasCoords = getCanvasCoordinates(event.clientX, event.clientY);
 
+    // Snapshot the nodes so diving into a molecule doesn't make the loop
+    // continue over the new molecule's children (entering two levels at once)
+    const startingMolecule = GlobalVariables.currentMolecule;
+    const nodes = [...startingMolecule.nodesOnTheScreen];
+
     // Iterate in reverse order to give priority to newer atoms
-    for (
-      let i = GlobalVariables.currentMolecule.nodesOnTheScreen.length - 1;
-      i >= 0;
-      i--
-    ) {
-      const molecule = GlobalVariables.currentMolecule.nodesOnTheScreen[i];
-      const handled = molecule?.doubleClick(canvasCoords.x, canvasCoords.y);
+    for (let i = nodes.length - 1; i >= 0; i--) {
+      nodes[i]?.doubleClick(canvasCoords.x, canvasCoords.y);
+      if (GlobalVariables.currentMolecule !== startingMolecule) {
+        break;
+      }
     }
   };
 
