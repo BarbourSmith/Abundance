@@ -299,7 +299,12 @@ pub fn generate_tree(
         let mem_seg = values[offset..offset + seg_size].to_vec();
 
         // Identical outlines (to 0.01 units) share one shape so their NFPs are computed once.
-        let shape_key: Vec<i64> = mem_seg.iter().map(|v| (v * 100.0).round() as i64).collect();
+        let mut shape_key: Vec<i64> = mem_seg.iter().map(|v| (v * 100.0).round() as i64).collect();
+        // Start at the lowest-then-leftmost vertex so the same outline matches whichever vertex it begins at.
+        let start = (0..shape_key.len() / 2)
+            .min_by_key(|&p| (shape_key[2 * p + 1], shape_key[2 * p]))
+            .unwrap_or(0);
+        shape_key.rotate_left(2 * start);
         if let Some(&first) = seen_shapes.get(&shape_key) {
             let mut copy = nodes[first].clone();
             copy.source = i as i32;

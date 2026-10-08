@@ -107,7 +107,7 @@ async function displayOrientation(
 ): Promise<AbundanceObject> {
   console.log("displayOrientation called.");
   const getCacheId = (geom: string, index: number, xOffset: number) => {
-    return `faceToXY-${index}-${geom}-${xOffset}`;
+    return `faceToXY-v2-${index}-${geom}-${xOffset}`;
   };
   const padding = 1; //orientationConfig.units === "MM" ? 25 : 1;
 
@@ -205,11 +205,11 @@ async function displayOrientation(
     let result = moveFaceToCuttingPlane(geom, faces[targetFaceIndex]);
 
     // Translate and rotate so we accumulate a nonoverlapping stack
-    let bbox = result.boundingBox;
-    if (bbox.width > bbox.height) {
-      result = result.rotate(90, [0, 0, 0], [0, 0, 1]);
+    const angle = minWidthRotation(result);
+    if (angle !== 0) {
+      result = result.rotate(angle, [0, 0, 0], [0, 0, 1]);
     }
-    bbox = result.boundingBox;
+    let bbox = result.boundingBox;
     result = result.translate(
       bottomLeftTarget.x - bbox.bounds[0][0],
       bottomLeftTarget.y - bbox.bounds[0][1],
@@ -230,6 +230,115 @@ async function displayOrientation(
     return leaf as AbundanceLeaf;
   });
   return result;
+}
+
+function convexHull(points: SimpleXY[]): SimpleXY[] {
+  const pts = [...points].sort((a, b) => a.x - b.x || a.y - b.y);
+  if (pts.length < 3) return pts;
+  const cross = (o: SimpleXY, a: SimpleXY, b: SimpleXY) =>
+    (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+  const lower: SimpleXY[] = [];
+  for (const p of pts) {
+    while (
+      lower.length >= 2 &&
+      cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0
+    ) {
+      lower.pop();
+    }
+    lower.push(p);
+  }
+  const upper: SimpleXY[] = [];
+  for (let i = pts.length - 1; i >= 0; i--) {
+    const p = pts[i];
+    while (
+      upper.length >= 2 &&
+      cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0
+    ) {
+      upper.pop();
+    }
+    upper.push(p);
+  }
+  return lower.slice(0, -1).concat(upper.slice(0, -1));
+}
+
+/**
+ * Degrees to rotate a flat part about Z so its narrowest direction lies along X,
+ * chosen from the part's geometry alone so identical parts get identical results.
+ */
+function minWidthRotation(shape: Shape3D): number {
+  const lines = shape.meshEdges({ tolerance: 0.2, angularTolerance: 0.5 })
+    .lines as number[];
+  const points: SimpleXY[] = [];
+  for (let i = 0; i < lines.length; i += 3) {
+    points.push({ x: lines[i], y: lines[i + 1] });
+  }
+  const hull = convexHull(points);
+  if (hull.length < 3) return 0;
+
+  // Hull area centroid, used to pick between a rotation and its 180° flip.
+  let area = 0;
+  let cx = 0;
+  let cy = 0;
+  for (let i = 0; i < hull.length; i++) {
+    const a = hull[i];
+    const b = hull[(i + 1) % hull.length];
+    const c = a.x * b.y - b.x * a.y;
+    area += c;
+    cx += (a.x + b.x) * c;
+    cy += (a.y + b.y) * c;
+  }
+  cx /= 3 * area;
+  cy /= 3 * area;
+
+  const measure = (deg: number) => {
+    const r = (deg * Math.PI) / 180;
+    const cos = Math.cos(r);
+    const sin = Math.sin(r);
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minY = Infinity;
+    let maxY = -Infinity;
+    for (const p of hull) {
+      const x = p.x * cos - p.y * sin;
+      const y = p.x * sin + p.y * cos;
+      minX = Math.min(minX, x);
+      maxX = Math.max(maxX, x);
+      minY = Math.min(minY, y);
+      maxY = Math.max(maxY, y);
+    }
+    return {
+      deg,
+      width: maxX - minX,
+      height: maxY - minY,
+      // Centroid offset from the box centre: negative means mass sits low/left.
+      dy: cx * sin + cy * cos - (minY + maxY) / 2,
+      dx: cx * cos - cy * sin - (minX + maxX) / 2,
+    };
+  };
+
+  // The minimum-width direction always lies along a hull edge.
+  let best: ReturnType<typeof measure> | undefined;
+  const first = measure(0);
+  const tol = 1e-4 * Math.hypot(first.width, first.height);
+  for (let i = 0; i < hull.length; i++) {
+    const a = hull[i];
+    const b = hull[(i + 1) % hull.length];
+    const edgeDeg = (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
+    for (const deg of [90 - edgeDeg, 270 - edgeDeg]) {
+      const m = measure(deg);
+      const better =
+        best === undefined ||
+        m.width < best.width - tol ||
+        (m.width < best.width + tol &&
+          (m.height > best.height + tol ||
+            (m.height > best.height - tol &&
+              (m.dy < best.dy - tol ||
+                (m.dy < best.dy + tol && m.dx < best.dx - tol)))));
+      if (better) best = m;
+    }
+  }
+  const deg = (((best!.deg % 360) + 360) % 360);
+  return Math.abs(deg) < 1e-9 ? 0 : deg;
 }
 
 /**
