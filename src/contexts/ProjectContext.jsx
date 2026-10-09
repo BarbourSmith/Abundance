@@ -14,7 +14,7 @@ import {
   serializeProjectForChangeDetection,
 } from "../js/projectSaveBaseline.js";
 import Molecule from "../molecules/molecule.js";
-import { Status } from "../prototypes/observableEntity.js";
+import { isModelComputing, sweepCacheWhenIdle } from "../js/modelActivity.js";
 import { licenses } from "../js/licenseOptions.js";
 import { re } from "mathjs";
 import { useAuth } from "./AuthContext.jsx";
@@ -29,24 +29,6 @@ const ProjectContext = createContext();
 
 // Autosave waits at most this many intervals for the model to finish computing
 const MAX_DEFERRED_AUTOSAVES = 3;
-
-/**
- * True while any atom is computing or CAD worker calls are in flight. Atoms
- * left WAITING (for example behind an error) don't count, since they may never
- * run. Same test the agent bridge's wait_for_settle uses.
- */
-const isModelComputing = () => {
-  if (GlobalVariables.cad?._pendingCalls?.length > 0) {
-    return true;
-  }
-  const hasProcessingAtom = (molecule) =>
-    (molecule.nodesOnTheScreen || []).some(
-      (atom) => atom.status === Status.PROCESSING || hasProcessingAtom(atom),
-    );
-  return GlobalVariables.topLevelMolecule
-    ? hasProcessingAtom(GlobalVariables.topLevelMolecule)
-    : false;
-};
 
 /**
  * Context provider for project-level operations and state.
@@ -1924,15 +1906,9 @@ export function ProjectProvider({ children, cad, loadProject }) {
         };
 
         if (typeSave !== "Auto Save") {
-          const geomIds = GlobalVariables.topLevelMolecule.deepGeomList();
           // Sweep is best-effort and can take a long time (up to a minute). Don't await, just let it run
           // in the background and mark save as completed.
-          GlobalVariables.cad
-            .sweepCache(geomIds, GlobalVariables.topLevelMolecule.getContext())
-            .then((count) => {})
-            .catch((error) => {
-              console.error("Error during cache sweep:", error);
-            });
+          sweepCacheWhenIdle(GlobalVariables.topLevelMolecule);
         }
 
         updateSaveProgress(100);

@@ -795,7 +795,7 @@ return assembly;
       yInPixels,
     );
 
-    if (distFromClick < this.radius) {
+    if (distFromClick < GlobalVariables.widthToPixels(this.radius)) {
       this.editCode();
       clickProcessed = true;
     }
