@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useLayoutEffect, useState, useRef } from "react";
 import ThreeContext from "../render/ThreeContext.jsx";
 import ReplicadMesh from "../render/ReplicadMesh.jsx";
 import NonReplicadMesh from "../render/NonReplicadMesh.jsx";
@@ -430,6 +430,7 @@ function PullMode({ setProcessing }) {
     setWire,
     solidParam,
     setSolid,
+    computingLabel,
   } = useRendering();
   const { uploadFile, deleteFile } = useFileImport();
 
@@ -529,6 +530,12 @@ function PullMode({ setProcessing }) {
   const canvasRef = useRef(1000);
   const windowSize = useWindowSize();
   const [cameraZoom, setCameraZoom] = useState(1);
+
+  useLayoutEffect(() => {
+    GlobalVariables.resetView();
+    setActiveAtom(null);
+    setCameraZoom(1);
+  }, [baseOwner, baseRepo, headOwner, headRepo, authorizedUserOcto, userScopes]);
 
   useEffect(() => {
     setCameraZoom(1);
@@ -1783,8 +1790,26 @@ function PullMode({ setProcessing }) {
             id="threeDView"
             style={{
               height: windowSize.height,
+              position: "relative",
             }}
           >
+            {computingLabel && (
+              <div
+                style={{
+                  position: "absolute",
+                  bottom: "8px",
+                  right: "10px",
+                  zIndex: 10,
+                  fontSize: "11px",
+                  color: "#666",
+                  fontFamily: "monospace",
+                  pointerEvents: "none",
+                  userSelect: "none",
+                }}
+              >
+                {computingLabel}
+              </div>
+            )}
             <ThreeContext
               {...{ cameraZoom, gridParam, axesParam, outdatedMesh }}
             >
