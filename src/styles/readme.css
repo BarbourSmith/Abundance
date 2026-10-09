@@ -29,6 +29,11 @@
   flex-wrap: wrap;
   gap: 1rem;
   padding: 10px 2rem 10px 10px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: inherit;
+  border-bottom: 1px solid var(--border-color, #c4a3d5);
 }
 
 .readme-home-link {
@@ -88,11 +93,20 @@
   border: none;
 }
 
+.readme-content table.feature-row td {
+  font-weight: 600;
+  color: var(--heading-color, #640080);
+}
+
 .readme-content table.feature-row img {
   width: 100%;
-  aspect-ratio: 1;
+  aspect-ratio: 4 / 3;
   object-fit: cover;
   margin: 0 0 8px;
+}
+
+.readme-content table.feature-row td:nth-child(2) img {
+  object-position: left;
 }
 
 .readme-video {
@@ -149,6 +163,17 @@
   margin-top: 24px;
   margin-bottom: 16px;
   color: var(--heading-color, #dec9e0);
+}
+
+.readme-content summary {
+  font-size: 1.5em;
+  font-weight: 600;
+  padding-bottom: 0.3em;
+  border-bottom: 1px solid var(--border-color, #c4a3d5);
+  margin-top: 24px;
+  margin-bottom: 16px;
+  color: var(--heading-color, #dec9e0);
+  cursor: pointer;
 }
 
 .readme-content h3,

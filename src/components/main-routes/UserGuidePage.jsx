@@ -11,6 +11,11 @@ const REPO_URL = "https://github.com/BarbourSmith/Abundance";
 
 const README_ONLY_BLOCK =
   /<!--\s*readme-only\s*-->[\s\S]*?<!--\s*\/readme-only\s*-->/g;
+// The content sits inside the comment so GitHub hides it.
+const GUIDE_ONLY_BLOCK = /<!--\s*guide-only\s*([\s\S]*?)-->/g;
+
+const toGuide = (markdown) =>
+  markdown.replace(README_ONLY_BLOCK, "").replace(GUIDE_ONLY_BLOCK, "$1");
 
 function youtubeId(href) {
   try {
@@ -44,7 +49,7 @@ function UserGuidePage() {
   useEffect(() => {
     const fetchReadme = async () => {
       if (import.meta.env.DEV) {
-        setReadmeContent(localReadme.replace(README_ONLY_BLOCK, ""));
+        setReadmeContent(toGuide(localReadme));
         setLoading(false);
         return;
       }
@@ -72,7 +77,7 @@ function UserGuidePage() {
           },
         );
 
-        setReadmeContent(response.data.replace(README_ONLY_BLOCK, ""));
+        setReadmeContent(toGuide(response.data));
         setError(null);
       } catch (err) {
         console.error("Error fetching User Guide:", err);

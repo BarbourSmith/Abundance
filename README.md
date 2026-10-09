@@ -6,20 +6,18 @@
 
 <!-- /readme-only -->
 
-[![OverviewVid](https://youtu.be/AwGbaCevFKc/maxresdefault.jpg)](https://youtu.be/AwGbaCevFKc?t=23)
-
-<h2 align="center">CAD for cooperative design</h2>
+<h2 align="center">An Open Source tool for Open Source projects</h2>
 
 <table class="feature-row">
   <tr>
-    <td align="center" width="25%"><img src="https://img.youtube.com/vi/AwGbaCevFKc/maxresdefault.jpg" alt="Share parameterized projects" width="160" /><br />Share parameterized projects</td>
-    <td align="center" width="25%"><img src="https://img.youtube.com/vi/AwGbaCevFKc/maxresdefault.jpg" alt="AI agent integration" width="160" /><br />AI agent integration</td>
-    <td align="center" width="25%"><img src="https://img.youtube.com/vi/AwGbaCevFKc/maxresdefault.jpg" alt="Deep version control for collaboration" width="160" /><br />Deep version control for collaboration</td>
-    <td align="center" width="25%"><img src="https://img.youtube.com/vi/AwGbaCevFKc/maxresdefault.jpg" alt="Built in CAM" width="160" /><br />Built in CAM</td>
+    <td align="center" width="33%"><img src="https://github.com/user-attachments/assets/adc67aca-6efb-4379-9101-7d53ed022d79" alt="Share parameterized projects" width="160" /><br />Share parameterized projects</td>
+    <td align="center" width="33%"><img src="https://github.com/user-attachments/assets/e6b26744-d11f-4087-81df-85c8672af819" alt="AI agent integration" width="160" /><br />AI agent integration</td>
+    <td align="center" width="33%"><img src="https://github.com/user-attachments/assets/6a70461f-f0a5-4de8-b485-da28f009d349" alt="Built in CAM" width="160" /><br />Built in CAM</td>
   </tr>
 </table>
 
 Abundance breaks with the tradition of CAD programs which inherit from drawing programs and instead inherits from logical languages like programming. This allows it to be a CAD program which can have language-like features such as importing modules, version control, and collaboration. All projects are stored as GitHub repositories, enabling seamless version control and collaborative design workflows.
+
 
 <!-- readme-only -->
 
@@ -33,7 +31,7 @@ Abundance breaks with the tradition of CAD programs which inherit from drawing p
 
 You can view other's projects, change their parameters, and export their outputs (eg: STL, gcode) without logging in.
 
-To make your own projects log in with a GitHub account. GitHub accounts are free to create, if you already have a GitHub account you may us it or create a new one. Each project you create in Abundance will be stored as a Github Repository. You can always search for them and find them through the Abundance Platform.
+To make your own projects log in with a GitHub account. GitHub accounts are free to create, if you already have a GitHub account you may use it or create a new one. Each project you create in Abundance will be stored as a Github Repository. You can always search for them and find them through the Abundance Platform.
 
 <img width="754" alt="login-screen" src="https://github.com/user-attachments/assets/9393527d-3e11-483f-ac79-96a4b14de2f9">
 
@@ -88,7 +86,7 @@ By default the output of your project will be shown in the 3D view whenever no o
 
 ## Onwards to a simple box!
 
-Here we'll highlight some functions as we design a simple box project.
+Here we'll highlight some common functions as we design a simple box project.
 
 ### Boolean Operations
 
