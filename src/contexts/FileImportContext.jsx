@@ -79,13 +79,11 @@ export function FileImportProvider({ children }) {
           // Show upload notification
           //setNotification(`File uploaded: ${uniqueFileName}`);
           setNotification(`File uploaded: ${uniqueFileName}`, "notice");
-          setTimeout(() => setNotification(null, "notice"), 3000);
         } catch (error) {
           setNotification(
             `Failed to Upload File: Corrupt or exceeded size limit`,
             "error",
           );
-          setTimeout(() => setNotification(null, "error"), 3000);
           console.error("Error during file upload:", error);
         }
       })();
@@ -94,7 +92,6 @@ export function FileImportProvider({ children }) {
     reader.onerror = function (error) {
       console.error("Error reading file:", error);
       setNotification("Failed to read the file. Please try again.", "error");
-      setTimeout(() => setNotification(null, "error"), 3000);
     };
     reader.readAsDataURL(file);
   };
@@ -121,14 +118,12 @@ export function FileImportProvider({ children }) {
 
       // Show delete notification
       setNotification(`File deleted: ${fileName}`, "warning");
-      setTimeout(() => setNotification(null, "warning"), 3000);
     } catch (error) {
       console.error("Error deleting file:", error);
       setNotification(
         `Failed to delete file: ${fileName}. The file will remain in your repository.`,
         "error",
       );
-      setTimeout(() => setNotification(null, "error"), 5000);
     }
   };
 

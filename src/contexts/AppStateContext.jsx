@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 
 const AppStateContext = createContext();
 
@@ -16,13 +16,36 @@ export function AppStateProvider({ children }) {
   const [errorNotification, setErrorNotificationRaw] = useState(null);
   const [notificationType, setNotificationType] = useState("error");
 
-  const setNotification = (message, type = "error") => {
-    setErrorNotificationRaw(message);
-    setNotificationType(message ? type : "error");
-  };
+  const notificationTimeout = useRef(null);
 
-  const setErrorNotification = (message, type) =>
-    setNotification(message, type || "error");
+  /**
+   * Show a notification for duration milliseconds (default five seconds).
+   * A new message replaces the timer; null dismisses it immediately.
+   */
+  const setNotification = useCallback(
+    (message, type = "error", duration = 5000) => {
+      clearTimeout(notificationTimeout.current);
+      notificationTimeout.current = null;
+      setErrorNotificationRaw(message);
+      setNotificationType(message ? type : "error");
+      if (message) {
+        notificationTimeout.current = setTimeout(() => {
+          notificationTimeout.current = null;
+          setErrorNotificationRaw(null);
+          setNotificationType("error");
+        }, duration);
+      }
+    },
+    [],
+  );
+
+  const setErrorNotification = useCallback(
+    (message, type, duration) =>
+      setNotification(message, type || "error", duration),
+    [setNotification],
+  );
+
+  useEffect(() => () => clearTimeout(notificationTimeout.current), []);
 
   const value = {
     activeAtom,

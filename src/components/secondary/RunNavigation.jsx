@@ -220,12 +220,10 @@ function RunNavigation({
       } else {
         setNotification("Removed from liked projects", "notice");
       }
-      setTimeout(() => setNotification(null), 3000);
     } catch (error) {
       console.error("Could not update liked state", error);
       setStarred(!shouldLike);
       setNotification("Couldn't update your like. Please try again.", "error");
-      setTimeout(() => setNotification(null), 5000);
     } finally {
       likeInFlight.current = false;
       setLikePending(false);

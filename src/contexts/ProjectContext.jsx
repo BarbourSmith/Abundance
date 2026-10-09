@@ -369,7 +369,6 @@ export function ProjectProvider({ children, cad, loadProject }) {
         setLoadError(error);
         setLoadingProject(false);
         setNotification(`Failed to load project: ${error.message}`, "error");
-        setTimeout(() => setNotification(null, null), 5000);
       }
     },
     [
@@ -1613,7 +1612,6 @@ export function ProjectProvider({ children, cad, loadProject }) {
           setErrorNotification(
             `Save failed: ${error.message || "Unknown error occurred"}`,
           );
-          setTimeout(() => setErrorNotification(null), 5000);
         }
         updateSaveProgress(0); // Reset save progress
       }
@@ -1670,7 +1668,6 @@ export function ProjectProvider({ children, cad, loadProject }) {
           const message =
             "Save already in progress. Please wait for it to finish.";
           setNotification(message, "warning");
-          setTimeout(() => setNotification(null, null), 3000);
           return;
         }
 
@@ -1685,7 +1682,6 @@ export function ProjectProvider({ children, cad, loadProject }) {
               "Save blocked: project is still loading. Please wait for the project to finish loading before saving.",
               "error",
             );
-            setTimeout(() => setNotification(null, null), 5000);
           }
           return;
         }
@@ -1925,7 +1921,6 @@ export function ProjectProvider({ children, cad, loadProject }) {
             `Save failed: ${error.message || "Unknown error occurred"}`,
             "error",
           );
-          setTimeout(() => setNotification(null, null), 5000);
         }
 
         // Reset progress on error (guard allows 0 anytime as intentional reset)

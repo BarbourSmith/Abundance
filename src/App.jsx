@@ -697,8 +697,7 @@ function AppContent() {
     // Wire up worker restart notification so the user sees a warning banner
     // if the CAD worker hangs and has to be automatically restarted.
     cad.onRestartCallback = (message) => {
-      setErrorNotification(message, "warning");
-      setTimeout(() => setErrorNotification(null), 8000);
+      setErrorNotification(message, "warning", 8000);
     };
   }, [
     setMesh,
@@ -958,7 +957,6 @@ function AppContent() {
         }
 
         setErrorNotification("Can't load/find project: " + (e.message || e));
-        setTimeout(() => setErrorNotification(null), 5000);
         // Clear loading flag on error
         GlobalVariables.loadingProjects.delete(projectKey);
         // Navigate back to projects page after error
