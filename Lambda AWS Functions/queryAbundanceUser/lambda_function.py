@@ -4,6 +4,11 @@ import json
 from boto3.dynamodb.conditions import Attr
 from boto3.dynamodb.conditions import Key
 import decimal
+import logging
+from botocore.exceptions import ClientError
+
+
+logger = logging.getLogger(__name__)
 
 
 def lambda_handler(event: any, context: any):
@@ -34,8 +39,12 @@ def lambda_handler(event: any, context: any):
     table_name = os.environ["TABLE_NAME"]
     table = dynamodb.Table(table_name)
 
-    user = event['queryStringParameters']['user']
-    queryLiked = event['queryStringParameters']['liked']
+    parameters = event.get('queryStringParameters') or {}
+    user = parameters.get('user')
+    queryLiked = parameters.get('liked', '').lower() == 'true'
+    if not isinstance(user, str) or not user.strip():
+        logger.warning("Missing user in query")
+        return build_response(400, "A user is required")
 
     item_array = []
 
@@ -45,17 +54,19 @@ def lambda_handler(event: any, context: any):
             key_condition_expression = Key('user').eq(user)
 
             response = table.query(
-                KeyConditionExpression=key_condition_expression)
+                KeyConditionExpression=key_condition_expression,
+                ConsistentRead=True)
             item_array.extend(response.get('Items', []))
 
             if (queryLiked):
-                print(item_array[0]['likedProjects'])
-                liked_repos = {'repos': item_array[0]['likedProjects']}
+                liked_repos = {
+                    'repos': item_array[0].get('likedProjects', []) if item_array else []
+                }
 
                 return build_response(200, liked_repos)
             else:
                 return build_response(200,  item_array)
 
     except ClientError as e:
-        print('Error:', e)
-        return build_response(400, e.response['Error']['Message'])
+        logger.exception("Failed to query user")
+        return build_response(500, "Could not load user")
