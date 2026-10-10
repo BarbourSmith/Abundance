@@ -113,11 +113,10 @@ function PreviewCreateMode() {
       })
       .catch((e) => {
         console.error("Error loading project:", e);
-        setErrorNotification(
+        setNotification(
           "Can't load/find project: " + (e.message || e),
           "error",
         );
-        setTimeout(() => setErrorNotification(null, "error"), 5000);
         navigate("/");
       });
   }, [owner, repoName, isRestoringSession]);

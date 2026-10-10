@@ -10,6 +10,7 @@ export default defineConfig({
   optimizeDeps: {
     include: [
       "@emotion/react",
+      "@mui/material/Switch",
       "octokit",
       "file-saver",
       "mathjs",

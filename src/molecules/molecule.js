@@ -980,24 +980,7 @@ export default class Molecule extends Atom {
       const outputState = outputAtom.getState();
       if (outputState.status == Status.READY) {
         this.nonReplicadGeom = outputAtom.nonReplicadGeom;
-        this.setReady(outputState.value);
-        this.compiledBom = this.compileBom();
-        if (this.setInputChanged) {
-          this.setInputChanged(this.compiledBom);
-        }
-        // Compile README as well
-        this.requestReadme()
-          .then((readme) => {
-            this.compiledReadme = readme;
-            // Note: setInputChanged is not called for README as it's only used for BOM updates
-          })
-          .catch((err) => {
-            console.warn("Error loading README:", err);
-          });
-        // Extract and cache tags once when molecule becomes ready
-        this.extractAndCacheTags().catch((err) => {
-          console.error("Error in extractAndCacheTags:", err);
-        });
+        this.onOutputReady(outputState.value);
       } else {
         // Enable child atoms in dependency order to ensure atoms can subscribe to variable equations.
         // Do this on EVERY upstream change, not just when all inputs are ready.
@@ -1042,6 +1025,40 @@ export default class Molecule extends Atom {
       console.trace("Undefined output atom in onUpstreamChange");
       this.setError("got callback with undefined output atom");
     }
+  }
+
+  /**
+   * Called when the internal output atom is ready. Subclasses override this
+   * to transform the value before it becomes this molecule's output.
+   * @param {object} value - The output atom's value
+   */
+  onOutputReady(value) {
+    this.setOutputValue(value);
+  }
+
+  /**
+   * Make value this molecule's output, then recompile the BOM, README, and tags.
+   * @param {object} value - The molecule's output value
+   */
+  setOutputValue(value) {
+    this.setReady(value);
+    this.compiledBom = this.compileBom();
+    if (this.setInputChanged) {
+      this.setInputChanged(this.compiledBom);
+    }
+    // Compile README as well
+    this.requestReadme()
+      .then((readme) => {
+        this.compiledReadme = readme;
+        // Note: setInputChanged is not called for README as it's only used for BOM updates
+      })
+      .catch((err) => {
+        console.warn("Error loading README:", err);
+      });
+    // Extract and cache tags once when molecule becomes ready
+    this.extractAndCacheTags().catch((err) => {
+      console.error("Error in extractAndCacheTags:", err);
+    });
   }
 
   /**
@@ -1633,6 +1650,9 @@ export default class Molecule extends Atom {
               topLevel: false,
               lastReloadedFromGithubAt: Date.now(),
             };
+          }
+          if (oldObject.scaleToProjectUnits === false) {
+            valuesToOverwriteInLoadedVersion.scaleToProjectUnits = false;
           }
           // TODO: Tristan debug
           GlobalVariables.currentMolecule

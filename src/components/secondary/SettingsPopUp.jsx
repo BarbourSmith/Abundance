@@ -1,7 +1,9 @@
 import React, { useState, useRef, useEffect } from "react";
 import Globalvariables from "../../js/globalvariables.js";
+import { refreshUnitScaling } from "../../js/units.js";
 import CreatableSelect from "react-select/creatable";
 import topics from "../../js/maslowTopics.js";
+import Switch from "@mui/material/Switch";
 import { DevSettingsPanel } from "./DevSettingsModal.jsx";
 
 export const DEVELOPER_TAB_INDEX = 4;
@@ -81,7 +83,7 @@ const SettingsPopUp = ({
 
   const [state, setState] = React.useState({
     shortcut: shortCutsOn,
-    displaytheme: false,
+    displaytheme: document.documentElement.classList.contains("dark-theme"),
     fontSize: parseInt(
       Globalvariables.canvasFont.replace("px Work Sans Bold", ""),
       10,
@@ -121,17 +123,10 @@ const SettingsPopUp = ({
       setShortCuts(event.target.checked);
     }
     if (event.target.name === "displaytheme") {
-      const element = document.querySelector("html");
-      if (element && element.className === "light-theme") {
-        element.className = "dark-theme";
-        localStorage.setItem("displayTheme", "dark-theme");
-      } else {
-        element.className = "light-theme";
-        localStorage.setItem("displayTheme", "light-theme");
-      }
-    }
-    if (event.target.name === "autoSaveDisabled") {
-      localStorage.setItem("autoSaveDisabled", event.target.checked);
+      const dark = event.target.checked;
+      document.documentElement.classList.toggle("dark-theme", dark);
+      document.documentElement.classList.toggle("light-theme", !dark);
+      localStorage.setItem("displayTheme", dark ? "dark-theme" : "light-theme");
     }
   };
 
@@ -141,6 +136,7 @@ const SettingsPopUp = ({
       [event.target.name]: event.target.value,
     });
     Globalvariables.topLevelMolecule.unitsKey = event.target.value;
+    refreshUnitScaling(Globalvariables.topLevelMolecule);
   };
 
   return (
@@ -218,34 +214,24 @@ const SettingsPopUp = ({
           <CustomTabPanel value={value} index={1}>
             <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
               <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <input
-                  type="checkbox"
+                <Switch
                   checked={state.shortcut}
                   onChange={handleCheckChange}
                   name="shortcut"
-                  style={{ marginRight: 8 }}
+                  slotProps={{ input: { role: "switch" } }}
                 />
-                Shortcut Helper Show/Hide
+                Shortcut Helper
+                <span>{state.shortcut ? "On" : "Off"}</span>
               </label>
               <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <input
-                  type="checkbox"
+                <Switch
                   checked={state.displaytheme}
                   onChange={handleCheckChange}
                   name="displaytheme"
-                  style={{ marginRight: 8 }}
+                  slotProps={{ input: { role: "switch" } }}
                 />
-                Display light/dark
-              </label>
-              <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <input
-                  type="checkbox"
-                  checked={state.autoSaveDisabled}
-                  onChange={handleCheckChange}
-                  name="autoSaveDisabled"
-                  style={{ marginRight: 8 }}
-                />
-                Disable Auto-Save
+                Display Theme
+                <span>{state.displaytheme ? "Dark" : "Light"}</span>
               </label>
               <div style={{ borderTop: "1px solid #eee", margin: "10px 0" }} />
               <div
@@ -476,6 +462,34 @@ const SettingsPopUp = ({
         {/* Outside the form so its buttons and Enter key don't submit and close Settings */}
         {value === DEVELOPER_TAB_INDEX && (
           <div className="settings-panel-content">
+            <div className="dev-setting-item">
+              <div className="dev-setting-checkbox">
+                <Switch
+                  id="autoSaveEnabled"
+                  checked={!state.autoSaveDisabled}
+                  onChange={(event) => {
+                    const disabled = !event.target.checked;
+                    setState({ ...state, autoSaveDisabled: disabled });
+                    localStorage.setItem("autoSaveDisabled", disabled);
+                  }}
+                  slotProps={{
+                    input: {
+                      role: "switch",
+                      "aria-describedby": "autoSaveDisabled-description",
+                    },
+                  }}
+                />
+                <label htmlFor="autoSaveEnabled">Auto-Save</label>
+                <span>{state.autoSaveDisabled ? "Off" : "On"}</span>
+              </div>
+              <p
+                id="autoSaveDisabled-description"
+                className="dev-setting-description"
+              >
+                Applies immediately to all projects in this browser. Save your
+                changes manually while auto-save is disabled.
+              </p>
+            </div>
             <DevSettingsPanel />
           </div>
         )}

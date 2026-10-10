@@ -1008,7 +1008,17 @@ const handlers = {
     detail.params = collectParams(atom).map(describeParam);
     if (isMolecule(atom)) {
       detail.atom_count = children(atom).length;
-      if (atom.atomType === "GitHubMolecule") detail.read_only = true;
+      if (atom.atomType === "GitHubMolecule") {
+        detail.read_only = true;
+        if (atom.hasUnitMismatch()) {
+          const factor = atom.getOutputScaleFactor();
+          detail.units = {
+            inputs: atom.unitsKey,
+            project: atom.getHostUnits(),
+            output_scale: factor ?? 1,
+          };
+        }
+      }
     }
     if (atom.atomType === "Code") {
       detail.code = atom.code;

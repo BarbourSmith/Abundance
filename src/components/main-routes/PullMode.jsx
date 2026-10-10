@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useLayoutEffect, useState, useRef } from "react";
 import ThreeContext from "../render/ThreeContext.jsx";
 import ReplicadMesh from "../render/ReplicadMesh.jsx";
 import NonReplicadMesh from "../render/NonReplicadMesh.jsx";
@@ -430,6 +430,7 @@ function PullMode({ setProcessing }) {
     setWire,
     solidParam,
     setSolid,
+    computingLabel,
   } = useRendering();
   const { uploadFile, deleteFile } = useFileImport();
 
@@ -530,6 +531,12 @@ function PullMode({ setProcessing }) {
   const windowSize = useWindowSize();
   const [cameraZoom, setCameraZoom] = useState(1);
 
+  useLayoutEffect(() => {
+    GlobalVariables.resetView();
+    setActiveAtom(null);
+    setCameraZoom(1);
+  }, [baseOwner, baseRepo, headOwner, headRepo, authorizedUserOcto, userScopes]);
+
   useEffect(() => {
     setCameraZoom(1);
   }, [GlobalVariables.currentAWSnode]);
@@ -561,7 +568,6 @@ function PullMode({ setProcessing }) {
 
     // Fetch both GitHub projects and create template
     let cancelled = false;
-    let noticeTimeout = null;
     fetchComparisonProjects(
       baseOwner,
       baseRepo,
@@ -576,15 +582,14 @@ function PullMode({ setProcessing }) {
           setNotification(
             `Couldn't find where ${headOwner}/${headRepo} branched from ${baseOwner}/${baseRepo} (${fallbackError.message}), so this preview compares their latest versions and may include changes made in ${baseOwner}/${baseRepo}.`,
             "error",
+            10000,
           );
         } else if (conflicts?.length > 0) {
           setNotification(
             `${conflicts.length} value(s) were changed in both ${baseOwner}/${baseRepo} and ${headOwner}/${headRepo}; this preview shows ${headOwner}'s version. You'll be asked which to keep when the pull request is updated.`,
             "notice",
+            10000,
           );
-        }
-        if (fallbackError || conflicts?.length > 0) {
-          noticeTimeout = setTimeout(() => setNotification(null), 10000);
         }
 
         // Create template with GitHub molecules embedded
@@ -615,11 +620,6 @@ function PullMode({ setProcessing }) {
     // This prevents PullMode's template from being mistaken for a loaded project in CreateMode
     return () => {
       cancelled = true;
-      // Don't leave this page's notice up after leaving it
-      if (noticeTimeout) {
-        clearTimeout(noticeTimeout);
-        setNotification(null);
-      }
       GlobalVariables.topLevelMolecule = null;
       GlobalVariables.currentMolecule = null;
       GlobalVariables.currentAWSnode = null;
@@ -758,12 +758,10 @@ function PullMode({ setProcessing }) {
         `Pull request created: ${response.data.html_url}`,
         "notice",
       );
-      setTimeout(() => setNotification(null), 5000);
       setShowPRConfirm(false);
       setPrJustCreated(true);
       setShowExistingPRDialog(true);
     } catch (error) {
-      setTimeout(() => setNotification(null), 5000);
       setNotification(`Error creating pull request: ${error.message}`, "error");
       setShowPRConfirm(false);
     } finally {
@@ -835,7 +833,6 @@ function PullMode({ setProcessing }) {
     } catch (error) {
       console.error("Error updating pull request:", error);
       setNotification(`Error updating pull request: ${error.message}`, "error");
-      setTimeout(() => setNotification(null), 5000);
     } finally {
       setIsSyncingPR(false);
     }
@@ -852,7 +849,6 @@ function PullMode({ setProcessing }) {
         "You must be logged in to close a pull request.",
         "error",
       );
-      setTimeout(() => setNotification(null), 5000);
       setShowCloseConfirm(false);
       return;
     }
@@ -885,7 +881,6 @@ function PullMode({ setProcessing }) {
       }
 
       setNotification("Pull request closed successfully", "notice");
-      setTimeout(() => setNotification(null), 5000);
       setShowCloseConfirm(false);
       setCloseComment("");
 
@@ -896,7 +891,6 @@ function PullMode({ setProcessing }) {
     } catch (error) {
       console.error("Error closing pull request:", error);
       setNotification(`Error closing pull request: ${error.message}`, "error");
-      setTimeout(() => setNotification(null), 5000);
     } finally {
       setIsClosingPR(false);
     }
@@ -931,7 +925,6 @@ function PullMode({ setProcessing }) {
         "You must be logged in to merge a pull request.",
         "error",
       );
-      setTimeout(() => setNotification(null), 5000);
       setShowMergeConfirm(false);
       return;
     }
@@ -1011,7 +1004,6 @@ function PullMode({ setProcessing }) {
       }
 
       setNotification(`Pull request merged: ${response.data.sha}`, "notice");
-      setTimeout(() => setNotification(null), 5000);
       setShowMergeConfirm(false);
       setMergeHasConflicts(false);
       setIsMergeSuccessful(true);
@@ -1452,7 +1444,6 @@ function PullMode({ setProcessing }) {
                       },
                     );
                     setNotification("Pull request closed.", "notice");
-                    setTimeout(() => setNotification(null), 3000);
                     setShowExistingPRDialog(false);
                     setExistingPRData(null);
                     setExistingPRHasConflicts(false);
@@ -1783,8 +1774,26 @@ function PullMode({ setProcessing }) {
             id="threeDView"
             style={{
               height: windowSize.height,
+              position: "relative",
             }}
           >
+            {computingLabel && (
+              <div
+                style={{
+                  position: "absolute",
+                  bottom: "8px",
+                  right: "10px",
+                  zIndex: 10,
+                  fontSize: "11px",
+                  color: "#666",
+                  fontFamily: "monospace",
+                  pointerEvents: "none",
+                  userSelect: "none",
+                }}
+              >
+                {computingLabel}
+              </div>
+            )}
             <ThreeContext
               {...{ cameraZoom, gridParam, axesParam, outdatedMesh }}
             >

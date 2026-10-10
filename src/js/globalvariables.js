@@ -247,8 +247,9 @@ class GlobalVariables {
     this.projectIsLoading = false;
     /**
      * The project as last loaded from or committed to GitHub, used to skip
-     * saves when nothing has changed. `json` is the stringified project.
-     * @type {{projectKey: string, json: string} | null}
+     * saves when nothing has changed. `json` compares authored state, not the
+     * full saved payload; `bom` is remote text, null if absent, or unknown.
+     * @type {{projectKey: string, json: string, bom?: string | null} | null}
      */
     this.lastSavedProject = null;
     /**

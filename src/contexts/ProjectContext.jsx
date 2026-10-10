@@ -9,6 +9,10 @@ import GlobalVariables from "../js/globalvariables.js";
 import { meshKey } from "../js/displayScheduler.js";
 import { fetchGitHubFileContent } from "../js/githubFileUtils.js";
 import { encodeProjectContentForGitHub } from "../js/projectContentCodec.js";
+import {
+  hasProjectChanges,
+  serializeProjectForChangeDetection,
+} from "../js/projectSaveBaseline.js";
 import Molecule from "../molecules/molecule.js";
 import { isModelComputing, sweepCacheWhenIdle } from "../js/modelActivity.js";
 import { licenses } from "../js/licenseOptions.js";
@@ -236,9 +240,10 @@ export function ProjectProvider({ children, cad, loadProject }) {
                 owner: owner,
                 repoName: repoName,
               });
-              GlobalVariables.topLevelMolecule.deserialize(projectData);
+              GlobalVariables.lastSavedProject = null;
               GlobalVariables.currentMolecule =
                 GlobalVariables.topLevelMolecule;
+              await GlobalVariables.topLevelMolecule.deserialize(projectData);
 
               // NOTE: Don't clean up localStorage here - wait until after loadProject completes.
               // If loadProject fails, we want to keep the recovery data in localStorage
@@ -249,6 +254,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
             } catch (error) {
               console.error("Error loading from localStorage:", error);
               // Fall through to GitHub load if localStorage parsing fails
+              loadSource = "fresh-url";
             }
           } else if (loadSource !== "fresh-url") {
             // No recovery data found for reauthentication or return - treat as fresh load
@@ -363,7 +369,6 @@ export function ProjectProvider({ children, cad, loadProject }) {
         setLoadError(error);
         setLoadingProject(false);
         setNotification(`Failed to load project: ${error.message}`, "error");
-        setTimeout(() => setNotification(null, null), 5000);
       }
     },
     [
@@ -1364,7 +1369,8 @@ export function ProjectProvider({ children, cad, loadProject }) {
   };
 
   /**
-   * Create a commit as part of the saving process.
+   * Create a commit as part of saving. Identical trees are successful no-ops:
+   * skip AWS (which updates dateModified), but let saveProject refresh its baseline.
    */
   const createCommit = async function (
     octokit,
@@ -1480,7 +1486,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
 
             // Nothing differs from what's on GitHub: don't make an empty commit.
             if (newTreeResponse.data.sha === currentTreeSha) {
-              return;
+              return { committed: false };
             }
 
             // 4. Create the commit.
@@ -1502,7 +1508,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
                 sha: newCommitResponse.data.sha,
                 force: false,
               });
-              return;
+              return { committed: true };
             } catch (error) {
               if (
                 (error?.status === 409 || error?.status === 422) &&
@@ -1515,9 +1521,13 @@ export function ProjectProvider({ children, cad, loadProject }) {
           }
         };
 
-        await commitViaGitDataApi();
+        const result = await commitViaGitDataApi();
 
         updateSaveProgress(80);
+        if (!result.committed) {
+          console.log("Project already matches GitHub. AWS update skipped.");
+          return result;
+        }
 
         const githubMoleculeUsedList = await searchGithubMolecules(
           GlobalVariables.topLevelMolecule,
@@ -1563,7 +1573,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
           attributeUpdates.userSetAsThumbnail = false; // Reset userSetAsThumbnail to false since we're updating the thumbnail
         }
 
-        await fetch(apiUpdateUrl, {
+        const updateResponse = await fetch(apiUpdateUrl, {
           method: "POST",
           body: JSON.stringify({
             owner: owner,
@@ -1574,8 +1584,14 @@ export function ProjectProvider({ children, cad, loadProject }) {
             "Content-type": "application/json; charset=UTF-8",
           },
         });
+        if (!updateResponse.ok) {
+          throw new Error(
+            `Project committed to GitHub, but AWS metadata update failed: ${updateResponse.status} ${updateResponse.statusText}`,
+          );
+        }
 
         console.warn("Project saved on git and aws updated");
+        return result;
       }
     } catch (error) {
       console.error("Error during commit creation:", error);
@@ -1596,7 +1612,6 @@ export function ProjectProvider({ children, cad, loadProject }) {
           setErrorNotification(
             `Save failed: ${error.message || "Unknown error occurred"}`,
           );
-          setTimeout(() => setErrorNotification(null), 5000);
         }
         updateSaveProgress(0); // Reset save progress
       }
@@ -1653,7 +1668,6 @@ export function ProjectProvider({ children, cad, loadProject }) {
           const message =
             "Save already in progress. Please wait for it to finish.";
           setNotification(message, "warning");
-          setTimeout(() => setNotification(null, null), 3000);
           return;
         }
 
@@ -1668,7 +1682,6 @@ export function ProjectProvider({ children, cad, loadProject }) {
               "Save blocked: project is still loading. Please wait for the project to finish loading before saving.",
               "error",
             );
-            setTimeout(() => setNotification(null, null), 5000);
           }
           return;
         }
@@ -1697,7 +1710,10 @@ export function ProjectProvider({ children, cad, loadProject }) {
         //Don't save again if nothing has changed since the project was
         //loaded or last committed (unless forceSave is true)
         const projectKey = `${GlobalVariables.currentAWSnode?.owner}/${GlobalVariables.currentAWSnode?.repoName}`;
-        const currentSerialized = JSON.stringify(jsonRepOfProject);
+        const currentSerialized = serializeProjectForChangeDetection(
+          GlobalVariables.topLevelMolecule,
+          jsonRepOfProject,
+        );
         const lastSaved = GlobalVariables.lastSavedProject;
         // The BOM is compiled once the model is ready. Until then there is
         // none, and the BOM file on GitHub is left alone.
@@ -1706,13 +1722,12 @@ export function ProjectProvider({ children, cad, loadProject }) {
         )
           ? GlobalVariables.topLevelMolecule.formatBom()
           : null;
-        // A BOM that finished compiling after the last save also counts as a
-        // change. If it matches what's on GitHub, createCommit makes no commit.
-        const hasChanges =
-          !lastSaved ||
-          lastSaved.projectKey !== projectKey ||
-          lastSaved.json !== currentSerialized ||
-          (bomContent != null && bomContent !== lastSaved.bom);
+        const hasChanges = hasProjectChanges(
+          lastSaved,
+          projectKey,
+          currentSerialized,
+          bomContent,
+        );
         if (!forceSave && !hasChanges) {
           console.warn("No changes detected since last save. Save skipped.");
           return;
@@ -1860,7 +1875,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
         updateSaveProgress(30);
 
         // Use the current authorizedUserOcto from ref, not closure or parameter
-        await createCommit(
+        const result = await createCommit(
           octokitRef.current,
           {
             owner: GlobalVariables.currentUser,
@@ -1876,7 +1891,8 @@ export function ProjectProvider({ children, cad, loadProject }) {
           finalPNG,
         );
 
-        // Save snapshot only after a successful remote commit.
+        // Record the authored snapshot captured before the request, so edits
+        // made while saving remain detectable. Failed saves don't advance it.
         GlobalVariables.lastSavedProject = {
           projectKey,
           json: currentSerialized,
@@ -1892,6 +1908,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
         }
 
         updateSaveProgress(100);
+        return result;
       } catch (error) {
         console.error("Error during project save:", error);
         // The createCommit function already handles authentication errors,
@@ -1904,7 +1921,6 @@ export function ProjectProvider({ children, cad, loadProject }) {
             `Save failed: ${error.message || "Unknown error occurred"}`,
             "error",
           );
-          setTimeout(() => setNotification(null, null), 5000);
         }
 
         // Reset progress on error (guard allows 0 anytime as intentional reset)

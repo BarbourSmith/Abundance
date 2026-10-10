@@ -126,8 +126,6 @@ export default function GitSearchMenu({
           err.message ? err.message : `Error: Project Missing`,
           "error",
         );
-        // Auto-dismiss notification after 3 seconds
-        setTimeout(() => setUserNotification(null, "error"), 3000);
       });
     //setIsShortcutTriggered(false);
     setInputValue("");

@@ -140,7 +140,6 @@ function CreateMode() {
   useEffect(() => {
     const handler = (e) => {
       setNotification(e.detail.message, e.detail.type || "error");
-      setTimeout(() => setNotification(null, "error"), 5000);
     };
     window.addEventListener("user-notification", handler);
     return () => window.removeEventListener("user-notification", handler);
@@ -621,13 +620,11 @@ function CreateMode() {
         `Background 3D model uploaded: ${backgroundFileName}`,
         "notice",
       );
-      setTimeout(() => setNotification(null, "notice"), 3000);
     } catch (error) {
       console.error("Error uploading 3D model:", error);
       // Reset userUploadedFile flag on error
       setUserUploadedFile(false);
       setNotification("Failed to Upload 3D Model", "error");
-      setTimeout(() => setNotification(null, "error"), 3000);
     }
   };
 
@@ -660,7 +657,6 @@ function CreateMode() {
       }
 
       setNotification(`Background 3D model deleted`, "warning");
-      setTimeout(() => setNotification(null, "warning"), 3000);
     } catch (error) {
       console.error("Error deleting background 3D model file:", error);
       alert(

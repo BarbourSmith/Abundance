@@ -4,6 +4,7 @@ import { SimpleControlPanel } from "./SimpleControlPanel";
 import { useControls } from "../../hooks/useControls";
 import { useAppState } from "../../contexts/index.js";
 import { useAuth } from "../../contexts/AuthContext";
+import { unitAbbreviation } from "../../js/units.js";
 
 export default function ParamsMenu({
   position,
@@ -74,6 +75,22 @@ export default function ParamsMenu({
 
   const screenHeight = window.innerHeight;
 
+  // Flag GitHub molecules made in other units than the project
+  let unitsBadge;
+  if (
+    activeAtom?.atomType === "GitHubMolecule" &&
+    activeAtom.hasUnitMismatch()
+  ) {
+    const source = activeAtom.unitsKey;
+    const host = activeAtom.getHostUnits();
+    unitsBadge = {
+      label: unitAbbreviation(source),
+      title: activeAtom.scaleToProjectUnits
+        ? `This molecule takes inputs in ${source}. Its output is scaled to ${host}.`
+        : `This molecule takes inputs in ${source}. Its output is not scaled to ${host}.`,
+    };
+  }
+
   return (
     <div>
       <SimpleControlPanel
@@ -91,6 +108,7 @@ export default function ParamsMenu({
         collapsedOffset={collapsedOffset}
         collapsedIcon={AtomIcon}
         activeAtom={activeAtom}
+        badge={unitsBadge}
       />
       {/* <button onClick={handleAddControl} style={{ marginTop: 16 }}>
         Add Custom Control

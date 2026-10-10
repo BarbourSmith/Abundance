@@ -241,7 +241,6 @@ function runMode({ processing, setProcessing }) {
   useEffect(() => {
     const handler = (e) => {
       setErrorNotification(e.detail.message, e.detail.type || "error");
-      setTimeout(() => setErrorNotification(null, "error"), 5000);
     };
     window.addEventListener("user-notification", handler);
     return () => window.removeEventListener("user-notification", handler);
@@ -282,7 +281,6 @@ function runMode({ processing, setProcessing }) {
           "Can't load/find project: " + (e.message || e),
           "error",
         );
-        setTimeout(() => setErrorNotification(null, "error"), 5000);
         navigate("/");
       });
 

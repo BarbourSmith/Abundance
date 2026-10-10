@@ -1709,3 +1709,39 @@ dialog {
 dialog::backdrop {
   background-color: rgba(0, 0, 0, 0.5);
 }
+
+/* Sparks that burst from the like button when a project is liked */
+.star-sparks {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+.star-spark {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  border-radius: 50%;
+  background: var(--abundance-color-brightPurple);
+  box-shadow: 0 0 6px var(--abundance-color-brightPurple);
+  opacity: 0;
+  animation: starSpark 0.7s ease-out forwards;
+}
+@keyframes starSpark {
+  0% {
+    opacity: 1;
+    transform: rotate(var(--spark-angle)) translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(var(--spark-angle)) translateY(-32px) scale(0.2);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .star-spark {
+    animation-duration: 0.01s;
+  }
+}
