@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import Globalvariables from "../../js/globalvariables.js";
+import { refreshUnitScaling } from "../../js/units.js";
 import CreatableSelect from "react-select/creatable";
 import topics from "../../js/maslowTopics.js";
 import Switch from "@mui/material/Switch";
@@ -135,6 +136,7 @@ const SettingsPopUp = ({
       [event.target.name]: event.target.value,
     });
     Globalvariables.topLevelMolecule.unitsKey = event.target.value;
+    refreshUnitScaling(Globalvariables.topLevelMolecule);
   };
 
   return (

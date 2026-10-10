@@ -77,7 +77,7 @@ export const TOOLS = [
     name: "get_atom",
     permission: "read",
     description:
-      "Everything about one atom: status and error, inputs and what feeds them, what its output feeds, its editable parameters (the same fields the user sees in the properties panel, used with set_param), code and console output for Code atoms, and a summary of its computed value (dimension, bounding box, part count, tags). geometry_warnings lists parts with broken geometry: invalid shapes, faces that fail to mesh (they render see-through), and sliver faces; it checks for a few seconds, and check_geometry covers the rest. With part, it also describes that one part." +
+      "Everything about one atom: status and error, inputs and what feeds them, what its output feeds, its editable parameters (the same fields the user sees in the properties panel, used with set_param), code and console output for Code atoms, and a summary of its computed value (dimension, bounding box, part count, tags). geometry_warnings lists parts with broken geometry: invalid shapes, faces that fail to mesh (they render see-through), and sliver faces; it checks for a few seconds, and check_geometry covers the rest. For a GitHub molecule made in other units than the project, units gives the units its inputs take and the scale applied to its output to convert it to the project's units. With part, it also describes that one part." +
       UNTRUSTED_NOTE,
     inputSchema: {
       type: "object",

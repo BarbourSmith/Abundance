@@ -4,6 +4,11 @@ import { Octokit } from "octokit";
 
 import { Status } from "../prototypes/observableEntity.js";
 import { formatOrdinalDate } from "../js/projectNameUtils.js";
+import {
+  unitAbbreviation,
+  unitScaleFactor,
+  unitsContextOf,
+} from "../js/units.js";
 
 /**
  * This class creates the GitHubMolecule atom.
@@ -50,7 +55,101 @@ export default class GitHubMolecule extends Molecule {
 
     this.gitHubUniqueID;
 
+    /**
+     * Whether to scale the output from the source project's units (unitsKey)
+     * into the units of the project it's used in.
+     * @type {boolean}
+     */
+    this.scaleToProjectUnits = true;
+
+    /**
+     * Incremented for each output scale request so a slow, stale result
+     * can't overwrite a newer one.
+     * @type {number}
+     */
+    this.unitScaleRequest = 0;
+
     this.setValues(values);
+  }
+
+  /**
+   * The units of the project this molecule is used in.
+   */
+  getHostUnits() {
+    return unitsContextOf(this.parent);
+  }
+
+  /**
+   * The factor applied to this molecule's output, or null if it isn't scaled.
+   */
+  getOutputScaleFactor() {
+    if (!this.scaleToProjectUnits) return null;
+    return unitScaleFactor(this.unitsKey, this.getHostUnits());
+  }
+
+  /**
+   * True when this molecule was made in different units from its project,
+   * whether or not its output is being scaled.
+   */
+  hasUnitMismatch() {
+    return unitScaleFactor(this.unitsKey, this.getHostUnits()) !== null;
+  }
+
+  /**
+   * Scale the output into the containing project's units before publishing it.
+   * Inputs and everything inside stay in the source project's units.
+   */
+  onOutputReady(value) {
+    const factor = this.getOutputScaleFactor();
+    const isGeometry =
+      !!value && typeof value === "object" && "geometry" in value;
+    const request = ++this.unitScaleRequest;
+    if (factor === null || !isGeometry) {
+      super.onOutputReady(value);
+      return;
+    }
+    this.setProcessing();
+    this.cad
+      .scale(value, factor, this.getContext())
+      .then((scaled) => {
+        if (request !== this.unitScaleRequest) return;
+        this.setOutputValue(scaled);
+      })
+      .catch((err) => {
+        if (request !== this.unitScaleRequest) return;
+        this.setError(
+          `Failed to convert from ${unitAbbreviation(this.unitsKey)} to ${unitAbbreviation(this.getHostUnits())}: ${err?.message || err}`,
+        );
+      });
+  }
+
+  /**
+   * Add a small unit badge when this molecule's units differ from the project's.
+   */
+  draw() {
+    super.draw();
+    if (!GlobalVariables.c || !this.hasUnitMismatch()) return;
+
+    const label = unitAbbreviation(this.unitsKey);
+    const x =
+      GlobalVariables.widthToPixels(this.x) +
+      GlobalVariables.widthToPixels(this.radius) * 0.75;
+    const y =
+      GlobalVariables.heightToPixels(this.y) -
+      GlobalVariables.widthToPixels(this.radius) * 0.75;
+
+    GlobalVariables.c.font = "bold 9px Work Sans";
+    const width = GlobalVariables.c.measureText(label).width + 6;
+    GlobalVariables.c.beginPath();
+    GlobalVariables.c.fillStyle = "#e0a400";
+    GlobalVariables.c.roundRect
+      ? GlobalVariables.c.roundRect(x, y - 7, width, 12, 3)
+      : GlobalVariables.c.rect(x, y - 7, width, 12);
+    GlobalVariables.c.fill();
+    GlobalVariables.c.closePath();
+    GlobalVariables.c.fillStyle = "black";
+    GlobalVariables.c.textAlign = "start";
+    GlobalVariables.c.fillText(label, x + 3, y + 2);
   }
 
   /**
@@ -149,6 +248,27 @@ export default class GitHubMolecule extends Molecule {
     this.setInputMoleculeChanged = setInputChanged; // Store for later use in reload button
 
     inputParams = super.createInputParams(setInputChanged);
+    if (this.hasUnitMismatch()) {
+      const source = this.unitsKey;
+      const host = this.getHostUnits();
+      inputParams["Units Note"] = {
+        type: "string",
+        label: "Units",
+        value: this.scaleToProjectUnits
+          ? `Inputs in ${source}; output scaled to ${host}`
+          : `Inputs and output in ${source}; project is ${host}`,
+        disabled: true,
+      };
+      inputParams["Scale To Project Units"] = {
+        type: "boolean",
+        label: `Scale output from ${unitAbbreviation(source)} to ${unitAbbreviation(host)}`,
+        value: this.scaleToProjectUnits,
+        onChange: (checked) => {
+          this.scaleToProjectUnits = checked;
+          this.onUpstreamChange();
+        },
+      };
+    }
     inputParams["ParentInfo"] = {
       type: "string",
       label: "Parent Repository",
@@ -189,6 +309,11 @@ export default class GitHubMolecule extends Molecule {
    */
   serialize(offset = { x: 0, y: 0 }) {
     const serialized = super.serialize(offset);
+
+    // Only stored when turned off so existing files don't change
+    if (!this.scaleToProjectUnits) {
+      serialized.scaleToProjectUnits = false;
+    }
 
     // Include last reload timestamp if it exists
     if (this.lastReloadedFromGithubAt !== null) {

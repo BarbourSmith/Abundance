@@ -121,6 +121,18 @@ const panelTitleStyle = {
   overflowX: "hidden",
 };
 
+const badgeStyle = {
+  flexShrink: 0,
+  padding: "1px 6px",
+  borderRadius: 3,
+  background: "#e0a400",
+  color: "black",
+  fontSize: 11,
+  fontWeight: 700,
+  lineHeight: "16px",
+  cursor: "default",
+};
+
 const collapsedStyle = {
   ...getPanelStyle(380),
   width: 38,
@@ -439,6 +451,7 @@ export const SimpleControlPanel = forwardRef(function SimpleControlPanel(
     setContentCollapsed,
     closeMenu,
     activeAtom,
+    badge, // optional { label, title } shown at the right of the header
   },
   ref,
 ) {
@@ -820,7 +833,12 @@ export const SimpleControlPanel = forwardRef(function SimpleControlPanel(
           {/* Panel header */}
           <div style={headerStyle}>
             <div style={panelTitleStyle}>{title}</div>
-            <div style={{ display: "flex", gap: 5 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              {badge && (
+                <span style={badgeStyle} title={badge.title}>
+                  {badge.label}
+                </span>
+              )}
               <button
                 style={arrowButtonStyle}
                 onClick={() => {
@@ -2264,7 +2282,11 @@ export const SimpleControlPanel = forwardRef(function SimpleControlPanel(
                     const toggleGroup = () => {
                       setGroupStates((prev) => ({
                         ...prev,
-                        [key]: !(prev?.[key] ?? config.defaultCollapsed ?? false),
+                        [key]: !(
+                          prev?.[key] ??
+                          config.defaultCollapsed ??
+                          false
+                        ),
                       }));
                     };
                     return (
