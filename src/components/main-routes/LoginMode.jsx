@@ -529,7 +529,7 @@ export const ProjectDiv = ({
       };
     }, []);
 
-    const handleEyeMouseEnter = () => {
+    const handleProjectMouseEnter = () => {
       // Clear any existing timer before starting a new one
       if (hoverTimerRef.current) {
         clearTimeout(hoverTimerRef.current);
@@ -553,7 +553,7 @@ export const ProjectDiv = ({
       }, 1000);
     };
 
-    const handleEyeMouseLeave = () => {
+    const handleProjectMouseLeave = () => {
       // Clear the timer if user stops hovering before 1 second
       if (hoverTimerRef.current) {
         clearTimeout(hoverTimerRef.current);
@@ -584,6 +584,8 @@ export const ProjectDiv = ({
           }
         }}
         onContextMenu={(e) => handleProjectRightClick(e, node)}
+        onMouseEnter={handleProjectMouseEnter}
+        onMouseLeave={handleProjectMouseLeave}
       >
         <p className="project_name">{convertToDisplayName(node.repoName)}</p>
 
@@ -658,59 +660,6 @@ export const ProjectDiv = ({
           </div>
         </div>
 
-        {/* Eye icon as corner tab */}
-        <div
-          className="thumb-eye-icon"
-          onClick={(e) => e.stopPropagation()}
-          style={{
-            position: "absolute",
-            top: "0",
-            right: "0",
-            backgroundColor: "var(--loginPopup-bg, #ffffff)",
-            border: "1px solid #f3d2ff",
-            borderRadius: "0 12px 0 12px",
-            width: "20px",
-            height: "20px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            cursor: "pointer",
-            // boxShadow: "-2px 2px 8px rgba(0, 0, 0, 0.15)",
-            transition: "all 0.2s ease",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor =
-              "var(--abundance-color-darkGrey)";
-            e.currentTarget.style.boxShadow =
-              "-3px 3px 12px rgba(222, 193, 51, 0.25)";
-            e.currentTarget.style.transform = "translateY(-2px)";
-            handleEyeMouseEnter();
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.boxShadow =
-              "-2px 2px 8px rgba(0, 0, 0, 0.15)";
-            e.currentTarget.style.backgroundColor =
-              "var(--loginPopup-bg, #f8f3f8)";
-            e.currentTarget.style.transform = "translateY(0)";
-            handleEyeMouseLeave();
-          }}
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="18"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-            <circle cx="12" cy="12" r="3"></circle>
-          </svg>
-        </div>
-
         {/* Fork icon as bottom-left corner tab */}
         {node.parentRepo ? (
           <div
@@ -772,7 +721,7 @@ export const ProjectDiv = ({
                   hoverTimerRef.current = null;
                 }
               }}
-              onMouseLeave={handleEyeMouseLeave}
+              onMouseLeave={handleProjectMouseLeave}
               onClick={(e) => e.stopPropagation()}
             >
               <div className="GitInfoLeft">

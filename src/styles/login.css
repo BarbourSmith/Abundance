@@ -1270,7 +1270,7 @@
   cursor: pointer;
 }
 
-/* Eye icon overlay on thumbnail */
+/* Ranking icon overlay on thumbnail */
 .ranking-icon {
   border-radius: 50%;
   padding: 2px;
@@ -1279,40 +1279,6 @@
   justify-content: center;
   cursor: pointer;
   z-index: 2;
-}
-
-/* Eye icon overlay on thumbnail */
-.thumb-eye-icon {
-  /* background-color: rgba(255, 255, 255, 0.8); */
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  border: 1px solid #f8f8f8;
-  padding: 5px;
-  display: flex;
-  margin-left: 5px;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition:
-    background-color 0.3s ease,
-    transform 0.2s ease;
-  z-index: 2;
-  box-shadow: 0 2px 8px rgba(188, 188, 188, 0.15);
-}
-
-.thumb-eye-icon:hover {
-  background-color: rgba(192, 105, 247, 0.9);
-  transform: scale(1.1);
-}
-
-.thumb-eye-icon svg {
-  color: #5a0562;
-  display: block;
-}
-
-.thumb-eye-icon:hover svg {
-  color: white;
 }
 
 /* Quick view panel */
