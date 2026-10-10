@@ -1443,6 +1443,26 @@ Sidebar navigation
                                   supported by Chrome, Edge, Opera and Firefox */
 }
 
+/* Shown on the flow canvas while a project has no atoms yet */
+.getting-started-banner {
+  position: absolute;
+  top: 22.5vh;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 5;
+  max-width: calc(100vw - 32px);
+  padding: 8px 18px;
+  border-radius: 999px;
+  border: 1px solid var(--dialog-border, #c5a3d5);
+  background: var(--dialog-background, #232832);
+  color: var(--dialog-text, #e0e0e0);
+  font-family: "Roboto", sans-serif;
+  font-size: 14px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
 /* Undo notification styles */
 .undo-notification {
   position: fixed;

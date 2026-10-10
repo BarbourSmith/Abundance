@@ -1,72 +1,37 @@
-
-
+<!-- readme-only -->
 # Abundance
 
 [![Deploy to GitHub Pages](https://github.com/BarbourSmith/Abundance/actions/workflows/Actions.yaml/badge.svg)](https://github.com/BarbourSmith/Abundance/actions/workflows/Actions.yaml)
 [![Puppeteer Tests](https://github.com/BarbourSmith/Abundance/actions/workflows/test.yaml/badge.svg)](https://github.com/BarbourSmith/Abundance/actions/workflows/test.yaml)
 
-**A web-based CAD program for cooperative design.**
+<!-- /readme-only -->
+
+<h2 align="center">An Open Source tool for Open Source projects</h2>
+
+<table class="feature-row">
+  <tr>
+    <td align="center" width="33%"><img src="https://github.com/user-attachments/assets/adc67aca-6efb-4379-9101-7d53ed022d79" alt="Share parameterized projects" width="160" /><br />Share parameterized projects</td>
+    <td align="center" width="33%"><img src="https://github.com/user-attachments/assets/e6b26744-d11f-4087-81df-85c8672af819" alt="AI agent integration" width="160" /><br />AI agent integration</td>
+    <td align="center" width="33%"><img src="https://github.com/user-attachments/assets/6a70461f-f0a5-4de8-b485-da28f009d349" alt="Built in CAM" width="160" /><br />Built in CAM</td>
+  </tr>
+</table>
 
 Abundance breaks with the tradition of CAD programs which inherit from drawing programs and instead inherits from logical languages like programming. This allows it to be a CAD program which can have language-like features such as importing modules, version control, and collaboration. All projects are stored as GitHub repositories, enabling seamless version control and collaborative design workflows.
 
+
+<!-- readme-only -->
+
 🌐 **Live Application:** [abundance.maslowcnc.com](https://abundance.maslowcnc.com/)
 
-## Table of Contents
-
-- [Overview](#overview)
-- [Key Features](#key-features)
-- [Technology Stack](#technology-stack)
-- [Getting Started](#getting-started)
-  - [Login with GitHub](#login-with-github)
-  - [Projects Screen](#projects-screen)
-- [Create Mode](#create-mode)
-  - [Flow](#flow)
-  - [Layout of the Program](#layout-of-the-program)
-  - [Atom Menu](#atom-menu)
-  - [Atoms Reference](#atoms-reference)
-- [Run Mode](#run-mode)
-- [Working with an AI Agent](#working-with-an-ai-agent)
-- [Development](#development)
-  - [Setup Instructions](#setup-instructions)
-  - [Available Scripts](#available-scripts)
-  - [Testing](#testing)
-  - [Building](#building)
-  - [Deployment](#deployment)
-  - [Troubleshooting](#troubleshooting)
-- [Contributing](#contributing)
-- [Support](#support)
-
-## Overview
-
-Abundance is a modern, browser-based 3D CAD application built with React and the replicad CAD library. It provides a node-based visual programming interface where designs are composed of interconnected "Atoms" (basic operations) and "Molecules" (reusable components). Projects are automatically version-controlled through GitHub, making collaboration natural and integrated.
-
-## Key Features
-
-- **🎨 Visual Node-Based Design:** Create 3D models using an intuitive flow-based interface
-- **🔧 Parametric Modeling:** All designs are parametric and can be easily modified
-- **🤝 GitHub Integration:** Projects stored as repositories for version control and sharing
-- **📦 Reusable Components:** Create and share Molecules across projects
-- **💻 Code Support:** Write custom replicad code for advanced operations
-- **📋 Bill of Materials:** Automatic BOM generation for assemblies
-- **📤 Multiple Export Formats:** Export to STL, STEP, SVG, and more
-- **🔄 Live 3D Preview:** Real-time rendering of your designs
-- **👥 Collaborative Design:** Fork and remix projects from other users
-
-## Technology Stack
-
-- **Frontend Framework:** React 18.2.0
-- **Build Tool:** Vite 5.1.6
-- **3D CAD Engine:** replicad 0.16.1 (OpenCascade-based)
-- **3D Rendering:** Three.js 0.161.0 with @react-three/fiber
-- **Authentication:** GitHub OAuth
-- **Testing:** Vitest (unit tests) & Puppeteer (E2E tests)
-- **Deployment:** GitHub Pages
+<!-- /readme-only -->
 
 ## Getting Started
 
 ### Login with GitHub
 
-After the initial screen prompts you to login with GitHub, all the projects you create on Abundance will be stored as GitHub Repositories. You can always search for them and find them through the Abundance Platform.
+You can view other's projects, change their parameters, and export their outputs (eg: STL, gcode) without logging in.
+
+To make your own projects log in with a GitHub account. GitHub accounts are free to create, if you already have a GitHub account you may use it or create a new one. Each project you create in Abundance will be stored as a Github Repository. You can always search for them and find them through the Abundance Platform.
 
 <img width="754" alt="login-screen" src="https://github.com/user-attachments/assets/9393527d-3e11-483f-ac79-96a4b14de2f9">
 
@@ -77,65 +42,140 @@ Choose whether you want to create a new project, go into one of your existing pr
 
 <img width="1395" alt="project-screen" src="https://github.com/user-attachments/assets/ce041419-ea68-43e2-92d5-90f0e41a9841">
 
+## Create Mode - Making Your First Project
 
-# Create Mode
+### Layout of the program
 
+Create Mode is the primary workspace for making new projects. It has two areas. On top is the logical flow of the design. On bottom a 3D view of your model appears.
 
-## Flow
+<img width="917" alt="flow screen" src="https://github.com/user-attachments/assets/cd67b36f-d054-4aae-9c54-2a4d20f68df6" />
 
-A 3D model within Maslow Create is composed of interconnected nodes called Atoms and Molecules which are linked together through connectors. An atom is a shape or an operation you can perform on a shape (ie circle or translate). A molecule can contain any number of atoms in a configuration (ie generate a table leg). Think of Atoms as the built-in functions of a programming language and molecules as the functions you create. Each atom has attachment points to which connectors can attach. 
+### Flow
 
-## Layout of the program
+A model within Abundance is composed of interconnected nodes called Atoms and Molecules, linked by connectors. An atom is a shape or an operation you can perform on a shape (ie circle or translate). A molecule can contain any number of atoms in a configuration (ie generate a table leg).
 
-Create Mode has two main areas to interface with. Along the top of the screen is the logical flow of the design. In the lower portion you can see the rendering area where a 3D view of your model will appear. In the lower left is a cluster of menus that lets you do things like change the parameters and dimensions of the selected shape. 
+Most Atoms and molecules have inputs. Eg: the Circle atom has a diameter input. You can type in the desired diameter, or link a connector to that input, eg: from an equation or user input.
 
-<img width="1436" alt="flow-screen" src="https://github.com/user-attachments/assets/0e746a20-cced-412e-b404-197a2a9640ad">
+If you have a background in programming, think of Atoms as the built-in language functions and molecules as the functions you create.
 
-## Atom Menu
+### Atom Menu
 
 To see and place the available atoms on your flow screen start by right-clicking anywhere within the flow screen area to spawn the circular atom menu. Move your cursor around to spawn the sub-menus and click on the atom you want to place.
 
 <img width="888" alt="top_menu" src="https://github.com/user-attachments/assets/fb28f196-4f31-4f26-abd2-3c1cc59d7280">
 
-The atoms available in the circular menu are divided into 6 categories: 
+As an example, add a rectangle atom, found in the right sub-menu. Enter a desired width and length, say 10 by 15. By default new shapes appear at the origin on the XY plane
 
-### Shapes: 
-        - Regular Polygon
-        - Circle
-        - Rectangle
-        - Text
-        - Molecule
-        
-### Interactions: 
-        - Intersection
-        - Difference
-        - Join 
-        - Loft
-        - ShrinkWrap
-### Actions: 
-        - Color
-        - Rotate
-        - Extrude
-        - Move
-        - Genetic Algorithm (disabled)
-### Inputs: 
-        - Input
-        - Constant
-        - Equation
-        - Code
-### Tags:
-        - ReadMe
-        - Add-Bom-Tag
-        - Tag
-        - Extract Tag
-        - CutLayout 
-### Import-Export:
-        - GCode
-        - Import
-        - Export
-        - Github Molecule
+### Connectors
 
-## Atoms Reference
+Atoms can be connected by click-and-drag from the output (right) connector of one atom to the input of another atom.
+
+<img width="791" height="470" alt="in progress connector" src="https://github.com/user-attachments/assets/8006469d-d6e7-4cf9-acdd-31fd31c980cd" />
+
+As an example, add an extrude atom then connect from the rectangle output to the geometry input on the extrude atom. Notice, extrude also has an input for extrusion height.
+
+## 3D Viewer
+
+The 3D view on the bottom of the page shows the currently selected atom. Click on atoms on the page to view the geometry at that point in the project.
+
+### Output
+
+Link an atom to the Output on the right side of the flow to make that atom the final step in your project.
+
+By default the output of your project will be shown in the 3D view whenever no other atom is selected and will be shown as a translucent backdrop to all other atoms.
+
+## Onwards to a simple box!
+
+Here we'll highlight some common functions as we design a simple box project.
+
+### Boolean Operations
+
+Boolean operations let existing shapes affect one another. There are three Boolean Operations in Abundance, all in the bottom right menu:
+
+1. Difference - remove all overlaps between parts
+2. Fuse - join together both parts
+3. Intersect - keep only the overlapped area of the parts
+
+To cut out the middle of our box we'll use a boolean difference.
+
+1. Copy paste the existing rectangle and extrude. Ctrl+click to select both atoms. Ctrl+C, Ctrl+V to copy and paste them.
+2. Update the dimensions of the new rectangle to be a little bit smaller than before.
+3. Add a difference atom. Connect our first rectangle to "retain" and the new one to "remove"
+4. Link the output of the difference atom to the Output atom on the right side of the flow panel.
+
+### Move
+
+Our box now has no base. To fix this we need to shift our "remove" box upwards.
+
+Add a move atom from the bottom left menu to the canvas. Connect the smaller rectangle to it's "geometry" input. Set a small positive value on the "z" input.
+
+Drag a connector from move's output to the "remove" input on the difference atom. Making this connection will automatically replace the prior connection to this input.
+
+<img width="868" height="874" alt="Image" src="https://github.com/user-attachments/assets/a1b90f25-fb7e-41ed-aefb-99645dc33416" />
+
+### Inputs and Equations
+
+At this point we have a simple open box. However changing it's size is inconvenient since the dimensions of our two rectangles are unrelated.
+
+Add three input atoms from the left menu. Each needs a distinct name, let's go with width, depth, height.
+
+Additionally create a Constant atom, also from the left menu. Let's name this "WallThickness" and set it to 1.
+
+Click on the background of the flow canvas an you can now see that the input atoms show up as adjustable numeric values in the bottom left control pane.
+
+There are a number of ways to use these inputs.
+
+1. Drag a connector from "width" input to the "x length" input on our first rectangle
+2. Click on the first rectangle and overwrite your "y length" number with the text "height" <- capitalization needs to match the input atom's name.
+3. On the smaller rectangle, overwite your "x length" value with "width - 2 * WallThickness". In addition to addition and multiplication, operations like `abs`, `sin`, `cos`, `tan`, `atan`, etc are all allowed in numeric inputs.
+
+<img width="745" height="804" alt="Image" src="https://github.com/user-attachments/assets/234c8bec-e0f2-46db-a93c-fb50b0e8e1c5" />
+
+Additionally update the extrude heights and the z-move in your project to ensure it's fully parameterized.
+
+### Github Molecules
+
+In addition to the Atoms provided by Abundance, you can import other Users public projects as Molecules. Some of these projects are objects (like our box example) and some are tools.
+
+Add a Github Molecule atom from the top-right menu. This molecule searches all public projects by name and readme description. We're going to import a project called "Fillet_SidesOnly". Once imported you'll see this project appear as another molecule in your flow panel.
+
+<img width="477" alt="github search" src="https://github.com/user-attachments/assets/785f57a9-9fc5-45e2-8cdf-88cf3223fb1e" />
+
+
+Drag a connector from the difference output to the "InputShape" input on Fillet_SidesOnly. Adjust the fillet radius as you deem fit.
+
+If you'd prefer different fillet behavior there are many other existing fillet projects. I'd suggest looking at "selected.Fillet" as a more customizable option.
+
+### Exports
+
+Add an export atom from the top right menu. Drag a connection from Difference output to the "geometry" input on the export.
+
+## Run Mode
+
+Run mode allows anyone to view Abundance projects without logging in. This is the public face of all your non-private projects.
+
+Click the arrow on the top-right of the 3D view panel to go to Run Mode. This view of your project can be shared via url.
+
+<img width="1333" alt="run mode" src="https://github.com/user-attachments/assets/e2036acf-7233-41cb-83a9-b8af0b847dae">
+
+Notice that the "input" atoms of your project are rendered as user-modifiable values in this view. Changing them will update the project. Additionally, any export atoms in your project are rendered here as "Export <...>" buttons the user can click to download the linked component of your project in the format you selected.
+
+Additionally, from here other users of Abundance can fork your project to make deeper modifications. See the section on Forking and Pull Requests below.
+
+
+# Working with an AI Agent
+
+An AI agent running on your computer, such as Claude Code, can look at and edit the project open in Abundance. It can list atoms, read errors, render images of parts, export files, change parameters, write code atoms, and wire atoms together.
+
+1. Start the agent bridge. Claude Code starts it automatically from this repository's `.mcp.json`. See [bridge/README.md](bridge/README.md) for other setups.
+2. In Abundance, open **Connect an AI agent**: the sparkle button on the right in Run Mode, or **AI Agent** in the menu in Create Mode. Adding `#agent` to the end of the page address opens it too.
+3. Paste the bridge's pairing token and turn on **Connect local AI agent**.
+
+The agent starts read-only. To let it make changes, tick **Allow edits** in the AI agent chip at the top of the window. Each change the agent makes is one step you can undo, labeled "AI:". While edits are allowed, autosave pauses, and the agent can only save after you confirm. Use Chrome or Firefox, since Safari blocks this connection.
+
+
+<details>
+<summary>Atoms Reference</summary>
 
 ### Shapes
 
@@ -253,7 +293,6 @@ Example usage in Code atom:
 let scaledShape = Scale(library[inputShape], 1.5);
 return scaledShape;
 ```
-
 
 ### Tags
 
@@ -408,26 +447,11 @@ The output atom cannot be directly placed; however, each molecule has one output
 
 <img width="241" alt="output-example" src="https://github.com/user-attachments/assets/946feb6f-9ebe-4c47-958f-8a5407afe9ba" />
 
+</details>
 
+<details>
 
-# Run Mode
-
-If you are not the owner of a project or are not logged in, you can still see a project in Run Mode. 
-
-<img width="1436" alt="run-mode" src="https://github.com/user-attachments/assets/c3bed30e-f253-4245-a62c-67067a5319ee">
-
-
-# Working with an AI Agent
-
-An AI agent running on your computer, such as Claude Code, can look at and edit the project open in Abundance. It can list atoms, read errors, render images of parts, export files, change parameters, write code atoms, and wire atoms together.
-
-1. Start the agent bridge. Claude Code starts it automatically from this repository's `.mcp.json`. See [bridge/README.md](bridge/README.md) for other setups.
-2. In Abundance, open **Connect an AI agent**: the sparkle button on the right in Run Mode, or **AI Agent** in the menu in Create Mode. Adding `#agent` to the end of the page address opens it too.
-3. Paste the bridge's pairing token and turn on **Connect local AI agent**.
-
-The agent starts read-only. To let it make changes, tick **Allow edits** in the AI agent chip at the top of the window. Each change the agent makes is one step you can undo, labeled "AI:". While edits are allowed, autosave pauses, and the agent can only save after you confirm. Use Chrome or Firefox, since Safari blocks this connection.
-
-# Development
+<summary>Development & Contributions</summary>
 
 ## Setup Instructions
 
@@ -590,7 +614,16 @@ These warnings are expected and do not affect functionality:
 - `react-three-fiber` deprecation (replaced by `@react-three/fiber`)
 - 4 npm audit vulnerabilities (peer dependency related)
 
-## Contributing
+## Technology Stack
+
+- **Frontend Framework:** React 18.2.0
+- **Build Tool:** Vite 5.1.6
+- **3D CAD Engine:** replicad 0.16.1 (OpenCascade-based)
+- **3D Rendering:** Three.js 0.161.0 with @react-three/fiber
+- **Authentication:** GitHub OAuth
+- **Testing:** Vitest (unit tests) & Puppeteer (E2E tests)
+- **Deployment:** GitHub Pages
+
 
 We welcome contributions! Here's how you can help:
 
@@ -602,6 +635,7 @@ We welcome contributions! Here's how you can help:
 6. **Commit your changes:** `git commit -m 'Add amazing feature'`
 7. **Push to the branch:** `git push origin feature/amazing-feature`
 8. **Open a Pull Request**
+
 
 ### Code Style
 
@@ -622,6 +656,6 @@ Abundance is licensed under the GNU General Public License v3.0 or later. See [L
 
 ---
 
+</details>
+
 **Built with ❤️ by the Maslow CNC community** 
-
-
