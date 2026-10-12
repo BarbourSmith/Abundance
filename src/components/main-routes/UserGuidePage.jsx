@@ -14,6 +14,14 @@ const README_ONLY_BLOCK =
 // The content sits inside the comment so GitHub hides it.
 const GUIDE_ONLY_BLOCK = /<!--\s*guide-only\s*([\s\S]*?)-->/g;
 
+// Matches GitHub's heading anchors so README links work in both places
+const slugify = (text) =>
+  text
+    .trim()
+    .toLowerCase()
+    .replace(/[^\w\s-]/g, "")
+    .replace(/ /g, "-");
+
 const toGuide = (markdown) =>
   markdown.replace(README_ONLY_BLOCK, "").replace(GUIDE_ONLY_BLOCK, "$1");
 
@@ -113,13 +121,7 @@ function UserGuidePage() {
       text = children.props.children;
     }
 
-    // Convert to lowercase and replace spaces with hyphens
-    return text
-      .toLowerCase()
-      .replace(/[^\w\s-]/g, "") // Remove special characters
-      .replace(/\s+/g, "-") // Replace spaces with hyphens
-      .replace(/--+/g, "-") // Replace multiple hyphens with single
-      .trim();
+    return slugify(text);
   };
 
   // Handle link clicks for anchor navigation

@@ -17,12 +17,38 @@
 </table>
 
 <div align="center">Abundance is a free-to-use free-to-share CAD tool where you own your projects.</div>
-
+<br />
 <!-- readme-only -->
 
 🌐 **Live Application:** [abundance.maslowcnc.com](https://abundance.maslowcnc.com/)
 
 <!-- /readme-only -->
+
+<details>
+<summary>Contents</summary>
+
+- [Getting Started](#getting-started)
+  - [Login with GitHub](#login-with-github)
+  - [Projects Screen](#projects-screen)
+- [Create Mode - Making Your First Project](#create-mode---making-your-first-project)
+  - [Layout of the program](#layout-of-the-program)
+  - [Flow](#flow)
+  - [Atom Menu](#atom-menu)
+  - [Connectors](#connectors)
+- [3D Viewer](#3d-viewer)
+  - [Output](#output)
+- [Onwards to a simple box!](#onwards-to-a-simple-box)
+  - [Boolean Operations](#boolean-operations)
+  - [Move](#move)
+  - [Inputs and Equations](#inputs-and-equations)
+  - [Github Molecules](#github-molecules)
+  - [Exports](#exports)
+- [Run Mode](#run-mode)
+- [Working with an AI Agent](#working-with-an-ai-agent)
+- [Atoms Reference](#shapes)
+- [Contribute](#setup-instructions)
+
+</details>
 
 ## Getting Started
 
@@ -453,6 +479,8 @@ The output atom cannot be directly placed; however, each molecule has one output
 <details>
 
 <summary>Development & Contributions</summary>
+
+How to contribute to the Abundance project.
 
 ## Setup Instructions
 
