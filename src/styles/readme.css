@@ -106,7 +106,7 @@
 }
 
 .readme-content table.feature-row td:nth-child(2) img {
-  object-position: left;
+  object-position: center;
 }
 
 .readme-video {

@@ -11,7 +11,7 @@
 <table class="feature-row">
   <tr>
     <td align="center" width="33%"><img src="https://github.com/user-attachments/assets/adc67aca-6efb-4379-9101-7d53ed022d79" alt="Share parameterized projects" width="160" /><br />Share parameterized projects</td>
-    <td align="center" width="33%"><img src="https://github.com/user-attachments/assets/e6b26744-d11f-4087-81df-85c8672af819" alt="AI agent integration" width="160" /><br />AI agent integration</td>
+    <td align="center" width="33%"><img src="https://github.com/user-attachments/assets/4af0c0f2-2b09-4259-ab13-a847d9265576" alt="AI agent integration" width="160" /><br />AI agent integration</td>
     <td align="center" width="33%"><img src="https://github.com/user-attachments/assets/6a70461f-f0a5-4de8-b485-da28f009d349" alt="Built in CAM" width="160" /><br />Built in CAM</td>
   </tr>
 </table>
