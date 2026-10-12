@@ -98,6 +98,7 @@ declare global {
           part?: boolean;
           edges?: number[];
           faces?: number[];
+          on?: string;
       };
       constructor(other?: Partial<Assembly>);
       /**

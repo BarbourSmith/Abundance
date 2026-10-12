@@ -3,7 +3,22 @@ import GlobalVariables from "../js/globalvariables.js";
 import { Status } from "../prototypes/observableEntity.js";
 import { ValueChangeCommand } from "../js/undoCommands.js";
 import { Octokit } from "octokit";
-import { hashAssembly } from "../worker/util.ts";
+
+/**
+ * A leaf's selection flags, or {} if they were picked on different geometry.
+ * Selection inputs record the geometry they selected on as selection.on; an
+ * atom that changes the geometry (a fillet, a cut) makes those edge, face and
+ * part indexes point at the wrong things. Selections set by code atoms carry
+ * no .on and are trusted.
+ * @param {object} node - AbundanceObject leaf
+ * @returns {object}
+ */
+function currentSelection(node) {
+  const selection = node.selection;
+  if (!selection) return {};
+  if (selection.on !== undefined && selection.on !== node.geometry) return {};
+  return selection;
+}
 
 // Default values for range type inputs
 const DEFAULT_RANGE_MIN = 0;
@@ -97,6 +112,17 @@ export default class Input extends Atom {
      * @type {Object.<number, number[]>}
      */
     this.selectedFaceData = {};
+
+    /**
+     * The upstream assembly's own selection flags the last time this input
+     * read them, as a JSON key. A selection set upstream (e.g. by a code atom)
+     * is copied in only when it changes, so recomputing the upstream geometry
+     * doesn't overwrite a selection made by hand here. null means copy the next
+     * upstream selection; undefined means a project saved before this was
+     * recorded.
+     * @type {string|null|undefined}
+     */
+    this.upstreamSelectionKey = undefined;
 
     /**
      * Flag indicating if the name text is currently truncated
@@ -483,8 +509,14 @@ export default class Input extends Atom {
       if (!Array.isArray(node.geometry)) {
         const selected = selectedIndexes.includes(leafCounter);
         leafCounter++;
-        const existing = node.selection || {};
-        return { ...node, selection: { ...existing, part: selected } };
+        return {
+          ...node,
+          selection: {
+            ...currentSelection(node),
+            part: selected,
+            on: node.geometry,
+          },
+        };
       } else {
         return { ...node, geometry: node.geometry.map((child) => walk(child)) };
       }
@@ -503,8 +535,10 @@ export default class Input extends Atom {
       if (!Array.isArray(node.geometry)) {
         const leafIndex = leafCounter++;
         const edges = edgeData[leafIndex] || [];
-        const existing = node.selection || {};
-        return { ...node, selection: { ...existing, edges } };
+        return {
+          ...node,
+          selection: { ...currentSelection(node), edges, on: node.geometry },
+        };
       } else {
         return { ...node, geometry: node.geometry.map((child) => walk(child)) };
       }
@@ -523,8 +557,10 @@ export default class Input extends Atom {
       if (!Array.isArray(node.geometry)) {
         const leafIndex = leafCounter++;
         const faces = faceData[leafIndex] || [];
-        const existing = node.selection || {};
-        return { ...node, selection: { ...existing, faces } };
+        return {
+          ...node,
+          selection: { ...currentSelection(node), faces, on: node.geometry },
+        };
       } else {
         return { ...node, geometry: node.geometry.map((child) => walk(child)) };
       }
@@ -540,6 +576,7 @@ export default class Input extends Atom {
     this.selectedLeafIndexes = [];
     this.selectedEdgeData = {};
     this.selectedFaceData = {};
+    this.upstreamSelectionKey = null;
     GlobalVariables.bumpSelectionVersion();
     if (typeof this._panelSetInputChanged === "function") {
       this._panelSetInputChanged(String(Date.now()));
@@ -556,6 +593,7 @@ export default class Input extends Atom {
     this.selectedLeafIndexes = [];
     this.selectedEdgeData = {};
     this.selectedFaceData = {};
+    this.upstreamSelectionKey = null;
     GlobalVariables.bumpSelectionVersion();
     if (typeof this._panelSetInputChanged === "function") {
       this._panelSetInputChanged(String(Date.now()));
@@ -567,12 +605,14 @@ export default class Input extends Atom {
    * selection.part/.edges/.faces flags into this input's local selection
    * state, so a selector input linked to an already-selected assembly
    * (e.g. produced by a code atom) starts populated instead of empty.
+   *
+   * Selections picked on different geometry are ignored (see
+   * currentSelection), so a selected.Fillet downstream of another doesn't
+   * pick up the first one's edges. Only a change in the upstream selection is
+   * copied, so a selection made by hand here survives the upstream geometry
+   * recomputing and a reload.
    */
   inheritSelectionFromAssembly(assembly) {
-    if (hashAssembly(this.value) == hashAssembly(assembly)) {
-      // no-op if the upstream is identical to prior.
-      return;
-    }
     const leafIndexes = [];
     const edgeData = {};
     const faceData = {};
@@ -581,16 +621,39 @@ export default class Input extends Atom {
       if (!node) return;
       if (!Array.isArray(node.geometry)) {
         const idx = leafCounter++;
-        if (node.selection?.part) leafIndexes.push(idx);
-        if (node.selection?.edges?.length)
-          edgeData[idx] = [...node.selection.edges];
-        if (node.selection?.faces?.length)
-          faceData[idx] = [...node.selection.faces];
+        const selection = currentSelection(node);
+        if (selection.part) leafIndexes.push(idx);
+        if (selection.edges?.length) edgeData[idx] = [...selection.edges];
+        if (selection.faces?.length) faceData[idx] = [...selection.faces];
       } else {
         node.geometry.forEach(walk);
       }
     };
     walk(assembly);
+
+    const key = JSON.stringify(
+      this.type === "partselect"
+        ? leafIndexes
+        : this.type === "edgeselect"
+          ? edgeData
+          : faceData,
+    );
+    if (key === this.upstreamSelectionKey) {
+      // The upstream selection hasn't changed; keep ours, which may be hand-made.
+      return;
+    }
+    const savedWithoutKey = this.upstreamSelectionKey === undefined;
+    this.upstreamSelectionKey = key;
+    if (
+      savedWithoutKey &&
+      (this.selectedLeafIndexes.length > 0 ||
+        Object.keys(this.selectedEdgeData).length > 0 ||
+        Object.keys(this.selectedFaceData).length > 0)
+    ) {
+      // Saved before upstreamSelectionKey existed: trust the saved selection.
+      return;
+    }
+
     // if upstream doesn't have a selection defer to our existing selection
     // state
     if (leafIndexes.length > 0) {
@@ -1823,6 +1886,14 @@ export default class Input extends Atom {
     // Save face selection data if type is faceselect
     if (this.type === "faceselect") {
       superSerialObject.selectedFaceData = this.selectedFaceData;
+    }
+
+    if (
+      this.type === "partselect" ||
+      this.type === "edgeselect" ||
+      this.type === "faceselect"
+    ) {
+      superSerialObject.upstreamSelectionKey = this.upstreamSelectionKey;
     }
 
     return superSerialObject;
