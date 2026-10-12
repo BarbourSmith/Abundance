@@ -93,6 +93,7 @@ export class Assembly<G = any> {
     part?: boolean;
     edges?: number[]; // selected edge indexes (0-based position in edgeGroups)
     faces?: number[]; // selected face indexes (0-based position in faceGroups)
+    on?: string; // geometry the selection input picked these on
   };
 
   constructor(other?: Partial<Assembly>) {

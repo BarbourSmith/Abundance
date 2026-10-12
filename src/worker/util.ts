@@ -110,6 +110,7 @@ interface AbundanceLeaf {
     part?: boolean;
     edges?: number[]; // selected edge indexes (0-based position in edgeGroups array)
     faces?: number[]; // selected face indexes (0-based position in faceGroups array)
+    on?: string; // geometry the selection input picked these on
   };
 }
 
