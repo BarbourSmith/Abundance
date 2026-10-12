@@ -631,7 +631,13 @@ export default class Input extends Atom {
     };
     walk(assembly);
 
-    const key = JSON.stringify([leafIndexes, edgeData, faceData]);
+    const key = JSON.stringify(
+      this.type === "partselect"
+        ? leafIndexes
+        : this.type === "edgeselect"
+          ? edgeData
+          : faceData,
+    );
     if (key === this.upstreamSelectionKey) {
       // The upstream selection hasn't changed; keep ours, which may be hand-made.
       return;
