@@ -118,6 +118,28 @@
   object-position: center;
 }
 
+.readme-content table.feature-row a.feature-project {
+  position: relative;
+  display: block;
+}
+
+.readme-content table.feature-row a.feature-project::after {
+  content: "Open this project";
+  position: absolute;
+  inset: 0 0 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(40, 40, 40, 0.55);
+  color: #fff;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.readme-content table.feature-row a.feature-project:hover::after {
+  opacity: 1;
+}
+
 .readme-video {
   display: block;
   max-width: 720px;
