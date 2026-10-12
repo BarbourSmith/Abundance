@@ -4,32 +4,40 @@ const DEFAULT_THUMBNAIL =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23e0e0e0'/%3E%3Ctext x='50' y='50' font-size='12' fill='%23999' text-anchor='middle' dominant-baseline='middle'%3ENo Image%3C/text%3E%3C/svg%3E";
 
 export default function DropdownSectionDisplay({ sections }) {
-  const [openIndex, setOpenIndex] = React.useState(0);
+  const [closed, setClosed] = React.useState(new Set());
   const [hoveredIndex, setHoveredIndex] = React.useState(null);
 
   if (!sections || !Array.isArray(sections)) return null;
+
+  const toggle = (idx) =>
+    setClosed((prev) => {
+      const next = new Set(prev);
+      next.has(idx) ? next.delete(idx) : next.add(idx);
+      return next;
+    });
 
   return (
     <div className="tutorials-list">
       {sections.map((section, idx) => (
         <div key={idx}>
           <div
-            className="login-nav-item"
             style={{
               cursor: "pointer",
-              display: "inline",
-              fontWeight: openIndex === idx ? "bold" : "normal",
+              fontSize: "1.2em",
+              fontWeight: 600,
+              color: "#640080",
+              padding: "0 0 0.3em",
+              margin: "24px 0 8px",
+              borderBottom: "1px solid #c4a3d5",
             }}
-            onClick={() => setOpenIndex(openIndex === idx ? 0 : idx)}
+            onClick={() => toggle(idx)}
           >
-            <p>
-              {section.label}{" "}
-              <span style={{ marginLeft: 8 }}>
-                {openIndex === idx ? "▼" : "►"}
-              </span>
-            </p>
+            {section.label}
+            <span style={{ marginLeft: 8 }}>
+              {closed.has(idx) ? "►" : "▼"}
+            </span>
           </div>
-          {openIndex === idx && (
+          {!closed.has(idx) && (
             <div
               className="dropdown-section-value"
               style={{

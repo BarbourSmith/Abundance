@@ -774,6 +774,14 @@
   height: calc(100vh - 400px);
 }
 
+.tutorials-list {
+  max-height: calc(100vh - 250px);
+  overflow-y: auto;
+  padding-right: 10px;
+  scrollbar-color: rgb(86, 86, 86) rgb(229, 142, 242);
+  scrollbar-width: thin;
+}
+
 .project-items-div {
   display: flex;
   flex-direction: column;
