@@ -10,14 +10,13 @@
 
 <table class="feature-row">
   <tr>
-    <td align="center" width="33%"><img src="https://github.com/user-attachments/assets/adc67aca-6efb-4379-9101-7d53ed022d79" alt="Share parameterized projects" width="160" /><br />Share parameterized projects</td>
-    <td align="center" width="33%"><img src="https://github.com/user-attachments/assets/4af0c0f2-2b09-4259-ab13-a847d9265576" alt="AI agent integration" width="160" /><br />AI agent integration</td>
-    <td align="center" width="33%"><img src="https://github.com/user-attachments/assets/6a70461f-f0a5-4de8-b485-da28f009d349" alt="Built in CAM" width="160" /><br />Built in CAM</td>
+    <td align="center" width="33%"><img src="https://github.com/user-attachments/assets/adc67aca-6efb-4379-9101-7d53ed022d79" alt="Share parameterized projects" width="160" /><br /><a href="#run-mode">Share parameterized projects</a></td>
+    <td align="center" width="33%"><img src="https://github.com/user-attachments/assets/4af0c0f2-2b09-4259-ab13-a847d9265576" alt="AI agent integration" width="160" /><br /><a href="#working-with-an-ai-agent">AI agent integration</a></td>
+    <td align="center" width="33%"><img src="https://github.com/user-attachments/assets/6a70461f-f0a5-4de8-b485-da28f009d349" alt="Built in CAM" width="160" /><br /><a href="#gcode">Integrated CAM</a></td>
   </tr>
 </table>
 
-Abundance breaks with the tradition of CAD programs which inherit from drawing programs and instead inherits from logical languages like programming. This allows it to be a CAD program which can have language-like features such as importing modules, version control, and collaboration. All projects are stored as GitHub repositories, enabling seamless version control and collaborative design workflows.
-
+<div align="center">Abundance is a free-to-use free-to-share CAD tool where you own your projects.</div>
 
 <!-- readme-only -->
 
@@ -26,6 +25,8 @@ Abundance breaks with the tradition of CAD programs which inherit from drawing p
 <!-- /readme-only -->
 
 ## Getting Started
+
+Abundance breaks with the tradition of CAD programs which inherit from drawing programs and instead inherits from logical languages like programming. This allows it to be a CAD program which can have language-like features such as importing modules, version control, and collaboration. All projects are stored as GitHub repositories, enabling seamless version control and collaborative design workflows.
 
 ### Login with GitHub
 

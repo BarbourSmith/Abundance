@@ -98,6 +98,15 @@
   color: var(--heading-color, #640080);
 }
 
+.readme-content table.feature-row a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.readme-content table.feature-row a:hover {
+  color: var(--link-color, #be3fe5);
+}
+
 .readme-content table.feature-row img {
   width: 100%;
   aspect-ratio: 4 / 3;

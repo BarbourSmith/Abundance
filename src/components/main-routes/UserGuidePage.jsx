@@ -131,6 +131,9 @@ function UserGuidePage() {
       const targetElement = document.getElementById(targetId);
 
       if (targetElement) {
+        for (let el = targetElement.closest("details"); el; el = el.parentElement?.closest("details")) {
+          el.open = true;
+        }
         targetElement.scrollIntoView({ behavior: "smooth", block: "start" });
       }
     }
@@ -266,6 +269,11 @@ function UserGuidePage() {
                 >
                   {children}
                 </h3>
+              ),
+              h4: ({ node, children, ...props }) => (
+                <h4 id={generateHeadingId(children)} {...props}>
+                  {children}
+                </h4>
               ),
               // Style images to be responsive
               img: ({ node, ...props }) => (
