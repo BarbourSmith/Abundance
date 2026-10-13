@@ -64,6 +64,41 @@ function startHeapMonitor(
   }, intervalMs);
 }
 
+/**
+ * Turns a value thrown inside the worker into one Comlink can send back to the
+ * main thread.
+ *
+ * OpenCascade reports failures (a fillet too large for its edge, a boolean that
+ * doesn't converge) by throwing C++ exceptions, which reach JS as
+ * `WebAssembly.Exception` objects. Those can't be structured-cloned, so Comlink
+ * replaced them with "TypeError: Unserializable return value" and the user
+ * never learned which operation failed or why. They become an Error naming the
+ * OpenCascade exception, e.g. "OpenCascade failed: StdFail_NotDone (BRep_API:
+ * command not done)".
+ */
+function toCloneableError(error: unknown): unknown {
+  if (error instanceof Error) return error;
+  if (error instanceof WebAssembly.Exception) {
+    let detail = "";
+    try {
+      const [type, message] = ocModule.getExceptionMessage(error);
+      detail = message ? `: ${type} (${message})` : `: ${type}`;
+    } catch {
+      // Not a C++ exception from this OpenCascade module.
+    }
+    return new Error(`OpenCascade failed${detail}`);
+  }
+  if (Number.isInteger(error)) {
+    return new Error(`OpenCascade kernel error code: ${error}`);
+  }
+  try {
+    structuredClone(error);
+    return error;
+  } catch {
+    return new Error(String(error));
+  }
+}
+
 interface SimplePlane {
   origin: [number, number, number];
   xDir: [number, number, number];
@@ -806,5 +841,6 @@ export {
   withAssemblyBoundingBoxes,
   XYPlane,
   startHeapMonitor,
+  toCloneableError,
   EMPTY_ASSEMBLY,
 };
