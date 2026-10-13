@@ -1682,10 +1682,10 @@ const ShowProjects = ({
         <div className="right-login-div">
           <div id="project-page-header">
             <span style={{ fontFamily: "Roboto" }}>
-              Welcome {GlobalVariables.currentUser}
+              {showDict[projectToShow]["label"]}
             </span>
             <div className="home-section">
-              {showDict[projectToShow]["label"]}
+              Welcome {GlobalVariables.currentUser}
             </div>
             <hr width="100%" color="#D3D3D3" />
           </div>
