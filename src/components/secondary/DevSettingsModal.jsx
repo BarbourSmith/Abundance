@@ -3,6 +3,8 @@ import { useDevSettings } from "../../contexts/DevSettingsContext.jsx";
 import GlobalVariables from "../../js/globalvariables.js";
 import "../../styles/DevSettingsModal.css";
 import { AgentBridgeSettings } from "./AgentBridge.jsx";
+import { useRendering } from "../../contexts/index.js";
+import { exportDisplayMeshesAsGLB } from "../../js/exportGLB.js";
 
 /** Developer settings content, shown in the Settings pop-up's Developer tab and in the standalone modal. */
 export const DevSettingsPanel = () => {
@@ -36,6 +38,28 @@ export const DevSettingsPanel = () => {
     }
   }, []);
 
+  const { mesh } = useRendering();
+  const [glbStatus, setGlbStatus] = useState("");
+
+  const exportGLB = useCallback(async () => {
+    const node = GlobalVariables.currentAWSnode;
+    const fileName = node ? `${node.owner}_${node.repoName}` : "model";
+    try {
+      const { bytes, savedTo } = await exportDisplayMeshesAsGLB(
+        mesh,
+        fileName,
+      );
+      const size = `${(bytes / 1024).toFixed(0)} KB`;
+      setGlbStatus(
+        savedTo
+          ? `Saved to ${savedTo} (${size})`
+          : `Downloaded ${fileName}.glb (${size})`,
+      );
+    } catch (err) {
+      setGlbStatus(`Export failed: ${err.message}`);
+    }
+  }, [mesh]);
+
   const settings = [
     {
       key: "allowGitHubMoleculeNavigation",
@@ -63,6 +87,25 @@ export const DevSettingsPanel = () => {
           ))}
 
           <AgentBridgeSettings />
+
+          <div className="dev-setting-item">
+            <div className="dev-state-report-header">
+              <span className="dev-state-report-title">Landing Page Model</span>
+              <div className="dev-state-report-actions">
+                <button className="dev-state-report-btn" onClick={exportGLB}>
+                  Export GLB
+                </button>
+              </div>
+            </div>
+            <p className="dev-setting-description">
+              Exports what the 3D view is showing as a GLB file, for the
+              featured models on the landing page. On the local dev server it's
+              saved to public/featured/; otherwise it's downloaded.
+            </p>
+            {glbStatus && (
+              <p className="dev-setting-description">{glbStatus}</p>
+            )}
+          </div>
 
           <div className="dev-setting-item dev-state-report-section">
             <div className="dev-state-report-header">

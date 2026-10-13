@@ -1806,6 +1806,8 @@ function LoginMode() {
   };
 
   let popUpContent;
+  // The landing page draws its own header, logo included
+  let showingLanding = false;
   if (isRestoringSession) {
     // Show loading state while checking for cached token
     popUpContent = (
@@ -1872,6 +1874,7 @@ function LoginMode() {
       />
     );
   } else {
+    showingLanding = true;
     popUpContent = <InitialLog {...{ setNoUserBrowsing }} />;
   }
   return (
@@ -1914,7 +1917,10 @@ function LoginMode() {
           </button>
         ) : null}
       </div>
-      <div className="top-banner">
+      <div
+        className="top-banner"
+        style={showingLanding ? { display: "none" } : undefined}
+      >
         <div id="welcome-logo">
           <img
             src={
