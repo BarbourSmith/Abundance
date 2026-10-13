@@ -1,0 +1,433 @@
+@import url("https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wght@8..144,600..800&family=Work+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap");
+
+/* Landing page (InitialLog). The first screen is a dark hero drawn like an
+   Abundance flow: each feature is an atom wired through an Assembly and an
+   Output into the rotating featured model. The user guide's recordings sit
+   below the fold, behind the "See it working" cue. */
+.landing {
+  --landing-canvas: #2b2e33;
+  --landing-ink: #eae6e6;
+  --landing-muted: #aaa4b2;
+  --landing-wire: #8f8a97;
+  --landing-purple: #c4a3d5;
+  /* The graph row fills what's left of the first screen */
+  --landing-graph-height: clamp(380px, calc(100vh - 390px), 560px);
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  background: #f5f5f5;
+  color: #26232b;
+  font-family: "Work Sans", system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.landing-hero {
+  min-height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 8px;
+  background: var(--landing-canvas);
+  color: var(--landing-ink);
+}
+
+.landing-header {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 12px 32px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.landing-brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.landing-brand img {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+}
+
+.landing-brand span {
+  font-family: "Roboto Flex", "Roboto", sans-serif;
+  font-weight: 700;
+  font-size: 30px;
+  color: var(--landing-purple);
+}
+
+.landing-nav,
+.landing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.landing-nav-link {
+  padding: 10px 12px;
+  color: var(--landing-ink);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.landing-nav-link:hover {
+  color: #ffffff;
+  text-decoration: underline;
+}
+
+.landing-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.landing-button-outline {
+  border: 1.5px solid var(--landing-ink);
+  background: transparent;
+  color: #ffffff;
+}
+
+.landing-button-login {
+  border: 1.5px solid var(--landing-purple);
+  background: var(--landing-purple);
+  color: #1d1a22;
+}
+
+.landing-button-primary {
+  padding: 13px 20px;
+  border: none;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #1d1a22;
+  font-size: 16px;
+}
+
+.landing-button:hover {
+  filter: brightness(1.08);
+}
+
+.landing a:focus-visible,
+.landing button:focus-visible {
+  outline: 2px solid var(--landing-purple);
+  outline-offset: 2px;
+}
+
+.landing-flow {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 1280px;
+  margin: 3rem auto 0;
+  padding: 4px 32px 0;
+  display: grid;
+  grid-template-columns: 380px 240px minmax(0, 1fr);
+  grid-template-rows: auto var(--landing-graph-height);
+  grid-template-areas:
+    "title title intro"
+    "atoms wires model";
+  row-gap: 16px;
+}
+
+.landing-title {
+  grid-area: title;
+  align-self: start;
+  margin: 0;
+  max-width: 10em;
+  font-family: "Roboto Flex", "Roboto", sans-serif;
+  font-weight: 750;
+  font-size: 60px;
+  line-height: 1.02;
+  letter-spacing: -0.02em;
+  color: #ffffff;
+}
+
+.landing-intro {
+  grid-area: intro;
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-left: 40px;
+}
+
+.landing-intro p {
+  margin: 0;
+  max-width: 34em;
+  font-size: 18px;
+  color: #cfcad5;
+}
+
+.landing-atoms {
+  grid-area: atoms;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-rows: repeat(5, minmax(0, 1fr));
+  align-items: center;
+}
+
+.landing-atom {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+  text-align: right;
+}
+
+.landing-atom strong {
+  display: block;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.landing-atom span:not(.landing-node) {
+  display: block;
+  font-size: 14px;
+  color: var(--landing-muted);
+}
+
+.landing-node {
+  flex: none;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #ffffff;
+  color: #3f4243;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Wires span the graph row; atoms sit at the centers of its five equal rows,
+   which are y = 50, 150, ... 450 in the 0..500 viewBox */
+.landing-wires {
+  grid-area: wires;
+  position: relative;
+}
+
+.landing-wires svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.landing-wires path {
+  fill: none;
+  stroke: var(--landing-wire);
+  stroke-width: 2.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.landing-assembly {
+  position: absolute;
+  left: 104px;
+  top: calc(50% - 28px);
+}
+
+.landing-output {
+  position: absolute;
+  left: 196px;
+  top: calc(50% - 18px);
+  width: 0;
+  height: 0;
+  border-top: 18px solid transparent;
+  border-bottom: 18px solid transparent;
+  border-left: 30px solid #ffffff;
+}
+
+.landing-wire-label {
+  position: absolute;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12px;
+  color: #cfcad5;
+}
+
+.landing-assembly-label {
+  left: 92px;
+  width: 80px;
+  top: calc(50% - 50px);
+  text-align: center;
+}
+
+.landing-output-label {
+  left: 184px;
+  top: calc(50% - 40px);
+}
+
+.landing-model {
+  grid-area: model;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.landing-model .featured-model > .featured-image {
+  object-fit: contain;
+}
+
+.landing-more {
+  margin: auto auto 0;
+  padding: 8px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  border: none;
+  background: none;
+  color: var(--landing-muted);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.landing-more:hover {
+  color: #ffffff;
+}
+
+.landing-more svg {
+  animation: landing-nudge 1.8s ease-in-out infinite;
+}
+
+@keyframes landing-nudge {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(5px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-more svg {
+    animation: none;
+  }
+}
+
+.landing-clips {
+  box-sizing: border-box;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 56px 32px 72px;
+}
+
+.landing-clips h2 {
+  margin: 0 0 24px;
+  font-family: "Roboto Flex", "Roboto", sans-serif;
+  font-weight: 700;
+  font-size: 30px;
+}
+
+.landing-clip-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 24px;
+}
+
+.landing-clip {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  color: #26232b;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.landing-clip img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 12px;
+  background: #e4e2e7;
+}
+
+.landing-clip:hover span {
+  text-decoration: underline;
+}
+
+/* Narrower screens: stack the hero, drop the wires, list the atoms */
+@media (max-width: 1100px) {
+  .landing-flow {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
+    grid-template-areas:
+      "title"
+      "intro"
+      "model"
+      "atoms";
+    row-gap: 24px;
+    padding-bottom: 16px;
+  }
+
+  .landing-intro {
+    padding-left: 0;
+  }
+
+  .landing-wires {
+    display: none;
+  }
+
+  .landing-model {
+    height: 420px;
+  }
+
+  .landing-atoms {
+    grid-template-rows: none;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
+  }
+
+  .landing-atom {
+    flex-direction: row-reverse;
+    justify-content: flex-end;
+    text-align: left;
+  }
+}
+
+/* Phones don't load the 3D model (see InitialLog's WIDE_SCREEN_QUERY) */
+@media (max-width: 767px) {
+  .landing-header,
+  .landing-flow,
+  .landing-clips {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .landing-brand img {
+    width: 40px;
+    height: 40px;
+  }
+
+  .landing-brand span {
+    font-size: 24px;
+  }
+
+  .landing-title {
+    font-size: 44px;
+  }
+
+  .landing-model {
+    display: none;
+  }
+}
