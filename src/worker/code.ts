@@ -92,9 +92,12 @@ let _tsExecutionSerial = 0;
 const _atomLatestSerial = new Map<string | number, number>();
 
 /**
- * Helper function to check if a value is the NO_GEOMETRY sentinel.
+ * Helper function to check if a value means "no geometry": the NO_GEOMETRY
+ * sentinel, or the "__GEOMETRY_INPUT__" placeholder that saved projects store
+ * for geometry inputs.
  */
 function isNoGeometry(value: any): boolean {
+  if (value === "__GEOMETRY_INPUT__") return true;
   return value && typeof value === "object" && value.__NO_GEOMETRY__ === true;
 }
 
