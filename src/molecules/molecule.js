@@ -829,7 +829,7 @@ export default class Molecule extends Atom {
       );
       return compileBomItems;
     }
-    return compiled;
+    return [];
   }
 
   formatBom() {

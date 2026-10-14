@@ -593,7 +593,8 @@ function walkAssembly(
 function extractBomList(assembly: AbundanceObject): any[] {
   const bomList: any[] = [];
   walkAssembly(assembly, (node: AbundanceObject) => {
-    bomList.push(...node.bom);
+    // Code atoms pass through whatever user code returned, which may have no bom
+    if (Array.isArray(node.bom)) bomList.push(...node.bom);
   });
   return bomList;
 }
