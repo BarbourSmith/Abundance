@@ -2,10 +2,11 @@ import GlobalVariables from "./globalvariables.js";
 
 /**
  * Flags atoms whose output contains geometry OpenCascade reports as invalid,
- * which may render, cut or combine incorrectly. An atom is only checked on the
- * parts it made, not parts passed through from its inputs, so the flag marks
- * where broken geometry starts. Checks run in the mesh workers, one at a time,
- * and are remembered per part.
+ * which may render, cut or combine incorrectly. The flag marks where broken
+ * geometry starts: an atom is only checked on the parts it made, not parts
+ * passed through from its inputs, and isn't flagged when an input is already
+ * broken (moving or cutting a broken part makes another broken part). Checks
+ * run in the mesh workers, one at a time, and are remembered per part.
  */
 
 const EMPTY_SHAPE = "emptyshape";
@@ -71,6 +72,10 @@ export function checkAtomGeometry(atom, value) {
         checked.forEach((id) => validity.set(key(id), !bad.has(id)));
       }
       if (!isCurrent()) return;
+      const brokenInput = [...inherited].some(
+        (id) => validity.get(key(id)) === false,
+      );
+      if (brokenInput) return;
       const invalidCount = fresh.filter(
         (id) => validity.get(key(id)) === false,
       ).length;
