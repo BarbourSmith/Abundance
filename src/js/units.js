@@ -9,6 +9,22 @@
 
 const MM_PER_UNIT = { MM: 1, Inches: 25.4 };
 
+// Unit words a number can carry in an equation ("5 inches", "12mm"), in mm.
+// "in" isn't one: it's mathjs's conversion operator.
+const EQUATION_UNITS_MM = { mm: 1, cm: 10, inch: 25.4, inches: 25.4 };
+
+/** The unit words recognized after a number in an equation. */
+export const EQUATION_UNIT_WORDS = Object.keys(EQUATION_UNITS_MM);
+
+/**
+ * Factor converting a length written with an equation unit word to toUnits,
+ * or null when toUnits isn't a length unit (Unitless or unknown).
+ */
+export function equationUnitFactor(word, toUnits) {
+  const to = MM_PER_UNIT[toUnits];
+  return to ? EQUATION_UNITS_MM[word] / to : null;
+}
+
 /** Short label for showing a unit next to a value. */
 export function unitAbbreviation(unitsKey) {
   if (unitsKey === "MM") return "mm";
