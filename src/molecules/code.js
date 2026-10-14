@@ -293,6 +293,16 @@ return assembly;
     const isNewAtom =
       values.code === undefined && values.interpreterVersion === undefined;
     this.interpreterVersion = values.interpreterVersion ?? (isNewAtom ? 1 : 0);
+    // Some saved projects have legacy JavaScript labelled as TypeScript (no
+    // run() function, a legacy Inputs header). Run those as JavaScript.
+    if (
+      this.interpreterVersion >= 1 &&
+      typeof values.code === "string" &&
+      !/\bfunction\s+run\s*\(/.test(values.code) &&
+      /^\s*(const\s+Inputs\s*=|\/\/\s*Inputs\s*:\s*\[)/m.test(values.code)
+    ) {
+      this.interpreterVersion = 0;
+    }
     this.code =
       values.code ||
       (this.interpreterVersion >= 1 ? TS_DEFAULT_CODE : JS_DEFAULT_CODE);
@@ -316,7 +326,7 @@ return assembly;
       console.error("Failed to parse code header for inputs:", err);
       return; // Don't subscribe since our input set is stale.
     }
-    this.setValues(values);
+    this.setValues({ ...values, interpreterVersion: this.interpreterVersion });
     this.inputs.forEach((input) => {
       if (input.value) {
         input.setReady(input.value); // mark ready if applicable now that values are loaded from save.
