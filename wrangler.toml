@@ -1,5 +1,5 @@
 # Cloudflare Wrangler Configuration for Abundance
-# Deploy with: wrangler publish --env production
+# Deploy with: npx wrangler deploy --env production
 
 name = "abundance-crawler-worker"
 main = "cloudflare/worker.js"

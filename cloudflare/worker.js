@@ -29,6 +29,21 @@ const CRAWLER_PATTERNS = [
   /slackbot/i,
   /discordbot/i,
   /telegrambot/i,
+  // Discourse oneboxes fetch with "Discourse Forum Onebox vX" or "Discourse/X"
+  /discourse/i,
+  // Link-preview fetchers for other forums, chat apps and social sites
+  /mastodon/i,
+  /lemmy/i,
+  /bluesky/i,
+  /redditbot/i,
+  /skypeuripreview/i, // Microsoft Teams and Skype
+  /microsoftpreview/i, // Outlook and other Microsoft 365 apps
+  /mattermost/i,
+  /zulip/i,
+  /applebot/i,
+  /pinterest/i,
+  /embedly/i,
+  /iframely/i,
   /curl/i,
   /wget/i,
 ];
