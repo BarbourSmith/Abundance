@@ -1929,6 +1929,7 @@ const handlers = {
       y: y ?? 0.2 + (siblings.length % 6) * 0.12,
       topLevel: false,
       lastReloadedFromGithubAt: Date.now(),
+      scaleToProjectUnits: true,
     });
     const atom =
       (placed && String(placed.uniqueID) === String(uniqueID) && placed) ||

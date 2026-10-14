@@ -1652,9 +1652,11 @@ export default class Molecule extends Atom {
               lastReloadedFromGithubAt: Date.now(),
             };
           }
-          if (oldObject.scaleToProjectUnits === false) {
-            valuesToOverwriteInLoadedVersion.scaleToProjectUnits = false;
-          }
+          // New imports scale to the project's units; a reloaded molecule
+          // keeps its setting, which is off for ones saved without it.
+          valuesToOverwriteInLoadedVersion.scaleToProjectUnits =
+            oldObject.uniqueID === undefined ||
+            oldObject.scaleToProjectUnits === true;
           // TODO: Tristan debug
           GlobalVariables.currentMolecule
             .placeAtom(

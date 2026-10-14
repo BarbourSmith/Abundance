@@ -1,10 +1,11 @@
 import { defineConfig, optimizeDeps } from "vite";
 import reactPlugin from "@vitejs/plugin-react";
 import Pages from "vite-plugin-pages";
+import saveFeaturedModel from "./vite-plugins/saveFeaturedModel.js";
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [reactPlugin(), Pages()],
+  plugins: [reactPlugin(), Pages(), saveFeaturedModel()],
 
   base: "/", //change to "/" for local development or to "/Abundance" for deployment
   build: {

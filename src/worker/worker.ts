@@ -970,12 +970,19 @@ if (
   // already-resolved `started` is a no-op, so methods that also await it
   // internally are unaffected. This is a single choke point instead of relying
   // on each method to remember the guard (executeCode did not).
+  //
+  // The same choke point converts thrown OpenCascade exceptions, which Comlink
+  // can't send to the main thread, into readable Errors.
   const guardedHandlers = Object.fromEntries(
     Object.entries(handlers).map(([name, fn]) => [
       name,
       (...args: unknown[]) => {
         const guarded = () =>
-          started.then(() => (fn as (...a: unknown[]) => unknown)(...args));
+          started
+            .then(() => (fn as (...a: unknown[]) => unknown)(...args))
+            .catch((error) => {
+              throw util.toCloneableError(error);
+            });
         if (!_debugSerialMode) return guarded();
         // Serial mode: chain onto the queue, snapshot before+after, log delta.
         const task = _serialQueue.then(async () => {

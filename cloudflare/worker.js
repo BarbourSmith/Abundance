@@ -1,7 +1,8 @@
 /**
  * Cloudflare Worker for Abundance CAD Platform
- * Intercepts crawler requests and injects dynamic meta tags for social previews
- * Serves React app normally to regular users
+ * Serves project URLs (/owner/repo, /run/..., /preview/...) as the app with a
+ * 200 status, and injects project meta tags for social previews when the
+ * visitor is a crawler
  */
 
 // Reliable logging to observability
@@ -54,6 +55,23 @@ function isCrawler(userAgent) {
   return CRAWLER_PATTERNS.some((pattern) => pattern.test(userAgent));
 }
 
+// Paths ending in these extensions are files, never project pages
+const STATIC_FILE_PATTERN =
+  /\.(js|mjs|css|map|wasm|json|png|jpe?g|gif|webp|svg|ico|glb|gltf|stl|step|stp|woff2?|ttf|otf|txt|xml|webmanifest)$/i;
+
+// First path segments that belong to the site, not to a GitHub owner
+const NON_PROJECT_FOLDERS = [
+  "assets",
+  "public",
+  "api",
+  "auth",
+  "admin",
+  "featured",
+  "imgs",
+  "wasm",
+  "diagrams",
+];
+
 /**
  * Parse project owner and repo from URL path
  * Handles: /run/owner/repo, /owner/repo, /preview/owner/repo
@@ -64,17 +82,12 @@ function parseProjectFromUrl(urlString) {
     const url = new URL(urlString);
     const pathname = url.pathname;
 
-    // Don't treat static assets as project routes
+    // Don't treat static files as project routes. A two-segment file path
+    // like /featured/<model>.glb otherwise looks like /owner/repo.
     if (
       pathname.startsWith("/assets/") ||
       pathname.startsWith("/public/") ||
-      pathname.endsWith(".wasm") ||
-      pathname.endsWith(".js") ||
-      pathname.endsWith(".css") ||
-      pathname.endsWith(".png") ||
-      pathname.endsWith(".jpg") ||
-      pathname.endsWith(".svg") ||
-      pathname.endsWith(".json")
+      STATIC_FILE_PATTERN.test(pathname)
     ) {
       return null;
     }
@@ -95,10 +108,7 @@ function parseProjectFromUrl(urlString) {
     }
 
     // Check for /owner/repo (2 segments, and not a known non-project path)
-    if (
-      segments.length === 2 &&
-      !["assets", "public", "api", "auth", "admin"].includes(segments[0])
-    ) {
+    if (segments.length === 2 && !NON_PROJECT_FOLDERS.includes(segments[0])) {
       return { owner: segments[0], repo: segments[1] };
     }
   } catch (e) {
@@ -157,6 +167,7 @@ async function fetchProjectMetadata(owner, repo) {
       owner,
       repo,
       imageUrl,
+      // The app uses path routes; a /#/run/... link would open the landing page
       projectUrl: `https://abundance.maslowcnc.com/run/${owner}/${repo}`,
     };
   } catch (error) {
@@ -225,78 +236,73 @@ function injectMetaTags(html, project) {
 }
 
 /**
- * Main Cloudflare Worker fetch handler
+ * Main Cloudflare Worker fetch handler.
+ *
+ * GitHub Pages serves deep links like /owner/repo through its 404 page, with
+ * a 404 status. For every visitor, project URLs get the app's index.html with
+ * a 200 instead. Crawlers also get link-preview meta tags for the project.
+ * Everything else, static files included, passes through to GitHub Pages.
  */
 export default {
   async fetch(request, env, ctx) {
     const userAgent = request.headers.get("user-agent") || "";
     const url = request.url;
 
-    logDebug(`FETCH_START URL=${url}`);
+    logDebug(`FETCH_START URL=${url} UA=${userAgent}`);
 
-    // Only intercept for crawlers
-    if (!isCrawler(userAgent)) {
-      logDebug(`NOT_A_CRAWLER - passthrough`);
-      return fetch(request);
-    }
-
-    logDebug(`CRAWLER_DETECTED`);
-
-    // Parse project info from URL
     const project = parseProjectFromUrl(url);
     logDebug(`PROJECT_PARSED: ${JSON.stringify(project)}`);
 
-    if (!project) {
-      logDebug(`NOT_A_PROJECT_URL - passthrough`);
-      return fetch(request);
-    }
+    if (project) {
+      try {
+        // Fetch index.html directly (GitHub Pages serves all routes from index.html)
+        const indexUrl = new URL(request.url);
+        indexUrl.pathname = "/index.html";
+        const baseResponse = await fetch(indexUrl.toString());
+        logDebug(`ORIGIN_RESPONSE: status=${baseResponse.status}`);
 
-    try {
-      // Fetch index.html directly (GitHub Pages serves all routes from index.html)
-      const indexUrl = new URL(request.url);
-      indexUrl.pathname = "/index.html";
-      const baseResponse = await fetch(indexUrl.toString());
-      logDebug(`ORIGIN_RESPONSE: status=${baseResponse.status}`);
+        if (baseResponse.ok) {
+          let html = await baseResponse.text();
+          logDebug(`HTML_FETCHED: length=${html.length}`);
 
-      if (baseResponse.ok) {
-        let html = await baseResponse.text();
-        logDebug(`HTML_FETCHED: length=${html.length}`);
+          if (isCrawler(userAgent)) {
+            logDebug(`CRAWLER_DETECTED`);
+            const projectData = await fetchProjectMetadata(
+              project.owner,
+              project.repo,
+            );
+            logDebug(
+              `GITHUB_METADATA_FETCHED: ${projectData ? "success" : "failed"}`,
+            );
+            if (projectData) {
+              html = injectMetaTags(html, projectData);
+              logDebug(`META_TAGS_INJECTED`);
+            }
+          } else {
+            logDebug(`NOT_A_CRAWLER`);
+          }
 
-        // Fetch project metadata from GitHub
-        const projectData = await fetchProjectMetadata(
-          project.owner,
-          project.repo,
-        );
-        logDebug(
-          `GITHUB_METADATA_FETCHED: ${projectData ? "success" : "failed"}`,
-        );
-
-        // Inject meta tags into HTML
-        if (projectData) {
-          html = injectMetaTags(html, projectData);
-          logDebug(`META_TAGS_INJECTED`);
+          logDebug(`RETURNING_RESPONSE: status=200`);
+          return new Response(html, {
+            status: 200,
+            statusText: "OK",
+            headers: {
+              "content-type": "text/html; charset=utf-8",
+              "cache-control": "public, max-age=3600, s-maxage=86400",
+              "x-worker-processed": "true",
+            },
+          });
+        } else {
+          logDebug(`ORIGIN_NOT_OK: status=${baseResponse.status}`);
         }
-
-        // Return response with meta tags injected
-        logDebug(`RETURNING_CUSTOM_RESPONSE: status=200`);
-        return new Response(html, {
-          status: 200,
-          statusText: "OK",
-          headers: {
-            "content-type": "text/html; charset=utf-8",
-            "cache-control": "public, max-age=3600, s-maxage=86400",
-            "x-worker-processed": "true",
-          },
-        });
-      } else {
-        logDebug(`ORIGIN_NOT_OK: status=${baseResponse.status}`);
+      } catch (error) {
+        logDebug(`ERROR_IN_PROJECT_PATH: ${error.message}`);
       }
-    } catch (error) {
-      logDebug(`ERROR: ${error.message}`);
+    } else {
+      logDebug(`NOT_A_PROJECT_URL`);
     }
 
     logDebug(`PASSTHROUGH_TO_ORIGIN`);
-    // Fallback: pass through to origin
     return fetch(request);
   },
 };

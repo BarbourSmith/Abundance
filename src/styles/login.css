@@ -1661,6 +1661,26 @@
   width: 100%;
   object-fit: cover;
 }
+/* 3D featured model: fills the frame like the image did. The thumbnail sits
+   under the canvas until the model has loaded. */
+.featured-model {
+  position: relative;
+  flex: 1 1 0;
+  min-height: 0;
+}
+.featured-model > .featured-image,
+.featured-model > .featured-model-canvas {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+}
+.featured-model > .featured-model-canvas {
+  cursor: grab;
+  transition: opacity 0.4s;
+}
+.featured-model > .featured-model-canvas:active {
+  cursor: grabbing;
+}
 .featured-loading {
   flex: 1 1 0;
   display: flex;

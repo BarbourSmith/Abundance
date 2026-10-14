@@ -57,10 +57,12 @@ export default class GitHubMolecule extends Molecule {
 
     /**
      * Whether to scale the output from the source project's units (unitsKey)
-     * into the units of the project it's used in.
+     * into the units of the project it's used in. Off for molecules placed
+     * before unit scaling existed, which were built expecting no scaling;
+     * new imports turn it on (see loadGithubMoleculeByName).
      * @type {boolean}
      */
-    this.scaleToProjectUnits = true;
+    this.scaleToProjectUnits = false;
 
     /**
      * Incremented for each output scale request so a slow, stale result
@@ -310,9 +312,9 @@ export default class GitHubMolecule extends Molecule {
   serialize(offset = { x: 0, y: 0 }) {
     const serialized = super.serialize(offset);
 
-    // Only stored when turned off so existing files don't change
-    if (!this.scaleToProjectUnits) {
-      serialized.scaleToProjectUnits = false;
+    // Only stored when on, so files saved before unit scaling don't change
+    if (this.scaleToProjectUnits) {
+      serialized.scaleToProjectUnits = true;
     }
 
     // Include last reload timestamp if it exists
