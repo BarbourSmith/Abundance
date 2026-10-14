@@ -102,6 +102,16 @@ function isNoGeometry(value: any): boolean {
 }
 
 /**
+ * The value user code sees for an input: null for "no geometry". Code that
+ * checks for the "__GEOMETRY_INPUT__" placeholder by name was written when
+ * unwired inputs arrived as that string, so it still gets the string.
+ */
+function inputValueForUserCode(value: any, code: string): any {
+  if (value === "__GEOMETRY_INPUT__" && code.includes(value)) return value;
+  return isNoGeometry(value) ? null : value;
+}
+
+/**
  * Check if a value is a primitive type.
  */
 function isPrimitive(value: any): value is Primitive {
@@ -531,7 +541,7 @@ async function executeTsCode(
 
     const argsSignature: string[] = [];
     for (const [key, value] of Object.entries(argumentsArray)) {
-      const actualValue = isNoGeometry(value) ? null : value;
+      const actualValue = inputValueForUserCode(value, code);
       if (util.isAbundanceObject(actualValue)) {
         inputPartsLoaded = 0;
         inputPartsTotal = countLeafs(actualValue);
