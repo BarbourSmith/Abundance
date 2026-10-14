@@ -192,10 +192,14 @@ export default class Import extends Atom {
           return result;
         })
         .catch((err) => {
-          throw new Error(
-            `Failed to load file "${this.fileName}". Please check that the file exists in the repository and try again.`,
-            { cause: err },
-          );
+          // Only a missing file gets the "check that it exists" advice
+          const reason =
+            err?.status === 404
+              ? "Please check that the file exists in the repository and try again."
+              : err?.message || String(err);
+          throw new Error(`Failed to load file "${this.fileName}". ${reason}`, {
+            cause: err,
+          });
         });
     }
   }
