@@ -50,12 +50,17 @@ import { ProgressBarProvider } from "./components/secondary/ProgressBarManager.j
 import { DevSettingsProvider } from "./contexts/DevSettingsContext.jsx";
 import DevSettingsModal from "./components/secondary/DevSettingsModal.jsx";
 import { AgentBridgeHost } from "./components/secondary/AgentBridge.jsx";
+import GitHubRateLimitBanner from "./components/secondary/GitHubRateLimitBanner.jsx";
+import { watchGitHubRateLimit } from "./js/githubRateLimit.js";
 
 /*Import style scripts*/
 import "./styles/maslowCreate.css";
 import "./styles/menuIcons.css";
 import "./styles/login.css";
 import "./styles/readme.css";
+
+// Notice when GitHub's API rate limit runs out (see GitHubRateLimitBanner)
+watchGitHubRateLimit();
 
 const queryClient = new QueryClient();
 /**
@@ -979,6 +984,7 @@ function AppContent() {
       )}{" "}
       <DevSettingsModal />{" "}
       <AgentBridgeHost />
+      <GitHubRateLimitBanner />
       <Routes>
         <Route
           exact
