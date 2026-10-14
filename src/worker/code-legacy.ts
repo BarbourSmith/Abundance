@@ -689,6 +689,7 @@ export async function addAssemblyPartsToCache(
       tickProgress(context, "caching part");
       return {
         ...assembly,
+        bom: Array.isArray(assembly.bom) ? assembly.bom : [],
         geometry,
         plane: assembly.plane
           ? util.asSimplePlane(assembly.plane)
@@ -702,6 +703,7 @@ export async function addAssemblyPartsToCache(
       );
       return {
         ...assembly,
+        bom: Array.isArray(assembly.bom) ? assembly.bom : [],
         geometry: children,
         plane: assembly.plane
           ? util.asSimplePlane(assembly.plane)
