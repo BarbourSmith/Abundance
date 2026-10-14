@@ -1028,10 +1028,19 @@ export default class Atom extends ObservableEntity {
 
   /**
    * Return true if our inputs are ready for us to compute a value.
+   *
+   * An optional input that has no value is left out. One that is PROCESSING
+   * still blocks: its new value is on its way (its source is recomputing, or
+   * the input itself is passing through READY -> PROCESSING -> READY), and
+   * computing now would run with that input missing.
    */
   inputsAreReady() {
     return this.inputs.every((input) => {
-      return input.getState().status == Status.READY || input.isOptional;
+      const status = input.getState().status;
+      return (
+        status == Status.READY ||
+        (input.isOptional && status !== Status.PROCESSING)
+      );
     });
   }
 
@@ -1282,7 +1291,9 @@ export default class Atom extends ObservableEntity {
           }
         })
         .catch((err) => {
-          if (!isCurrent()) return;
+          // A superseded CAD call was replaced by a newer compute of this
+          // atom (see CadWorkerManager), whose result is still coming.
+          if (!isCurrent() || err?.superseded) return;
           handleError(err);
         });
     } else {
