@@ -39,6 +39,23 @@ function isCrawler(userAgent) {
   return CRAWLER_PATTERNS.some((pattern) => pattern.test(userAgent));
 }
 
+// Paths ending in these extensions are files, never project pages
+const STATIC_FILE_PATTERN =
+  /\.(js|mjs|css|map|wasm|json|png|jpe?g|gif|webp|svg|ico|glb|gltf|stl|step|stp|woff2?|ttf|otf|txt|xml|webmanifest)$/i;
+
+// First path segments that belong to the site, not to a GitHub owner
+const NON_PROJECT_FOLDERS = [
+  "assets",
+  "public",
+  "api",
+  "auth",
+  "admin",
+  "featured",
+  "imgs",
+  "wasm",
+  "diagrams",
+];
+
 /**
  * Parse project owner and repo from URL path
  * Handles: /run/owner/repo, /owner/repo, /preview/owner/repo
@@ -49,17 +66,12 @@ function parseProjectFromUrl(urlString) {
     const url = new URL(urlString);
     const pathname = url.pathname;
 
-    // Don't treat static assets as project routes
+    // Don't treat static files as project routes. A two-segment file path
+    // like /featured/<model>.glb otherwise looks like /owner/repo.
     if (
       pathname.startsWith("/assets/") ||
       pathname.startsWith("/public/") ||
-      pathname.endsWith(".wasm") ||
-      pathname.endsWith(".js") ||
-      pathname.endsWith(".css") ||
-      pathname.endsWith(".png") ||
-      pathname.endsWith(".jpg") ||
-      pathname.endsWith(".svg") ||
-      pathname.endsWith(".json")
+      STATIC_FILE_PATTERN.test(pathname)
     ) {
       return null;
     }
@@ -80,10 +92,7 @@ function parseProjectFromUrl(urlString) {
     }
 
     // Check for /owner/repo (2 segments, and not a known non-project path)
-    if (
-      segments.length === 2 &&
-      !["assets", "public", "api", "auth", "admin"].includes(segments[0])
-    ) {
+    if (segments.length === 2 && !NON_PROJECT_FOLDERS.includes(segments[0])) {
       return { owner: segments[0], repo: segments[1] };
     }
   } catch (e) {

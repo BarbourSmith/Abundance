@@ -156,6 +156,47 @@ const GUIDE_CLIPS = [
   },
 ];
 
+const REPO_URL = "https://github.com/BarbourSmith/Abundance";
+
+/** Footer links that leave the site, grouped under a heading each. */
+const FOOTER_GROUPS = [
+  {
+    title: "Get involved",
+    links: [
+      { label: "Contribute on GitHub", href: REPO_URL },
+      { label: "Report a bug", href: `${REPO_URL}/issues/new` },
+      {
+        label: "Community forum",
+        href: "https://forums.maslowcnc.com/c/software-issues/abundance/41",
+      },
+    ],
+  },
+  {
+    title: "Maslow CNC",
+    links: [
+      {
+        label: "Find out more at maslowcnc.com",
+        href: "https://www.maslowcnc.com",
+      },
+      { label: "About us", href: "https://www.maslowcnc.com/the-team" },
+      { label: "Contact", href: "https://www.maslowcnc.com/contact-us" },
+    ],
+  },
+];
+
+/** A link to another site, announced as opening a new tab. */
+const ExternalLink = ({ href, className, children }) => (
+  <a
+    href={href}
+    className={className}
+    target="_blank"
+    rel="noopener noreferrer"
+  >
+    {children}
+    <span className="landing-sr-only"> (opens in a new tab)</span>
+  </a>
+);
+
 const GitHubMark = () => (
   <svg
     aria-hidden="true"
@@ -195,18 +236,16 @@ const InitialLog = ({ setNoUserBrowsing }) => {
             />
             <span>Abundance</span>
           </div>
-          <nav className="landing-nav" aria-label="Account">
+          <nav className="landing-nav" aria-label="Main">
             <Link to="/user-guide" className="landing-nav-link">
               User guide
             </Link>
-            <a
+            <ExternalLink
               href="https://github.com/signup"
-              target="_blank"
-              rel="noopener noreferrer"
               className="landing-button landing-button-outline"
             >
               Sign up for GitHub
-            </a>
+            </ExternalLink>
             <button
               type="button"
               id="loginButton"
@@ -219,19 +258,85 @@ const InitialLog = ({ setNoUserBrowsing }) => {
           </nav>
         </header>
 
-        <section className="landing-flow">
-          <h1 className="landing-title">
-            Design it. Share it.
-            <br />
-            Make it.
-          </h1>
-          <div className="landing-intro">
-            <p>
-              Abundance is free, open source CAD in your browser. Every design
-              is a graph of simple steps: change any one of them and the part
-              rebuilds. Share it, and anyone can remix it.
-            </p>
-            <div className="landing-actions">
+        <div className="landing-main">
+          <div className="landing-flow">
+            <h1 className="landing-title">
+              Design it. Share it.
+              <br />
+              Make it.
+            </h1>
+            <div className="landing-intro">
+              <p>
+                Abundance is free, open source CAD in your browser. Every design
+                is a graph of simple steps: change any one of them and the part
+                rebuilds. Share it, and anyone can remix it.
+              </p>
+            </div>
+
+            <ul className="landing-atoms" aria-label="Features">
+              {FEATURES.map((feature) => (
+                <li key={feature.name} className="landing-atom">
+                  <div>
+                    <strong>{feature.name}</strong>
+                    <span>{feature.detail}</span>
+                  </div>
+                  <span className="landing-node" aria-hidden="true">
+                    <svg
+                      width="26"
+                      height="26"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      {feature.icon}
+                    </svg>
+                  </span>
+                </li>
+              ))}
+            </ul>
+
+            <div className="landing-wires" aria-hidden="true">
+              <svg viewBox="0 0 280 500" preserveAspectRatio="none">
+                {[50, 150, 250, 350, 450].map((y) => (
+                  <path key={y} d={`M0 ${y} C 60 ${y}, 50 250, 104 250`} />
+                ))}
+                <path d="M160 250 L 236 250" />
+              </svg>
+              <span className="landing-node landing-assembly">
+                <svg
+                  width="26"
+                  height="26"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinejoin="round"
+                >
+                  <rect x="4" y="9" width="10" height="10" rx="1" />
+                  <rect x="10" y="5" width="10" height="10" rx="1" />
+                </svg>
+              </span>
+              <span className="landing-wire-label landing-assembly-label">
+                Assembly
+              </span>
+              <span className="landing-output" />
+              <span className="landing-wire-label landing-output-label">
+                Output
+              </span>
+            </div>
+
+            <div className="landing-model">
+              <div className="landing-model-view">
+                {wideScreen && (
+                  <FeaturedModelViewer
+                    url={featuredModelUrl(project)}
+                    fallbackImage={featuredImageUrl(project)}
+                    alt={`Rotating 3D model of ${projectName}, made in Abundance`}
+                    onInteractingChange={setInteracting}
+                  />
+                )}
+              </div>
               <button
                 type="button"
                 id="browseNonGit"
@@ -243,97 +348,37 @@ const InitialLog = ({ setNoUserBrowsing }) => {
             </div>
           </div>
 
-          <ul className="landing-atoms">
-            {FEATURES.map((feature) => (
-              <li key={feature.name} className="landing-atom">
-                <div>
-                  <strong>{feature.name}</strong>
-                  <span>{feature.detail}</span>
-                </div>
-                <span className="landing-node" aria-hidden="true">
-                  <svg
-                    width="26"
-                    height="26"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    {feature.icon}
-                  </svg>
-                </span>
-              </li>
-            ))}
-          </ul>
-
-          <div className="landing-wires" aria-hidden="true">
-            <svg viewBox="0 0 240 500" preserveAspectRatio="none">
-              {[50, 150, 250, 350, 450].map((y) => (
-                <path key={y} d={`M0 ${y} C 60 ${y}, 50 250, 104 250`} />
-              ))}
-              <path d="M160 250 L 196 250" />
-            </svg>
-            <span className="landing-node landing-assembly">
-              <svg
-                width="26"
-                height="26"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinejoin="round"
-              >
-                <rect x="4" y="9" width="10" height="10" rx="1" />
-                <rect x="10" y="5" width="10" height="10" rx="1" />
-              </svg>
-            </span>
-            <span className="landing-wire-label landing-assembly-label">
-              Assembly
-            </span>
-            <span className="landing-output" />
-            <span className="landing-wire-label landing-output-label">
-              Output
-            </span>
-          </div>
-
-          <div className="landing-model">
-            {wideScreen && (
-              <FeaturedModelViewer
-                url={featuredModelUrl(project)}
-                fallbackImage={featuredImageUrl(project)}
-                alt={`3D model of ${projectName}`}
-                onInteractingChange={setInteracting}
-              />
-            )}
-          </div>
-        </section>
-
-        <button
-          type="button"
-          className="landing-more"
-          onClick={() =>
-            clipsRef.current?.scrollIntoView({ behavior: "smooth" })
-          }
-        >
-          See it working
-          <svg
-            aria-hidden="true"
-            width="22"
-            height="22"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
+          <button
+            type="button"
+            className="landing-more"
+            onClick={() =>
+              clipsRef.current?.scrollIntoView({ behavior: "smooth" })
+            }
           >
-            <path d="M6 9l6 6 6-6" />
-          </svg>
-        </button>
+            See it working
+            <svg
+              aria-hidden="true"
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M6 9l6 6 6-6" />
+            </svg>
+          </button>
+        </div>
       </div>
 
-      <section className="landing-clips" ref={clipsRef}>
-        <h2>See it working</h2>
+      <section
+        className="landing-clips"
+        ref={clipsRef}
+        aria-labelledby="landing-clips-title"
+      >
+        <h2 id="landing-clips-title">See it working</h2>
         <div className="landing-clip-grid">
           {GUIDE_CLIPS.map((clip) => (
             <Link
@@ -347,6 +392,64 @@ const InitialLog = ({ setNoUserBrowsing }) => {
           ))}
         </div>
       </section>
+
+      <footer className="landing-footer">
+        <div className="landing-footer-inner">
+          <div className="landing-footer-about">
+            <p className="landing-footer-name">Abundance</p>
+            <p>
+              Free, open source CAD for designs you can share and remix, made by
+              the Maslow CNC team.
+            </p>
+          </div>
+          <nav
+            className="landing-footer-group"
+            aria-labelledby="landing-footer-abundance"
+          >
+            <h2 id="landing-footer-abundance">Abundance</h2>
+            <ul>
+              <li>
+                <Link to="/user-guide">User guide</Link>
+              </li>
+              <li>
+                <button
+                  type="button"
+                  className="landing-footer-link"
+                  onClick={() => setNoUserBrowsing(true)}
+                >
+                  Explore the library
+                </button>
+              </li>
+            </ul>
+          </nav>
+          {FOOTER_GROUPS.map((group) => {
+            const id = `landing-footer-${group.title.toLowerCase().replace(/\W+/g, "-")}`;
+            return (
+              <nav
+                key={group.title}
+                className="landing-footer-group"
+                aria-labelledby={id}
+              >
+                <h2 id={id}>{group.title}</h2>
+                <ul>
+                  {group.links.map((link) => (
+                    <li key={link.href}>
+                      <ExternalLink href={link.href}>{link.label}</ExternalLink>
+                    </li>
+                  ))}
+                </ul>
+              </nav>
+            );
+          })}
+        </div>
+        <p className="landing-footer-legal">
+          Abundance is free software, released under the{" "}
+          <ExternalLink href={`${REPO_URL}/blob/main/LICENSE`}>
+            GNU GPL v3
+          </ExternalLink>
+          .
+        </p>
+      </footer>
     </div>
   );
 };

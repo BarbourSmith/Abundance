@@ -100,7 +100,7 @@ export const DevSettingsPanel = () => {
             <p className="dev-setting-description">
               Exports what the 3D view is showing as a GLB file, for the
               featured models on the landing page. On the local dev server it's
-              saved to public/featured/; otherwise it's downloaded.
+              saved to public/featured/models/; otherwise it's downloaded.
             </p>
             {glbStatus && (
               <p className="dev-setting-description">{glbStatus}</p>

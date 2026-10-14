@@ -56,7 +56,7 @@ export async function displayMeshesToGLB(displayMeshes) {
 
 /**
  * Export the displayed meshes as a GLB. On the dev server it's saved straight
- * to public/featured/ (see vite-plugins/saveFeaturedModel.js); elsewhere it's
+ * to public/featured/models/ (see vite-plugins/saveFeaturedModel.js); elsewhere it's
  * downloaded.
  * @param {Array} displayMeshes - The rendering context's mesh array
  * @param {string} fileName - File name, without extension
