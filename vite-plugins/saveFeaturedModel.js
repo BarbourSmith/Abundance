@@ -2,12 +2,12 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 const ROUTE = "/__dev/featured-model";
-const OUTPUT_DIR = "public/featured";
+const OUTPUT_DIR = "public/featured/models";
 const MAX_BYTES = 20 * 1024 * 1024;
 
 /**
  * Dev-server-only endpoint that saves a GLB posted by the Developer settings
- * "Export GLB" button into public/featured/, where the landing page loads
+ * "Export GLB" button into public/featured/models/, where the landing page loads
  * its featured models from. Not part of production builds.
  *
  * POST /__dev/featured-model?name=<owner_repo> with the GLB as the body.

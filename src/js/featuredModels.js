@@ -1,6 +1,6 @@
 /**
  * Projects shown as 3D models on the landing page. Each needs a GLB at
- * public/featured/<owner>_<repoName>.glb, made with Developer settings >
+ * public/featured/models/<owner>_<repoName>.glb, made with Developer settings >
  * Landing Page Model > Export GLB while the project is open on the local dev
  * server. Keep each file small (aim for under 1-2 MB).
  */
@@ -37,9 +37,14 @@ export const FEATURED_MODELS = [
   { owner: "IDAbbott", repoName: "Modified_Tri_Clamp-copy" },
 ];
 
-/** URL of a featured project's GLB. */
+/**
+ * URL of a featured project's GLB. The files sit one folder deeper than the
+ * name needs: the site's Cloudflare worker (cloudflare/worker.js) treats any
+ * two-segment path like /featured/<file> as a /<owner>/<repo> project page and
+ * answers it with the app's HTML instead of the file.
+ */
 export function featuredModelUrl({ owner, repoName }) {
-  return `${import.meta.env.VITE_APP_PATH_FOR_PICS}/featured/${owner}_${repoName}.glb`;
+  return `${import.meta.env.VITE_APP_PATH_FOR_PICS}/featured/models/${owner}_${repoName}.glb`;
 }
 
 /** URL of a featured project's thumbnail, shown while its model loads. */
