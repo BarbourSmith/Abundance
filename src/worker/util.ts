@@ -7,6 +7,7 @@ import {
   ReplicadObject,
   RequestContext,
 } from "./geometryProvider";
+import { installOcctWorkarounds } from "./occtWorkarounds";
 
 const defaultColor: string = "#aad7f2";
 let loaded: boolean = false;
@@ -23,6 +24,7 @@ const init = async (logMetrics: boolean = true): Promise<boolean> => {
   loaded = true;
   ocModule = OC;
   replicad.setOC(OC);
+  installOcctWorkarounds();
   geometryProvider = new GeometryProvider(logMetrics);
 
   return true;

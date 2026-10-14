@@ -498,7 +498,9 @@ async function executeCode(
       }
     }
     console.error("Code execution error:", error);
-    throw new Error(`Code execution failed: ${(error as Error).message}`);
+    // OpenCascade failures arrive as WebAssembly.Exception, which has no message
+    const reason = (util.toCloneableError(error) as Error).message ?? error;
+    throw new Error(`Code execution failed: ${reason}`);
   }
 }
 

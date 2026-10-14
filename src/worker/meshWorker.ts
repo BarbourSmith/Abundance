@@ -10,6 +10,7 @@ import {
   Bounds,
   boundsOverlap,
   diagnoseShape,
+  isValidShape,
   measureOverlap,
   shapeBounds,
 } from "./geometryDiagnostics";
@@ -565,6 +566,38 @@ async function inspectParts(
 }
 
 /**
+ * Which of these parts OpenCascade reports as invalid, for the editor's broken
+ * geometry flag. Only 3D shapes are checked. Stops after budgetMs; `checked`
+ * lists the ids it got to.
+ */
+async function findInvalidParts(
+  ids: string[],
+  context: RequestContext,
+  budgetMs: number,
+) {
+  await started;
+  const start = performance.now();
+  const checked: string[] = [];
+  const invalid: string[] = [];
+  for (const id of ids) {
+    if (performance.now() - start > budgetMs) break;
+    try {
+      const shape = await getShapeCached(id, context);
+      if (
+        replicad.isShape3D(shape as replicad.AnyShape) &&
+        !isValidShape(shape as replicad.Shape3D)
+      ) {
+        invalid.push(id);
+      }
+    } catch {
+      // A part that won't load isn't this check's to report.
+    }
+    checked.push(id);
+  }
+  return { checked, invalid };
+}
+
+/**
  * Agent diagnostics: find parts that overlap. With several groups (an
  * Assembly's inputs) only parts from different groups are compared; with one
  * group, every pair of its parts is.
@@ -662,6 +695,8 @@ workerpool.worker({
     context: RequestContext,
     opts: { part?: number; minFeature: number; budgetMs: number },
   ) => withShapeCache(() => inspectParts(value, context, opts)),
+  findInvalidParts: (ids: string[], context: RequestContext, budgetMs: number) =>
+    withShapeCache(() => findInvalidParts(ids, context, budgetMs)),
   checkInterference: (
     groups: { label: string; value: AbundanceObject }[],
     context: RequestContext,

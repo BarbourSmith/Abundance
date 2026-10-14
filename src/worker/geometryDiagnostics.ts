@@ -63,7 +63,7 @@ function roundBounds(b: Bounds): Bounds {
   return { min: b.min.map((v) => round(v)), max: b.max.map((v) => round(v)) };
 }
 
-function isValidShape(shape: replicad.Shape3D): boolean {
+export function isValidShape(shape: replicad.Shape3D): boolean {
   const oc = replicad.getOC();
   const analyzer = new oc.BRepCheck_Analyzer(shape.wrapped, true, false, false);
   try {
