@@ -862,10 +862,15 @@ export default class Atom extends ObservableEntity {
           // Skip non-input geometry
           return;
         } else {
-          // For geometry inputs, serialize a placeholder
+          // For geometry inputs, serialize a placeholder. Inputs of the
+          // oldest Code atoms (//Inputs:[a, b]) all count as geometry, so
+          // keep a number typed into one rather than losing it on save.
+          // (Strings aren't kept: they may be stale geometry IDs.)
+          const value = ap.getValue();
+          const keepNumber = typeof value === "number" && Number.isFinite(value);
           ioValues.push({
             name: ap.name,
-            ioValue: "__GEOMETRY_INPUT__",
+            ioValue: keepNumber ? value : "__GEOMETRY_INPUT__",
           });
           return;
         }

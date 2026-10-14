@@ -18,11 +18,13 @@ import * as replicad from "replicad";
 import { RequestContext } from "./geometryProvider";
 
 /**
- * Helper function to check if a value is the NO_GEOMETRY sentinel.
- * Uses object shape detection since we can't import the actual NO_GEOMETRY object
- * (it would create a circular dependency).
+ * Helper function to check if a value means "no geometry": the NO_GEOMETRY
+ * sentinel, or the "__GEOMETRY_INPUT__" placeholder that saved projects store
+ * for geometry inputs. Uses object shape detection since we can't import the
+ * actual NO_GEOMETRY object (it would create a circular dependency).
  */
 function isNoGeometry(value: any): boolean {
+  if (value === "__GEOMETRY_INPUT__") return true;
   return value && typeof value === "object" && value.__NO_GEOMETRY__ === true;
 }
 
@@ -407,6 +409,10 @@ async function executeCode(
       "Chamfer",
       "library",
       "replicad",
+      // Legacy code used to run inside the worker module, where these
+      // replicad classes were imported by name, so older atoms use them bare.
+      "Plane",
+      "Solid",
     ];
     const inputValues: any[] = [
       wrappedRotate,
@@ -422,6 +428,8 @@ async function executeCode(
       wrappedChamfer,
       userLib, // TODO(tristan): I think we should deprecate this but it'll require passing the actual geom.
       util.replicad,
+      util.replicad.Plane,
+      util.replicad.Solid,
     ];
     for (const [key, value] of Object.entries(argumentsArray)) {
       // Sanitize parameter names to prevent injection
