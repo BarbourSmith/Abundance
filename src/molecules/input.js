@@ -337,6 +337,13 @@ export default class Input extends Atom {
 
       if (this.parentAP) {
         const apState = this.parentAP.getState();
+        // "__GEOMETRY_INPUT__" is what a save stores for a geometry input, not
+        // a value: an unwired geometry input waits (blue) instead of running
+        // what's inside the molecule on nothing.
+        if (apState.value === "__GEOMETRY_INPUT__") {
+          this.setWaiting();
+          return true;
+        }
         if (apState.value !== null && apState.value !== undefined) {
           this.setStatus(Status.READY, apState.value);
           return true;
