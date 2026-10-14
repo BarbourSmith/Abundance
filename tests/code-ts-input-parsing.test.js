@@ -125,6 +125,156 @@ describe("Code atom TS input parsing (parseCodeHeader)", () => {
     });
   });
 
+  describe("comments in the signature", () => {
+    it("ignores a trailing line comment after a parameter's comma", () => {
+      const code = `
+        function run(
+          seatHeight: number = 430, // slat tops in the middle
+          rimHeight: number = 790,
+        ): Assembly { return seatHeight; }
+      `;
+      const args = parseCodeHeader(code);
+
+      expect(args).toEqual([
+        {
+          name: "seatHeight",
+          type: "number",
+          isOptional: true,
+          defaultValue: 430,
+        },
+        {
+          name: "rimHeight",
+          type: "number",
+          isOptional: true,
+          defaultValue: 790,
+        },
+      ]);
+    });
+
+    it("ignores a line comment on its own line between parameters", () => {
+      const code = `
+        function run(
+          width: number = 300,
+          // Front to back, in mm. Don't exceed 600.
+          depth: number = 200,
+        ) { return width; }
+      `;
+      const args = parseCodeHeader(code);
+
+      expect(args.map((a) => [a.name, a.defaultValue])).toEqual([
+        ["width", 300],
+        ["depth", 200],
+      ]);
+    });
+
+    it("ignores block comments, including multi-line ones", () => {
+      const code = `
+        function run(
+          /**
+           * Overall width, in mm.
+           */
+          width: number = 300,
+          height: number /* mm */ = 50,
+        ) { return width; }
+      `;
+      const args = parseCodeHeader(code);
+
+      expect(args.map((a) => [a.name, a.type, a.defaultValue])).toEqual([
+        ["width", "number", 300],
+        ["height", "number", 50],
+      ]);
+    });
+
+    it("ignores brackets and commas inside comments", () => {
+      // An unmatched `>` or `)` in a comment must not end the signature
+      // early or late.
+      const code = `
+        function run(
+          count: number = 3, // must be > 0
+          shelves: number = 2, // 1) bottom, 2) top
+        ) { return count; }
+      `;
+      const args = parseCodeHeader(code);
+
+      expect(args.map((a) => [a.name, a.defaultValue])).toEqual([
+        ["count", 3],
+        ["shelves", 2],
+      ]);
+    });
+
+    it("keeps // and /* inside string defaults", () => {
+      const code = `
+        function run(
+          url: string = "https://example.com/parts", // where parts live
+          pattern: string = 'src/*.ts',
+        ) { return url; }
+      `;
+      const args = parseCodeHeader(code);
+
+      expect(args.map((a) => [a.name, a.defaultValue])).toEqual([
+        ["url", "https://example.com/parts"],
+        ["pattern", "src/*.ts"],
+      ]);
+    });
+  });
+
+  describe("commas and brackets inside default values", () => {
+    it("keeps commas and brackets inside string defaults", () => {
+      const code = `
+        function run(
+          label: string = "a, b",
+          open: string = "(",
+          close: string = ")",
+          arrow: string = '->',
+          count: number = 3,
+        ) { return label; }
+      `;
+      const args = parseCodeHeader(code);
+
+      expect(args.map((a) => [a.name, a.defaultValue])).toEqual([
+        ["label", "a, b"],
+        ["open", "("],
+        ["close", ")"],
+        ["arrow", "->"],
+        ["count", 3],
+      ]);
+    });
+
+    it("keeps multi-element array defaults whole, even with brackets in strings", () => {
+      const code = `
+        function run(
+          points: number[] = [1, 2, 3],
+          tags: string[] = ["x]", "y, z"],
+          count: number = 1,
+        ) { return points; }
+      `;
+      const args = parseCodeHeader(code);
+
+      expect(args).toEqual([
+        {
+          name: "points",
+          type: "array",
+          elementType: "number",
+          isOptional: true,
+          defaultValue: [1, 2, 3],
+        },
+        {
+          name: "tags",
+          type: "array",
+          elementType: "string",
+          isOptional: true,
+          defaultValue: ["x]", "y, z"],
+        },
+        {
+          name: "count",
+          type: "number",
+          isOptional: true,
+          defaultValue: 1,
+        },
+      ]);
+    });
+  });
+
   describe("error handling", () => {
     it("throws if no run() function is declared", () => {
       expect(() => parseCodeHeader(`function foo(x: number) {}`)).toThrow(
