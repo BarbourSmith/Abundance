@@ -209,6 +209,16 @@ export default class Molecule extends Atom {
     GlobalVariables.c.fill();
   }
 
+  /** Also reports broken geometry from anything inside this molecule. */
+  geometryWarning() {
+    const own = super.geometryWarning();
+    if (own) return own;
+    const inner = this.nodesOnTheScreen.find((node) => node.geometryWarning());
+    return inner
+      ? `Broken geometry inside "${inner.name}". Open this molecule and hover the orange atom to see what's wrong.`
+      : null;
+  }
+
   createInputParams(setInputChanged) {
     let inputParams = { ...super.createInputParams(setInputChanged) };
 
