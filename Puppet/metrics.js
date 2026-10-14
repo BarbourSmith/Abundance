@@ -205,7 +205,8 @@ async function getProjectFileSize(page) {
  *     - visualizationError: string - error message if visualization failed
  */
 async function getGcodeMetrics(page) {
-  return await page.evaluate(async () => {
+  // The callback runs in the browser, so Node-scope constants must be passed in as arguments
+  return await page.evaluate(async (generationTimeoutMs, pollingIntervalMs) => {
     try {
       // Access the global variable to get the top-level molecule
       if (!window.GlobalVarsForPuppeteer?.topLevelMolecule) {
@@ -273,7 +274,7 @@ async function getGcodeMetrics(page) {
             const generationPromise = new Promise((resolve, reject) => {
               const timeout = setTimeout(
                 () => reject(new Error("GCode generation timeout")),
-                GCODE_GENERATION_TIMEOUT_MS
+                generationTimeoutMs
               );
 
               // Check if generation completes by polling the gcodeGenerated flag
@@ -283,7 +284,7 @@ async function getGcodeMetrics(page) {
                   clearTimeout(timeout);
                   resolve();
                 }
-              }, GCODE_POLLING_INTERVAL_MS);
+              }, pollingIntervalMs);
             });
 
             // Trigger generation - both methods might be async, so we await the promise instead
@@ -348,7 +349,7 @@ async function getGcodeMetrics(page) {
         error: error.message,
       };
     }
-  });
+  }, GCODE_GENERATION_TIMEOUT_MS, GCODE_POLLING_INTERVAL_MS);
 }
 
 /**
