@@ -152,7 +152,6 @@ async function fetchProjectMetadata(owner, repo) {
       owner,
       repo,
       imageUrl,
-      // The app uses path routes; a /#/run/... link would open the landing page
       projectUrl: `https://abundance.maslowcnc.com/run/${owner}/${repo}`,
     };
   } catch (error) {
