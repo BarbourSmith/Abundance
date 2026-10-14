@@ -1,0 +1,79 @@
+/* Shown when GitHub's API rate limit has run out. */
+
+.github-limit-banner {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2000;
+  box-sizing: border-box;
+  width: min(640px, calc(100vw - 32px));
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 12px 12px 16px;
+  border-radius: 8px;
+  border: 1px solid #e0a400;
+  background: #fff6dc;
+  color: #3a3000;
+  font-family: "Work Sans", sans-serif;
+  font-size: 14px;
+  line-height: 1.4;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+.github-limit-banner p {
+  flex: 1;
+  margin: 0;
+}
+
+.github-limit-banner-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+
+.github-limit-banner-signin {
+  padding: 8px 12px;
+  border: none;
+  border-radius: 6px;
+  background: #24292f;
+  color: #ffffff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.github-limit-banner-dismiss {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.github-limit-banner button:hover {
+  filter: brightness(1.1);
+}
+
+.github-limit-banner button:focus-visible {
+  outline: 2px solid #8d4bb0;
+  outline-offset: 2px;
+}
+
+@media (max-width: 560px) {
+  .github-limit-banner {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .github-limit-banner-actions {
+    justify-content: flex-end;
+  }
+}
