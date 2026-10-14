@@ -1,7 +1,8 @@
 /**
  * Cloudflare Worker for Abundance CAD Platform
- * Intercepts crawler requests and injects dynamic meta tags for social previews
- * Serves React app normally to regular users
+ * Serves project URLs (/owner/repo, /run/..., /preview/...) as the app with a
+ * 200 status, and injects project meta tags for social previews when the
+ * visitor is a crawler
  */
 
 // Reliable logging to observability
@@ -151,7 +152,8 @@ async function fetchProjectMetadata(owner, repo) {
       owner,
       repo,
       imageUrl,
-      projectUrl: `https://abundance.maslowcnc.com/#/run/${owner}/${repo}`,
+      // The app uses path routes; a /#/run/... link would open the landing page
+      projectUrl: `https://abundance.maslowcnc.com/run/${owner}/${repo}`,
     };
   } catch (error) {
     console.error("Error fetching project metadata:", error);
@@ -219,78 +221,73 @@ function injectMetaTags(html, project) {
 }
 
 /**
- * Main Cloudflare Worker fetch handler
+ * Main Cloudflare Worker fetch handler.
+ *
+ * GitHub Pages serves deep links like /owner/repo through its 404 page, with
+ * a 404 status. For every visitor, project URLs get the app's index.html with
+ * a 200 instead. Crawlers also get link-preview meta tags for the project.
+ * Everything else, static files included, passes through to GitHub Pages.
  */
 export default {
   async fetch(request, env, ctx) {
     const userAgent = request.headers.get("user-agent") || "";
     const url = request.url;
 
-    logDebug(`FETCH_START URL=${url}`);
+    logDebug(`FETCH_START URL=${url} UA=${userAgent}`);
 
-    // Only intercept for crawlers
-    if (!isCrawler(userAgent)) {
-      logDebug(`NOT_A_CRAWLER - passthrough`);
-      return fetch(request);
-    }
-
-    logDebug(`CRAWLER_DETECTED`);
-
-    // Parse project info from URL
     const project = parseProjectFromUrl(url);
     logDebug(`PROJECT_PARSED: ${JSON.stringify(project)}`);
 
-    if (!project) {
-      logDebug(`NOT_A_PROJECT_URL - passthrough`);
-      return fetch(request);
-    }
+    if (project) {
+      try {
+        // Fetch index.html directly (GitHub Pages serves all routes from index.html)
+        const indexUrl = new URL(request.url);
+        indexUrl.pathname = "/index.html";
+        const baseResponse = await fetch(indexUrl.toString());
+        logDebug(`ORIGIN_RESPONSE: status=${baseResponse.status}`);
 
-    try {
-      // Fetch index.html directly (GitHub Pages serves all routes from index.html)
-      const indexUrl = new URL(request.url);
-      indexUrl.pathname = "/index.html";
-      const baseResponse = await fetch(indexUrl.toString());
-      logDebug(`ORIGIN_RESPONSE: status=${baseResponse.status}`);
+        if (baseResponse.ok) {
+          let html = await baseResponse.text();
+          logDebug(`HTML_FETCHED: length=${html.length}`);
 
-      if (baseResponse.ok) {
-        let html = await baseResponse.text();
-        logDebug(`HTML_FETCHED: length=${html.length}`);
+          if (isCrawler(userAgent)) {
+            logDebug(`CRAWLER_DETECTED`);
+            const projectData = await fetchProjectMetadata(
+              project.owner,
+              project.repo,
+            );
+            logDebug(
+              `GITHUB_METADATA_FETCHED: ${projectData ? "success" : "failed"}`,
+            );
+            if (projectData) {
+              html = injectMetaTags(html, projectData);
+              logDebug(`META_TAGS_INJECTED`);
+            }
+          } else {
+            logDebug(`NOT_A_CRAWLER`);
+          }
 
-        // Fetch project metadata from GitHub
-        const projectData = await fetchProjectMetadata(
-          project.owner,
-          project.repo,
-        );
-        logDebug(
-          `GITHUB_METADATA_FETCHED: ${projectData ? "success" : "failed"}`,
-        );
-
-        // Inject meta tags into HTML
-        if (projectData) {
-          html = injectMetaTags(html, projectData);
-          logDebug(`META_TAGS_INJECTED`);
+          logDebug(`RETURNING_RESPONSE: status=200`);
+          return new Response(html, {
+            status: 200,
+            statusText: "OK",
+            headers: {
+              "content-type": "text/html; charset=utf-8",
+              "cache-control": "public, max-age=3600, s-maxage=86400",
+              "x-worker-processed": "true",
+            },
+          });
+        } else {
+          logDebug(`ORIGIN_NOT_OK: status=${baseResponse.status}`);
         }
-
-        // Return response with meta tags injected
-        logDebug(`RETURNING_CUSTOM_RESPONSE: status=200`);
-        return new Response(html, {
-          status: 200,
-          statusText: "OK",
-          headers: {
-            "content-type": "text/html; charset=utf-8",
-            "cache-control": "public, max-age=3600, s-maxage=86400",
-            "x-worker-processed": "true",
-          },
-        });
-      } else {
-        logDebug(`ORIGIN_NOT_OK: status=${baseResponse.status}`);
+      } catch (error) {
+        logDebug(`ERROR_IN_PROJECT_PATH: ${error.message}`);
       }
-    } catch (error) {
-      logDebug(`ERROR: ${error.message}`);
+    } else {
+      logDebug(`NOT_A_PROJECT_URL`);
     }
 
     logDebug(`PASSTHROUGH_TO_ORIGIN`);
-    // Fallback: pass through to origin
     return fetch(request);
   },
 };
