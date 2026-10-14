@@ -20,6 +20,7 @@ const generateGcode = (
       z: -0.01,
     };
     const plunge = speed;
+    const spindleSpeed = 12000; // rpm, sent as M3 S12000 at the start of each op
 
     if (!passes || passes <= 0) {
       reject(new Error("'passes' must be greater than 0."));
@@ -145,7 +146,7 @@ const generateGcode = (
               ov_topz: 0,
               plunge: plunge,
               rate: speed,
-              spindle: 13000,
+              spindle: spindleSpeed,
               step: stepOver,
               tool: 1000,
               type: "rough",
@@ -164,7 +165,7 @@ const generateGcode = (
               plunge: plunge,
               rate: speed,
               shadow: true,
-              spindle: 13000,
+              spindle: spindleSpeed,
               step: stepOver,
               tool: 1000,
               type: "area",
@@ -182,7 +183,7 @@ const generateGcode = (
               ov_topz: 0,
               plunge: plunge,
               rate: speed,
-              spindle: 13000,
+              spindle: spindleSpeed,
               step: stepOver,
               steps: 1,
               tool: 1000,
@@ -203,7 +204,7 @@ const generateGcode = (
               ov_topz: 0,
               plunge: plunge,
               rate: speed,
-              spindle: 13000,
+              spindle: spindleSpeed,
               step: stepOver,
               steps: 1,
               tool: 1000,
