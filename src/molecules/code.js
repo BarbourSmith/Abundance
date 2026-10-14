@@ -515,7 +515,11 @@ return assembly;
       };
       promise.then(
         () => finalize("ok"),
-        () => finalize("error"),
+        (err) => {
+          // A superseded run was dropped for a newer one, which ends with its
+          // own divider.
+          if (!err?.superseded) finalize("error");
+        },
       );
     }
     return promise;

@@ -583,8 +583,10 @@ async function executeTsCode(
 
     // Record this call as the latest for this atom. After import() returns
     // we check this again: if a newer call has since started, this result
-    // is stale and we log a warning (result discarding is left to a later
-    // refactor — here we just surface the supersession so it can be debugged).
+    // is stale and we log a warning. Superseded calls are dropped on the main
+    // thread by CadWorkerManager, which sends one `code` call per atom at a
+    // time, so overlap here means a call bypassed it (e.g. one left running by
+    // cancelAll()).
     _atomLatestSerial.set(atomUniqueId, callSerial);
 
     // `progress()` inside user code. Timeouts are owned by CadWorkerManager's
@@ -651,8 +653,8 @@ async function executeTsCode(
     // started while this one was running its import(), our result is already
     // out of date. Log a warning for observability so rapid re-execution
     // scenarios can be identified and debugged. The newer call will supply
-    // the up-to-date result, so we let this call finish normally — explicit
-    // result discarding is left to a future refactor.
+    // the up-to-date result, so we let this call finish normally; the atom
+    // ignores results from its older computes.
     //
     // Defensive check: latestSerial should always be defined here because
     // we called `_atomLatestSerial.set(atomUniqueId, callSerial)` synchronously

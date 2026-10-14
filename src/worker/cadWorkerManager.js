@@ -5,6 +5,14 @@ import {
 } from "./progress";
 
 /**
+ * Worker methods whose calls from the same atom supersede one another. A Code
+ * atom makes one `code` call per compute and ignores the result of all but its
+ * newest compute, so these calls run one at a time per atom, and a call still
+ * waiting to be sent when a newer one arrives for the same atom is dropped.
+ */
+const SUPERSEDABLE_METHODS = new Set(["code"]);
+
+/**
  * Wraps a comlink-based Web Worker with a per-call timeout watchdog.
  *
  * If any call to the CAD worker takes longer than `timeoutMs`, the worker is
@@ -20,6 +28,12 @@ import {
  * Usage:
  *   const cad = new CadWorkerManager(cadWorker, 120_000);
  *   // Then use `cad` exactly like the plain comlink proxy.
+ *
+ * Calls in SUPERSEDABLE_METHODS that carry an atomId are coalesced per atom:
+ * while one is running in the worker, the newest later call waits and older
+ * waiting calls are dropped. A dropped call's promise rejects with an error
+ * marked `superseded: true`, meaning a newer call for the same atom replaced
+ * it; callers should not treat that as a failure.
  *
  * The constructor returns a JS Proxy, so every property access that is not an
  * internal manager method is transparently forwarded to the live comlink proxy
@@ -43,6 +57,16 @@ export class CadWorkerManager {
      * settlement came from a worker that has since been terminated.
      */
     this._workerEpoch = 0;
+    /**
+     * Per-atom coalescing for SUPERSEDABLE_METHODS, keyed by `method:atomId`
+     * (see `_supersedeKey`): the call currently sent to the worker, and the
+     * newest call waiting for it to finish. Both entries are also in
+     * `_pendingCalls`, the running one ahead of the waiting one.
+     * @type {Map<string, object>}
+     */
+    this._runningByKey = new Map();
+    /** @type {Map<string, object>} */
+    this._waitingByKey = new Map();
     /**
      * Optional callback invoked when the worker is restarted due to a timeout.
      * Assign this from outside (e.g. from AppContent) to show a UI notification.
@@ -456,6 +480,7 @@ export class CadWorkerManager {
         queuedAt,
         taskMeta,
         epoch: null,
+        supersedeKey: this._supersedeKey(method, taskMeta),
       };
 
       this._pendingCalls.push(entry);
@@ -471,13 +496,113 @@ export class CadWorkerManager {
       });
 
       // Only start timers if this is the currently processing call
-      // (no other call ahead of it in the queue).
+      // (no other call ahead of it in the queue). A call that has to wait for
+      // an older one is never the head, since that older call is ahead of it.
       if (this._pendingCalls[0] === entry) {
         this._startTimers(entry);
       }
 
-      this._dispatch(entry);
+      this._dispatchOrWait(entry);
     });
+  }
+
+  /**
+   * The key under which a call supersedes older calls, or null if it never
+   * does: only SUPERSEDABLE_METHODS calls that say which atom made them.
+   * @param {string|symbol} method
+   * @param {object|null} taskMeta
+   * @returns {string|null}
+   */
+  _supersedeKey(method, taskMeta) {
+    const atomId = taskMeta?.atomId;
+    if (atomId == null || !SUPERSEDABLE_METHODS.has(String(method))) {
+      return null;
+    }
+    return `${String(method)}:${atomId}`;
+  }
+
+  /**
+   * Send a new call to the worker, unless an older call from the same atom is
+   * still running there. Then it waits behind that call, replacing any call
+   * already waiting, and is sent when the running call finishes.
+   * @param {object} entry
+   */
+  _dispatchOrWait(entry) {
+    const key = entry.supersedeKey;
+    if (key) {
+      const waiting = this._waitingByKey.get(key);
+      if (waiting) {
+        this._supersede(waiting, entry);
+      }
+      if (this._runningByKey.has(key)) {
+        this._waitingByKey.set(key, entry);
+        return;
+      }
+      this._runningByKey.set(key, entry);
+    }
+    this._dispatch(entry);
+  }
+
+  /**
+   * After a running call has settled and left `_pendingCalls`, send the call
+   * waiting behind it, if there is one.
+   * @param {object} entry
+   */
+  _sendWaitingCall(entry) {
+    const key = entry.supersedeKey;
+    // After cancelAll() a newer call may already hold the slot.
+    if (!key || this._runningByKey.get(key) !== entry) {
+      return;
+    }
+    this._runningByKey.delete(key);
+    const next = this._waitingByKey.get(key);
+    if (next) {
+      this._waitingByKey.delete(key);
+      this._runningByKey.set(key, next);
+      this._dispatch(next);
+    }
+  }
+
+  /**
+   * Drop a call that a newer call from the same atom replaces, without running
+   * it (or, on a restart, without running it again). Its promise rejects with
+   * `superseded: true`.
+   * @param {object} entry - The call being dropped.
+   * @param {object} newer - The call replacing it.
+   */
+  _supersede(entry, newer) {
+    clearInterval(entry.progressIntervalId);
+    entry.progressIntervalId = null;
+    clearTimeout(entry.timeoutId);
+    entry.timeoutId = null;
+    this._pendingCalls = this._pendingCalls.filter((c) => c !== entry);
+    const key = entry.supersedeKey;
+    if (this._waitingByKey.get(key) === entry) {
+      this._waitingByKey.delete(key);
+    }
+    if (this._runningByKey.get(key) === entry) {
+      this._runningByKey.delete(key);
+    }
+    this._emitCadWorkerEvent("cad-worker-task-cancelled", {
+      taskId: entry.taskId,
+      method: String(entry.method),
+      queuedAt: entry.queuedAt,
+      cancelledAt: Date.now(),
+      reason: "superseded",
+      supersededBy: newer.taskId,
+      atomId: entry.taskMeta?.atomId || null,
+      atomType: entry.taskMeta?.atomType || null,
+      moleculeName: entry.taskMeta?.moleculeName || null,
+      displayLabel: this._formatTaskLabel(entry.method, entry.taskMeta),
+    });
+    entry.reject(
+      Object.assign(
+        new Error(
+          `CAD call superseded by a newer "${String(entry.method)}" call from the same atom`,
+        ),
+        { superseded: true },
+      ),
+    );
   }
 
   /**
@@ -525,6 +650,7 @@ export class CadWorkerManager {
           moleculeName: entry.taskMeta?.moleculeName || null,
           displayLabel: this._formatTaskLabel(entry.method, entry.taskMeta),
         });
+        this._sendWaitingCall(entry);
         this._activateNextCall();
         entry.resolve(result);
       },
@@ -551,6 +677,7 @@ export class CadWorkerManager {
           displayLabel: this._formatTaskLabel(entry.method, entry.taskMeta),
           error: err?.message || String(err),
         });
+        this._sendWaitingCall(entry);
         this._activateNextCall();
         entry.reject(err);
       },
@@ -582,6 +709,8 @@ export class CadWorkerManager {
       atomType: entry.taskMeta?.atomType || null,
       moleculeName: entry.taskMeta?.moleculeName || null,
       isActive: entry.startTime !== null,
+      // False while the call waits for an older call from the same atom.
+      sentToWorker: entry.epoch !== null,
       queuedAt: entry.queuedAt,
       startedAt: entry.startTime,
       queueWaitMs: entry.startTime ? entry.startTime - entry.queuedAt : null,
@@ -623,6 +752,8 @@ export class CadWorkerManager {
    * Clears progress logs, timeouts, and rejects all pending promises.
    */
   cancelAll() {
+    this._runningByKey.clear();
+    this._waitingByKey.clear();
     if (this._pendingCalls.length === 0) return;
     const pending = [...this._pendingCalls];
     this._pendingCalls = [];
@@ -660,7 +791,9 @@ export class CadWorkerManager {
    * the inactivity watchdog (`_armTimeout`) before this runs. The remaining
    * entries are therefore innocent queued/in-flight calls: rather than rejecting
    * them (which errored valid atoms as collateral damage), they are re-dispatched
-   * to the fresh worker so the rest of the queue resumes automatically.
+   * to the fresh worker so the rest of the queue resumes automatically. The
+   * exception is a call that a newer call from the same atom supersedes: it is
+   * dropped and only the newer call runs.
    */
   _restartWorker() {
     console.warn(
@@ -692,9 +825,30 @@ export class CadWorkerManager {
     // Spawn the fresh worker (bumps `_workerEpoch`).
     this._createWorker();
 
-    // Re-issue every survivor onto the new worker. Re-emit `cad-worker-task-queued`
-    // so the UI's queue depth reflects the replayed work.
+    // Where an atom has a running call and a newer one waiting, run only the
+    // newer one: the atom would discard the older result, and re-running it
+    // could hang the fresh worker the same way (e.g. a Code atom run with a
+    // missing input).
+    const newestByKey = new Map();
     survivors.forEach((entry) => {
+      if (entry.supersedeKey) newestByKey.set(entry.supersedeKey, entry);
+    });
+    this._runningByKey.clear();
+    this._waitingByKey.clear();
+    const replayed = survivors.filter((entry) => {
+      if (!entry.supersedeKey) return true;
+      const newest = newestByKey.get(entry.supersedeKey);
+      if (newest !== entry) {
+        this._supersede(entry, newest);
+        return false;
+      }
+      this._runningByKey.set(entry.supersedeKey, entry);
+      return true;
+    });
+
+    // Re-issue the remaining survivors onto the new worker. Re-emit
+    // `cad-worker-task-queued` so the UI's queue depth reflects the replayed work.
+    replayed.forEach((entry) => {
       this._emitCadWorkerEvent("cad-worker-task-queued", {
         taskId: entry.taskId,
         method: String(entry.method),
