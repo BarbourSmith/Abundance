@@ -177,6 +177,7 @@ export default function FeaturedModelViewer({
           frameloop={pageVisible && autoRotate ? "always" : "demand"}
           dpr={[1, 2]}
           camera={{ fov: FOV, up: [0, 1, 0], position: [1, 1, 1] }}
+          role="img"
           aria-label={alt}
         >
           <ambientLight intensity={1.6} />
