@@ -4,8 +4,10 @@
  *
  * We can't pull in the real `typescript` compiler (~10MB) and Monaco's TS
  * worker is async-only, so we hand-roll a tiny bracket-depth scanner.
- * Each step is a small private helper; the only public entry point is
- * `parseCodeHeader(srcCode)`.
+ * Each step is a small helper. The public entry point is
+ * `parseCodeHeader(srcCode)`; the CAD worker also uses
+ * `extractRunSignature` and `splitTopLevelCommas` so that both read the
+ * same parameter list.
  */
 
 /** @typedef {"number" | "string" | "boolean" | "geometry" | "array"} AbundanceValueType */
@@ -31,64 +33,108 @@
 const OPEN_BRACKETS = "([{<";
 /** Characters that close a bracket pair we want to track. */
 const CLOSE_BRACKETS = ")]}>";
+/** Characters that open a string literal. */
+const QUOTES = "\"'`";
+
+/**
+ * Return the index just past the string literal that opens at `src[start]`
+ * (a `"`, `'`, or backtick). A quoted string still open at a newline ends
+ * there, so a stray quote can't swallow the rest of the source.
+ */
+function skipString(src, start) {
+  const quote = src[start];
+  for (let i = start + 1; i < src.length; i++) {
+    const c = src[i];
+    if (c === "\\") i++;
+    else if (c === quote) return i + 1;
+    else if (c === "\n" && quote !== "`") return i;
+  }
+  return src.length;
+}
+
+/**
+ * Replace each `//` line comment and block comment in `src` with a space.
+ * String literals are copied as-is, so a default like
+ * `"https://example.com"` keeps its `//`.
+ */
+function stripComments(src) {
+  let out = "";
+  let copiedTo = 0;
+  let i = 0;
+  while (i < src.length) {
+    const c = src[i];
+    if (QUOTES.includes(c)) {
+      i = skipString(src, i);
+    } else if (c === "/" && src[i + 1] === "/") {
+      // Stop before the newline so it is kept.
+      const end = src.indexOf("\n", i);
+      out += src.substring(copiedTo, i) + " ";
+      i = end === -1 ? src.length : end;
+      copiedTo = i;
+    } else if (c === "/" && src[i + 1] === "*") {
+      const end = src.indexOf("*/", i + 2);
+      out += src.substring(copiedTo, i) + " ";
+      i = end === -1 ? src.length : end + 2;
+      copiedTo = i;
+    } else {
+      i++;
+    }
+  }
+  return out + src.substring(copiedTo);
+}
 
 /**
  * Find the substring inside the parentheses of a top-level
- * `function run(...)` declaration. Returns the inner text, or null if
- * `run` is missing / parens are unbalanced.
+ * `function run(...)` declaration. Returns the inner text with comments
+ * removed, or null if `run` is missing / parens are unbalanced.
  */
-function extractRunSignature(src) {
+export function extractRunSignature(src) {
   const startIdx = src.search(/\bfunction\s+run\s*\(/);
   if (startIdx === -1) return null;
-  const openParen = src.indexOf("(", startIdx);
-
-  let depth = 0;
-  for (let i = openParen; i < src.length; i++) {
-    const c = src[i];
-    if (OPEN_BRACKETS.includes(c)) depth++;
-    else if (CLOSE_BRACKETS.includes(c)) {
-      depth--;
-      if (depth === 0 && c === ")") {
-        return src.substring(openParen + 1, i);
-      }
-    }
-  }
-  return null;
+  // Strip comments before counting brackets: Code atoms comment their
+  // parameters, and a comment like `// must be > 0` would throw off the
+  // depth.
+  const inner = stripComments(src.substring(src.indexOf("(", startIdx) + 1));
+  const end = findTopLevel(inner, (s, i) => s[i] === ")");
+  return end === -1 ? null : inner.substring(0, end);
 }
 
 /**
  * Find the index of the first character in `s` for which `predicate(s, i)`
- * returns true while bracket depth is 0. Returns -1 if no match.
+ * returns true while bracket depth is 0, skipping string literals. Returns
+ * -1 if no match. A closing bracket at depth 0 is offered to `predicate`
+ * before the depth drops, which is how `extractRunSignature` finds the `)`
+ * that ends the parameter list.
  */
 function findTopLevel(s, predicate) {
   let depth = 0;
   for (let i = 0; i < s.length; i++) {
     const c = s[i];
-    if (OPEN_BRACKETS.includes(c)) depth++;
-    else if (CLOSE_BRACKETS.includes(c)) depth--;
+    // The loop's `i++` then lands just past the closing quote.
+    if (QUOTES.includes(c)) i = skipString(s, i) - 1;
+    else if (OPEN_BRACKETS.includes(c)) depth++;
     else if (depth === 0 && predicate(s, i)) return i;
+    else if (CLOSE_BRACKETS.includes(c)) depth--;
   }
   return -1;
 }
 
-/** Split a string on top-level commas (respecting bracket depth). */
-function splitTopLevelCommas(sig) {
-  const out = [];
-  let depth = 0;
-  let start = 0;
-  for (let i = 0; i < sig.length; i++) {
-    const c = sig[i];
-    if (OPEN_BRACKETS.includes(c)) depth++;
-    else if (CLOSE_BRACKETS.includes(c)) depth--;
-    else if (depth === 0 && c === ",") {
-      const piece = sig.substring(start, i).trim();
-      if (piece) out.push(piece);
-      start = i + 1;
-    }
+/**
+ * Split a string on top-level commas, skipping commas inside brackets or
+ * string literals (as in `[1, 2]` or `"a, b"`). Pieces are trimmed and
+ * empty ones dropped.
+ */
+export function splitTopLevelCommas(sig) {
+  const isComma = (s, i) => s[i] === ",";
+  const pieces = [];
+  let rest = sig;
+  let comma;
+  while ((comma = findTopLevel(rest, isComma)) !== -1) {
+    pieces.push(rest.substring(0, comma));
+    rest = rest.substring(comma + 1);
   }
-  const last = sig.substring(start).trim();
-  if (last) out.push(last);
-  return out;
+  pieces.push(rest);
+  return pieces.map((p) => p.trim()).filter(Boolean);
 }
 
 /**

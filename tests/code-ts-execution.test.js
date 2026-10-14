@@ -225,6 +225,37 @@ describe("Code atom TS-mode execution (executeCode, interpreterVersion=1)", () =
       );
       expect(result).toBe(7);
     });
+
+    it("ignores comments the transpiler leaves in the run() parameter list", async () => {
+      // Monaco's TypeScript emit keeps parameter comments; this is its
+      // output for a commented signature.
+      const code = `function run(seatHeight = 430, // slat tops in the middle
+        rimHeight = 790 /* mm, from the floor */) { return rimHeight - seatHeight; }`;
+      const context = { project: "code-ts-arg-comments" };
+      const result = await executeCode(
+        code,
+        { seatHeight: 400, rimHeight: 800 },
+        context,
+        VERSION_TS,
+        ATOM_ID,
+      );
+      expect(result).toBe(400);
+    });
+
+    it("ignores commas inside array and string defaults", async () => {
+      const code = `function run(points = [1, 2, 3], label = "a, b", count = 1) {
+        return label + ":" + points.length * count;
+      }`;
+      const context = { project: "code-ts-arg-default-commas" };
+      const result = await executeCode(
+        code,
+        { points: [4, 5], label: "rows", count: 10 },
+        context,
+        VERSION_TS,
+        ATOM_ID,
+      );
+      expect(result).toBe("rows:20");
+    });
   });
 
   describe("concurrent execution", () => {

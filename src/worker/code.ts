@@ -31,6 +31,10 @@ import { RequestContext } from "./geometryProvider";
 import { executeCode as executeLegacy, validateUserCode } from "./code-legacy";
 import { assembly } from "./interaction";
 import { createProgressReporter } from "./progress";
+import {
+  extractRunSignature,
+  splitTopLevelCommas,
+} from "../molecules/utils/code-header-parser.js";
 
 // Pre-compiled Runtime JS for the user's code sandbox. Built from ts-framework.ts
 // Generated from src/worker/ts-framework.ts — run `npm run build:ts-framework`
@@ -139,25 +143,23 @@ function isAssembly(value: any): boolean {
  * when invoking `run()` — `argumentsArray` is a plain object and its key
  * order is not guaranteed to match the user's declared parameter order.
  *
- * The transpiler emits a plain `function run(a, b, c) { ... }` (type
- * annotations and default values are erased in the output JS we get here,
- * but we still tolerate defaults / destructuring defensively).
+ * Transpiling erases type annotations but keeps default values, and
+ * Monaco's TypeScript emit also keeps comments inside the parameter list.
+ * The list is found and split by the same scanner the header parser uses,
+ * which drops those comments and skips commas inside default values such
+ * as `[1, 2, 3]` or `"a, b"`.
  *
  * Throws if `run` cannot be located — user code without a `run()` function
  * can't be executed in TS mode.
  */
 function extractRunParamNames(code: string): string[] {
-  // Match: function run ( <params> )   — allow whitespace / newlines.
-  const m = /\bfunction\s+run\s*\(([^)]*)\)/.exec(code);
-  if (!m) {
+  const signature = extractRunSignature(code);
+  if (signature === null) {
     throw new Error(
       "TypeScript atom must define a top-level `function run(...)`.",
     );
   }
-  const raw = m[1].trim();
-  if (raw === "") return [];
-  return raw
-    .split(",")
+  return splitTopLevelCommas(signature)
     .map((part) => {
       // Strip default-value expressions (`= 2`, `= [0,0]`, ...).
       const beforeDefault = part.split("=")[0];
