@@ -25,11 +25,18 @@ const BOOLEAN_BUILDERS = {
 
 let installed = false;
 
+// Shapes are immutable, so each is checked once
+const validity = new WeakMap<object, boolean>();
+
 function isValidShape(shape: replicad.AnyShape): boolean {
+  const known = validity.get(shape);
+  if (known !== undefined) return known;
   const oc = replicad.getOC() as any;
   const analyzer = new oc.BRepCheck_Analyzer(shape.wrapped, true, false);
   try {
-    return analyzer.IsValid();
+    const valid = analyzer.IsValid();
+    validity.set(shape, valid);
+    return valid;
   } finally {
     analyzer.delete();
   }
@@ -76,7 +83,15 @@ export function installOcctWorkarounds(): void {
       options?: BooleanOptions,
     ) {
       const result = original.call(this, other, options);
-      if (isValidShape(result)) return result;
+      // Only a merge that broke valid inputs can be undone; skip the extra
+      // work for inputs that were already broken.
+      if (
+        isValidShape(result) ||
+        !isValidShape(this) ||
+        !isValidShape(other)
+      ) {
+        return result;
+      }
 
       const unmerged = unmergedBoolean(builderName, this, other, options);
       if (!replicad.isShape3D(unmerged) || !isValidShape(unmerged)) {
