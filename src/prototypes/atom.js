@@ -5,6 +5,11 @@ import AttachmentPoint from "./attachmentpoint";
 import { ObservableEntity, Status } from "./observableEntity.js";
 import { getPredictedAtoms } from "../js/atomPrediction.js";
 import { checkAtomGeometry } from "../js/geometryCheck.js";
+import {
+  EQUATION_UNIT_WORDS,
+  equationUnitFactor,
+  unitsContextOf,
+} from "../js/units.js";
 import React from "react";
 
 /*THREEJS*/
@@ -2102,9 +2107,36 @@ export default class Atom extends ObservableEntity {
   }
 
   /**
+   * Converts lengths typed with a unit ("5 inches", "12mm", "1/2 inch") into
+   * the units this atom works in, so values can be entered in whichever unit
+   * is handy. Only a number directly followed by a unit word converts, so an
+   * input named like a unit still works as a variable elsewhere ("cm * 2").
+   */
+  convertEquationUnits(equation) {
+    const pattern = new RegExp(
+      String.raw`(?<![\w.])(\d+(?:\.\d+)?|\.\d+)(?:\s*\/\s*(\d+(?:\.\d+)?))?\s*(` +
+        EQUATION_UNIT_WORDS.join("|") +
+        String.raw`)\b`,
+      "g",
+    );
+    const units = unitsContextOf(this);
+    return equation.replace(pattern, (match, number, divisor, word) => {
+      const factor = equationUnitFactor(word, units);
+      if (factor === null) {
+        throw new Error(
+          `"${match.trim()}" has a unit, but this project has no units set, so it can't be converted.`,
+        );
+      }
+      const value = divisor ? Number(number) / Number(divisor) : Number(number);
+      return `(${value * factor})`;
+    });
+  }
+
+  /**
    * Evaluate mathematical expressions (existing logic extracted)
    */
   evaluateMathExpression(substitutedEquation) {
+    substitutedEquation = this.convertEquationUnits(substitutedEquation);
     const variables = this.extractVariablesFromEquation(substitutedEquation);
     const notFound = [];
     const nonFinite = [];
