@@ -7,6 +7,9 @@ import GlobalVariables from "./src/js/globalvariables.js";
 let sharedEngine = null;
 let queue = Promise.resolve();
 
+// Per-part limit, counted from when the job leaves the queue
+const JOB_TIMEOUT_MS = 60000;
+
 const getEngine = () => {
   if (!sharedEngine) {
     sharedEngine = new Engine({ workURL: "/worker.js" });
@@ -14,8 +17,27 @@ const getEngine = () => {
   return sharedEngine;
 };
 
+const runWithTimeout = (args) => {
+  let timer;
+  const timeout = new Promise((resolve, reject) => {
+    timer = setTimeout(() => {
+      // A hung job never settles, so drop the engine: the next job's new Engine
+      // restarts the worker, which stops this one and lets the queue move on
+      sharedEngine = null;
+      reject(
+        new Error(
+          `G-code generation timed out after ${JOB_TIMEOUT_MS / 1000}s`,
+        ),
+      );
+    }, JOB_TIMEOUT_MS);
+  });
+  return Promise.race([runGcodeJob(...args), timeout]).finally(() =>
+    clearTimeout(timer),
+  );
+};
+
 const generateGcode = (...args) => {
-  const job = queue.then(() => runGcodeJob(...args));
+  const job = queue.then(() => runWithTimeout(args));
   queue = job.catch(() => {});
   return job;
 };
