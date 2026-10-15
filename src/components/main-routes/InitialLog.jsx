@@ -137,19 +137,19 @@ const FEATURES = [
 /** The user guide's feature recordings, with the guide section each explains. */
 const GUIDE_CLIPS = [
   {
-    src: "https://github.com/user-attachments/assets/adc67aca-6efb-4379-9101-7d53ed022d79",
+    src: "/videos/runmode_small.mp4",
     alt: "Changing a seat's height and width in run mode",
     title: "Share a project anyone can resize",
     section: "run-mode",
   },
   {
-    src: "https://github.com/user-attachments/assets/4af0c0f2-2b09-4259-ab13-a847d9265576",
+    src: "/videos/ai_small.mp4",
     alt: "Turning a sketch into a design with an AI agent",
     title: "Go from a sketch to a model with AI",
     section: "working-with-an-ai-agent",
   },
   {
-    src: "https://github.com/user-attachments/assets/6a70461f-f0a5-4de8-b485-da28f009d349",
+    src: "/videos/gcode_small.mp4",
     alt: "Generating CNC toolpaths",
     title: "Send it to your CNC with built-in CAM",
     section: "gcode",
@@ -386,7 +386,15 @@ const InitialLog = ({ setNoUserBrowsing }) => {
               to={`/user-guide#${clip.section}`}
               className="landing-clip"
             >
-              <img src={clip.src} alt={clip.alt} loading="lazy" />
+              <video
+                src={clip.src}
+                aria-label={clip.alt}
+                autoPlay
+                muted
+                loop
+                playsInline
+                preload="metadata"
+              />
               <span>{clip.title}</span>
             </Link>
           ))}
