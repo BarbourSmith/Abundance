@@ -101,6 +101,9 @@ const runGcodeJob = (
       .then((response) => response.arrayBuffer())
       .then((data) => kiriEngine.parse(data))
       .then((eng) => {
+        // Loading into the reused widget swaps its geometry but keeps cached
+        // shadows and bounds from the previous part; clear them
+        eng.widget.setModified();
         eng.setTopOffset(0); // load() does this; parse() doesn't
         eng.widget.boundingBoxNeedsUpdate = true; // Ensure bounding box is updated
         if (progressCallback) progressCallback(0.1); // 10% - STL loaded
