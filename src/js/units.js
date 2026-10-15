@@ -74,7 +74,7 @@ export function refreshUnitScaling(root) {
   const visit = (molecule) => {
     (molecule.nodesOnTheScreen || []).forEach((atom) => {
       if (atom.atomType === "GitHubMolecule" && atom.unitsKey in MM_PER_UNIT) {
-        atom.onUpstreamChange();
+        atom.refreshUnitConversion();
       } else if (
         atom.atomType === "Molecule" ||
         atom.atomType === "GitHubMolecule"

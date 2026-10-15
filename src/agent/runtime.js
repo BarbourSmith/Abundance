@@ -1093,8 +1093,9 @@ const handlers = {
         if (atom.hasUnitMismatch()) {
           const factor = atom.getOutputScaleFactor();
           detail.units = {
-            inputs: atom.unitsKey,
+            number_inputs: atom.unitsKey,
             project: atom.getHostUnits(),
+            geometry_input_scale: factor ? 1 / factor : 1,
             output_scale: factor ?? 1,
           };
         }

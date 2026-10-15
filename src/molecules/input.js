@@ -4,10 +4,15 @@ import { Status } from "../prototypes/observableEntity.js";
 import { ValueChangeCommand } from "../js/undoCommands.js";
 import { Octokit } from "octokit";
 import { hashAssembly } from "../worker/util.ts";
+import { unitAbbreviation } from "../js/units.js";
 
 // Default values for range type inputs
 const DEFAULT_RANGE_MIN = 0;
 const DEFAULT_RANGE_MAX = 100;
+
+function isGeometry(value) {
+  return !!value && typeof value === "object" && "geometry" in value;
+}
 
 /**
  * This class creates the input atom.
@@ -19,6 +24,9 @@ export default class Input extends Atom {
    */
   constructor(values) {
     super(values);
+
+    // Counts geometry unit conversions so a stale one can't overwrite a newer value
+    this.unitScaleRequest = 0;
 
     /**
      * This atom's name
@@ -356,6 +364,7 @@ export default class Input extends Atom {
 
     // Store the previous value to detect changes
     const previousValue = this.value;
+    const scaleRequest = ++this.unitScaleRequest;
 
     // This is called when the parent attachment point changes
     // We need to update the value of this input atom
@@ -425,6 +434,16 @@ export default class Input extends Atom {
         return;
       }
 
+      const factor = this.incomingScaleFactor();
+      if (
+        factor !== null &&
+        parentState.status === Status.READY &&
+        isGeometry(parentState.value)
+      ) {
+        this.scaleIncoming(parentState.value, factor, scaleRequest);
+        return;
+      }
+
       this.setStatus(parentState.status, parentState.value);
 
       // Update our internal value if status is READY
@@ -450,6 +469,35 @@ export default class Input extends Atom {
     ) {
       this.parent.propagateInputChange(this.name);
     }
+  }
+
+  /**
+   * The factor converting geometry wired into this input from outside to the
+   * units of the molecule it belongs to, or null if none applies. Only a
+   * GitHub molecule that scales its output to its host's units converts what
+   * comes in (by the inverse factor), so a shape passing through it keeps its
+   * real size.
+   */
+  incomingScaleFactor() {
+    const factor = this.parent?.getOutputScaleFactor?.();
+    return factor ? 1 / factor : null;
+  }
+
+  scaleIncoming(value, factor, request) {
+    this.setProcessing();
+    this.cad
+      .scale(value, factor, this.getContext())
+      .then((scaled) => {
+        if (request !== this.unitScaleRequest) return;
+        this.setReady(scaled);
+      })
+      .catch((err) => {
+        if (request !== this.unitScaleRequest) return;
+        const molecule = this.parent;
+        this.setError(
+          `Failed to convert from ${unitAbbreviation(molecule.getHostUnits())} to ${unitAbbreviation(molecule.unitsKey)}: ${err?.message || err}`,
+        );
+      });
   }
 
   /**

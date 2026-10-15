@@ -126,6 +126,17 @@ export default class GitHubMolecule extends Molecule {
   }
 
   /**
+   * Redo unit conversion after the scaling setting or the units around this
+   * molecule change: geometry wired in, then the output.
+   */
+  refreshUnitConversion() {
+    this.nodesOnTheScreen.forEach((atom) => {
+      if (atom.atomType === "Input" && atom.parentAP) atom.onUpstreamChange();
+    });
+    this.onUpstreamChange();
+  }
+
+  /**
    * Add a small unit badge when this molecule's units differ from the project's.
    */
   draw() {
@@ -257,17 +268,17 @@ export default class GitHubMolecule extends Molecule {
         type: "string",
         label: "Units",
         value: this.scaleToProjectUnits
-          ? `Inputs in ${source}; output scaled to ${host}`
+          ? `Number inputs in ${source}; geometry in and out converted to ${host}`
           : `Inputs and output in ${source}; project is ${host}`,
         disabled: true,
       };
       inputParams["Scale To Project Units"] = {
         type: "boolean",
-        label: `Scale output from ${unitAbbreviation(source)} to ${unitAbbreviation(host)}`,
+        label: `Convert geometry between ${unitAbbreviation(source)} and ${unitAbbreviation(host)}`,
         value: this.scaleToProjectUnits,
         onChange: (checked) => {
           this.scaleToProjectUnits = checked;
-          this.onUpstreamChange();
+          this.refreshUnitConversion();
         },
       };
     }
