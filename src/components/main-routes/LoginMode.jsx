@@ -203,7 +203,6 @@ const AddProject = ({
           style={{
             display: "flex",
             flexDirection: "column",
-            maxHeight: "100%",
             ...(projectToShow == "featured" ? { width: "50%" } : null),
           }}
         >
