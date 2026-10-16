@@ -1449,7 +1449,8 @@ const ShowProjects = ({
                   setPageNumber(pageNumber - 1);
                 }
               }}
-              className="page_back_button"
+              className="page_back_button login-button login-button-outline"
+              aria-label="Previous page"
             >
               {"\u2190"}
             </button>
@@ -1457,7 +1458,8 @@ const ShowProjects = ({
 
           {lastKey ? (
             <button
-              className="page_forward_button"
+              className="page_forward_button login-button login-button-outline"
+              aria-label="Next page"
               onClick={() => {
                 if (lastKey != "") {
                   setPageNumber(pageNumber + 1);
@@ -1896,24 +1898,23 @@ function LoginMode() {
             to={`/${GlobalVariables.currentAWSnode.owner}/${GlobalVariables.currentAWSnode.repoName}`}
           >
             <button
-              className="longButton"
+              className="longButton login-button login-button-primary"
               onClick={() => {
                 setExportPopUp(false);
               }}
             >
-              <img></img>
-              <span> Return to project</span>
+              Return to project
             </button>
           </Link>
         ) : null}
         {isAuthorized ? (
           <button
-            className="longButton"
+            className="longButton login-button login-button-outline"
             onClick={() => {
               logoutHandler();
             }}
           >
-            <span> Log out </span>
+            Log out
           </button>
         ) : null}
       </div>
