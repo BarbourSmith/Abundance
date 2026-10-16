@@ -13,10 +13,10 @@ import "../../styles/featured.css";
 const runPath = ({ owner, repoName }) => `/run/${owner}/${repoName}`;
 
 /**
- * The red heart and like score the project cards show (the feed's userRanking),
- * when the featured feed has the project.
+ * The red heart and like score the project cards show (userRanking), when the
+ * project record is known. Also used by the Liked tab's cards.
  */
-function Stats({ node }) {
+export function LikeScore({ node }) {
   if (!node) return null;
   const score = Math.round(Number(node.userRanking) || 0);
   return (
@@ -60,7 +60,7 @@ function Spotlight({ nodesByKey }) {
         {node?.description ? (
           <p className="featured-description">{node.description}</p>
         ) : null}
-        <Stats node={node} />
+        <LikeScore node={node} />
         <div className="featured-actions">
           <button
             type="button"
@@ -101,18 +101,35 @@ function thumbnailCandidates(item) {
   ];
 }
 
+/**
+ * A project thumbnail that tries thumbnailCandidates in turn, then shows
+ * `fallback` (or nothing, with onGone called) if none load.
+ */
+export function ProjectThumbnail({ item, fallback, onGone, className }) {
+  const candidates = useMemo(() => thumbnailCandidates(item), [item]);
+  const [attempt, setAttempt] = useState(0);
+  const src = attempt < candidates.length ? candidates[attempt] : fallback;
+  if (!src) return null;
+  return (
+    <img
+      className={className}
+      src={src}
+      alt=""
+      loading="lazy"
+      onError={() => {
+        if (attempt >= candidates.length) return; // the fallback failed too
+        if (attempt + 1 >= candidates.length && !fallback) onGone?.();
+        setAttempt(attempt + 1);
+      }}
+    />
+  );
+}
+
 /** One project on a shelf. Calls onGone if none of its thumbnails load. */
 function ShelfCard({ item, onGone }) {
   const navigate = useNavigate();
-  const candidates = useMemo(() => thumbnailCandidates(item), [item]);
-  const [attempt, setAttempt] = useState(0);
-  if (attempt >= candidates.length) return null;
-  const name = displayName(item.repoName);
-
-  const tryNext = () => {
-    if (attempt + 1 >= candidates.length) onGone();
-    setAttempt(attempt + 1);
-  };
+  const [gone, setGone] = useState(false);
+  if (gone) return null;
 
   return (
     <li>
@@ -121,15 +138,16 @@ function ShelfCard({ item, onGone }) {
         className="featured-card"
         onClick={() => navigate(runPath(item))}
       >
-        <img
-          src={candidates[attempt]}
-          alt=""
-          loading="lazy"
-          onError={tryNext}
+        <ProjectThumbnail
+          item={item}
+          onGone={() => {
+            setGone(true);
+            onGone();
+          }}
         />
-        <span className="featured-card-name">{name}</span>
+        <span className="featured-card-name">{displayName(item.repoName)}</span>
         <span className="featured-card-owner">{item.owner}</span>
-        <Stats node={item.node} />
+        <LikeScore node={item.node} />
       </button>
     </li>
   );
