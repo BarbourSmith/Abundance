@@ -53,16 +53,18 @@ describe("Featured shelves", () => {
     expect(names(shelf(shelves, "outdoors"))).toContain("Garden-Shed");
   });
 
-  it("leaves out feed projects without a thumbnail, placeholders and unmatched ones", () => {
+  it("leaves out feed projects without a thumbnail or placeholders, and keeps unmatched ones off themed shelves", () => {
     const shelves = buildShelves([
       project("No-Picture-Chair", { topics: ["furniture"], pngURL: null }),
       project("Test-Chair", { topics: ["furniture"] }),
+      project("Test_Colab", { userRanking: 5 }),
       project("Mystery-Thing"),
     ]);
-    const all = shelves.flatMap(names);
-    expect(all).not.toContain("No-Picture-Chair");
-    expect(all).not.toContain("Test-Chair");
-    expect(all).not.toContain("Mystery-Thing");
+    const themed = shelves.filter((s) => s.id !== "popular").flatMap(names);
+    expect(shelves.flatMap(names)).not.toContain("No-Picture-Chair");
+    expect(shelves.flatMap(names)).not.toContain("Test-Chair");
+    expect(shelves.flatMap(names)).not.toContain("Test_Colab");
+    expect(themed).not.toContain("Mystery-Thing");
   });
 
   it("attaches feed data to a hand-picked project and doesn't repeat it", () => {
@@ -78,6 +80,33 @@ describe("Featured shelves", () => {
     );
     expect(matches).toHaveLength(1);
     expect(matches[0].node).toBe(node);
+  });
+
+  it("puts popular projects that fit no theme on the last shelf", () => {
+    const shelves = buildShelves([
+      project("Mystery-Thing", { userRanking: 1 }),
+      project("Spinny-wheel", { userRanking: 9 }),
+      project("Garden-Shed", { topics: ["outdoor"], userRanking: 20 }),
+    ]);
+    const popular = shelves[shelves.length - 1];
+    expect(popular.id).toBe("popular");
+    expect(names(popular)).toEqual(["Spinny-wheel", "Mystery-Thing"]);
+  });
+
+  it("hides the popular shelf when nothing is left for it", () => {
+    expect(buildShelves([]).map((s) => s.id)).not.toContain("popular");
+  });
+
+  it("shows each design once, skipping copies by other makers", () => {
+    const shelves = buildShelves([
+      project("Laundry-Shelf", { owner: "anna", userRanking: 3 }),
+      project("Laundry-Shelf", { owner: "barbour", userRanking: 2 }),
+      project("Laundry-Shelf-copy", { owner: "someone", userRanking: 1 }),
+    ]);
+    const all = shelves.flatMap((s) => s.items);
+    const shelfCopies = all.filter((i) => /laundry/i.test(i.repoName));
+    expect(shelfCopies).toHaveLength(1);
+    expect(shelfCopies[0].owner).toBe("anna");
   });
 
   it("caps each shelf", () => {

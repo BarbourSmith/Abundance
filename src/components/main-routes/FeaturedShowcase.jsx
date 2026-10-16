@@ -82,14 +82,37 @@ function Spotlight({ nodesByKey }) {
   );
 }
 
-/** One project on a shelf. Hidden if its thumbnail can't load. */
-function ShelfCard({ item }) {
+/**
+ * Image addresses to try for a project's thumbnail, in order. Many feed records
+ * still point at a "master" branch that no longer exists, so the current
+ * branch's project.png and the older project.svg are tried too.
+ */
+function thumbnailCandidates(item) {
+  const main = `https://raw.githubusercontent.com/${item.owner}/${item.repoName}/main`;
+  return [
+    ...new Set(
+      [
+        item.node?.pngURL,
+        featuredImageUrl(item),
+        item.node?.svgURL,
+        `${main}/project.svg`,
+      ].filter(Boolean),
+    ),
+  ];
+}
+
+/** One project on a shelf. Calls onGone if none of its thumbnails load. */
+function ShelfCard({ item, onGone }) {
   const navigate = useNavigate();
-  const [broken, setBroken] = useState(false);
-  if (broken) return null;
+  const candidates = useMemo(() => thumbnailCandidates(item), [item]);
+  const [attempt, setAttempt] = useState(0);
+  if (attempt >= candidates.length) return null;
   const name = displayName(item.repoName);
-  const image =
-    item.node?.pngURL || item.node?.svgURL || featuredImageUrl(item);
+
+  const tryNext = () => {
+    if (attempt + 1 >= candidates.length) onGone();
+    setAttempt(attempt + 1);
+  };
 
   return (
     <li>
@@ -99,16 +122,39 @@ function ShelfCard({ item }) {
         onClick={() => navigate(runPath(item))}
       >
         <img
-          src={image}
+          src={candidates[attempt]}
           alt=""
           loading="lazy"
-          onError={() => setBroken(true)}
+          onError={tryNext}
         />
         <span className="featured-card-name">{name}</span>
         <span className="featured-card-owner">{item.owner}</span>
         <Stats node={item.node} />
       </button>
     </li>
+  );
+}
+
+/** A themed row of projects. Hidden once none of its cards can show. */
+function Shelf({ shelf }) {
+  const [gone, setGone] = useState(() => new Set());
+  if (gone.size >= shelf.items.length) return null;
+  return (
+    <section className="featured-shelf" aria-labelledby={`shelf-${shelf.id}`}>
+      <h3 id={`shelf-${shelf.id}`}>{shelf.title}</h3>
+      <ul className="featured-shelf-row">
+        {shelf.items.map((item) => {
+          const key = `${item.owner}/${item.repoName}`;
+          return (
+            <ShelfCard
+              key={key}
+              item={item}
+              onGone={() => setGone((prev) => new Set(prev).add(key))}
+            />
+          );
+        })}
+      </ul>
+    </section>
   );
 }
 
@@ -130,18 +176,7 @@ export default function FeaturedShowcase({ featured }) {
     <div className="featured-showcase">
       <Spotlight nodesByKey={nodesByKey} />
       {shelves.map((shelf) => (
-        <section
-          key={shelf.id}
-          className="featured-shelf"
-          aria-labelledby={`shelf-${shelf.id}`}
-        >
-          <h3 id={`shelf-${shelf.id}`}>{shelf.title}</h3>
-          <ul className="featured-shelf-row">
-            {shelf.items.map((item) => (
-              <ShelfCard key={`${item.owner}/${item.repoName}`} item={item} />
-            ))}
-          </ul>
-        </section>
+        <Shelf key={shelf.id} shelf={shelf} />
       ))}
     </div>
   );

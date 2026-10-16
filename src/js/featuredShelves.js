@@ -133,6 +133,9 @@ export const FEATURED_SHELVES = [
   },
 ];
 
+/** The last shelf: popular feed projects that didn't fit a themed one. */
+export const POPULAR_SHELF = { id: "popular", title: "More popular projects" };
+
 /** The most projects a shelf shows. */
 export const SHELF_SIZE = 12;
 
@@ -140,6 +143,16 @@ export const SHELF_SIZE = 12;
 const NOT_A_DESIGN = /\b(test|hello[ _-]?world|please ignore)\b/i;
 
 const keyOf = ({ owner, repoName }) => `${owner}/${repoName}`;
+
+/**
+ * A design's name for spotting copies: "Laundry-Shelf" by two makers, or
+ * "CurvedSupportBookshelf-copy", count as one design.
+ */
+const designOf = ({ repoName }) =>
+  repoName
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "")
+    .replace(/copy\d*$/, "");
 
 /** Lowercase words describing a project, for matching a shelf's keywords. */
 function projectWords(node) {
@@ -161,8 +174,10 @@ const popularity = (node) => Number(node.userRanking) || 0;
 
 /**
  * The shelves to show: each shelf's hand-picked projects, then feed projects
- * that match its keywords, most popular first. A project appears on one shelf
- * only, and feed projects without a thumbnail are left out.
+ * that match its keywords, most popular first, then a last shelf of popular
+ * feed projects that matched none. A design appears once (copies of it under
+ * other makers or named "-copy" are skipped), feed projects without a
+ * thumbnail are left out, and empty shelves are dropped.
  *
  * @param {object[]} featuredNodes - Projects from the featured feed
  * @returns {{id, title, items: {owner, repoName, node?}[]}[]}
@@ -170,9 +185,14 @@ const popularity = (node) => Number(node.userRanking) || 0;
 export function buildShelves(featuredNodes = []) {
   const byKey = new Map(featuredNodes.map((node) => [keyOf(node), node]));
   const placed = new Set();
+  const placedDesigns = new Set();
+  const place = (project) => {
+    placed.add(keyOf(project));
+    placedDesigns.add(designOf(project));
+  };
   const shelves = FEATURED_SHELVES.map((shelf) => {
     const items = shelf.projects.map((project) => {
-      placed.add(keyOf(project));
+      place(project);
       return { ...project, node: byKey.get(keyOf(project)) };
     });
     return { ...shelf, items };
@@ -183,7 +203,10 @@ export function buildShelves(featuredNodes = []) {
       (node) =>
         (node.pngURL || node.svgURL) &&
         !placed.has(keyOf(node)) &&
-        !NOT_A_DESIGN.test(`${node.repoName} ${node.description || ""}`),
+        // "_" and "-" separate words in repository names ("Test_Colab")
+        !NOT_A_DESIGN.test(
+          `${node.repoName} ${node.description || ""}`.replace(/[_-]+/g, " "),
+        ),
     )
     .sort((a, b) => popularity(b) - popularity(a));
 
@@ -193,15 +216,26 @@ export function buildShelves(featuredNodes = []) {
       (s) =>
         s.items.length < SHELF_SIZE && s.keywords.some((k) => words.has(k)),
     );
-    if (!shelf) continue;
+    if (!shelf || placedDesigns.has(designOf(node))) continue;
     shelf.items.push({ owner: node.owner, repoName: node.repoName, node });
-    placed.add(keyOf(node));
+    place(node);
   }
-  return shelves.map(({ id, title, items }) => ({
-    id,
-    title,
-    items: items.slice(0, SHELF_SIZE),
-  }));
+
+  const popular = [];
+  for (const node of candidates) {
+    if (popular.length >= SHELF_SIZE) break;
+    if (placed.has(keyOf(node)) || placedDesigns.has(designOf(node))) continue;
+    popular.push({ owner: node.owner, repoName: node.repoName, node });
+    place(node);
+  }
+
+  return [...shelves, { ...POPULAR_SHELF, items: popular }]
+    .map(({ id, title, items }) => ({
+      id,
+      title,
+      items: items.slice(0, SHELF_SIZE),
+    }))
+    .filter((shelf) => shelf.items.length > 0);
 }
 
 /** Projects that can be the spotlight: the ones with a 3D model. */
