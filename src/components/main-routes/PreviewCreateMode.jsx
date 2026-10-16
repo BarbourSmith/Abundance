@@ -2,7 +2,6 @@ import React, { useEffect, useState, useRef } from "react";
 import GlobalVariables from "../../js/globalvariables.js";
 import Molecule from "../../molecules/molecule.js";
 import ChangeMode from "../secondary/ChangeMode.jsx";
-import { AgentButton } from "../secondary/AgentBridge.jsx";
 import FlowCanvas from "./flowCanvas.jsx";
 import LowerHalf from "./lowerHalf.jsx";
 import CodeWindow from "../secondary/codeWindow.jsx";
@@ -309,11 +308,6 @@ function PreviewCreateMode() {
           },
         ]}
         setIsReturningFromMode={setIsReturningFromMode}
-      />
-      {/* Under the Back to Run Mode button */}
-      <AgentButton
-        size={38}
-        style={{ right: "5vh", top: "calc(49% + 82px)" }}
       />
       <CodeWindow {...{ activeAtom }} />
       {!GlobalVariables.currentMolecule?.topLevel ? <GoUpLevelButton /> : null}
