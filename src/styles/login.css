@@ -640,12 +640,60 @@
 .longButton {
   position: relative;
   float: right;
-  height: 2em;
-  background-color: var(--settingsPopup-closeButton);
   margin: 10px;
-  border-radius: 5px;
-  color: var(--settingsPopup-text);
+}
+
+/* Buttons styled like the landing page's (landing.css) */
+.login-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-family: "Work Sans", system-ui, sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.2;
   cursor: pointer;
+}
+
+.login-button-primary {
+  border: 1.5px solid #8d4bb0;
+  background: #8d4bb0;
+  color: #ffffff;
+}
+
+.login-button-dark {
+  border: 1.5px solid var(--abundance-color-darkGrey);
+  background: var(--abundance-color-darkGrey);
+  color: #ffffff;
+}
+
+.login-button-outline {
+  border: 1.5px solid #8d4bb0;
+  background: transparent;
+  color: #6e3d8c;
+}
+
+.login-button:hover {
+  filter: brightness(1.08);
+}
+
+.login-button-outline:hover {
+  background: rgba(141, 75, 176, 0.08);
+}
+
+.login-button:focus-visible {
+  outline: 2px solid #8d4bb0;
+  outline-offset: 2px;
+}
+
+.page_back_button,
+.page_forward_button {
+  min-width: 44px;
+  margin: 0 4px;
+  font-size: 18px;
 }
 
 .container {
