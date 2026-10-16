@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef, use } from "react";
 import GlobalVariables from "../../js/globalvariables.js";
 import ChangeMode from "../secondary/ChangeMode.jsx";
+import { AgentButton } from "../secondary/AgentBridge.jsx";
 import TopMenu from "../secondary/TopMenu.jsx";
 import FlowCanvas from "./flowCanvas.jsx";
 import LowerHalf from "./lowerHalf.jsx";
@@ -818,6 +819,11 @@ function CreateMode() {
               iconRotation: -90,
             },
           ]}
+        />
+        {/* Under the Run Mode button, as in run mode's button column */}
+        <AgentButton
+          size={38}
+          style={{ right: "calc(1vw + 7px)", top: "calc(49% + 48px)" }}
         />
         {shortCutsOn ? (
           <div id="shortcutDiv" className="noselect">
