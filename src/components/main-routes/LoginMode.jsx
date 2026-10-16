@@ -27,7 +27,7 @@ import DropdownSectionDisplay from "./DropdownSectionDisplay.jsx";
 import FAQDisplay from "./FAQDisplay.jsx";
 import PRNotificationIcon from "../secondary/PRNotificationIcon.jsx";
 import InitialLog from "./InitialLog.jsx";
-import { useRotatingFeaturedImage } from "../../hooks/useRotatingFeaturedImage.js";
+import FeaturedShowcase from "./FeaturedShowcase.jsx";
 import {
   getThumbnailUrl,
   markImageFailed,
@@ -118,6 +118,17 @@ const AddProject = ({
     });
   }
 
+  // Featured: a spotlight and themed shelves instead of the sortable list
+  if (projectToShow === "featured") {
+    return (
+      <div className="projects-and-filters-container">
+        <div className="project-items-wrapper">
+          <FeaturedShowcase featured={nodes} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
       <div
@@ -191,13 +202,7 @@ const AddProject = ({
           <PRNotificationIcon allProjects={nodes} />
         )}
       </div>
-      <div
-        className="projects-and-filters-container"
-        style={
-          projectToShow == "featured" ? { flexDirection: "row" } : undefined
-        }
-      >
-        {projectToShow == "featured" ? <FeaturedCarousel /> : null}
+      <div className="projects-and-filters-container">
         <div
           className="project-items-wrapper"
           style={{
@@ -255,105 +260,6 @@ const AddProject = ({
         </div>
       </div>
     </>
-  );
-};
-
-const FeaturedCarousel = () => {
-  const { imageUrl, loading, project } = useRotatingFeaturedImage(5000);
-  const navigate = useNavigate();
-
-  const handleCarouselClick = () => {
-    if (project) {
-      navigate(`/run/${project.owner}/${project.repoName}`);
-    }
-  };
-
-  return (
-    <div
-      id="featured-carousel"
-      style={{
-        width: "48%",
-        margin: "2%",
-        padding: "0px",
-        display: "flex",
-        maxHeight: "60vh",
-
-        justifyContent: "center",
-      }}
-    >
-      <div
-        onClick={handleCarouselClick}
-        style={{
-          width: "90%",
-          backgroundColor: "var(--abundance-color-hightlightOffWhite)",
-          padding: "20px",
-          borderRadius: "8px",
-          border: "1px solid #ccc",
-          boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
-          cursor: project ? "pointer" : "default",
-        }}
-      >
-        {loading ? (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              height: "30vh",
-              maxHeight: "30vh",
-              color: "#999",
-            }}
-          >
-            Loading...
-          </div>
-        ) : imageUrl ? (
-          <img
-            src={imageUrl}
-            alt={
-              project
-                ? `${project.owner}/${project.repoName}`
-                : "featured project"
-            }
-            style={{
-              width: "100%",
-              height: "auto",
-              maxHeight: "50vh",
-              borderRadius: "8px",
-              objectFit: "contain",
-            }}
-            onError={(e) => {
-              e.currentTarget.src =
-                import.meta.env.VITE_APP_PATH_FOR_PICS +
-                "/imgs/rotate_feature.png";
-            }}
-          />
-        ) : (
-          <img
-            src={
-              import.meta.env.VITE_APP_PATH_FOR_PICS +
-              "/imgs/rotate_feature.png"
-            }
-            alt="rotate feature"
-            style={{ width: "100%", maxHeight: "50vh", borderRadius: "8px" }}
-          />
-        )}
-        <p
-          style={{
-            fontSize: "13px",
-            marginTop: "10px",
-            textAlign: "center",
-            color: "#999",
-          }}
-        >
-          <a
-            href={`https://abundance.maslowcnc.com/run/${project ? `${project.owner}/${project.repoName}` : ""}`}
-            style={{ color: "#999", textDecoration: "none" }}
-          >
-            {project ? `${project.owner} / ${project.repoName}` : "unknown"}
-          </a>
-        </p>
-      </div>
-    </div>
   );
 };
 
