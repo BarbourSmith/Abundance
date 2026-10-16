@@ -18,7 +18,7 @@ The browser tab connects out to the bridge. The website never accepts connection
    npm run bridge:token
    ```
 
-4. Open Abundance in Chrome or Firefox and open **Connect an AI agent**. In run mode it's the sparkle button in the column on the right. In the editor it's **AI Agent** in the menu. You can also add `#agent` to the end of any Abundance address. The same settings are in Developer Settings (Ctrl+Shift+D, or Cmd+Shift+D on a Mac).
+4. Open Abundance in Chrome or Firefox and open **Connect an AI agent**. In run mode it's the sparkle button in the column on the right. In the editor it's the sparkle button under the Run Mode button, or **AI Agent** in the menu. You can also add `#agent` to the end of any Abundance address. The same settings are in Developer Settings (Ctrl+Shift+D, or Cmd+Shift+D on a Mac).
 5. Paste the token, check the port, and turn on **Connect local AI agent**.
 
 A chip at the top of the window shows the connection. The agent starts read-only. Tick **Allow edits** in the chip to let it change the project. Edit permission resets to read-only whenever the page reloads.
