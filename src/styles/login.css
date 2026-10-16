@@ -46,10 +46,12 @@
 .right-login-div {
   display: flex;
   flex-direction: column;
+  box-sizing: border-box;
+  /* Stretches to the height left in .login-content-div, padding included */
+  min-height: 0;
   padding: 2%;
   margin: 5% 5% 0 5%;
   width: 95%;
-  height: 100%;
 }
 .login-nav-item {
   padding: 5px;
@@ -1202,7 +1204,6 @@
   .right-login-div {
     margin: 2% 0% 0 0;
     width: 80%;
-    height: 100%;
   }
   #sorting-button-div {
     display: flex;
@@ -1463,17 +1464,20 @@
   max-width: 140px;
 }
 
+/* Takes the height left under the header, search and sorting rows, so the
+   list scrolls to its end (and the paging buttons) on any screen size */
 .projects-and-filters-container {
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-height: 0;
   width: 100%;
-  height: 100%;
 }
 
 .project-items-wrapper {
   flex: 1;
   min-width: 0;
-  max-height: calc(100% - 200px);
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
 }
