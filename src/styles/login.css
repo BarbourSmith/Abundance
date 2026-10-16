@@ -662,6 +662,12 @@
   color: #ffffff;
 }
 
+.login-button-dark {
+  border: 1.5px solid var(--abundance-color-darkGrey);
+  background: var(--abundance-color-darkGrey);
+  color: #ffffff;
+}
+
 .login-button-outline {
   border: 1.5px solid #8d4bb0;
   background: transparent;

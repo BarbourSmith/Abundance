@@ -1909,7 +1909,7 @@ function LoginMode() {
         ) : null}
         {isAuthorized ? (
           <button
-            className="longButton login-button login-button-outline"
+            className="longButton login-button login-button-dark"
             onClick={() => {
               logoutHandler();
             }}
