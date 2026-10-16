@@ -5,7 +5,7 @@ import { FEATURED_MODELS } from "./featuredModels.js";
  * (all with a project.png) so the shelves look full while the community is
  * small. Projects from the featured feed that fit a shelf's theme are added
  * after them, most liked first, so the shelves fill in as people make and like
- * more. Trim the hand-picked lists once the feed carries enough on its own.
+ * more. The full rules are in docs/featured-projects.md.
  */
 export const FEATURED_SHELVES = [
   {
@@ -156,7 +156,8 @@ function projectWords(node) {
   );
 }
 
-const popularity = (node) => (node.likes || 0) + (node.forks || 0);
+// The feed's like score (likes and forks), which "Most Liked" sorts by too
+const popularity = (node) => Number(node.userRanking) || 0;
 
 /**
  * The shelves to show: each shelf's hand-picked projects, then feed projects

@@ -18,8 +18,7 @@ const project = (repoName, extra = {}) => ({
   owner: "maker",
   repoName,
   pngURL: `https://example.com/${repoName}.png`,
-  likes: 0,
-  forks: 0,
+  userRanking: 0,
   topics: [],
   ...extra,
 });
@@ -42,11 +41,10 @@ describe("Featured shelves", () => {
 
   it("adds feed projects to the shelf whose theme they match, most popular first", () => {
     const shelves = buildShelves([
-      project("Quiet-Stool", { topics: ["furniture"], likes: 1 }),
+      project("Quiet-Stool", { topics: ["furniture"], userRanking: 2 }),
       project("Popular-Desk", {
         description: "A standing desk",
-        likes: 5,
-        forks: 2,
+        userRanking: 10.4,
       }),
       project("Garden-Shed", { topics: ["outdoor"] }),
     ]);
@@ -72,7 +70,7 @@ describe("Featured shelves", () => {
     const node = project(picked.repoName, {
       owner: picked.owner,
       topics: ["furniture"],
-      likes: 9,
+      userRanking: 9,
     });
     const furniture = shelf(buildShelves([node]), "furniture");
     const matches = furniture.items.filter(

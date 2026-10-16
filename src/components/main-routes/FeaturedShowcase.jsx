@@ -12,13 +12,26 @@ import "../../styles/featured.css";
 
 const runPath = ({ owner, repoName }) => `/run/${owner}/${repoName}`;
 
-/** A project's likes and forks, when the featured feed has them. */
+/**
+ * The red heart and like score the project cards show (the feed's userRanking),
+ * when the featured feed has the project.
+ */
 function Stats({ node }) {
   if (!node) return null;
+  const score = Math.round(Number(node.userRanking) || 0);
   return (
-    <span className="featured-stats">
-      {node.likes || 0} {node.likes === 1 ? "like" : "likes"} ·{" "}
-      {node.forks || 0} {node.forks === 1 ? "fork" : "forks"}
+    <span className="featured-stats" title="Likes">
+      <svg
+        className="featured-heart"
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        aria-hidden="true"
+      >
+        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+      </svg>
+      <span className="featured-sr-only">Likes: </span>
+      {score}
     </span>
   );
 }
