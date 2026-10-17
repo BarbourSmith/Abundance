@@ -30,6 +30,21 @@
   object-fit: contain;
 }
 
+/* Getting started tab: a user guide clip in the spotlight panel */
+.getting-started-clip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 300px;
+}
+
+.getting-started-clip img {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 10px;
+  object-fit: contain;
+}
+
 .featured-eyebrow {
   margin: 0 0 4px;
   font-size: 13px;
@@ -214,7 +229,8 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .featured-spotlight-model {
+  .featured-spotlight-model,
+  .getting-started-clip {
     height: 220px;
   }
 

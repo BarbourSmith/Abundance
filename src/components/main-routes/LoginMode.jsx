@@ -23,7 +23,7 @@ import {
   convertToDisplayName,
   convertToGithubName,
 } from "../../js/projectNameUtils.js";
-import DropdownSectionDisplay from "./DropdownSectionDisplay.jsx";
+import GettingStartedShowcase from "./GettingStartedShowcase.jsx";
 import FAQDisplay from "./FAQDisplay.jsx";
 import PRNotificationIcon from "../secondary/PRNotificationIcon.jsx";
 import InitialLog from "./InitialLog.jsx";
@@ -1030,6 +1030,8 @@ const getYouTubeThumbnail = (youtubeUrl) => {
     videoId = youtubeUrl.split("/embed/")[1];
   } else if (youtubeUrl.includes("watch?v=")) {
     videoId = youtubeUrl.split("watch?v=")[1];
+  } else if (youtubeUrl.includes("youtu.be/")) {
+    videoId = youtubeUrl.split("youtu.be/")[1].split("?")[0];
   }
   // Return high quality thumbnail, falls back to default if not available
   return videoId ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg` : "";
@@ -1439,40 +1441,6 @@ const ShowProjects = ({
       label: "Getting Started",
       sections: [
         {
-          label: "User Resources",
-          value: [
-            {
-              label: "User Guide",
-              value: "userGuide",
-              thumbnail:
-                "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='bookGradient' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%23be3fe5;stop-opacity:1' /%3E%3Cstop offset='100%25' style='stop-color:%23c4a3d5;stop-opacity:1' /%3E%3C/linearGradient%3E%3ClinearGradient id='bookShine' x1='0%25' y1='0%25' x2='100%25' y2='0%25'%3E%3Cstop offset='0%25' style='stop-color:%23ffffff;stop-opacity:0.4' /%3E%3Cstop offset='100%25' style='stop-color:%23ffffff;stop-opacity:0' /%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='100' height='100' fill='%23f8f3fb'/%3E%3Cpath d='M 25 18 Q 22 18 22 21 L 22 79 Q 22 82 25 82 L 50 82 Q 52 82 52 80 L 52 20 Q 52 18 50 18 Z' fill='url(%23bookGradient)'/%3E%3Cpath d='M 50 20 Q 48 18 50 18 L 75 18 Q 78 18 78 21 L 78 79 Q 78 82 75 82 L 50 82 Q 52 82 52 80 L 52 20 Z' fill='url(%23bookGradient)' opacity='0.85'/%3E%3Cline x1='50' y1='18' x2='50' y2='82' stroke='%23fff' stroke-width='2' opacity='0.5'/%3E%3Cline x1='30' y1='35' x2='45' y2='35' stroke='%23fff' stroke-width='1.5' opacity='0.7'/%3E%3Cline x1='30' y1='46' x2='45' y2='46' stroke='%23fff' stroke-width='1.5' opacity='0.7'/%3E%3Cline x1='30' y1='57' x2='42' y2='57' stroke='%23fff' stroke-width='1.5' opacity='0.7'/%3E%3Cline x1='55' y1='35' x2='70' y2='35' stroke='%23fff' stroke-width='1.5' opacity='0.7'/%3E%3Cline x1='55' y1='46' x2='70' y2='46' stroke='%23fff' stroke-width='1.5' opacity='0.7'/%3E%3Cline x1='55' y1='57' x2='68' y2='57' stroke='%23fff' stroke-width='1.5' opacity='0.7'/%3E%3Crect x='25' y='18' width='25' height='64' fill='url(%23bookShine)' rx='2'/%3E%3C/svg%3E",
-              onClick: () => {
-                window.open("/user-guide", "_blank");
-              },
-            },
-            {
-              label: "FAQ",
-              value: "faq",
-              thumbnail:
-                "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Cdefs%3E%3CradialGradient id='qGradient' cx='40%25' cy='40%25' r='60%25'%3E%3Cstop offset='0%25' style='stop-color:%23be3fe5;stop-opacity:1' /%3E%3Cstop offset='100%25' style='stop-color:%23a855b8;stop-opacity:1' /%3E%3C/radialGradient%3E%3CradialGradient id='qShine' cx='35%25' cy='35%25' r='50%25'%3E%3Cstop offset='0%25' style='stop-color:%23ffffff;stop-opacity:0.6' /%3E%3Cstop offset='100%25' style='stop-color:%23ffffff;stop-opacity:0' /%3E%3C/radialGradient%3E%3C/defs%3E%3Crect width='100' height='100' fill='%23f8f3fb'/%3E%3Ccircle cx='50' cy='50' r='38' fill='url(%23qGradient)'/%3E%3Ccircle cx='50' cy='50' r='36' fill='none' stroke='%23c4a3d5' stroke-width='2.5' opacity='0.6'/%3E%3Ccircle cx='50' cy='50' r='30' fill='url(%23qShine)' opacity='0.5'/%3E%3Ctext x='50' y='58' font-size='48' font-weight='bold' fill='%23fff' text-anchor='middle' dominant-baseline='central' font-family='Arial'%3E?%3C/text%3E%3C/svg%3E",
-              onClick: () => {
-                setProjectsToShow("faq");
-              },
-            },
-            {
-              label: "Maslow Forums",
-              thumbnail:
-                "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='chatGradient1' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%23c4a3d5;stop-opacity:1' /%3E%3Cstop offset='100%25' style='stop-color:%23be3fe5;stop-opacity:1' /%3E%3C/linearGradient%3E%3ClinearGradient id='chatGradient2' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%23be3fe5;stop-opacity:0.9' /%3E%3Cstop offset='100%25' style='stop-color:%23a855b8;stop-opacity:1' /%3E%3C/linearGradient%3E%3CfilterEffect id='shadow' x='-50%25' y='-50%25' width='200%25' height='200%25'%3E%3CfeDropShadow dx='1' dy='1' stdDeviation='2' flood-opacity='0.3'/%3E%3C/filterEffect%3E%3C/defs%3E%3Crect width='100' height='100' fill='%23f8f3fb'/%3E%3Cpath d='M 15 28 Q 15 20 23 20 L 50 20 Q 58 20 58 28 L 58 48 Q 58 56 50 56 L 32 56 L 26 66 L 32 56 L 25 56 Q 15 56 15 48 Z' fill='url(%23chatGradient1)' filter='url(%23shadow)'/%3E%3Cpath d='M 48 62 Q 48 55 55 55 L 78 55 Q 85 55 85 62 L 85 70 Q 85 77 78 77 L 68 77 L 63 85 L 68 77 L 60 77 Q 52 77 52 70' fill='url(%23chatGradient2)' filter='url(%23shadow)'/%3E%3Ccircle cx='28' cy='36' r='2.5' fill='%23fff' opacity='0.8'/%3E%3Ccircle cx='38' cy='36' r='2.5' fill='%23fff' opacity='0.8'/%3E%3Ccircle cx='48' cy='36' r='2.5' fill='%23fff' opacity='0.8'/%3E%3C/svg%3E",
-              onClick: () => {
-                window.open(
-                  "https://forums.maslowcnc.com/c/software-issues/abundance/41",
-                  "_blank",
-                );
-              },
-            },
-          ],
-        },
-        {
           label: "Tutorials",
           value: [
             {
@@ -1562,44 +1530,78 @@ const ShowProjects = ({
               ),
             },
             {
-              label: "Abundance - TAGS/EXTRACT TAG",
+              label: "Tags and Extract Tag",
               url: "https://www.youtube.com/watch?v=AwGbaCevFKc",
               thumbnail: getYouTubeThumbnail(
                 "https://www.youtube.com/watch?v=AwGbaCevFKc",
               ),
             },
             {
-              label: "Abundance- ASSEMBLIES AND FUSIONS",
+              label: "Assemblies and fusions",
               url: "https://www.youtube.com/watch?v=WU1Ou8ps9Bs",
               thumbnail: getYouTubeThumbnail(
                 "https://www.youtube.com/watch?v=WU1Ou8ps9Bs",
               ),
             },
             {
-              label: "Abundance - Github Molecules",
+              label: "GitHub molecules",
               url: "https://www.youtube.com/watch?v=HSGGM8ijP5I",
               thumbnail: getYouTubeThumbnail(
                 "https://www.youtube.com/watch?v=HSGGM8ijP5I",
               ),
             },
             {
-              label: "Abundance - Inputs",
+              label: "Inputs",
               url: "https://youtu.be/exlEQ5dIfHI",
               thumbnail: getYouTubeThumbnail("https://youtu.be/exlEQ5dIfHI"),
             },
             {
-              label: "Extruded Ellipse with the Code atom",
+              label: "An extruded ellipse with the Code atom",
               url: "https://www.youtube.com/watch?v=z9ti5OeI9TM",
               thumbnail: getYouTubeThumbnail(
                 "https://www.youtube.com/watch?v=z9ti5OeI9TM",
               ),
             },
             {
-              label: "Abundance - Make a custom sign with an svg",
+              label: "Make a custom sign from an SVG",
               url: "https://www.youtube.com/watch?v=9R-l8GRrO2c",
               thumbnail: getYouTubeThumbnail(
                 "https://www.youtube.com/watch?v=9R-l8GRrO2c",
               ),
+            },
+          ],
+        },
+        {
+          label: "Help and community",
+          value: [
+            {
+              label: "User Guide",
+              value: "userGuide",
+              thumbnail:
+                "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='bookGradient' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%23be3fe5;stop-opacity:1' /%3E%3Cstop offset='100%25' style='stop-color:%23c4a3d5;stop-opacity:1' /%3E%3C/linearGradient%3E%3ClinearGradient id='bookShine' x1='0%25' y1='0%25' x2='100%25' y2='0%25'%3E%3Cstop offset='0%25' style='stop-color:%23ffffff;stop-opacity:0.4' /%3E%3Cstop offset='100%25' style='stop-color:%23ffffff;stop-opacity:0' /%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='100' height='100' fill='%23f8f3fb'/%3E%3Cpath d='M 25 18 Q 22 18 22 21 L 22 79 Q 22 82 25 82 L 50 82 Q 52 82 52 80 L 52 20 Q 52 18 50 18 Z' fill='url(%23bookGradient)'/%3E%3Cpath d='M 50 20 Q 48 18 50 18 L 75 18 Q 78 18 78 21 L 78 79 Q 78 82 75 82 L 50 82 Q 52 82 52 80 L 52 20 Z' fill='url(%23bookGradient)' opacity='0.85'/%3E%3Cline x1='50' y1='18' x2='50' y2='82' stroke='%23fff' stroke-width='2' opacity='0.5'/%3E%3Cline x1='30' y1='35' x2='45' y2='35' stroke='%23fff' stroke-width='1.5' opacity='0.7'/%3E%3Cline x1='30' y1='46' x2='45' y2='46' stroke='%23fff' stroke-width='1.5' opacity='0.7'/%3E%3Cline x1='30' y1='57' x2='42' y2='57' stroke='%23fff' stroke-width='1.5' opacity='0.7'/%3E%3Cline x1='55' y1='35' x2='70' y2='35' stroke='%23fff' stroke-width='1.5' opacity='0.7'/%3E%3Cline x1='55' y1='46' x2='70' y2='46' stroke='%23fff' stroke-width='1.5' opacity='0.7'/%3E%3Cline x1='55' y1='57' x2='68' y2='57' stroke='%23fff' stroke-width='1.5' opacity='0.7'/%3E%3Crect x='25' y='18' width='25' height='64' fill='url(%23bookShine)' rx='2'/%3E%3C/svg%3E",
+              onClick: () => {
+                window.open("/user-guide", "_blank");
+              },
+            },
+            {
+              label: "FAQ",
+              value: "faq",
+              thumbnail:
+                "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Cdefs%3E%3CradialGradient id='qGradient' cx='40%25' cy='40%25' r='60%25'%3E%3Cstop offset='0%25' style='stop-color:%23be3fe5;stop-opacity:1' /%3E%3Cstop offset='100%25' style='stop-color:%23a855b8;stop-opacity:1' /%3E%3C/radialGradient%3E%3CradialGradient id='qShine' cx='35%25' cy='35%25' r='50%25'%3E%3Cstop offset='0%25' style='stop-color:%23ffffff;stop-opacity:0.6' /%3E%3Cstop offset='100%25' style='stop-color:%23ffffff;stop-opacity:0' /%3E%3C/radialGradient%3E%3C/defs%3E%3Crect width='100' height='100' fill='%23f8f3fb'/%3E%3Ccircle cx='50' cy='50' r='38' fill='url(%23qGradient)'/%3E%3Ccircle cx='50' cy='50' r='36' fill='none' stroke='%23c4a3d5' stroke-width='2.5' opacity='0.6'/%3E%3Ccircle cx='50' cy='50' r='30' fill='url(%23qShine)' opacity='0.5'/%3E%3Ctext x='50' y='58' font-size='48' font-weight='bold' fill='%23fff' text-anchor='middle' dominant-baseline='central' font-family='Arial'%3E?%3C/text%3E%3C/svg%3E",
+              onClick: () => {
+                setProjectsToShow("faq");
+              },
+            },
+            {
+              label: "Maslow Forums",
+              thumbnail:
+                "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='chatGradient1' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%23c4a3d5;stop-opacity:1' /%3E%3Cstop offset='100%25' style='stop-color:%23be3fe5;stop-opacity:1' /%3E%3C/linearGradient%3E%3ClinearGradient id='chatGradient2' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%23be3fe5;stop-opacity:0.9' /%3E%3Cstop offset='100%25' style='stop-color:%23a855b8;stop-opacity:1' /%3E%3C/linearGradient%3E%3CfilterEffect id='shadow' x='-50%25' y='-50%25' width='200%25' height='200%25'%3E%3CfeDropShadow dx='1' dy='1' stdDeviation='2' flood-opacity='0.3'/%3E%3C/filterEffect%3E%3C/defs%3E%3Crect width='100' height='100' fill='%23f8f3fb'/%3E%3Cpath d='M 15 28 Q 15 20 23 20 L 50 20 Q 58 20 58 28 L 58 48 Q 58 56 50 56 L 32 56 L 26 66 L 32 56 L 25 56 Q 15 56 15 48 Z' fill='url(%23chatGradient1)' filter='url(%23shadow)'/%3E%3Cpath d='M 48 62 Q 48 55 55 55 L 78 55 Q 85 55 85 62 L 85 70 Q 85 77 78 77 L 68 77 L 63 85 L 68 77 L 60 77 Q 52 77 52 70' fill='url(%23chatGradient2)' filter='url(%23shadow)'/%3E%3Ccircle cx='28' cy='36' r='2.5' fill='%23fff' opacity='0.8'/%3E%3Ccircle cx='38' cy='36' r='2.5' fill='%23fff' opacity='0.8'/%3E%3Ccircle cx='48' cy='36' r='2.5' fill='%23fff' opacity='0.8'/%3E%3C/svg%3E",
+              onClick: () => {
+                window.open(
+                  "https://forums.maslowcnc.com/c/software-issues/abundance/41",
+                  "_blank",
+                );
+              },
             },
           ],
         },
@@ -1622,7 +1624,8 @@ const ShowProjects = ({
             <hr width="100%" color="#D3D3D3" />
           </div>
 
-          {projectToShow !== "featured" ? (
+          {projectToShow !== "featured" &&
+          projectToShow !== "getting_started" ? (
             <div className="search-bar-div">
               {PageComponent}
               <input
@@ -1661,13 +1664,13 @@ const ShowProjects = ({
           ) : null}
           {showDict[projectToShow]["sections"] ? (
             <>
-              <DropdownSectionDisplay
-                fetchFirstOrCreateAndStartTutorial={
-                  fetchFirstOrCreateAndStartTutorial
-                }
-                authorizedUserOcto={authorizedUserOcto}
-                sections={showDict[projectToShow]["sections"]}
-              />
+              <div className="projects-and-filters-container">
+                <div className="project-items-wrapper">
+                  <GettingStartedShowcase
+                    sections={showDict[projectToShow]["sections"]}
+                  />
+                </div>
+              </div>
             </>
           ) : null}
           {showDict[projectToShow]["faq"] ? (
