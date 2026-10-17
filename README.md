@@ -8,13 +8,15 @@
 
 <h2 align="center">An Open Source tool for Open Source projects</h2>
 
+<!-- guide-only
 <table class="feature-row">
   <tr>
-    <td align="center" width="33%"><a class="feature-project" href="https://abundance.maslowcnc.com/run/MaslowCreate/Intro_Seat" target="_blank" rel="noopener"><img src="https://github.com/user-attachments/assets/adc67aca-6efb-4379-9101-7d53ed022d79" alt="Share parameterized projects" width="160" /></a><br /><a href="#run-mode">Share parameterized projects</a></td>
-    <td align="center" width="33%"><a class="feature-project" href="https://abundance.maslowcnc.com/MaslowCreate/ai_testing" target="_blank" rel="noopener"><img src="https://github.com/user-attachments/assets/4af0c0f2-2b09-4259-ab13-a847d9265576" alt="AI agent integration" width="160" /></a><br /><a href="#working-with-an-ai-agent">AI agent integration</a></td>
-    <td align="center" width="33%"><a class="feature-project" href="https://abundance.maslowcnc.com/run/MaslowCreate/Intro_Seat" target="_blank" rel="noopener"><img src="https://github.com/user-attachments/assets/6a70461f-f0a5-4de8-b485-da28f009d349" alt="Built in CAM" width="160" /></a><br /><a href="#gcode">Integrated CAM</a></td>
+    <td align="center" width="33%"><a class="feature-project" href="https://abundance.maslowcnc.com/run/MaslowCreate/Intro_Seat" target="_blank" rel="noopener"><video src="/videos/runmode_small.mp4" autoplay muted loop playsinline preload="metadata"></video></a><br /><a href="#run-mode">Share parameterized projects</a></td>
+    <td align="center" width="33%"><a class="feature-project" href="https://abundance.maslowcnc.com/MaslowCreate/ai_testing" target="_blank" rel="noopener"><video src="/videos/ai_small.mp4" autoplay muted loop playsinline preload="metadata"></video></a><br /><a href="#working-with-an-ai-agent">AI agent integration</a></td>
+    <td align="center" width="33%"><a class="feature-project" href="https://abundance.maslowcnc.com/run/MaslowCreate/Intro_Seat" target="_blank" rel="noopener"><video src="/videos/gcode_small.mp4" autoplay muted loop playsinline preload="metadata"></video></a><br /><a href="#gcode">Integrated CAM</a></td>
   </tr>
 </table>
+-->
 
 <div align="center">Abundance is a free-to-use free-to-share CAD tool where you own your projects.</div>
 <br />
