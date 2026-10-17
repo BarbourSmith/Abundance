@@ -1,8 +1,24 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { GUIDE_CLIPS } from "../../js/guideClips.js";
 import "../../styles/featured.css";
 
 const HERO_CLIP = GUIDE_CLIPS[0];
+
+// Below this width the editor, and so the tutorials, aren't usable
+const SMALL_SCREEN_QUERY = "(max-width: 768px)";
+
+function useSmallScreen() {
+  const [small, setSmall] = useState(
+    () => window.matchMedia(SMALL_SCREEN_QUERY).matches,
+  );
+  useEffect(() => {
+    const query = window.matchMedia(SMALL_SCREEN_QUERY);
+    const onChange = () => setSmall(query.matches);
+    query.addEventListener("change", onChange);
+    return () => query.removeEventListener("change", onChange);
+  }, []);
+  return small;
+}
 
 /** Every item of every section, for finding the hero's actions by value. */
 const findItem = (sections, value) =>
@@ -17,14 +33,17 @@ const openItem = (item) =>
 /**
  * The Getting started tab, styled like the Featured tab: a "Start here" panel
  * with the basics tutorial and user guide, then one shelf per section
- * (tutorials, videos, help).
+ * (tutorials, videos, help). On small screens, where the editor isn't usable,
+ * sections marked desktopOnly (the tutorials) and the tutorial button are left
+ * out.
  *
  * @param {{label: string, value: object[]}[]} sections - The tab's sections;
  *   items have a label, a thumbnail, and either a url or an onClick
  */
 export default function GettingStartedShowcase({ sections }) {
+  const small = useSmallScreen();
   if (!Array.isArray(sections)) return null;
-  const basics = findItem(sections, "gettingStarted");
+  const basics = small ? null : findItem(sections, "gettingStarted");
   const guide = findItem(sections, "userGuide");
 
   return (
@@ -37,8 +56,9 @@ export default function GettingStartedShowcase({ sections }) {
           <p className="featured-eyebrow">Start here</p>
           <h2>New to Abundance?</h2>
           <p className="featured-description">
-            Learn the canvas, build your first part and share it. Each tutorial
-            opens a small project and walks you through it step by step.
+            {small
+              ? "The tutorials run in the editor on a computer. Until then, the videos below show how Abundance works."
+              : "Learn the canvas, build your first part and share it. Each tutorial opens a small project and walks you through it step by step."}
           </p>
           <div className="featured-actions">
             {basics ? (
@@ -63,34 +83,38 @@ export default function GettingStartedShowcase({ sections }) {
         </div>
       </section>
 
-      {sections.map((section) => (
-        <section
-          key={section.label}
-          className="featured-shelf"
-          aria-label={section.label}
-        >
-          <h3>{section.label}</h3>
-          <ul className="featured-shelf-row">
-            {(section.value || []).map((item) => (
-              <li key={item.label}>
-                <button
-                  type="button"
-                  className="featured-card"
-                  onClick={() => openItem(item)}
-                >
-                  {item.thumbnail ? <img src={item.thumbnail} alt="" /> : null}
-                  <span className="featured-card-name">{item.label}</span>
-                  {item.url ? (
-                    <span className="featured-card-owner">
-                      Video on YouTube
-                    </span>
-                  ) : null}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ))}
+      {sections
+        .filter((section) => !(small && section.desktopOnly))
+        .map((section) => (
+          <section
+            key={section.label}
+            className="featured-shelf"
+            aria-label={section.label}
+          >
+            <h3>{section.label}</h3>
+            <ul className="featured-shelf-row">
+              {(section.value || []).map((item) => (
+                <li key={item.label}>
+                  <button
+                    type="button"
+                    className="featured-card"
+                    onClick={() => openItem(item)}
+                  >
+                    {item.thumbnail ? (
+                      <img src={item.thumbnail} alt="" />
+                    ) : null}
+                    <span className="featured-card-name">{item.label}</span>
+                    {item.url ? (
+                      <span className="featured-card-owner">
+                        Video on YouTube
+                      </span>
+                    ) : null}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
     </div>
   );
 }

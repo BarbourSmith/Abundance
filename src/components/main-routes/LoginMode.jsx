@@ -1446,6 +1446,8 @@ const ShowProjects = ({
       sections: [
         {
           label: "Tutorials",
+          // They run in the editor, which needs a larger screen
+          desktopOnly: true,
           value: [
             {
               label: "Canvas Basics",
@@ -1886,6 +1888,20 @@ function LoginMode() {
                 }}
               >
                 <p>New project</p>
+              </div>
+              <div
+                className={
+                  "login-nav-item" +
+                  (projectToShow == "getting_started"
+                    ? " login-nav-item-clicked"
+                    : "")
+                }
+                onClick={() => {
+                  setProjectsToShow("getting_started");
+                  document.getElementById("menu-toggle").checked = false;
+                }}
+              >
+                <p>Getting started</p>
               </div>
               <div
                 className={
