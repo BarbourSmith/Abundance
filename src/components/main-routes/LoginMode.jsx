@@ -24,6 +24,7 @@ import {
   convertToGithubName,
 } from "../../js/projectNameUtils.js";
 import GettingStartedShowcase from "./GettingStartedShowcase.jsx";
+import { TUTORIAL_THUMBNAILS } from "../../js/tutorialThumbnails.js";
 import FAQDisplay from "./FAQDisplay.jsx";
 import PRNotificationIcon from "../secondary/PRNotificationIcon.jsx";
 import InitialLog from "./InitialLog.jsx";
@@ -1446,8 +1447,7 @@ const ShowProjects = ({
             {
               label: "Canvas Basics",
               value: "canvasBasics",
-              thumbnail:
-                "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Cdefs%3E%3CradialGradient id='singleAtomGrad' cx='35%25' cy='35%25' r='50%25'%3E%3Cstop offset='0%25' style='stop-color:%23be3fe5;stop-opacity:1' /%3E%3Cstop offset='100%25' style='stop-color:%23a855b8;stop-opacity:1' /%3E%3C/radialGradient%3E%3C/defs%3E%3Crect width='100' height='100' fill='%23f8f3fb'/%3E%3Ccircle cx='50' cy='50' r='20' fill='url(%23singleAtomGrad)' opacity='0.95'/%3E%3Ccircle cx='50' cy='50' r='18' fill='none' stroke='%23ffffff' stroke-width='2' opacity='0.4'/%3E%3Ccircle cx='50' cy='50' r='5' fill='%23ffffff' opacity='0.6'/%3E%3C/svg%3E",
+              thumbnail: TUTORIAL_THUMBNAILS.canvasBasics,
               onClick: () => {
                 fetchFirstOrCreateAndStartTutorial({
                   name: "Canvas Basics",
@@ -1458,8 +1458,7 @@ const ShowProjects = ({
             {
               label: "Abundance Basics",
               value: "gettingStarted",
-              thumbnail:
-                "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Cdefs%3E%3CradialGradient id='abGrad1' cx='35%25' cy='35%25' r='50%25'%3E%3Cstop offset='0%25' style='stop-color:%23be3fe5;stop-opacity:1' /%3E%3Cstop offset='100%25' style='stop-color:%23a855b8;stop-opacity:1' /%3E%3C/radialGradient%3E%3CradialGradient id='abGrad2' cx='35%25' cy='35%25' r='50%25'%3E%3Cstop offset='0%25' style='stop-color:%23c4a3d5;stop-opacity:1' /%3E%3Cstop offset='100%25' style='stop-color:%239d40b0;stop-opacity:1' /%3E%3C/radialGradient%3E%3C/defs%3E%3Crect width='100' height='100' fill='%23f8f3fb'/%3E%3Cline x1='28' y1='35' x2='52' y2='35' stroke='%23be3fe5' stroke-width='2' opacity='0.5' stroke-dasharray='2,2'/%3E%3Cline x1='48' y1='35' x2='72' y2='55' stroke='%23be3fe5' stroke-width='2' opacity='0.5' stroke-dasharray='2,2'/%3E%3Cline x1='72' y1='65' x2='50' y2='75' stroke='%23be3fe5' stroke-width='2' opacity='0.5' stroke-dasharray='2,2'/%3E%3Ccircle cx='20' cy='35' r='9' fill='url(%23abGrad1)' opacity='0.95'/%3E%3Ccircle cx='60' cy='35' r='9' fill='url(%23abGrad2)' opacity='0.9'/%3E%3Ccircle cx='80' cy='55' r='9' fill='url(%23abGrad1)' opacity='0.85'/%3E%3Ccircle cx='50' cy='75' r='9' fill='url(%23abGrad2)' opacity='0.8'/%3E%3Ccircle cx='20' cy='35' r='6' fill='none' stroke='%23ffffff' stroke-width='1.2' opacity='0.5'/%3E%3Ccircle cx='60' cy='35' r='6' fill='none' stroke='%23ffffff' stroke-width='1.2' opacity='0.5'/%3E%3Ccircle cx='80' cy='55' r='6' fill='none' stroke='%23ffffff' stroke-width='1.2' opacity='0.4'/%3E%3Ccircle cx='50' cy='75' r='6' fill='none' stroke='%23ffffff' stroke-width='1.2' opacity='0.4'/%3E%3Ccircle cx='20' cy='35' r='2.5' fill='%23ffffff' opacity='0.6'/%3E%3Ccircle cx='60' cy='35' r='2.5' fill='%23ffffff' opacity='0.6'/%3E%3Ccircle cx='80' cy='55' r='2.5' fill='%23ffffff' opacity='0.5'/%3E%3Ccircle cx='50' cy='75' r='2.5' fill='%23ffffff' opacity='0.5'/%3E%3C/svg%3E",
+              thumbnail: TUTORIAL_THUMBNAILS.gettingStarted,
               onClick: () => {
                 fetchFirstOrCreateAndStartTutorial({
                   name: "Abundance Basics",
@@ -1470,8 +1469,7 @@ const ShowProjects = ({
             {
               label: "Input Atoms",
               value: "inputsSteps",
-              thumbnail:
-                "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='inputStackGrad' x1='0%25' y1='0%25' x2='0%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%23be3fe5;stop-opacity:1' /%3E%3Cstop offset='100%25' style='stop-color:%23c4a3d5;stop-opacity:1' /%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='100' height='100' fill='%23f8f3fb'/%3E%3Cpolygon points='10,18 45,18 55,25 45,32 10,32' fill='url(%23inputStackGrad)' opacity='0.9' stroke='%23ffffff' stroke-width='1.2'/%3E%3Cpolygon points='10,45 45,45 55,52 45,59 10,59' fill='url(%23inputStackGrad)' opacity='0.7' stroke='%23ffffff' stroke-width='1.2'/%3E%3Cpolygon points='10,72 45,72 55,79 45,86 10,86' fill='url(%23inputStackGrad)' opacity='0.5' stroke='%23ffffff' stroke-width='1.2'/%3E%3C/svg%3E",
+              thumbnail: TUTORIAL_THUMBNAILS.inputsSteps,
               onClick: () => {
                 fetchFirstOrCreateAndStartTutorial({
                   name: "Input Atoms",
@@ -1482,8 +1480,7 @@ const ShowProjects = ({
             {
               label: "Assemblies",
               value: "assemblySteps",
-              thumbnail:
-                "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Cdefs%3E%3CradialGradient id='atomGrad1' cx='35%25' cy='35%25' r='50%25'%3E%3Cstop offset='0%25' style='stop-color:%23be3fe5;stop-opacity:1' /%3E%3Cstop offset='100%25' style='stop-color:%23a855b8;stop-opacity:1' /%3E%3C/radialGradient%3E%3CradialGradient id='atomGrad2' cx='35%25' cy='35%25' r='50%25'%3E%3Cstop offset='0%25' style='stop-color:%23c4a3d5;stop-opacity:1' /%3E%3Cstop offset='100%25' style='stop-color:%239d40b0;stop-opacity:1' /%3E%3C/radialGradient%3E%3C/defs%3E%3Crect width='100' height='100' fill='%23f8f3fb'/%3E%3Ccircle cx='35' cy='50' r='18' fill='url(%23atomGrad1)' opacity='0.95'/%3E%3Ccircle cx='65' cy='50' r='18' fill='url(%23atomGrad2)' opacity='0.95'/%3E%3Cpath d='M 53 48 L 47 52' stroke='%23be3fe5' stroke-width='3' opacity='0.7'/%3E%3Cpath d='M 53 50 L 47 50' stroke='%23be3fe5' stroke-width='3' opacity='0.7'/%3E%3Cpath d='M 53 52 L 47 48' stroke='%23be3fe5' stroke-width='3' opacity='0.7'/%3E%3Ccircle cx='35' cy='50' r='15' fill='none' stroke='%23ffffff' stroke-width='2' opacity='0.4'/%3E%3Ccircle cx='65' cy='50' r='15' fill='none' stroke='%23ffffff' stroke-width='2' opacity='0.4'/%3E%3Ccircle cx='35' cy='50' r='4' fill='%23ffffff' opacity='0.6'/%3E%3Ccircle cx='65' cy='50' r='4' fill='%23ffffff' opacity='0.6'/%3E%3C/svg%3E",
+              thumbnail: TUTORIAL_THUMBNAILS.assemblySteps,
               onClick: () => {
                 fetchFirstOrCreateAndStartTutorial({
                   name: "Assemblies",
@@ -1494,8 +1491,7 @@ const ShowProjects = ({
             {
               label: "Molecules",
               value: "Molecules",
-              thumbnail:
-                "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Cdefs%3E%3CradialGradient id='molAtomCenter' cx='35%25' cy='35%25' r='50%25'%3E%3Cstop offset='0%25' style='stop-color:%23be3fe5;stop-opacity:1' /%3E%3Cstop offset='100%25' style='stop-color:%238b2db5;stop-opacity:1' /%3E%3C/radialGradient%3E%3CradialGradient id='molAtomOuter' cx='35%25' cy='35%25' r='50%25'%3E%3Cstop offset='0%25' style='stop-color:%23c4a3d5;stop-opacity:1' /%3E%3Cstop offset='100%25' style='stop-color:%239d40b0;stop-opacity:1' /%3E%3C/radialGradient%3E%3C/defs%3E%3Crect width='100' height='100' fill='%23f8f3fb'/%3E%3Cline x1='50' y1='50' x2='30' y2='30' stroke='%23be3fe5' stroke-width='2.5' opacity='0.6'/%3E%3Cline x1='50' y1='50' x2='70' y2='30' stroke='%23be3fe5' stroke-width='2.5' opacity='0.6'/%3E%3Cline x1='50' y1='50' x2='70' y2='70' stroke='%23be3fe5' stroke-width='2.5' opacity='0.6'/%3E%3Cline x1='50' y1='50' x2='30' y2='70' stroke='%23be3fe5' stroke-width='2.5' opacity='0.6'/%3E%3Ccircle cx='50' cy='50' r='16' fill='url(%23molAtomCenter)' opacity='0.95'/%3E%3Ccircle cx='30' cy='30' r='10' fill='url(%23molAtomOuter)' opacity='0.85'/%3E%3Ccircle cx='70' cy='30' r='10' fill='url(%23molAtomOuter)' opacity='0.85'/%3E%3Ccircle cx='70' cy='70' r='10' fill='url(%23molAtomOuter)' opacity='0.85'/%3E%3Ccircle cx='30' cy='70' r='10' fill='url(%23molAtomOuter)' opacity='0.85'/%3E%3Ccircle cx='50' cy='50' r='13' fill='none' stroke='%23ffffff' stroke-width='1.5' opacity='0.3'/%3E%3Ccircle cx='30' cy='30' r='8' fill='none' stroke='%23ffffff' stroke-width='1.5' opacity='0.3'/%3E%3Ccircle cx='70' cy='30' r='8' fill='none' stroke='%23ffffff' stroke-width='1.5' opacity='0.3'/%3E%3Ccircle cx='70' cy='70' r='8' fill='none' stroke='%23ffffff' stroke-width='1.5' opacity='0.3'/%3E%3Ccircle cx='30' cy='70' r='8' fill='none' stroke='%23ffffff' stroke-width='1.5' opacity='0.3'/%3E%3C/svg%3E",
+              thumbnail: TUTORIAL_THUMBNAILS.Molecules,
               onClick: () => {
                 fetchFirstOrCreateAndStartTutorial({
                   name: "Molecules",
@@ -1504,10 +1500,9 @@ const ShowProjects = ({
               },
             },
             {
-              label: "Github Molecules",
+              label: "GitHub Molecules",
               value: "GitHubMolecule",
-              thumbnail:
-                "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Cdefs%3E%3CradialGradient id='molAtomCenter' cx='35%25' cy='35%25' r='50%25'%3E%3Cstop offset='0%25' style='stop-color:%23be3fe5;stop-opacity:1' /%3E%3Cstop offset='100%25' style='stop-color:%238b2db5;stop-opacity:1' /%3E%3C/radialGradient%3E%3CradialGradient id='molAtomOuter' cx='35%25' cy='35%25' r='50%25'%3E%3Cstop offset='0%25' style='stop-color:%23c4a3d5;stop-opacity:1' /%3E%3Cstop offset='100%25' style='stop-color:%239d40b0;stop-opacity:1' /%3E%3C/radialGradient%3E%3C/defs%3E%3Crect width='100' height='100' fill='%23f8f3fb'/%3E%3Cline x1='50' y1='50' x2='30' y2='30' stroke='%23be3fe5' stroke-width='2.5' opacity='0.6'/%3E%3Cline x1='50' y1='50' x2='70' y2='30' stroke='%23be3fe5' stroke-width='2.5' opacity='0.6'/%3E%3Cline x1='50' y1='50' x2='70' y2='70' stroke='%23be3fe5' stroke-width='2.5' opacity='0.6'/%3E%3Cline x1='50' y1='50' x2='30' y2='70' stroke='%23be3fe5' stroke-width='2.5' opacity='0.6'/%3E%3Ccircle cx='50' cy='50' r='16' fill='url(%23molAtomCenter)' opacity='0.95'/%3E%3Ccircle cx='30' cy='30' r='10' fill='url(%23molAtomOuter)' opacity='0.85'/%3E%3Ccircle cx='70' cy='30' r='10' fill='url(%23molAtomOuter)' opacity='0.85'/%3E%3Ccircle cx='70' cy='70' r='10' fill='url(%23molAtomOuter)' opacity='0.85'/%3E%3Ccircle cx='30' cy='70' r='10' fill='url(%23molAtomOuter)' opacity='0.85'/%3E%3Ccircle cx='50' cy='50' r='13' fill='none' stroke='%23ffffff' stroke-width='1.5' opacity='0.3'/%3E%3Ccircle cx='30' cy='30' r='8' fill='none' stroke='%23ffffff' stroke-width='1.5' opacity='0.3'/%3E%3Ccircle cx='70' cy='30' r='8' fill='none' stroke='%23ffffff' stroke-width='1.5' opacity='0.3'/%3E%3Ccircle cx='70' cy='70' r='8' fill='none' stroke='%23ffffff' stroke-width='1.5' opacity='0.3'/%3E%3Ccircle cx='30' cy='70' r='8' fill='none' stroke='%23ffffff' stroke-width='1.5' opacity='0.3'/%3E%3Cg transform='translate(50,50) scale(0.85)'%3E%3Cpath d='M -6 -4 C -8 -4 -9 -3 -9 -1 L -9 4 C -9 5 -8 6 -6 6 L -3 6 L -3 2 C -3 1 -2 0 -1 0 L 1 0 C 2 0 3 1 3 2 L 3 6 L 6 6 C 8 6 9 5 9 4 L 9 -1 C 9 -3 8 -4 6 -4 Z' fill='%23ffffff' opacity='0.9'/%3E%3Ccircle cx='-3' cy='-1' r='1' fill='%23ffffff' opacity='0.9'/%3E%3Ccircle cx='3' cy='-1' r='1' fill='%23ffffff' opacity='0.9'/%3E%3Cpath d='M -1 5 L 0 7 L 1 5' fill='%23ffffff' opacity='0.8'/%3E%3C/g%3E%3C/svg%3E",
+              thumbnail: TUTORIAL_THUMBNAILS.GitHubMolecule,
               onClick: () => {
                 fetchFirstOrCreateAndStartTutorial({
                   name: "GitHubMolecule",
