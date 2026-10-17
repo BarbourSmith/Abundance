@@ -1,7 +1,7 @@
 /**
- * Thumbnails for the Getting started tab's tutorials, drawn in the landing
- * page's flow-canvas style (landing.css): white atom nodes with line icons on
- * the dark canvas, joined by wires. Each shows the atoms its tutorial teaches.
+ * Thumbnails for the Getting started tab, drawn in the landing page's
+ * flow-canvas style (landing.css): white atom nodes with line icons on the
+ * dark canvas, joined by wires. Each tutorial's shows the atoms it teaches.
  */
 
 const CANVAS = "#2b2e33";
@@ -27,6 +27,16 @@ const ICONS = {
     '<g stroke-linecap="round"><circle cx="6" cy="5" r="2"/>' +
     '<circle cx="6" cy="19" r="2"/><circle cx="18" cy="8" r="2"/>' +
     '<path d="M6 7v10M18 10c0 4-6 3-11.5 7"/></g>',
+  book:
+    '<g stroke-linejoin="round"><path d="M4 5.5C6.5 4 9.5 4 12 6c2.5-2 5.5-2 8-.5V19c-2.5-1.5-5.5-1.5-8 .5-2.5-2-5.5-2-8-.5z"/>' +
+    '<path d="M12 6v13.5"/></g>',
+  question:
+    '<g stroke-linecap="round"><circle cx="12" cy="12" r="9"/>' +
+    '<path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.5v.7"/>' +
+    '<path d="M12 17h.01"/></g>',
+  chat:
+    '<g stroke-linejoin="round"><path d="M3 4h12v8H8l-4 3v-3H3z"/>' +
+    '<path d="M17 8h4v8h-1v3l-4-3h-5v-2"/></g>',
   dot: "",
 };
 
@@ -93,4 +103,10 @@ export const TUTORIAL_THUMBNAILS = {
   GitHubMolecule: svg(
     wire(56, 60, 106, 60) + node(52, 60, "fork") + node(108, 60, "box"),
   ),
+};
+
+export const HELP_THUMBNAILS = {
+  userGuide: svg(node(80, 60, "book", 22)),
+  faq: svg(node(80, 60, "question", 22)),
+  forums: svg(node(80, 60, "chat", 22)),
 };
