@@ -52,6 +52,8 @@ export default class CutLayout extends Atom {
      */
     this.placements = [];
     this.placementsFor = "";
+    // 2: placements are relative to each part's bounding-box centre.
+    this.placementsVersion = undefined;
 
     this.progress = 0.0;
 
@@ -91,10 +93,29 @@ export default class CutLayout extends Atom {
         valueType: "number",
         defaultValue: 12,
       },
+      {
+        name: "Search Time (minutes)",
+        valueType: "number",
+        defaultValue: 2,
+      },
       { name: "geometry", valueType: "geometry", type: "output" },
     ]);
 
     this.setValues(values);
+    if (this.placementsVersion !== 2 && this.placements?.length > 0) {
+      this.placements = [];
+      this.placementsFor = "";
+      window.dispatchEvent(
+        new CustomEvent("user-notification", {
+          detail: {
+            message:
+              "Cut Layout placements were saved in an older format and have been reset. Press Compute Layout to lay the parts out again.",
+            type: "warning",
+          },
+        }),
+      );
+    }
+    this.placementsVersion = 2;
   }
 
   /**
@@ -256,6 +277,7 @@ export default class CutLayout extends Atom {
           GlobalVariables.topLevelMolecule.unitsKey
         ],
       rotations: this.findIOValue("Orientations"),
+      searchMinutes: this.findIOValue("Search Time (minutes)"),
     };
   }
   /** Creates three.js shape to display the size of the cutlayout sheet and set it to nonReplicadGeom */
@@ -670,6 +692,7 @@ export default class CutLayout extends Atom {
     //Save the readme text to the serial stream
     var valuesObj = super.serialize(values);
     valuesObj.placements = this.placements;
+    valuesObj.placementsVersion = this.placementsVersion;
 
     return valuesObj;
   }

@@ -20,3 +20,6 @@ test-*.html
 
 # Copied from the repository root by packages/abundance-bridge/build.mjs
 /packages/abundance-bridge/AI_PROMPT_FOR_CODE_ATOMS.md
+
+# Rust build output for the vendored nesting engine
+vendor/polygon-packer-algo/target/
