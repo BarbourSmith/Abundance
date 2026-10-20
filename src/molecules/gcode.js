@@ -655,11 +655,7 @@ export default class Gcode extends Atom {
         this.tools.find((tool) => tool.name === selectedToolName) ||
         this.tools[0];
 
-      // Set a timeout in case generation fails
-      const timeout = setTimeout(() => {
-        reject(new Error(`G-code generation timeout for part ${partNumber}`));
-      }, 60000); // 60 second timeout
-
+      // window.generateGcode times out stuck jobs itself (60s per part)
       window
         .generateGcode(
           stlURL,
@@ -673,11 +669,9 @@ export default class Gcode extends Atom {
           flats, // Pass the flat faces for area operation
         )
         .then((gcode) => {
-          clearTimeout(timeout);
           partGcodeCallback(gcode);
         })
         .catch((err) => {
-          clearTimeout(timeout);
           console.error(`Error generating G-code for part ${partNumber}:`, err);
           reject(err);
         });

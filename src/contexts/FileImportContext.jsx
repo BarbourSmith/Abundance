@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState } from "react";
 import GlobalVariables from "../js/globalvariables.js";
 import { useAuth } from "./AuthContext.jsx";
 import { useAppState } from "./AppStateContext.jsx";
+import { Octokit } from "octokit";
 
 const FileImportContext = createContext();
 
@@ -152,11 +153,19 @@ export function FileImportProvider({ children }) {
   };
 
   /**
-   * Fetch a file from a GitHub repository using authenticated Octokit.
+   * The signed-in user's Octokit, which can read private repos, or an
+   * anonymous one for signed-out visitors (public repos only).
+   */
+  const readerOcto = () =>
+    authorizedUserOcto ??
+    new Octokit({ headers: { "X-GitHub-Api-Version": "2022-11-28" } });
+
+  /**
+   * Fetch a file from a GitHub repository.
    * `ref` (a branch, tag, or commit) defaults to the repository's default branch.
    */
   const fetchFileContent = async (owner, repo, path, ref) => {
-    return authorizedUserOcto.rest.repos.getContent({
+    return readerOcto().rest.repos.getContent({
       owner,
       repo,
       path,
@@ -165,7 +174,7 @@ export function FileImportProvider({ children }) {
   };
 
   /**
-   * Fetch raw file bytes by SHA using the authenticated git blob API.
+   * Fetch raw file bytes by SHA using the git blob API.
    * Used as a fallback when getContent omits `content` for files larger than 1 MB.
    * Returns a string for SVG files and a Blob for binary files (STL/STEP).
    * @param {string} owner - Repository owner
@@ -176,7 +185,7 @@ export function FileImportProvider({ children }) {
   const fetchRawFileContent = async (owner, repo, fileSha, fileType) => {
     let blobResponse;
     try {
-      blobResponse = await authorizedUserOcto.rest.git.getBlob({
+      blobResponse = await readerOcto().rest.git.getBlob({
         owner,
         repo,
         file_sha: fileSha,

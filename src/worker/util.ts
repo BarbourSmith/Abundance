@@ -7,6 +7,7 @@ import {
   ReplicadObject,
   RequestContext,
 } from "./geometryProvider";
+import { installOcctWorkarounds } from "./occtWorkarounds";
 
 const defaultColor: string = "#aad7f2";
 let loaded: boolean = false;
@@ -23,6 +24,7 @@ const init = async (logMetrics: boolean = true): Promise<boolean> => {
   loaded = true;
   ocModule = OC;
   replicad.setOC(OC);
+  installOcctWorkarounds();
   geometryProvider = new GeometryProvider(logMetrics);
 
   return true;
@@ -591,7 +593,8 @@ function walkAssembly(
 function extractBomList(assembly: AbundanceObject): any[] {
   const bomList: any[] = [];
   walkAssembly(assembly, (node: AbundanceObject) => {
-    bomList.push(...node.bom);
+    // Code atoms pass through whatever user code returned, which may have no bom
+    if (Array.isArray(node.bom)) bomList.push(...node.bom);
   });
   return bomList;
 }

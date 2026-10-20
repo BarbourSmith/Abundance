@@ -42,6 +42,45 @@ export function AgentIcon({ size = 20, color = "#c4a3d5" }) {
   );
 }
 
+/**
+ * Square button that opens the Connect an AI agent dialog. Each mode places it
+ * next to its own buttons with `style` (position, top, right, ...).
+ */
+export function AgentButton({ size = 40, style }) {
+  const label = "Connect an AI agent";
+  return (
+    <button
+      id="Agent-button"
+      style={{
+        position: "fixed",
+        background: "var(--abundance-color-background)",
+        border: "1px solid var(--panel-border)",
+        boxShadow: "0 4px 16px rgba(20,24,31,0.16)",
+        borderRadius: 4,
+        width: size,
+        height: size,
+        minWidth: 0,
+        minHeight: 0,
+        padding: 0,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        cursor: "pointer",
+        transition: "box-shadow 0.2s",
+        fontFamily: "JetBrains Mono, monospace",
+        outline: "none",
+        zIndex: 2,
+        ...style,
+      }}
+      onClick={openAgentDialog}
+      title={label}
+      aria-label={label}
+    >
+      <AgentIcon />
+    </button>
+  );
+}
+
 function currentProject() {
   const node = GlobalVariables.currentAWSnode;
   if (!node?.owner) return null;

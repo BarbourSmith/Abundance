@@ -280,6 +280,7 @@ async function addAssemblyPartsToCache(
       }
       return {
         ...assembly,
+        bom: Array.isArray(assembly.bom) ? assembly.bom : [],
         metadata,
         geometry: geomId,
         plane: assembly.plane
@@ -295,6 +296,7 @@ async function addAssemblyPartsToCache(
       );
       return {
         ...assembly,
+        bom: Array.isArray(assembly.bom) ? assembly.bom : [],
         geometry: children,
         plane: assembly.plane
           ? util.asSimplePlane(assembly.plane)

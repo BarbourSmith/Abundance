@@ -4,6 +4,12 @@ import { ValueChangeCommand } from "../js/undoCommands.js";
 import AttachmentPoint from "./attachmentpoint";
 import { ObservableEntity, Status } from "./observableEntity.js";
 import { getPredictedAtoms } from "../js/atomPrediction.js";
+import { checkAtomGeometry } from "../js/geometryCheck.js";
+import {
+  EQUATION_UNIT_WORDS,
+  equationUnitFactor,
+  unitsContextOf,
+} from "../js/units.js";
 import React from "react";
 
 /*THREEJS*/
@@ -26,6 +32,8 @@ const AlertType = Object.freeze({
 export default class Atom extends ObservableEntity {
   static SELECTED_COLOR = "#484848";
   static DEFAULT_COLOR = "#F3EFEF";
+  // Distinct from UPSTREAM_ERROR's yellow
+  static WARNING_COLOR = "#f28c28";
 
   static statusAsColor(status, selected = false) {
     if (selected) {
@@ -250,6 +258,14 @@ export default class Atom extends ObservableEntity {
     GlobalVariables.c.font = GlobalVariables.canvasFont;
 
     this.color = Atom.statusAsColor(this.getState().status, this.selected);
+    // Ready but with a warning (or, for a molecule, broken geometry inside)
+    if (
+      !this.selected &&
+      this.getState().status == Status.READY &&
+      (this.alert.type == AlertType.WARNING || this.geometryWarning())
+    ) {
+      this.color = Atom.WARNING_COLOR;
+    }
     GlobalVariables.c.fillStyle = this.color;
     GlobalVariables.c.strokeStyle = Atom.SELECTED_COLOR;
     let strokeColor = this.selected ? Atom.DEFAULT_COLOR : Atom.SELECTED_COLOR;
@@ -299,14 +315,21 @@ export default class Atom extends ObservableEntity {
     GlobalVariables.c.stroke();
     GlobalVariables.c.closePath();
 
+    const geometryWarning = this.geometryWarning();
+
     if (this.showHover) {
-      if (this.alert.type != AlertType.NONE) {
+      // A molecule shows the warning of something inside it
+      const alert =
+        this.alert.type == AlertType.NONE && geometryWarning
+          ? { type: AlertType.WARNING, message: geometryWarning }
+          : this.alert;
+      if (alert.type != AlertType.NONE) {
         this.color = "red";
         let prefix = "ERROR: ";
-        switch (this.alert.type) {
+        switch (alert.type) {
           case AlertType.WARNING:
             prefix = "WARNING: ";
-            this.color = "orange";
+            this.color = Atom.WARNING_COLOR;
             break;
           case AlertType.INFO:
             prefix = "INFO: ";
@@ -315,7 +338,7 @@ export default class Atom extends ObservableEntity {
         }
 
         // Wrap text to maximum width
-        const fullMessage = prefix + this.alert.message;
+        const fullMessage = prefix + alert.message;
         const maxWidth = 300; // Maximum width in pixels
         const padding = 20;
         const lineHeight = parseInt(GlobalVariables.c.font) + 4;
@@ -526,6 +549,24 @@ export default class Atom extends ObservableEntity {
   clearAlert() {
     this.color = Atom.DEFAULT_COLOR;
     this.alert = { type: AlertType.NONE, message: "" };
+  }
+
+  /**
+   * Flags this atom's output as broken geometry (see js/geometryCheck.js).
+   * Like other alerts it clears when the atom computes again.
+   */
+  setGeometryWarning(message) {
+    this.alert = { type: AlertType.WARNING, message, geometry: true };
+  }
+
+  /**
+   * The broken geometry warning to show on this atom, or null. Molecules
+   * override this to report one from inside them.
+   */
+  geometryWarning() {
+    return this.alert.type == AlertType.WARNING && this.alert.geometry
+      ? this.alert.message
+      : null;
   }
 
   /**
@@ -1292,6 +1333,7 @@ export default class Atom extends ObservableEntity {
           if (!isCurrent()) return;
           this.buildNonReplicadGeom(value);
           this.setReady(value);
+          checkAtomGeometry(this, value);
 
           if (
             this.setInputChanged &&
@@ -2070,9 +2112,36 @@ export default class Atom extends ObservableEntity {
   }
 
   /**
+   * Converts lengths typed with a unit ("5 inches", "12mm", "1/2 inch") into
+   * the units this atom works in, so values can be entered in whichever unit
+   * is handy. Only a number directly followed by a unit word converts, so an
+   * input named like a unit still works as a variable elsewhere ("cm * 2").
+   */
+  convertEquationUnits(equation) {
+    const pattern = new RegExp(
+      String.raw`(?<![\w.])(\d+(?:\.\d+)?|\.\d+)(?:\s*\/\s*(\d+(?:\.\d+)?))?\s*(` +
+        EQUATION_UNIT_WORDS.join("|") +
+        String.raw`)\b`,
+      "g",
+    );
+    const units = unitsContextOf(this);
+    return equation.replace(pattern, (match, number, divisor, word) => {
+      const factor = equationUnitFactor(word, units);
+      if (factor === null) {
+        throw new Error(
+          `"${match.trim()}" has a unit, but this project has no units set, so it can't be converted.`,
+        );
+      }
+      const value = divisor ? Number(number) / Number(divisor) : Number(number);
+      return `(${value * factor})`;
+    });
+  }
+
+  /**
    * Evaluate mathematical expressions (existing logic extracted)
    */
   evaluateMathExpression(substitutedEquation) {
+    substitutedEquation = this.convertEquationUnits(substitutedEquation);
     const variables = this.extractVariablesFromEquation(substitutedEquation);
     const notFound = [];
     const nonFinite = [];

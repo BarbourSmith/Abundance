@@ -46,10 +46,12 @@
 .right-login-div {
   display: flex;
   flex-direction: column;
+  box-sizing: border-box;
+  /* Stretches to the height left in .login-content-div, padding included */
+  min-height: 0;
   padding: 2%;
   margin: 5% 5% 0 5%;
   width: 95%;
-  height: 100%;
 }
 .login-nav-item {
   padding: 5px;
@@ -216,6 +218,8 @@
   }
   .menu {
     position: absolute;
+    /* Above the search bar and project cards, below dialogs (1000) */
+    z-index: 100;
     top: 70px;
     margin-top: 50px;
     left: 0;
@@ -638,12 +642,60 @@
 .longButton {
   position: relative;
   float: right;
-  height: 2em;
-  background-color: var(--settingsPopup-closeButton);
   margin: 10px;
-  border-radius: 5px;
-  color: var(--settingsPopup-text);
+}
+
+/* Buttons styled like the landing page's (landing.css) */
+.login-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-family: "Work Sans", system-ui, sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.2;
   cursor: pointer;
+}
+
+.login-button-primary {
+  border: 1.5px solid #8d4bb0;
+  background: #8d4bb0;
+  color: #ffffff;
+}
+
+.login-button-dark {
+  border: 1.5px solid var(--abundance-color-darkGrey);
+  background: var(--abundance-color-darkGrey);
+  color: #ffffff;
+}
+
+.login-button-outline {
+  border: 1.5px solid #8d4bb0;
+  background: transparent;
+  color: #6e3d8c;
+}
+
+.login-button:hover {
+  filter: brightness(1.08);
+}
+
+.login-button-outline:hover {
+  background: rgba(141, 75, 176, 0.08);
+}
+
+.login-button:focus-visible {
+  outline: 2px solid #8d4bb0;
+  outline-offset: 2px;
+}
+
+.page_back_button,
+.page_forward_button {
+  min-width: 44px;
+  margin: 0 4px;
+  font-size: 18px;
 }
 
 .container {
@@ -1202,7 +1254,6 @@
   .right-login-div {
     margin: 2% 0% 0 0;
     width: 80%;
-    height: 100%;
   }
   #sorting-button-div {
     display: flex;
@@ -1463,17 +1514,20 @@
   max-width: 140px;
 }
 
+/* Takes the height left under the header, search and sorting rows, so the
+   list scrolls to its end (and the paging buttons) on any screen size */
 .projects-and-filters-container {
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-height: 0;
   width: 100%;
-  height: 100%;
 }
 
 .project-items-wrapper {
   flex: 1;
   min-width: 0;
-  max-height: calc(100% - 200px);
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
 }

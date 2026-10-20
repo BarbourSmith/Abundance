@@ -305,7 +305,7 @@ export function createMcpServer(hub, { outDir, tokenInfo, version }) {
         : [
             "No Abundance tab is connected. To pair:",
             "1. Open Abundance (https://abundance.maslowcnc.com or the local dev server) in Chrome or Firefox.",
-            '2. Open "Connect an AI agent": the sparkle button on the right in run mode, "AI Agent" in the editor\'s menu, or add #agent to the end of the page address.',
+            '2. Open "Connect an AI agent": the sparkle button on the right in run mode or under the Run Mode button in the editor, "AI Agent" in the editor\'s menu, or add #agent to the end of the page address.',
             `3. Paste this pairing token: ${tokenInfo.token}`,
             `4. Check the port is ${hub.port}, then turn on Connect local AI agent.`,
             "5. To let the agent change the project, the user also turns on Allow edits in the AI agent chip.",

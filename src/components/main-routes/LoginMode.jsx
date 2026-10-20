@@ -27,7 +27,11 @@ import DropdownSectionDisplay from "./DropdownSectionDisplay.jsx";
 import FAQDisplay from "./FAQDisplay.jsx";
 import PRNotificationIcon from "../secondary/PRNotificationIcon.jsx";
 import InitialLog from "./InitialLog.jsx";
-import { useRotatingFeaturedImage } from "../../hooks/useRotatingFeaturedImage.js";
+import FeaturedShowcase, {
+  LikeScore,
+  ProjectThumbnail,
+} from "./FeaturedShowcase.jsx";
+import { displayName } from "../../js/featuredShelves.js";
 import {
   getThumbnailUrl,
   markImageFailed,
@@ -118,6 +122,17 @@ const AddProject = ({
     });
   }
 
+  // Featured: a spotlight and themed shelves instead of the sortable list
+  if (projectToShow === "featured") {
+    return (
+      <div className="projects-and-filters-container">
+        <div className="project-items-wrapper">
+          <FeaturedShowcase featured={nodes} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
       <div
@@ -191,19 +206,12 @@ const AddProject = ({
           <PRNotificationIcon allProjects={nodes} />
         )}
       </div>
-      <div
-        className="projects-and-filters-container"
-        style={
-          projectToShow == "featured" ? { flexDirection: "row" } : undefined
-        }
-      >
-        {projectToShow == "featured" ? <FeaturedCarousel /> : null}
+      <div className="projects-and-filters-container">
         <div
           className="project-items-wrapper"
           style={{
             display: "flex",
             flexDirection: "column",
-            maxHeight: "100%",
             ...(projectToShow == "featured" ? { width: "50%" } : null),
           }}
         >
@@ -255,105 +263,6 @@ const AddProject = ({
         </div>
       </div>
     </>
-  );
-};
-
-const FeaturedCarousel = () => {
-  const { imageUrl, loading, project } = useRotatingFeaturedImage(5000);
-  const navigate = useNavigate();
-
-  const handleCarouselClick = () => {
-    if (project) {
-      navigate(`/run/${project.owner}/${project.repoName}`);
-    }
-  };
-
-  return (
-    <div
-      id="featured-carousel"
-      style={{
-        width: "48%",
-        margin: "2%",
-        padding: "0px",
-        display: "flex",
-        maxHeight: "60vh",
-
-        justifyContent: "center",
-      }}
-    >
-      <div
-        onClick={handleCarouselClick}
-        style={{
-          width: "90%",
-          backgroundColor: "var(--abundance-color-hightlightOffWhite)",
-          padding: "20px",
-          borderRadius: "8px",
-          border: "1px solid #ccc",
-          boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
-          cursor: project ? "pointer" : "default",
-        }}
-      >
-        {loading ? (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              height: "30vh",
-              maxHeight: "30vh",
-              color: "#999",
-            }}
-          >
-            Loading...
-          </div>
-        ) : imageUrl ? (
-          <img
-            src={imageUrl}
-            alt={
-              project
-                ? `${project.owner}/${project.repoName}`
-                : "featured project"
-            }
-            style={{
-              width: "100%",
-              height: "auto",
-              maxHeight: "50vh",
-              borderRadius: "8px",
-              objectFit: "contain",
-            }}
-            onError={(e) => {
-              e.currentTarget.src =
-                import.meta.env.VITE_APP_PATH_FOR_PICS +
-                "/imgs/rotate_feature.png";
-            }}
-          />
-        ) : (
-          <img
-            src={
-              import.meta.env.VITE_APP_PATH_FOR_PICS +
-              "/imgs/rotate_feature.png"
-            }
-            alt="rotate feature"
-            style={{ width: "100%", maxHeight: "50vh", borderRadius: "8px" }}
-          />
-        )}
-        <p
-          style={{
-            fontSize: "13px",
-            marginTop: "10px",
-            textAlign: "center",
-            color: "#999",
-          }}
-        >
-          <a
-            href={`https://abundance.maslowcnc.com/run/${project ? `${project.owner}/${project.repoName}` : ""}`}
-            style={{ color: "#999", textDecoration: "none" }}
-          >
-            {project ? `${project.owner} / ${project.repoName}` : "unknown"}
-          </a>
-        </p>
-      </div>
-    </div>
   );
 };
 
@@ -511,6 +420,8 @@ export const ProjectDiv = ({
   };
 
   const ThumbItem = React.memo(({ node, svgCacheBuster }) => {
+    // Liked projects use the Featured tab's card style
+    const cardStyle = projectToShow === "liked";
     const [showQuickView, setShowQuickView] = useState(false);
     const [panelPosition, setPanelPosition] = useState({ top: 0, left: 0 });
     const hoverTimerRef = useRef(null);
@@ -565,9 +476,9 @@ export const ProjectDiv = ({
     return (
       <div
         ref={projectRef}
-        className={`project ${node.notFound ? "project-not-found" : ""}`}
+        className={`project ${cardStyle ? "liked-card" : ""} ${node.notFound ? "project-not-found" : ""}`}
         style={
-          node.owner != GlobalVariables.currentUser
+          node.owner != GlobalVariables.currentUser && !cardStyle
             ? {
                 backgroundColor: "rgb(233 221 242 / 58%)",
                 position: "relative",
@@ -587,123 +498,142 @@ export const ProjectDiv = ({
         onMouseEnter={handleProjectMouseEnter}
         onMouseLeave={handleProjectMouseLeave}
       >
-        <p className="project_name">{convertToDisplayName(node.repoName)}</p>
+        {cardStyle ? (
+          <>
+            <ProjectThumbnail
+              className="liked-card-image"
+              item={{ owner: node.owner, repoName: node.repoName, node }}
+              fallback={defaultThumbnail}
+            />
+            <span className="featured-card-name">
+              {displayName(node.repoName)}
+            </span>
+            <span className="featured-card-owner">{node.owner}</span>
+            <LikeScore node={node} />
+          </>
+        ) : (
+          <>
+            <p className="project_name">
+              {convertToDisplayName(node.repoName)}
+            </p>
 
-        <div style={{ position: "relative" }}>
-          <img
-            className="project_image"
-            src={getImageSrc(node)}
-            onError={({ currentTarget }) => {
-              currentTarget.onerror = null; // prevents looping
-              currentTarget.src = defaultThumbnail;
-              handleImageError(getThumbnailUrl(node));
-            }}
-            alt={node.repoName}
-          />
-          <div className="symbol-div">
-            {/* Ranking */}
-            <div className="ranking-icon">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                title={getRankingTooltip(node.ranking)}
+            <div style={{ position: "relative" }}>
+              <img
+                className="project_image"
+                src={getImageSrc(node)}
+                onError={({ currentTarget }) => {
+                  currentTarget.onerror = null; // prevents looping
+                  currentTarget.src = defaultThumbnail;
+                  handleImageError(getThumbnailUrl(node));
+                }}
+                alt={node.repoName}
+              />
+              <div className="symbol-div">
+                {/* Ranking */}
+                <div className="ranking-icon">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    title={getRankingTooltip(node.ranking)}
+                    style={{
+                      transform: "scale(.7)",
+                      fill: getRankingColor(node.ranking),
+                      alignSelf: "center",
+                      pointerEvents: "auto",
+                      cursor: "pointer",
+                    }}
+                    width="16"
+                    height="16"
+                  >
+                    <path d="M8 .2l4.9 15.2L0 6h16L3.1 15.4z" />
+                  </svg>
+                  <p
+                    style={{
+                      fontFamily: "Roboto, sans-serif",
+                      fontSize: ".7em",
+                      display: "inline",
+                      alignSelf: "center",
+                    }}
+                  >
+                    {node.ranking}
+                  </p>
+                </div>
+                {/* User Ranking (Likes) */}
+                <div className="ranking-icon">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    style={{
+                      transform: "scale(.7)",
+                      fill: "#d64545",
+                      alignSelf: "center",
+                    }}
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                  >
+                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                  </svg>
+                  <p
+                    style={{
+                      fontFamily: "Roboto, sans-serif",
+                      fontSize: ".7em",
+                      display: "inline",
+                      alignSelf: "center",
+                    }}
+                  >
+                    {typeof node.userRanking === "number"
+                      ? node.userRanking.toFixed(0)
+                      : node.userRanking || "0"}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Fork icon as bottom-left corner tab */}
+            {node.parentRepo ? (
+              <div
                 style={{
-                  transform: "scale(.7)",
-                  fill: getRankingColor(node.ranking),
-                  alignSelf: "center",
-                  pointerEvents: "auto",
+                  position: "absolute",
+                  bottom: "0",
+                  left: "0",
+                  backgroundColor: "var(--loginPopup-bg, #ffffff)",
+                  border: "1px solid #f3d2ff",
+                  borderRadius: "0 12px 0 12px",
+                  width: "22px",
+                  height: "22px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
                   cursor: "pointer",
-                }}
-                width="16"
-                height="16"
-              >
-                <path d="M8 .2l4.9 15.2L0 6h16L3.1 15.4z" />
-              </svg>
-              <p
-                style={{
-                  fontFamily: "Roboto, sans-serif",
-                  fontSize: ".7em",
-                  display: "inline",
-                  alignSelf: "center",
+                  transition: "all 0.2s ease",
                 }}
               >
-                {node.ranking}
-              </p>
-            </div>
-            {/* User Ranking (Likes) */}
-            <div className="ranking-icon">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                style={{
-                  transform: "scale(.7)",
-                  fill: "#d64545",
-                  alignSelf: "center",
-                }}
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-              >
-                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
-              </svg>
-              <p
-                style={{
-                  fontFamily: "Roboto, sans-serif",
-                  fontSize: ".7em",
-                  display: "inline",
-                  alignSelf: "center",
-                }}
-              >
-                {typeof node.userRanking === "number"
-                  ? node.userRanking.toFixed(0)
-                  : node.userRanking || "0"}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Fork icon as bottom-left corner tab */}
-        {node.parentRepo ? (
-          <div
-            style={{
-              position: "absolute",
-              bottom: "0",
-              left: "0",
-              backgroundColor: "var(--loginPopup-bg, #ffffff)",
-              border: "1px solid #f3d2ff",
-              borderRadius: "0 12px 0 12px",
-              width: "22px",
-              height: "22px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              cursor: "pointer",
-              transition: "all 0.2s ease",
-            }}
-          >
-            <svg
-              fill="#99659e"
-              fillOpacity={0.8}
-              width="14"
-              height="14"
-              viewBox="0 0 33.627 33.628"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <g>
-                <path
-                  d="M27.131,8.383c0-2.092-1.701-3.794-3.794-3.794s-3.793,1.702-3.793,3.794c0,0.99,0.39,1.885,1.013,2.561
-      c-0.474,2.004-1.639,2.393-4.167,3.029c-1.279,0.322-2.753,0.7-4.099,1.501V7.003c1.072-0.671,1.793-1.854,1.793-3.209
-      C14.084,1.702,12.382,0,10.292,0C8.199,0,6.497,1.702,6.497,3.794c0,1.356,0.722,2.539,1.795,3.21v19.62
-      c-1.073,0.671-1.795,1.854-1.795,3.21c0,2.092,1.702,3.794,3.795,3.794c2.092,0,3.793-1.702,3.793-3.794
-      c0-1.355-0.722-2.539-1.793-3.209v-3.846c0.496-3.768,2.321-4.232,5.075-4.926c2.527-0.637,5.955-1.513,7.048-5.852
-      C25.981,11.535,27.131,10.099,27.131,8.383z M10.292,2.002c0.988,0,1.793,0.805,1.793,1.794c0,0.989-0.806,1.793-1.793,1.793
-      c-0.989,0-1.795-0.805-1.795-1.793C8.498,2.806,9.302,2.002,10.292,2.002z M10.292,31.627c-0.989,0-1.795-0.807-1.795-1.794
-      c0-0.989,0.806-1.793,1.795-1.793c0.988,0,1.793,0.806,1.793,1.793C12.085,30.824,11.28,31.627,10.292,31.627z M23.337,10.177
-      c-0.989,0-1.793-0.805-1.793-1.793c0-0.989,0.806-1.794,1.793-1.794c0.988,0,1.794,0.805,1.794,1.794
-      C25.131,9.373,24.327,10.177,23.337,10.177z"
-                />
-              </g>
-            </svg>
-          </div>
-        ) : null}
+                <svg
+                  fill="#99659e"
+                  fillOpacity={0.8}
+                  width="14"
+                  height="14"
+                  viewBox="0 0 33.627 33.628"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <g>
+                    <path
+                      d="M27.131,8.383c0-2.092-1.701-3.794-3.794-3.794s-3.793,1.702-3.793,3.794c0,0.99,0.39,1.885,1.013,2.561
+          c-0.474,2.004-1.639,2.393-4.167,3.029c-1.279,0.322-2.753,0.7-4.099,1.501V7.003c1.072-0.671,1.793-1.854,1.793-3.209
+          C14.084,1.702,12.382,0,10.292,0C8.199,0,6.497,1.702,6.497,3.794c0,1.356,0.722,2.539,1.795,3.21v19.62
+          c-1.073,0.671-1.795,1.854-1.795,3.21c0,2.092,1.702,3.794,3.795,3.794c2.092,0,3.793-1.702,3.793-3.794
+          c0-1.355-0.722-2.539-1.793-3.209v-3.846c0.496-3.768,2.321-4.232,5.075-4.926c2.527-0.637,5.955-1.513,7.048-5.852
+          C25.981,11.535,27.131,10.099,27.131,8.383z M10.292,2.002c0.988,0,1.793,0.805,1.793,1.794c0,0.989-0.806,1.793-1.793,1.793
+          c-0.989,0-1.795-0.805-1.795-1.793C8.498,2.806,9.302,2.002,10.292,2.002z M10.292,31.627c-0.989,0-1.795-0.807-1.795-1.794
+          c0-0.989,0.806-1.793,1.795-1.793c0.988,0,1.793,0.806,1.793,1.793C12.085,30.824,11.28,31.627,10.292,31.627z M23.337,10.177
+          c-0.989,0-1.793-0.805-1.793-1.793c0-0.989,0.806-1.794,1.793-1.794c0.988,0,1.794,0.805,1.794,1.794
+          C25.131,9.373,24.327,10.177,23.337,10.177z"
+                    />
+                  </g>
+                </svg>
+              </div>
+            ) : null}
+          </>
+        )}
 
         {/* Quick view panel, portaled to body so it isn't clipped by scrollable ancestors */}
         {showQuickView &&
@@ -1449,7 +1379,8 @@ const ShowProjects = ({
                   setPageNumber(pageNumber - 1);
                 }
               }}
-              className="page_back_button"
+              className="page_back_button login-button login-button-outline"
+              aria-label="Previous page"
             >
               {"\u2190"}
             </button>
@@ -1457,7 +1388,8 @@ const ShowProjects = ({
 
           {lastKey ? (
             <button
-              className="page_forward_button"
+              className="page_forward_button login-button login-button-outline"
+              aria-label="Next page"
               onClick={() => {
                 if (lastKey != "") {
                   setPageNumber(pageNumber + 1);
@@ -1896,24 +1828,23 @@ function LoginMode() {
             to={`/${GlobalVariables.currentAWSnode.owner}/${GlobalVariables.currentAWSnode.repoName}`}
           >
             <button
-              className="longButton"
+              className="longButton login-button login-button-primary"
               onClick={() => {
                 setExportPopUp(false);
               }}
             >
-              <img></img>
-              <span> Return to project</span>
+              Return to project
             </button>
           </Link>
         ) : null}
         {isAuthorized ? (
           <button
-            className="longButton"
+            className="longButton login-button login-button-dark"
             onClick={() => {
               logoutHandler();
             }}
           >
-            <span> Log out </span>
+            Log out
           </button>
         ) : null}
       </div>

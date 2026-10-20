@@ -6,7 +6,7 @@ import GlobalVariables from "../../js/globalvariables.js";
 import { re } from "mathjs";
 import { useProgressBar } from "./ProgressBarManager.jsx";
 import { useProject } from "../../contexts/ProjectContext.jsx";
-import { AgentIcon, openAgentDialog } from "./AgentBridge.jsx";
+import { AgentButton } from "./AgentBridge.jsx";
 import { useAppState } from "../../contexts/AppStateContext.jsx";
 
 const SPARK_COUNT = 8;
@@ -107,7 +107,6 @@ function RunNavigation({
     Share: "Share this project",
     Fork: "Fork this project",
     Star: starredState ? "Unlike this project" : "Like this project",
-    Agent: "Connect an AI agent",
   };
 
   // Helper to show/hide tooltip for a button
@@ -395,35 +394,7 @@ function RunNavigation({
           )}
         </button>
         {/* AI agent button: opens the Connect an AI agent dialog */}
-        <button
-          id="Agent-button"
-          style={{
-            position: "fixed",
-            right: 10,
-            top: 345,
-            background: "var(--abundance-color-background)",
-            border: "1px solid var(--panel-border)",
-            boxShadow: "0 4px 16px rgba(20,24,31,0.16)",
-            borderRadius: 4,
-            width: 40,
-            height: 40,
-            minWidth: 0,
-            minHeight: 0,
-            padding: 0,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            cursor: "pointer",
-            transition: "box-shadow 0.2s",
-            fontFamily: "JetBrains Mono, monospace",
-            outline: "none",
-          }}
-          onClick={openAgentDialog}
-          title={tooltipMessages.Agent}
-          aria-label={tooltipMessages.Agent}
-        >
-          <AgentIcon />
-        </button>
+        <AgentButton style={{ right: 10, top: 345 }} />
         {/* Tooltips (optional, can be removed if using title) */}
         {showTooltip["Share"] && (
           <div className="run-navigation-tooltip">{tooltipMessages.Share}</div>

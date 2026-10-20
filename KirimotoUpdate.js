@@ -1,7 +1,48 @@
 import { Engine } from "./engine.js";
 import GlobalVariables from "./src/js/globalvariables.js";
 
-const generateGcode = (
+// Every Engine shares one Kiri worker, and creating an Engine restarts it, which
+// breaks any job already running. So we keep one Engine, load each new mesh into
+// it (Engine.clear() only works with the Kiri UI), and run jobs one at a time.
+let sharedEngine = null;
+let queue = Promise.resolve();
+
+// Per-part limit, counted from when the job leaves the queue
+const JOB_TIMEOUT_MS = 60000;
+
+const getEngine = () => {
+  if (!sharedEngine) {
+    sharedEngine = new Engine({ workURL: "/worker.js" });
+  }
+  return sharedEngine;
+};
+
+const runWithTimeout = (args) => {
+  let timer;
+  const timeout = new Promise((resolve, reject) => {
+    timer = setTimeout(() => {
+      // A hung job never settles, so drop the engine: the next job's new Engine
+      // restarts the worker, which stops this one and lets the queue move on
+      sharedEngine = null;
+      reject(
+        new Error(
+          `G-code generation timed out after ${JOB_TIMEOUT_MS / 1000}s`,
+        ),
+      );
+    }, JOB_TIMEOUT_MS);
+  });
+  return Promise.race([runGcodeJob(...args), timeout]).finally(() =>
+    clearTimeout(timer),
+  );
+};
+
+const generateGcode = (...args) => {
+  const job = queue.then(() => runWithTimeout(args));
+  queue = job.catch(() => {});
+  return job;
+};
+
+const runGcodeJob = (
   stlUrl,
   centerPos,
   toolSize,
@@ -13,7 +54,7 @@ const generateGcode = (
   flats,
 ) => {
   return new Promise((resolve, reject) => {
-    const kiriEngine = new Engine({ workURL: "/worker.js" });
+    const kiriEngine = getEngine();
     const stock_offset = {
       x: 3,
       y: 3,
@@ -63,21 +104,29 @@ const generateGcode = (
       }
     };
 
-    kiriEngine
-      .setListener((message) => {
-        // Check if message contains slicing progress information
-        if (message && typeof message === "object") {
-          if (message.progress !== undefined && slicingStartTime) {
-            // If Kiri:Moto provides progress during slicing, use it
-            const slicingProgress =
-              slicingProgressStart +
-              (slicingProgressEnd - slicingProgressStart) * message.progress;
-            if (progressCallback) progressCallback(slicingProgress);
-          }
+    kiriEngine.setListener((message) => {
+      // Check if message contains slicing progress information
+      if (message && typeof message === "object") {
+        if (message.progress !== undefined && slicingStartTime) {
+          // If Kiri:Moto provides progress during slicing, use it
+          const slicingProgress =
+            slicingProgressStart +
+            (slicingProgressEnd - slicingProgressStart) * message.progress;
+          if (progressCallback) progressCallback(slicingProgress);
         }
-      })
-      .load(stlUrl)
+      }
+    });
+
+    // Engine.load() never settles if the STL fails to parse, which would block
+    // every queued job, so fetch the STL ourselves and use parse(), which rejects
+    fetch(stlUrl)
+      .then((response) => response.arrayBuffer())
+      .then((data) => kiriEngine.parse(data))
       .then((eng) => {
+        // Loading into the reused widget swaps its geometry but keeps cached
+        // shadows and bounds from the previous part; clear them
+        eng.widget.setModified();
+        eng.setTopOffset(0); // load() does this; parse() doesn't
         eng.widget.boundingBoxNeedsUpdate = true; // Ensure bounding box is updated
         if (progressCallback) progressCallback(0.1); // 10% - STL loaded
 
@@ -124,7 +173,7 @@ const generateGcode = (
         eng.setProcess({
           camDepthFirst: true,
           camEaseAngle: 40,
-          camEaseDown: false,
+          camEaseDown: true,
           camOriginTop: true,
           camOriginCenter: true,
           camStockOffset: false,
@@ -266,6 +315,8 @@ const generateGcode = (
         // Ensure timer is cleaned up on error
         stopSlicingProgress();
         console.error("Kiri:Moto Error:", error);
+        // Start the next job with a fresh worker in case this one left it in a bad state
+        sharedEngine = null;
         reject(error);
       })
       .finally(() => {
