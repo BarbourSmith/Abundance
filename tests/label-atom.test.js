@@ -89,3 +89,47 @@ describe("Label anchors", () => {
     expect(restored.anchors).toEqual({ edge, start: null, end: null });
   });
 });
+
+describe("Label choices", () => {
+  const params = (label) =>
+    Object.values(label.createInputParams()).filter(
+      (param) => param.type === "buttongroup",
+    );
+
+  it("follows the picks of labels saved before the choices", () => {
+    const edge = { kind: "edge", leaf: 0, index: 3 };
+    const label = new Label({
+      parent: makeLabel("MM").parent,
+      anchors: { edge, start: null, end: null },
+    });
+    expect(label.anchorModes).toEqual({ start: "edge", end: "point" });
+  });
+
+  it("grays out the end's choices while measuring an edge", () => {
+    const label = makeLabel("MM");
+    const [, end] = params(label);
+    expect(end.buttons.map((button) => Boolean(button.disabled))).toEqual([
+      true,
+      false,
+      false,
+    ]);
+
+    label.anchorModes = { start: "edge", end: "point" };
+    const [start, grayed] = params(label);
+    expect(start.buttons.find((button) => button.selected).key).toBe("edge");
+    expect(grayed.buttons.every((button) => button.disabled)).toBe(true);
+  });
+
+  it("shows a point input for Point and drops the pick", () => {
+    const label = makeLabel("MM");
+    label.refreshAnchors = () => {};
+    label.anchors = { edge: null, start: { kind: "face", leaf: 0, index: 1 } };
+    label.anchorModes = { start: "face", end: "point" };
+
+    label.chooseAnchor("start", "point");
+    expect(label.anchors.start).toBeNull();
+    const labels = Object.values(label.createInputParams()).map((p) => p.label);
+    expect(labels).toContain("Start point");
+    expect(labels).toContain("End point");
+  });
+});

@@ -51,6 +51,14 @@ export default class Label extends Atom {
      */
     this.anchors = { edge: null, start: null, end: null };
 
+    /**
+     * What each end of the label uses, as chosen in the panel: the start is
+     * "edge" (measure an edge), "face" or "point"; the end is "face" or
+     * "point". Unset until a choice is made, then saved.
+     * @type {{start: string, end: string}|null}
+     */
+    this.anchorModes = null;
+
     this.addAllIOs([
       { name: "geometry", valueType: "geometry", type: "input" },
       { name: "geometry", valueType: "geometry", type: "output" },
@@ -88,6 +96,12 @@ export default class Label extends Atom {
 
     this.setValues(values);
     this.anchors = { edge: null, start: null, end: null, ...this.anchors };
+    // Labels saved before the choices existed: follow their picks
+    this.anchorModes = {
+      start: this.anchors.edge ? "edge" : this.anchors.start ? "face" : "point",
+      end: this.anchors.end ? "face" : "point",
+      ...this.anchorModes,
+    };
   }
 
   /** The text size multiplier, 0.5 to 3. Old projects saved 40 by default. */
@@ -130,7 +144,7 @@ export default class Label extends Atom {
    */
   async resolveEnds(geometry) {
     const { edge, start, end } = this.anchors;
-    if (edge) {
+    if (edge && this.anchorModes.start === "edge") {
       const [resolved] = await this.resolvePicks(geometry, [edge]);
       if (!resolved) {
         throw new Error(
@@ -225,15 +239,32 @@ export default class Label extends Atom {
     };
   }
 
-  /** Set or clear one of the picks ("edge", "start" or "end") and recompute. */
-  setAnchor(slot, pick) {
-    this.anchors = { ...this.anchors, [slot]: pick };
-    if (slot === "edge" && pick) {
-      this.anchors.start = null;
-      this.anchors.end = null;
-    }
+  /** Recompute and refresh the panel after the picks or choices change. */
+  refreshAnchors() {
     this.onUpstreamChange();
     this.setInputChanged?.(String(Date.now()));
+  }
+
+  /**
+   * Choose what one end uses. Edge and face start picking on the model;
+   * point uses the typed or wired coordinates.
+   * @param {"start"|"end"} slot - Which end
+   * @param {"edge"|"face"|"point"} mode - What it uses
+   */
+  chooseAnchor(slot, mode) {
+    const wasMode = this.anchorModes[slot];
+    this.anchorModes = { ...this.anchorModes, [slot]: mode };
+    const anchors = { ...this.anchors };
+    if (slot === "start" && mode !== "edge") anchors.edge = null;
+    if (mode !== "face") anchors[slot] = null;
+    this.anchors = anchors;
+
+    if (mode === "point") {
+      this.refreshAnchors();
+    } else {
+      if (wasMode !== mode) this.refreshAnchors();
+      this.startPicking(mode, mode === "edge" ? "edge" : slot);
+    }
   }
 
   /**
@@ -255,6 +286,7 @@ export default class Label extends Atom {
       // Exiting recomputes the label and refreshes the panel
       GlobalVariables.exitSelectionMode();
     };
+    this.pickingSlot = slot;
     GlobalVariables.enterSelectionMode({
       type: kind === "edge" ? "edgeselect" : "faceselect",
       selectedEdgeData: kind === "edge" ? highlight : {},
@@ -275,151 +307,135 @@ export default class Label extends Atom {
     return `${what} ${pick.index + 1} of part ${pick.leaf + 1}`;
   }
 
+  /**
+   * The panel: a row of choices (Edge, Face, Point) for each end, then what
+   * the choice needs: the pick, or a point input. Choosing Edge for the start
+   * measures that edge, so the end's choices are grayed out.
+   */
   createInputParams(setInputChanged) {
-    let inputParams = super.createInputParams(setInputChanged);
+    const inputParams = super.createInputParams(setInputChanged);
+    const id = this.uniqueID;
+    const modes = this.anchorModes;
+    const measuringEdge = modes.start === "edge";
     const picking = GlobalVariables.selectionModeAtom != null;
+    const input = (name) => this.inputs.find((i) => i.name === name);
 
-    const pickControls = (slot, kind, pickLabel) => {
-      const pick = this.anchors[slot];
-      if (pick) {
-        inputParams[this.uniqueID + slot + "Pick"] = {
-          type: "string",
-          label: pickLabel,
-          value: this.describePick(pick),
-          disabled: true,
-        };
-        inputParams[this.uniqueID + slot + "Clear"] = {
-          type: "button",
-          label: `Clear ${pickLabel.toLowerCase()}`,
-          title: `Stop using the picked ${kind}`,
-          onClick: () => this.setAnchor(slot, null),
+    const choices = (slot) => ({
+      type: "buttongroup",
+      label: slot === "start" ? "Start" : "End",
+      buttons: [
+        {
+          key: "edge",
+          label: "Edge",
+          title:
+            slot === "start"
+              ? "Measure an edge of the input geometry"
+              : "Choose Edge for the start to measure an edge",
+          selected: slot === "start" && measuringEdge,
+          disabled: slot === "end",
+        },
+        {
+          key: "face",
+          label: "Face",
+          title: `The ${slot} is the center of a face of the input geometry`,
+          selected:
+            !(slot === "end" && measuringEdge) && modes[slot] === "face",
+          disabled: slot === "end" && measuringEdge,
+        },
+        {
+          key: "point",
+          label: "Point",
+          title: `The ${slot} is a point: typed coordinates or a wired point`,
+          selected:
+            !(slot === "end" && measuringEdge) && modes[slot] === "point",
+          disabled: slot === "end" && measuringEdge,
+        },
+      ].map((button) => ({
+        ...button,
+        onClick: () => !picking && this.chooseAnchor(slot, button.key),
+      })),
+    });
+
+    // What a choice needs: the pick (click to change it), or a point input
+    const details = (slot) => {
+      const mode = modes[slot];
+      if (mode === "point") {
+        const position = input(slot + "Position");
+        const value = position?.value;
+        return {
+          type: "point",
+          value: Array.isArray(value)
+            ? [value[0], value[1], value[2]]
+            : [0, 0, 0],
+          label: slot === "start" ? "Start point" : "End point",
+          step: 0.1,
+          disabled: position?.connectors.length > 0,
+          onChange: (v) => position.setValue([v[0], v[1], v[2]]),
         };
       }
-      const what =
-        slot === "edge"
-          ? "edge to measure"
-          : `${slot === "start" ? "start" : "end"} face`;
-      inputParams[this.uniqueID + slot + "PickButton"] = {
+      const pickSlot = mode === "edge" ? "edge" : slot;
+      const pick = this.anchors[pickSlot];
+      const what = mode === "edge" ? "an edge" : "a face";
+      return {
         type: "button",
-        label: picking
-          ? "Click the model…"
-          : `${pick ? "Change" : "Pick"} ${what}`,
-        title: `Click ${kind === "edge" ? "an edge" : "a face"} of the input geometry in the 3D view`,
-        onClick: () => (picking ? null : this.startPicking(kind, slot)),
+        label:
+          picking && this.pickingSlot === pickSlot
+            ? `Click ${what} on the model…`
+            : pick
+              ? `${this.describePick(pick)} · change`
+              : `Pick ${what} on the model`,
+        title: `Click ${what} of the input geometry in the 3D view`,
+        onClick: () => !picking && this.startPicking(mode, pickSlot),
       };
     };
 
-    if (this.inputs) {
-      this.inputs.forEach((input) => {
-        const checkConnector = () => {
-          return input.connectors.length > 0;
-        };
-        if (input.name === "text") {
-          inputParams[this.uniqueID + "text"] = {
-            type: "string",
-            value: input.value === LEGACY_DEFAULT_TEXT ? "" : input.value,
-            label: "Label text (empty shows the length)",
-            disabled: checkConnector(),
-            onChange: async (value) => {
-              if (input.value !== value) {
-                input.setValue(value);
-              }
-            },
-          };
-        } else if (input.name === "fontSize") {
-          inputParams[this.uniqueID + "fontSize"] = {
-            type: "range",
-            value: this.textScale(),
-            label: "Text size",
-            min: 0.5,
-            max: 3,
-            step: 0.1,
-            onChange: (value) => {
-              input.setValue(value);
-            },
-          };
-        } else if (input.name === "startPosition" && !this.anchors.edge) {
-          if (!this.anchors.start) {
-            inputParams[this.uniqueID + "startPosition"] = {
-              type: "point",
-              value: Array.isArray(input.value)
-                ? [input.value[0], input.value[1], input.value[2]]
-                : [0, 0, 0],
-              label: "Start position",
-              step: 0.1,
-              disabled: checkConnector(),
-              onChange: (value) => {
-                input.setValue([value[0], value[1], value[2]]);
-              },
-            };
-          }
-          pickControls("start", "face", "Start face");
-        } else if (input.name === "endPosition" && !this.anchors.edge) {
-          if (!this.anchors.end) {
-            inputParams[this.uniqueID + "endPosition"] = {
-              type: "point",
-              value: Array.isArray(input.value)
-                ? [input.value[0], input.value[1], input.value[2]]
-                : [0, 0, 0],
-              label: "End position",
-              step: 0.1,
-              disabled: checkConnector(),
-              onChange: (value) => {
-                input.setValue([value[0], value[1], value[2]]);
-              },
-            };
-          }
-          pickControls("end", "face", "End face");
-        } else if (input.name === "color") {
-          inputParams[this.uniqueID + "color"] = {
-            type: "color",
-            value: input.value,
-            label: "Label color",
-            onChange: (value) => {
-              input.setValue(value);
-            },
-          };
-        }
-      });
-    }
+    const text = input("text");
+    const fontSize = input("fontSize");
+    const color = input("color");
+    const panel = {
+      [id + "text"]: {
+        type: "string",
+        value: text.value === LEGACY_DEFAULT_TEXT ? "" : text.value,
+        label: "Label text (empty shows the length)",
+        disabled: text.connectors.length > 0,
+        onChange: (value) => text.value !== value && text.setValue(value),
+      },
+      [id + "startChoice"]: choices("start"),
+      [id + "startDetails"]: details("start"),
+      [id + "endChoice"]: choices("end"),
+    };
+    if (!measuringEdge) panel[id + "endDetails"] = details("end");
+    panel[id + "color"] = {
+      type: "color",
+      value: color.value,
+      label: "Label color",
+      onChange: (value) => color.setValue(value),
+    };
+    panel[id + "fontSize"] = {
+      type: "range",
+      value: this.textScale(),
+      label: "Text size",
+      min: 0.5,
+      max: 3,
+      step: 0.1,
+      onChange: (value) => fontSize.setValue(value),
+    };
 
-    // Measuring an edge replaces the start and end
-    pickControls("edge", "edge", "Measured edge");
-
-    // Positions that a pick replaces aren't editable
-    if (this.anchors.edge || this.anchors.start) {
-      delete inputParams[this.uniqueID + "startPosition"];
-    }
-    if (this.anchors.edge || this.anchors.end) {
-      delete inputParams[this.uniqueID + "endPosition"];
-    }
-
-    // Show the controls in reading order, with this atom's own buttons
-    // (Delete Selected) last
-    const order = [
+    // Then this atom's own buttons (Delete Selected), leaving out the generic
+    // controls for the inputs shown above
+    const shown = [
+      "geometry",
       "text",
-      "edgePick",
-      "edgeClear",
-      "edgePickButton",
       "startPosition",
-      "startPick",
-      "startClear",
-      "startPickButton",
       "endPosition",
-      "endPick",
-      "endClear",
-      "endPickButton",
       "color",
       "fontSize",
-    ].map((name) => this.uniqueID + name);
-    const ordered = {};
-    order.forEach((key) => {
-      if (key in inputParams) ordered[key] = inputParams[key];
-    });
+    ];
     Object.keys(inputParams).forEach((key) => {
-      if (!(key in ordered)) ordered[key] = inputParams[key];
+      if (!shown.some((name) => key === id + name))
+        panel[key] = inputParams[key];
     });
-    return ordered;
+    return panel;
   }
 
   serialize(offset) {
@@ -428,6 +444,7 @@ export default class Label extends Atom {
     if (edge || start || end) {
       serialized.anchors = { edge, start, end };
     }
+    serialized.anchorModes = this.anchorModes;
     return serialized;
   }
 }

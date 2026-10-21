@@ -2107,46 +2107,81 @@ export const SimpleControlPanel = forwardRef(function SimpleControlPanel(
                     );
                   case "buttongroup":
                     return (
-                      <div key={key} style={labelStyle}>
-                        {config.buttons.map((btn, i) => (
-                          <button
-                            key={btn.key || i}
-                            style={{
-                              cursor: isDisabled ? "not-allowed" : "pointer",
-                              fontWeight: 600,
-                              background: "#3e7aff",
-                              color: "#c4c4c4ff",
-                              border: "none",
-                              padding: "6px 16px",
-                              borderRadius: 4,
-                              ...inputStyle,
-                              ...(isDisabled ? inputDisabledStyle : {}),
-                              ...(btn.ghostStyle
-                                ? { background: "#d3d3d3ff" }
-                                : {}),
-                              ...(btn.lowOpacity ? { opacity: 0.5 } : {}),
-                            }}
-                            title={
-                              btn.label ||
-                              (typeof btn.label === "string"
-                                ? btn.label
-                                : undefined) ||
-                              "Button"
-                            }
-                            onClick={() => {
-                              if (
-                                !isDisabled &&
-                                typeof btn.onClick === "function"
-                              ) {
-                                btn.onClick(btn.key || i);
+                      <div
+                        key={key}
+                        style={label ? { ...labelStyle, gap: 6 } : labelStyle}
+                        role={label ? "group" : undefined}
+                        aria-label={label || undefined}
+                      >
+                        {/* Optional row label, for side-by-side choices */}
+                        {label ? (
+                          <span style={{ flex: "none", width: 50 }}>
+                            {label}:
+                          </span>
+                        ) : null}
+                        {config.buttons.map((btn, i) => {
+                          const btnDisabled = isDisabled || btn.disabled;
+                          return (
+                            <button
+                              key={btn.key || i}
+                              style={{
+                                cursor: btnDisabled ? "not-allowed" : "pointer",
+                                fontWeight: 600,
+                                background: "#3e7aff",
+                                color: "#c4c4c4ff",
+                                border: "none",
+                                padding: "6px 16px",
+                                borderRadius: 4,
+                                ...inputStyle,
+                                ...(btnDisabled ? inputDisabledStyle : {}),
+                                // A choice that doesn't apply is hatched
+                                ...(btn.disabled
+                                  ? {
+                                      backgroundImage:
+                                        "repeating-linear-gradient(135deg, transparent 0 5px, rgba(255, 255, 255, 0.07) 5px 10px)",
+                                    }
+                                  : {}),
+                                ...(btn.selected
+                                  ? {
+                                      border:
+                                        "1px solid var(--abundance-color-lightPurple)",
+                                      background:
+                                        "var(--abundance-color-transparentHighlight)",
+                                      color: "#ffffff",
+                                    }
+                                  : {}),
+                                ...(btn.ghostStyle
+                                  ? { background: "#d3d3d3ff" }
+                                  : {}),
+                                ...(btn.lowOpacity ? { opacity: 0.5 } : {}),
+                              }}
+                              title={
+                                btn.title ||
+                                (typeof btn.label === "string"
+                                  ? btn.label
+                                  : undefined) ||
+                                "Button"
                               }
-                            }}
-                            disabled={isDisabled}
-                            tabIndex={isDisabled ? -1 : 0}
-                          >
-                            {btn.icon ? btn.icon : btn.label || "Button"}
-                          </button>
-                        ))}
+                              aria-pressed={
+                                btn.selected === undefined
+                                  ? undefined
+                                  : Boolean(btn.selected)
+                              }
+                              onClick={() => {
+                                if (
+                                  !btnDisabled &&
+                                  typeof btn.onClick === "function"
+                                ) {
+                                  btn.onClick(btn.key || i);
+                                }
+                              }}
+                              disabled={btnDisabled}
+                              tabIndex={btnDisabled ? -1 : 0}
+                            >
+                              {btn.icon ? btn.icon : btn.label || "Button"}
+                            </button>
+                          );
+                        })}
                       </div>
                     );
                   case "markdown":
