@@ -154,12 +154,10 @@ describe("Label choices", () => {
 });
 
 describe("Label offset", () => {
-  const bounds = { min: [-10, -10, 0], max: [10, 10, 20] };
-
-  it("moves the line away from the model, with extension lines", () => {
+  it("moves the line along X, with extension lines", () => {
     const label = makeLabel("MM", { offset: 5 });
-    // An edge on the model's +x side, running up z
-    const serialized = label.serializeLabel([10, 0, 0], [10, 0, 20], bounds);
+    // A vertical edge: X is the default axis
+    const serialized = label.serializeLabel([10, 0, 0], [10, 0, 20]);
 
     expect(serialized.line.start).toEqual([15, 0, 0]);
     expect(serialized.line.end).toEqual([15, 0, 20]);
@@ -170,16 +168,46 @@ describe("Label offset", () => {
     expect(serialized.endSegments.start.p2[0]).toBeCloseTo(15.5);
   });
 
+  it("moves to the - side with a negative distance", () => {
+    const label = makeLabel("MM", { offset: -5 });
+    label.offsetAxisChoice = "y";
+    const serialized = label.serializeLabel([10, 0, 0], [10, 0, 20]);
+    expect(serialized.line.start).toEqual([10, -5, 0]);
+    expect(serialized.endSegments.start.p2[1]).toBeCloseTo(-5.5);
+  });
+
+  it("doesn't offset along the axis the line runs along", () => {
+    const label = makeLabel("MM", { offset: 5 });
+    label.offsetAxisChoice = "x";
+    // Runs along X, so it moves along Y instead
+    const serialized = label.serializeLabel([0, 0, 0], [20, 0, 0]);
+    expect(serialized.line.start).toEqual([0, 5, 0]);
+
+    const axis = Object.values(label.createInputParams()).find(
+      (param) => param.label === "Offset",
+    );
+    expect(axis.buttons.map((button) => Boolean(button.disabled))).toEqual([
+      true,
+      false,
+    ]);
+    expect(axis.buttons.find((button) => button.selected).key).toBe("y");
+  });
+
   it("keeps the line on the measured points with no offset", () => {
     const label = makeLabel("MM");
-    const serialized = label.serializeLabel([10, 0, 0], [10, 0, 20], bounds);
+    const serialized = label.serializeLabel([10, 0, 0], [10, 0, 20]);
     expect(serialized.line.start).toEqual([10, 0, 0]);
   });
 
-  it("sizes the slider to about half the model", () => {
+  it("centers the slider on 0, sized to about half the model", () => {
     const label = makeLabel("MM");
-    label.modelBounds = bounds;
+    label.modelBounds = { min: [-10, -10, 0], max: [10, 10, 20] };
     expect(label.offsetSliderMax()).toBe(10);
+    const slider = Object.values(label.createInputParams()).find(
+      (param) => param.label === "Distance",
+    );
+    expect([slider.min, slider.max]).toEqual([-10, 10]);
+
     label.modelBounds = { min: [0, 0, 0], max: [1200, 300, 40] };
     expect(label.offsetSliderMax()).toBe(1000);
   });

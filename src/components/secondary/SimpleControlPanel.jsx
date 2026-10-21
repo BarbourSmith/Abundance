@@ -2115,7 +2115,7 @@ export const SimpleControlPanel = forwardRef(function SimpleControlPanel(
                       >
                         {/* Optional row label, for side-by-side choices */}
                         {label ? (
-                          <span style={{ flex: "none", width: 50 }}>
+                          <span style={{ flex: "none", width: 62 }}>
                             {label}:
                           </span>
                         ) : null}

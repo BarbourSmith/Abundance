@@ -66,6 +66,13 @@ export default class Label extends Atom {
      */
     this.textMode = null;
 
+    /**
+     * The axis the line is offset along, "x" or "y", as chosen in the panel.
+     * Unset means the one more across the line.
+     * @type {"x"|"y"|null}
+     */
+    this.offsetAxisChoice = null;
+
     this.addAllIOs([
       { name: "geometry", valueType: "geometry", type: "input" },
       { name: "geometry", valueType: "geometry", type: "output" },
@@ -215,37 +222,33 @@ export default class Label extends Atom {
    * The serializable label that Atom.reconstructLabelGeometry draws and the
    * worker's Move/Rotate actions transform.
    */
-  serializeLabel(start, end, bounds = null) {
+  serializeLabel(start, end) {
     const color = String(this.findIOValue("color") || "#3F3CDD");
     const length = Math.hypot(...start.map((v, i) => end[i] - v));
     const dir = start.map((v, i) => (end[i] - v) / (length || 1));
-    const unit = (v) => {
-      const size = Math.hypot(...v);
-      return size > 1e-9 ? v.map((x) => x / size) : null;
-    };
+    this.lineDirection = dir;
 
-    // The side the line moves to: away from the model's center, across the
-    // line. When the line runs through the center, any direction across it.
+    // End marks with no offset: across the line
     const ref = Math.abs(dir[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0];
-    let away = unit([
+    const cross = [
       dir[1] * ref[2] - dir[2] * ref[1],
       dir[2] * ref[0] - dir[0] * ref[2],
       dir[0] * ref[1] - dir[1] * ref[0],
-    ]);
-    if (bounds) {
-      const mid = start.map((v, i) => (v + end[i]) / 2);
-      const fromCenter = mid.map(
-        (v, i) => v - (bounds.min[i] + bounds.max[i]) / 2,
-      );
-      const along = fromCenter.reduce((sum, v, i) => sum + v * dir[i], 0);
-      away = unit(fromCenter.map((v, i) => v - along * dir[i])) || away;
-    }
+    ];
+    const crossLength = Math.hypot(...cross) || 1;
+    const tick = (p, distance) =>
+      p.map((v, i) => v + (cross[i] / crossLength) * distance);
+
+    // The offset moves the line along X or Y, + or -
+    const axis = this.offsetAxis(dir);
+    const away = axis === "x" ? [1, 0, 0] : [0, 1, 0];
     const shift = (p, distance) => p.map((v, i) => v + away[i] * distance);
 
     const offset = this.offsetDistance();
     const lineStart = shift(start, offset);
     const lineEnd = shift(end, offset);
     const half = (length * 0.05) / 2;
+    const past = offset + Math.sign(offset) * half;
 
     return {
       type: "Label",
@@ -254,14 +257,12 @@ export default class Label extends Atom {
       // run from the measured points to just past the line, like a drawing's
       // extension lines.
       endSegments: {
-        start:
-          offset > 0
-            ? { p1: start, p2: shift(start, offset + half) }
-            : { p1: shift(start, -half), p2: shift(start, half) },
-        end:
-          offset > 0
-            ? { p1: end, p2: shift(end, offset + half) }
-            : { p1: shift(end, -half), p2: shift(end, half) },
+        start: offset
+          ? { p1: start, p2: shift(start, past) }
+          : { p1: tick(start, -half), p2: tick(start, half) },
+        end: offset
+          ? { p1: end, p2: shift(end, past) }
+          : { p1: tick(end, -half), p2: tick(end, half) },
         color,
         linewidth: 5,
       },
@@ -277,10 +278,35 @@ export default class Label extends Atom {
     };
   }
 
-  /** How far the line sits from what it measures, in project units. */
+  /**
+   * How far the line sits from what it measures along the offset axis, in
+   * project units. Negative is the - side.
+   */
   offsetDistance() {
     const value = Number(this.findIOValue("offset"));
-    return Number.isFinite(value) && value > 0 ? value : 0;
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  /** Whether the line runs along an axis, so offsetting along it would only slide it. */
+  runsAlong(axis, dir = this.lineDirection) {
+    return Boolean(dir) && Math.abs(dir[axis === "x" ? 0 : 1]) > 0.99;
+  }
+
+  /**
+   * The axis the line is offset along: the chosen one, unless the line runs
+   * along it, else the one more across the line.
+   */
+  offsetAxis(dir = this.lineDirection) {
+    const choice = this.offsetAxisChoice;
+    if (choice && !this.runsAlong(choice, dir)) return choice;
+    if (!dir) return "x";
+    return Math.abs(dir[0]) <= Math.abs(dir[1]) ? "x" : "y";
+  }
+
+  /** Choose the axis the line is offset along. */
+  chooseOffsetAxis(axis) {
+    this.offsetAxisChoice = axis;
+    this.refreshAnchors();
   }
 
   /** The offset slider's top: about half the model's size, rounded up. */
@@ -289,7 +315,7 @@ export default class Label extends Atom {
     const size = bounds
       ? Math.max(...bounds.max.map((v, i) => v - bounds.min[i]))
       : 0;
-    const wanted = Math.max(size / 2, this.offsetDistance(), 1);
+    const wanted = Math.max(size / 2, Math.abs(this.offsetDistance()), 1);
     const power = 10 ** Math.floor(Math.log10(wanted));
     const nice = [1, 2, 5, 10].find((m) => m * power >= wanted);
     return nice * power;
@@ -305,7 +331,7 @@ export default class Label extends Atom {
     const { start, end } = await this.resolveEnds(assembly);
     const [bounds] = await this.resolvePicks(assembly, [{ kind: "bounds" }]);
     this.modelBounds = bounds;
-    this.serializedLabel = this.serializeLabel(start, end, bounds);
+    this.serializedLabel = this.serializeLabel(start, end);
 
     const prev = Array.isArray(assembly.nonReplicadSerialized)
       ? assembly.nonReplicadSerialized
@@ -519,12 +545,27 @@ export default class Label extends Atom {
     if (!measuringEdge) panel[id + "endDetails"] = details("end");
     const offset = input("offset");
     const offsetMax = this.offsetSliderMax();
+    const axis = this.offsetAxis();
+    panel[id + "offsetAxis"] = {
+      type: "buttongroup",
+      label: "Offset",
+      buttons: ["x", "y"].map((key) => ({
+        key,
+        label: key.toUpperCase(),
+        title: this.runsAlong(key)
+          ? `The line runs along ${key.toUpperCase()}`
+          : `Move the line along ${key.toUpperCase()}`,
+        selected: axis === key,
+        disabled: this.runsAlong(key),
+        onClick: () => this.chooseOffsetAxis(key),
+      })),
+    };
     panel[id + "offset"] = {
       type: "rangeSlider",
       value: this.offsetDistance(),
-      label: "Offset",
-      title: "Move the line away from the model",
-      min: 0,
+      label: "Distance",
+      title: `Move the line along ${axis.toUpperCase()}, + or -`,
+      min: -offsetMax,
       max: offsetMax,
       step: offsetMax / 100,
       disabled: offset.connectors.length > 0,
@@ -572,6 +613,9 @@ export default class Label extends Atom {
     }
     serialized.anchorModes = this.anchorModes;
     serialized.textMode = this.currentTextMode();
+    if (this.offsetAxisChoice) {
+      serialized.offsetAxisChoice = this.offsetAxisChoice;
+    }
     return serialized;
   }
 }
