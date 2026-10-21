@@ -26,6 +26,44 @@ const AlertType = Object.freeze({
   NONE: "none",
 });
 
+const labelViewport = new THREE.Vector2();
+const labelPoint = new THREE.Vector3();
+
+/** World units per screen pixel at an object's position, for the camera. */
+function labelWorldPerPixel(renderer, camera, object) {
+  renderer.getSize(labelViewport);
+  if (!labelViewport.y) return 0;
+  if (camera.isOrthographicCamera) {
+    return (camera.top - camera.bottom) / camera.zoom / labelViewport.y;
+  }
+  const distance = camera.position.distanceTo(
+    object.getWorldPosition(labelPoint),
+  );
+  const viewHeight =
+    (2 * distance * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)) /
+    camera.zoom;
+  return viewHeight / labelViewport.y;
+}
+
+/**
+ * A label line's direction and length on screen, in pixels.
+ * @returns {{dx: number, dy: number, length: number}}
+ */
+function labelLineOnScreen(renderer, camera, object, start, end) {
+  renderer.getSize(labelViewport);
+  const a = object.parent
+    ? object.parent.localToWorld(start.clone())
+    : start.clone();
+  const b = object.parent
+    ? object.parent.localToWorld(end.clone())
+    : end.clone();
+  a.project(camera);
+  b.project(camera);
+  const dx = ((b.x - a.x) * labelViewport.x) / 2;
+  const dy = ((b.y - a.y) * labelViewport.y) / 2;
+  return { dx, dy, length: Math.hypot(dx, dy) };
+}
+
 /**
  * This class is the prototype for all atoms.
  */
@@ -1142,68 +1180,137 @@ export default class Atom extends ObservableEntity {
   }
 
   /**
-   * A label's text as a sprite that keeps its size on screen at any zoom, like
-   * the label's lines, drawn just above the label's midpoint. screenHeight is
-   * in pixels. The canvas is sized to the text, so long text isn't cut off.
-   * @param {{value: string, color: string, position: number[], screenHeight: number}} text
+   * A label's text on a small white tag, beside the middle of the line. The
+   * text is sized from the line's length on screen, between text.minSize and
+   * text.size pixels, so it shrinks as you zoom out, and it hides when the
+   * line is too short to fit it.
+   * @param {{value: string, color: string, position: number[], size: number, minSize: number}} text
+   * @param {number[][]} line - The label line's start and end
    */
-  labelTextSprite(text) {
-    const fontPx = 64;
-    const padding = 16;
-    const font = `bold ${fontPx}px "Work Sans", Arial, sans-serif`;
+  labelTagSprite(text, line) {
+    const fontPx = 48;
+    const padX = 18;
+    const padY = 10;
+    const border = 3;
+    const font = `500 ${fontPx}px "Work Sans", Arial, sans-serif`;
     const measure = document.createElement("canvas").getContext("2d");
     measure.font = font;
     const value = String(text.value ?? "");
 
     const canvas = document.createElement("canvas");
-    canvas.width = Math.ceil(measure.measureText(value).width) + padding * 2;
-    canvas.height = fontPx + padding * 2;
+    canvas.width = Math.ceil(measure.measureText(value).width) + padX * 2;
+    canvas.height = fontPx + padY * 2;
     const ctx = canvas.getContext("2d");
+    ctx.beginPath();
+    ctx.roundRect(
+      border / 2,
+      border / 2,
+      canvas.width - border,
+      canvas.height - border,
+      12,
+    );
+    ctx.fillStyle = "white";
+    ctx.fill();
+    ctx.lineWidth = border;
+    ctx.strokeStyle = text.color;
+    ctx.stroke();
     ctx.font = font;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.lineJoin = "round";
-    ctx.lineWidth = 12;
-    ctx.strokeStyle = text.color;
-    ctx.strokeText(value, canvas.width / 2, canvas.height / 2);
-    ctx.fillStyle = "white";
-    ctx.fillText(value, canvas.width / 2, canvas.height / 2);
+    // The label color, darkened, so the text reads on white
+    ctx.fillStyle = `#${new THREE.Color(text.color).multiplyScalar(0.45).getHexString()}`;
+    ctx.fillText(value, canvas.width / 2, canvas.height / 2 + 2);
 
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
-    const sprite = new THREE.Sprite(
-      new THREE.SpriteMaterial({ map: texture, depthTest: false }),
-    );
+    const material = new THREE.SpriteMaterial({
+      map: texture,
+      depthTest: false,
+      transparent: true,
+    });
+    const sprite = new THREE.Sprite(material);
+    sprite.renderOrder = 2;
+    sprite.position.set(...text.position);
+    const start = new THREE.Vector3(...line[0]);
+    const end = new THREE.Vector3(...line[1]);
+    const tagPerFont = canvas.height / fontPx;
     const aspect = canvas.width / canvas.height;
-    const viewport = new THREE.Vector2();
-    const worldPosition = new THREE.Vector3();
-    // sizeAttenuation: false has no effect with the orthographic camera, so
-    // rescale before each render to keep the text screenHeight pixels tall
+
     sprite.onBeforeRender = (renderer, scene, camera) => {
-      renderer.getSize(viewport);
-      if (!viewport.y) return;
-      let viewHeight;
-      if (camera.isOrthographicCamera) {
-        viewHeight = (camera.top - camera.bottom) / camera.zoom;
-      } else {
-        const distance = camera.position.distanceTo(
-          sprite.getWorldPosition(worldPosition),
-        );
-        viewHeight =
-          (2 * distance * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)) /
-          camera.zoom;
+      const worldPerPixel = labelWorldPerPixel(renderer, camera, sprite);
+      if (!worldPerPixel) return;
+      const onScreen = labelLineOnScreen(renderer, camera, sprite, start, end);
+      const fontSize = Math.min(
+        text.size,
+        Math.max(text.minSize, onScreen.length * 0.12),
+      );
+      // Too short to fit the text: show just the line
+      material.opacity = onScreen.length < fontSize * 3 ? 0 : 1;
+
+      const height = fontSize * tagPerFont;
+      const width = height * aspect;
+      // Beside the line: to its right, or above a horizontal line
+      let nx = onScreen.length ? -onScreen.dy / onScreen.length : 0;
+      let ny = onScreen.length ? onScreen.dx / onScreen.length : 1;
+      if (nx < -1e-3 || (Math.abs(nx) <= 1e-3 && ny < 0)) {
+        nx = -nx;
+        ny = -ny;
       }
-      const height = (text.screenHeight * viewHeight) / viewport.y;
-      sprite.scale.set(height * aspect, height, 1);
+      const gap = (Math.abs(nx) * width) / 2 + (Math.abs(ny) * height) / 2 + 6;
+      sprite.center.set(0.5 - (nx * gap) / width, 0.5 - (ny * gap) / height);
+      sprite.scale.set(width * worldPerPixel, height * worldPerPixel, 1);
       sprite.updateMatrixWorld();
     };
-    // Sit above the midpoint, clear of the line
-    sprite.center.set(0.5, -0.15);
-    sprite.position.set(...text.position);
     return sprite;
   }
 
-  /** Text for labels serialized before screenHeight existed. */
+  /**
+   * An arrowhead at one end of a label line, pointing out along the line and
+   * the same size on screen at any zoom.
+   * @param {number[]} tip - The line end the arrow points at
+   * @param {number[]} from - The line's other end
+   * @param {string} color
+   */
+  labelArrowSprite(tip, from, color) {
+    const canvas = document.createElement("canvas");
+    canvas.width = 40;
+    canvas.height = 32;
+    const ctx = canvas.getContext("2d");
+    ctx.beginPath();
+    ctx.moveTo(0, 2);
+    ctx.lineTo(40, 16);
+    ctx.lineTo(0, 30);
+    ctx.closePath();
+    ctx.fillStyle = color;
+    ctx.fill();
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    const material = new THREE.SpriteMaterial({
+      map: texture,
+      depthTest: false,
+      transparent: true,
+    });
+    const sprite = new THREE.Sprite(material);
+    sprite.renderOrder = 1;
+    sprite.position.set(...tip);
+    // The tip sits on the line end
+    sprite.center.set(1, 0.5);
+    const start = new THREE.Vector3(...from);
+    const end = new THREE.Vector3(...tip);
+
+    sprite.onBeforeRender = (renderer, scene, camera) => {
+      const worldPerPixel = labelWorldPerPixel(renderer, camera, sprite);
+      if (!worldPerPixel) return;
+      const onScreen = labelLineOnScreen(renderer, camera, sprite, start, end);
+      material.rotation = Math.atan2(onScreen.dy, onScreen.dx);
+      sprite.scale.set(10 * worldPerPixel, 8 * worldPerPixel, 1);
+      sprite.updateMatrixWorld();
+    };
+    return sprite;
+  }
+
+  /** Text for labels serialized before the tag style existed. */
   legacyLabelTextSprite(text) {
     const canvas = document.createElement("canvas");
     canvas.width = 2048;
@@ -1264,9 +1371,12 @@ export default class Atom extends ObservableEntity {
           ...serializedLabel.endSegments.start.p1,
           ...serializedLabel.endSegments.start.p2,
         ]);
+        const segOpacity = serializedLabel.endSegments.opacity ?? 1;
         const startSegMat = new LineMaterial({
           color: serializedLabel.endSegments.color,
           linewidth: serializedLabel.endSegments.linewidth,
+          transparent: segOpacity < 1,
+          opacity: segOpacity,
           resolution: new THREE.Vector2(window.innerWidth, window.innerHeight),
         });
         const startSegLine = new Line2(startSegGeo, startSegMat);
@@ -1282,6 +1392,8 @@ export default class Atom extends ObservableEntity {
         const endSegMat = new LineMaterial({
           color: serializedLabel.endSegments.color,
           linewidth: serializedLabel.endSegments.linewidth,
+          transparent: segOpacity < 1,
+          opacity: segOpacity,
           resolution: new THREE.Vector2(window.innerWidth, window.innerHeight),
         });
         const endSegLine = new Line2(endSegGeo, endSegMat);
@@ -1289,9 +1401,25 @@ export default class Atom extends ObservableEntity {
         geometries.push(endSegLine);
       }
 
+      // --- Arrowheads ---
+      if (serializedLabel.arrows) {
+        const { start: a, end: b, color } = serializedLabel.line;
+        [
+          [a, b],
+          [b, a],
+        ].forEach(([tip, from], i) => {
+          const arrow = this.labelArrowSprite(tip, from, color);
+          arrow.name = `label-arrow-${i}-${idx}`;
+          geometries.push(arrow);
+        });
+      }
+
       // --- Text Sprite ---
-      const sprite = serializedLabel.text.screenHeight
-        ? this.labelTextSprite(serializedLabel.text)
+      const sprite = serializedLabel.text.size
+        ? this.labelTagSprite(serializedLabel.text, [
+            serializedLabel.line.start,
+            serializedLabel.line.end,
+          ])
         : this.legacyLabelTextSprite(serializedLabel.text);
       sprite.name = `label-text-${idx}`;
 

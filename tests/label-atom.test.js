@@ -70,7 +70,7 @@ describe("Label text", () => {
 });
 
 describe("Label.serializeLabel", () => {
-  it("draws a line between the ends with perpendicular end marks", () => {
+  it("draws a thin line with arrows and the text on a tag", () => {
     const label = makeLabel("MM", { color: "#ff0000", fontSize: 2 });
     const serialized = label.serializeLabel([0, 0, 0], [0, 0, 20]);
 
@@ -79,18 +79,18 @@ describe("Label.serializeLabel", () => {
       start: [0, 0, 0],
       end: [0, 0, 20],
       color: "#ff0000",
+      linewidth: 1.5,
     });
+    expect(serialized.arrows).toBe(true);
+    // Text between 10 and 16 pixels, times the text size
     expect(serialized.text).toMatchObject({
       value: "20 mm",
       position: [0, 0, 10],
-      screenHeight: 56,
+      size: 32,
+      minSize: 20,
     });
-
-    // 5% of the length, across the line
-    const { p1, p2 } = serialized.endSegments.end;
-    expect(Math.hypot(...p1.map((v, i) => p2[i] - v))).toBeCloseTo(1);
-    expect(p1[2]).toBeCloseTo(20);
-    expect(p2[2]).toBeCloseTo(20);
+    // No offset, no extension lines
+    expect(serialized.endSegments).toBeUndefined();
   });
 });
 
@@ -163,8 +163,9 @@ describe("Label offset", () => {
     expect(serialized.line.end).toEqual([15, 0, 20]);
     expect(serialized.text.position).toEqual([15, 0, 10]);
     expect(serialized.text.value).toBe("20 mm");
-    // From the measured point to just past the line
-    expect(serialized.endSegments.start.p1).toEqual([10, 0, 0]);
+    // Faint, from just off the part to just past the line
+    expect(serialized.endSegments.opacity).toBeLessThan(1);
+    expect(serialized.endSegments.start.p1).toEqual([10.5, 0, 0]);
     expect(serialized.endSegments.start.p2[0]).toBeCloseTo(15.5);
   });
 

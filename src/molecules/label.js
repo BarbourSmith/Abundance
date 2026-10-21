@@ -228,17 +228,6 @@ export default class Label extends Atom {
     const dir = start.map((v, i) => (end[i] - v) / (length || 1));
     this.lineDirection = dir;
 
-    // End marks with no offset: across the line
-    const ref = Math.abs(dir[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0];
-    const cross = [
-      dir[1] * ref[2] - dir[2] * ref[1],
-      dir[2] * ref[0] - dir[0] * ref[2],
-      dir[0] * ref[1] - dir[1] * ref[0],
-    ];
-    const crossLength = Math.hypot(...cross) || 1;
-    const tick = (p, distance) =>
-      p.map((v, i) => v + (cross[i] / crossLength) * distance);
-
     // The offset moves the line along X or Y, + or -
     const axis = this.offsetAxis(dir);
     const away = axis === "x" ? [1, 0, 0] : [0, 1, 0];
@@ -247,31 +236,33 @@ export default class Label extends Atom {
     const offset = this.offsetDistance();
     const lineStart = shift(start, offset);
     const lineEnd = shift(end, offset);
-    const half = (length * 0.05) / 2;
-    const past = offset + Math.sign(offset) * half;
+    // Extension lines: from just off the part to just past the line
+    const gap = offset * 0.1;
+    const past = offset + Math.sign(offset) * length * 0.025;
 
     return {
       type: "Label",
-      line: { start: lineStart, end: lineEnd, color, linewidth: 5 },
-      // End marks 5% of the length, across the line. With an offset they
-      // run from the measured points to just past the line, like a drawing's
-      // extension lines.
-      endSegments: {
-        start: offset
-          ? { p1: start, p2: shift(start, past) }
-          : { p1: tick(start, -half), p2: tick(start, half) },
-        end: offset
-          ? { p1: end, p2: shift(end, past) }
-          : { p1: tick(end, -half), p2: tick(end, half) },
-        color,
-        linewidth: 5,
-      },
+      line: { start: lineStart, end: lineEnd, color, linewidth: 1.5 },
+      arrows: true,
+      ...(offset
+        ? {
+            endSegments: {
+              start: { p1: shift(start, gap), p2: shift(start, past) },
+              end: { p1: shift(end, gap), p2: shift(end, past) },
+              color,
+              linewidth: 1,
+              opacity: 0.45,
+            },
+          }
+        : {}),
       text: {
         value: this.labelText(length),
         color,
         position: lineStart.map((v, i) => (v + lineEnd[i]) / 2),
-        // Text height in screen pixels, the same at any zoom
-        screenHeight: 28 * this.textScale(),
+        // Text size in screen pixels: it shrinks with the line on screen,
+        // between these
+        size: 16 * this.textScale(),
+        minSize: 10 * this.textScale(),
       },
       movement: { x: 0, y: 0, z: 0 },
       rotation: { x: 0, y: 0, z: 0 },
