@@ -260,3 +260,54 @@ describe("Label picking", () => {
     }
   });
 });
+
+describe("Label corners", () => {
+  it("offers a corner pick with the point input, and hides the input once picked", () => {
+    const label = makeLabel("MM");
+    const params = () => Object.values(label.createInputParams());
+    const labels = () => params().map((param) => param.label);
+    expect(labels()).toContain("Pick a corner on the model");
+    expect(labels()).toContain("Start point");
+
+    label.anchors = {
+      ...label.anchors,
+      start: { kind: "vertex", leaf: 0, index: 2 },
+    };
+    expect(labels()).toContain("Corner 3 of part 1 · change");
+    expect(labels()).not.toContain("Start point");
+    // Still Point: corners are a kind of point
+    expect(label.anchorModes.start).toBe("point");
+  });
+
+  it("uses a picked corner as that end", async () => {
+    const label = makeLabel("MM");
+    const corner = { kind: "vertex", leaf: 0, index: 2 };
+    label.anchors = { edge: null, start: corner, end: null };
+    label.resolvePicks = async (geometry, refs) =>
+      refs.map((ref) => (ref === corner ? { point: [1, 2, 3] } : null));
+    const ends = await label.resolveEnds({});
+    expect(ends.start).toEqual([1, 2, 3]);
+    expect(ends.end).toEqual([10, 10, 0]);
+  });
+
+  it("goes back to typed coordinates when Point is chosen again", () => {
+    const label = makeLabel("MM");
+    label.refreshAnchors = () => {};
+    label.anchors = {
+      edge: null,
+      start: { kind: "vertex", leaf: 0, index: 2 },
+      end: null,
+    };
+    label.chooseAnchor("start", "point");
+    expect(label.anchors.start).toBeNull();
+  });
+
+  it("restores a saved corner as a point", () => {
+    const corner = { kind: "vertex", leaf: 0, index: 2 };
+    const label = new Label({
+      parent: makeLabel("MM").parent,
+      anchors: { edge: null, start: corner, end: null },
+    });
+    expect(label.anchorModes.start).toBe("point");
+  });
+});

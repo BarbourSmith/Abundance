@@ -7,7 +7,12 @@ import React, {
   forwardRef,
 } from "react";
 import { useThree, useFrame } from "@react-three/fiber";
-import { BufferGeometry, BufferAttribute, DoubleSide } from "three";
+import {
+  BufferGeometry,
+  BufferAttribute,
+  CanvasTexture,
+  DoubleSide,
+} from "three";
 import {
   Scene,
   Mesh,
@@ -30,6 +35,28 @@ import { useRendering } from "../../contexts/index.js";
 // generous enough to generate an intersection in the first place) and the
 // precise per-click distance filter agree on the same target tolerance.
 const EDGE_SELECT_PX_TOLERANCE = 5;
+// Corners are small dots, so give them a little more room to hit.
+const VERTEX_SELECT_PX_TOLERANCE = 8;
+
+// A round dot for corner points (points draw as squares without one), made
+// on first use
+let cornerDotTexture = null;
+function cornerDot() {
+  if (!cornerDotTexture) {
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = 64;
+    const ctx = canvas.getContext("2d");
+    ctx.beginPath();
+    ctx.arc(32, 32, 26, 0, Math.PI * 2);
+    ctx.fillStyle = "white";
+    ctx.fill();
+    ctx.lineWidth = 8;
+    ctx.strokeStyle = "rgba(0, 0, 0, 0.35)";
+    ctx.stroke();
+    cornerDotTexture = new CanvasTexture(canvas);
+  }
+  return cornerDotTexture;
+}
 
 export default React.memo(
   forwardRef(function ShapeMeshes({ isSolid, cameraZoom, setProcessing }, ref) {
@@ -45,6 +72,10 @@ export default React.memo(
       if (raycaster?.params?.Line && camera?.zoom) {
         raycaster.params.Line.threshold =
           EDGE_SELECT_PX_TOLERANCE / camera.zoom;
+      }
+      if (raycaster?.params?.Points && camera?.zoom) {
+        raycaster.params.Points.threshold =
+          VERTEX_SELECT_PX_TOLERANCE / camera.zoom;
       }
     });
 
@@ -69,13 +100,31 @@ export default React.memo(
     const perElementGeoms = useMemo(() => {
       if (
         !perElementSource ||
-        (selectionType !== "faceselect" && selectionType !== "edgeselect")
+        (selectionType !== "faceselect" &&
+          selectionType !== "edgeselect" &&
+          selectionType !== "vertexselect")
       ) {
         return null;
       }
       const byLeaf = {};
       Object.entries(perElementSource).forEach(([leafIndex, entries]) => {
         if (!Array.isArray(entries)) return;
+        // Corners: one points geometry per leaf; a hit's index is the
+        // position in `indexes`
+        if (selectionType === "vertexselect") {
+          const g = new BufferGeometry();
+          g.setAttribute(
+            "position",
+            new BufferAttribute(
+              new Float32Array(entries.flatMap((entry) => entry.point)),
+              3,
+            ),
+          );
+          byLeaf[leafIndex] = [
+            { geom: g, indexes: entries.map((entry) => entry.index) },
+          ];
+          return;
+        }
         byLeaf[leafIndex] = entries.map((entry) => {
           const g = new BufferGeometry();
           if (selectionType === "faceselect") {
@@ -439,6 +488,12 @@ export default React.memo(
           // Edge/face modes read selected IDs for this leaf
           const isEdgeMode = isInSelectionMode && selectionType === "edgeselect";
           const isFaceMode = isInSelectionMode && selectionType === "faceselect";
+          const isVertexMode =
+            isInSelectionMode && selectionType === "vertexselect";
+          const selectedVertexIds =
+            isVertexMode && selectionVersion >= 0
+              ? selectionModeAtom.selectedVertexData?.[index] || []
+              : [];
           const selectedEdgeIds =
             isEdgeMode && selectionVersion >= 0
               ? selectionModeAtom.selectedEdgeData?.[index] || []
@@ -454,6 +509,7 @@ export default React.memo(
           const perElement = perElementGeoms?.[index] || null;
           const perFaceGeoms = isFaceMode ? perElement : null;
           const perEdgeGeoms = isEdgeMode ? perElement : null;
+          const vertexPoints = isVertexMode ? perElement?.[0] : null;
 
           return (
             <group key={index}>
@@ -578,6 +634,88 @@ export default React.memo(
                         );
                       })}
                     </>
+                  ) : isVertexMode && vertexPoints ? (
+                    // Corner select mode: the part faded, its edges, and a
+                    // dot on every corner. A click picks the nearest dot.
+                    <>
+                      <mesh geometry={m.body} key={"mesh-vertexmode" + index}>
+                        <meshMatcapMaterial
+                          color={m.color}
+                          side={DoubleSide}
+                          transparent={true}
+                          opacity={0.25}
+                          polygonOffset
+                          polygonOffsetFactor={2.0}
+                          polygonOffsetUnits={1.0}
+                        />
+                      </mesh>
+                      <lineSegments key={"lines-vertexmode" + index} geometry={m.lines}>
+                        <lineBasicMaterial color={"#3c5a6e"} />
+                      </lineSegments>
+                      <points
+                        key={"corners" + index}
+                        geometry={vertexPoints.geom}
+                        userData={{ abundanceVertex: true }}
+                        onPointerDown={(e) => {
+                          const hits = (e.intersections || []).filter(
+                            (i) => i.object?.userData?.abundanceVertex === true,
+                          );
+                          if (hits.length === 0) return;
+                          e.stopPropagation();
+                          // Nearest to the pointer, then nearest the camera
+                          hits.sort(
+                            (a, b) =>
+                              a.distanceToRay - b.distanceToRay ||
+                              a.distance - b.distance,
+                          );
+                          const hit = hits[0];
+                          if (hit.object !== e.object) return;
+                          selectionModeAtom.toggleVertexForLeaf(
+                            index,
+                            vertexPoints.indexes[hit.index],
+                          );
+                        }}
+                      >
+                        <pointsMaterial
+                          color={"#3c5a6e"}
+                          size={10}
+                          sizeAttenuation={false}
+                          depthTest={false}
+                          map={cornerDot()}
+                          transparent={true}
+                          alphaTest={0.5}
+                        />
+                      </points>
+                      {selectedVertexIds.length > 0 && (
+                        <points key={"corners-selected" + index}>
+                          <bufferGeometry>
+                            <bufferAttribute
+                              attach="attributes-position"
+                              count={selectedVertexIds.length}
+                              array={
+                                new Float32Array(
+                                  selectedVertexIds.flatMap((id) => {
+                                    const i = vertexPoints.indexes.indexOf(id);
+                                    const p = vertexPoints.geom.attributes.position;
+                                    return i < 0 ? [] : [p.getX(i), p.getY(i), p.getZ(i)];
+                                  }),
+                                )
+                              }
+                              itemSize={3}
+                            />
+                          </bufferGeometry>
+                          <pointsMaterial
+                            color={"#ffdd00"}
+                            size={14}
+                            sizeAttenuation={false}
+                            depthTest={false}
+                            map={cornerDot()}
+                            transparent={true}
+                            alphaTest={0.5}
+                          />
+                        </points>
+                      )}
+                    </>
                   ) : isPartMode ? (
                     // Part select mode: mirrors face-select's rendering —
                     // unselected parts at moderate opacity + original color,
@@ -655,7 +793,7 @@ export default React.memo(
                     </meshBasicMaterial>
                   )}
                   {/* Normal edge lines when not in face/edge select modes */}
-                  {!isFaceMode && !isEdgeMode && (
+                  {!isFaceMode && !isEdgeMode && !isVertexMode && (
                     <>
                       <lineSegments key={"lines" + index} geometry={m.lines} />
                       <lineSegments key={"linesmesh" + index} geometry={m.lines}>
