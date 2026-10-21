@@ -39,6 +39,25 @@ describe("Label text", () => {
     expect(makeLabel("MM", { text: " Gap " }).labelText(14)).toBe("Gap");
   });
 
+  it("shows the length when Measure is chosen, even with typed text", () => {
+    const label = makeLabel("MM", { text: "Gap" });
+    label.textMode = "measure";
+    expect(label.labelText(14)).toBe("14 mm");
+  });
+
+  it("shows the text input only for custom text", () => {
+    const label = makeLabel("MM");
+    label.refreshAnchors = () => {};
+    const hasInput = () =>
+      Object.keys(label.createInputParams()).includes(label.uniqueID + "text");
+    expect(label.currentTextMode()).toBe("measure");
+    expect(hasInput()).toBe(false);
+
+    label.chooseTextMode("custom");
+    expect(hasInput()).toBe(true);
+    expect(label.serialize().textMode).toBe("custom");
+  });
+
   it("treats the old default text 'label' as showing the length", () => {
     expect(makeLabel("MM", { text: "label" }).labelText(16)).toBe("16 mm");
   });
@@ -93,7 +112,7 @@ describe("Label anchors", () => {
 describe("Label choices", () => {
   const params = (label) =>
     Object.values(label.createInputParams()).filter(
-      (param) => param.type === "buttongroup",
+      (param) => param.type === "buttongroup" && param.label !== "Text",
     );
 
   it("follows the picks of labels saved before the choices", () => {

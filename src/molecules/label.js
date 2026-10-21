@@ -59,6 +59,13 @@ export default class Label extends Atom {
      */
     this.anchorModes = null;
 
+    /**
+     * Whether the text shows the "measure"d length or "custom" text, as
+     * chosen in the panel. Unset until a choice is made, then saved.
+     * @type {"measure"|"custom"|null}
+     */
+    this.textMode = null;
+
     this.addAllIOs([
       { name: "geometry", valueType: "geometry", type: "input" },
       { name: "geometry", valueType: "geometry", type: "output" },
@@ -119,12 +126,35 @@ export default class Label extends Atom {
     return String(Number(length.toFixed(2)));
   }
 
-  /** The label text: what's typed, or the measured length. */
-  labelText(length) {
+  /** The typed text, without old projects' default "label". */
+  typedText() {
     const typed = String(this.findIOValue("text") ?? "").trim();
-    return typed && typed !== LEGACY_DEFAULT_TEXT
+    return typed === LEGACY_DEFAULT_TEXT ? "" : typed;
+  }
+
+  /**
+   * "measure" or "custom". Labels saved before the choice show custom text
+   * when they have some typed or wired in.
+   */
+  currentTextMode() {
+    if (this.textMode) return this.textMode;
+    const wired = this.inputs?.find((i) => i.name === "text")?.connectors
+      .length;
+    return wired || this.typedText() ? "custom" : "measure";
+  }
+
+  /** The label text: the measured length, or the custom text if any. */
+  labelText(length) {
+    const typed = this.typedText();
+    return this.currentTextMode() === "custom" && typed
       ? typed
       : this.formatLength(length);
+  }
+
+  /** Choose whether the text shows the length or custom text. */
+  chooseTextMode(mode) {
+    this.textMode = mode;
+    this.refreshAnchors();
   }
 
   /**
@@ -392,18 +422,44 @@ export default class Label extends Atom {
     const text = input("text");
     const fontSize = input("fontSize");
     const color = input("color");
+    const textMode = this.currentTextMode();
     const panel = {
-      [id + "text"]: {
+      [id + "textChoice"]: {
+        type: "buttongroup",
+        label: "Text",
+        buttons: [
+          {
+            key: "measure",
+            label: "Measure",
+            title: "Show the measured length",
+          },
+          {
+            key: "custom",
+            label: "Custom text",
+            title: "Show text you type",
+          },
+        ].map((button) => ({
+          ...button,
+          selected: textMode === button.key,
+          onClick: () => this.chooseTextMode(button.key),
+        })),
+      },
+    };
+    if (textMode === "custom") {
+      panel[id + "text"] = {
         type: "string",
         value: text.value === LEGACY_DEFAULT_TEXT ? "" : text.value,
-        label: "Label text (empty shows the length)",
+        // No side label, so the input spans the panel
+        placeholder: "Type the label text",
         disabled: text.connectors.length > 0,
         onChange: (value) => text.value !== value && text.setValue(value),
-      },
+      };
+    }
+    Object.assign(panel, {
       [id + "startChoice"]: choices("start"),
       [id + "startDetails"]: details("start"),
       [id + "endChoice"]: choices("end"),
-    };
+    });
     if (!measuringEdge) panel[id + "endDetails"] = details("end");
     panel[id + "color"] = {
       type: "color",
@@ -445,6 +501,7 @@ export default class Label extends Atom {
       serialized.anchors = { edge, start, end };
     }
     serialized.anchorModes = this.anchorModes;
+    serialized.textMode = this.currentTextMode();
     return serialized;
   }
 }
