@@ -216,6 +216,13 @@
   .menu-button-container {
     display: flex;
   }
+  /* Raise the logo into the Log out row, centered on the button. Only the
+     logo moves: the menu button and the content keep their places. 55px is
+     the distance between the two rows' centers (the Log out row is 61px:
+     .longButton's 41px plus 10px margins, then the banner's 5px margin). */
+  #welcome-logo {
+    transform: translateY(-55px);
+  }
   .menu {
     position: absolute;
     /* Above the search bar and project cards, below dialogs (1000) */
@@ -285,6 +292,15 @@
     color: var(--settingsPopup-text);
   }
 } /*mobile style end*/
+
+/* The smallest phones: a smaller wordmark so it clears Log out (its size is
+   set inline in LoginMode, hence !important) */
+@media (max-width: 360px) {
+  #welcome-logo-lettering {
+    height: 16px !important;
+    padding: 6px !important;
+  }
+}
 
 /*Settings div styling*/
 .settingsDiv {
