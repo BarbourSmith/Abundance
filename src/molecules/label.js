@@ -1,19 +1,22 @@
 import Atom from "../prototypes/atom.js";
-import * as THREE from "three";
-import { Line2 } from "three/addons/lines/Line2.js";
-import { LineMaterial } from "three/addons/lines/LineMaterial.js";
-import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
-
 import GlobalVariables from "../js/globalvariables.js";
-import { re } from "mathjs";
+import { unitAbbreviation, unitsContextOf } from "../js/units.js";
 
-/** Number of millimeters per inch, used to scale label geometry for MM projects. */
-const MM_PER_INCH = 25.4;
+/** The text old projects saved by default; it now means "show the length". */
+const LEGACY_DEFAULT_TEXT = "label";
 
 /**
- * This class creates the label atom which adds a dimension label (a line with
- * accompanying text) to the 3D view. The label is rendered as non-replicad
- * ThreeJS geometry and the input geometry is passed through unchanged.
+ * This class creates the label atom, which adds a dimension label (a line with
+ * end marks and text) to the 3D view. The input geometry passes through
+ * unchanged, carrying the label as nonReplicadSerialized data that Atom's
+ * reconstructLabelGeometry draws and Move/Rotate carry along.
+ *
+ * The label measures either:
+ * - an edge picked on the input geometry (its two endpoints), or
+ * - between two anchors, each typed coordinates, a wired point, or a face
+ *   picked on the input geometry (its center).
+ *
+ * Its text is the measured length in project units unless text is typed.
  */
 export default class Label extends Atom {
   /**
@@ -38,7 +41,15 @@ export default class Label extends Atom {
      * @type {string}
      */
     this.description =
-      "Adds a dimension label with a line and text to the 3D view. The geometry is passed through unchanged.";
+      "Adds a dimension label with a line and text to the 3D view, measuring a picked edge or between two points or faces. The geometry is passed through unchanged.";
+
+    /**
+     * Picks made on the input geometry, as the 3D view's selection mode
+     * reports them ({ kind, leaf, index }). `edge` measures that edge; `start`
+     * and `end` are faces used as the ends when no edge is picked.
+     * @type {{edge: object|null, start: object|null, end: object|null}}
+     */
+    this.anchors = { edge: null, start: null, end: null };
 
     this.addAllIOs([
       { name: "geometry", valueType: "geometry", type: "input" },
@@ -46,7 +57,7 @@ export default class Label extends Atom {
       {
         name: "text",
         valueType: "string",
-        defaultValue: "label",
+        defaultValue: "",
         type: "input",
       },
       {
@@ -70,340 +81,233 @@ export default class Label extends Atom {
       {
         name: "fontSize",
         valueType: "number",
-        defaultValue: 40,
+        defaultValue: 1,
         type: "input",
       },
     ]);
 
     this.setValues(values);
+    this.anchors = { edge: null, start: null, end: null, ...this.anchors };
+  }
+
+  /** The text size multiplier, 0.5 to 3. Old projects saved 40 by default. */
+  textScale() {
+    const value = Number(this.findIOValue("fontSize"));
+    if (!Number.isFinite(value) || value <= 0 || value > 3) return 1;
+    return Math.max(0.5, value);
+  }
+
+  /** The measured length formatted in the project's units. */
+  formatLength(length) {
+    const units = unitsContextOf(this);
+    if (units === "Inches") return `${Number(length.toFixed(2))} in`;
+    if (units === "MM") return `${Number(length.toFixed(1))} mm`;
+    return String(Number(length.toFixed(2)));
+  }
+
+  /** The label text: what's typed, or the measured length. */
+  labelText(length) {
+    const typed = String(this.findIOValue("text") ?? "").trim();
+    return typed && typed !== LEGACY_DEFAULT_TEXT
+      ? typed
+      : this.formatLength(length);
   }
 
   /**
-   * Returns the scale factor for label geometry based on project units.
-   * MM projects use coordinates ~25.4x larger than Inch projects, so the
-   * sprite size and offsets must be scaled accordingly.
-   * @returns {number} 25.4 for MM projects, 1 otherwise
+   * Coordinates for the picked edge and faces, from the mesh workers.
+   * @returns {Promise<object[]>} One result (or null) per ref
    */
-  getUnitScale() {
-    return GlobalVariables.topLevelMolecule?.unitsKey === "MM"
-      ? MM_PER_INCH
-      : 1;
+  async resolvePicks(geometry, refs) {
+    if (!refs.length || !GlobalVariables.pool) return refs.map(() => null);
+    const worker = await GlobalVariables.pool.proxy();
+    return worker.resolveSelectionPoints(geometry, refs, this.getContext());
   }
 
   /**
-   * Build a ThreeJS texture/sprite from a text string and return a Sprite object.
-   * @param {string} text - The text to render
-   * @param {string} color - The hex color string for the text
-   * @param {number} lineLength - Length of the label line to scale text proportionally
-   * @param {number} fontSize - Font size multiplier (1 = default)
-   * @returns {THREE.Sprite}
+   * The label's two ends: a picked edge's endpoints, or each end's picked
+   * face center, wired point or typed coordinates.
+   * @returns {Promise<{start: number[], end: number[]}>}
    */
-  createTextSprite(text, color, lineLength = 10, fontSize = 1) {
-    const canvas = document.createElement("canvas");
-    canvas.width = 2048; // Large width to accommodate longer text, will be scaled down by sprite scale
-    canvas.height = 1024;
-    const ctx = canvas.getContext("2d");
-
-    ctx.fillStyle = "rgba(0,0,0,0)";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    const baseFontSize = 40;
-    const scaledFontSize = Math.round(baseFontSize * fontSize);
-    ctx.font = `Bold ${scaledFontSize}px Arial`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-
-    // Draw stroke (text color)
-    ctx.strokeStyle = color;
-    ctx.lineWidth = fontSize * 0.4; // Line width for text stroke, scaled with font size
-    ctx.lineJoin = "round";
-    ctx.lineCap = "round";
-    ctx.strokeText(text, canvas.width / 2, canvas.height / 2);
-
-    // Draw fill (white)
-    ctx.fillStyle = "white";
-    ctx.fillText(text, canvas.width / 2, canvas.height / 2);
-
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.colorSpace = THREE.SRGBColorSpace;
-    const material = new THREE.SpriteMaterial({
-      map: texture,
-      depthTest: false, // Render label text on top so it remains visible regardless of depth
-    });
-    const sprite = new THREE.Sprite(material);
-    // Scale based on line length and font size
-    const scaleX = lineLength * 30 * fontSize;
-    const scaleY = lineLength * 60 * fontSize;
-
-    sprite.scale.set(scaleX, scaleY, 1);
-    return sprite;
-  }
-
-  /**
-   * Build the ThreeJS geometries (line + text sprite) and store them in
-   * this.nonReplicadGeom so they get sent to the renderer.
-   * @param {THREE.Vector3} start - Start point of the line
-   * @param {THREE.Vector3} end - End point of the line
-   * @param {string} labelText - The text to display
-   * @param {string} color - The hex color string for the line and text
-   */
-  async buildLabelGeometry() {
-    // Dispose of old geometry before creating new one
-    this.disposeLabelGeometry();
-
-    let startPointInput = this.findIOValue("startPosition");
-    let endPointInput = this.findIOValue("endPosition");
-    let text = this.findIOValue("text");
-    let fontSize = Number(this.findIOValue("fontSize") || 10);
-
-    // Extract coordinates from either arrays or Abundance Point3D objects
-    const startPoint = await this.extractCoordinates(startPointInput);
-    const endPoint = await this.extractCoordinates(endPointInput);
-
-    const start = new THREE.Vector3(
-      Number(startPoint[0]) || 0,
-      Number(startPoint[1]) || 0,
-      Number(startPoint[2]) || 0,
-    );
-    const end = new THREE.Vector3(
-      Number(endPoint[0]) || 0,
-      Number(endPoint[1]) || 0,
-      Number(endPoint[2]) || 0,
-    );
-    const labelText = String(text || "label");
-    const color = String(this.findIOValue("color") || "#3F3CDD");
-
-    // Scale sprite size and offset based on project units (MM coords are ~25.4x larger than Inches)
-    const unitScale = this.getUnitScale();
-
-    const geometryArray = [];
-
-    // --- Line (complete Three.js object with geometry + material) ---
-    const lineGeo = new LineGeometry();
-    const lineMat = new LineMaterial({
-      color: color,
-      linewidth: 5, // Desired width in pixels
-      // You must set these uniforms in your render loop or whenever the window is resized
-      resolution: new THREE.Vector2(window.innerWidth, window.innerHeight),
-    });
-    // Define points as a flat array of x, y, z coordinates
-    lineGeo.setPositions(start.toArray().concat(end.toArray()));
-    const line = new Line2(lineGeo, lineMat);
-
-    line.name = "label-line";
-    geometryArray.push(line);
-
-    // --- Calculate perpendicular direction for text offset and segments ---
-    const lineDir = new THREE.Vector3().subVectors(end, start).normalize();
-
-    // Find a perpendicular direction to the line that works for any orientation
-    // If line is mostly horizontal, use vertical as reference; if mostly vertical, use horizontal
-    let referenceVec;
-    if (Math.abs(lineDir.z) < 0.9) {
-      // Line is mostly horizontal, use vertical as reference to get perpendicular in XY plane
-      referenceVec = new THREE.Vector3(0, 0, 1);
-    } else {
-      // Line is mostly vertical, use horizontal as reference
-      referenceVec = new THREE.Vector3(1, 0, 0);
+  async resolveEnds(geometry) {
+    const { edge, start, end } = this.anchors;
+    if (edge) {
+      const [resolved] = await this.resolvePicks(geometry, [edge]);
+      if (!resolved) {
+        throw new Error(
+          "The picked edge isn't on the model any more. Pick the edge again.",
+        );
+      }
+      return { start: resolved.start, end: resolved.end };
     }
 
-    const segmentDir = new THREE.Vector3()
-      .crossVectors(lineDir, referenceVec)
-      .normalize();
-
-    // For text, use perpendicular in XY plane
-    const perpDir = new THREE.Vector3(-lineDir.y, lineDir.x, 0).normalize();
-
-    // --- End segments perpendicular to the line ---
-    // Length of the segments (proportional to line length)
-    const lineLength = start.distanceTo(end);
-    const endSegmentLength = Math.max(lineLength * 0.05, lineLength * 0.02); // 5% of line length, minimum 2%
-
-    // Start perpendicular segment
-    const startSegStart = new THREE.Vector3()
-      .copy(start)
-      .sub(segmentDir.clone().multiplyScalar(endSegmentLength / 2));
-    const startSegEnd = new THREE.Vector3()
-      .copy(start)
-      .add(segmentDir.clone().multiplyScalar(endSegmentLength / 2));
-
-    const startSegGeo = new LineGeometry();
-    startSegGeo.setPositions(
-      startSegStart.toArray().concat(startSegEnd.toArray()),
-    );
-    const startSegMat = new LineMaterial({
-      color: color,
-      linewidth: 5,
-      resolution: new THREE.Vector2(window.innerWidth, window.innerHeight),
-    });
-    const startSegLine = new Line2(startSegGeo, startSegMat);
-    startSegLine.name = "label-end-segment-start";
-    geometryArray.push(startSegLine);
-
-    // End perpendicular segment
-    const endSegStart = new THREE.Vector3()
-      .copy(end)
-      .sub(segmentDir.clone().multiplyScalar(endSegmentLength / 2));
-    const endSegEnd = new THREE.Vector3()
-      .copy(end)
-      .add(segmentDir.clone().multiplyScalar(endSegmentLength / 2));
-
-    const endSegGeo = new LineGeometry();
-    endSegGeo.setPositions(endSegStart.toArray().concat(endSegEnd.toArray()));
-    const endSegMat = new LineMaterial({
-      color: color,
-      linewidth: 5,
-      resolution: new THREE.Vector2(window.innerWidth, window.innerHeight),
-    });
-    const endSegLine = new Line2(endSegGeo, endSegMat);
-    endSegLine.name = "label-end-segment-end";
-    geometryArray.push(endSegLine);
-
-    // --- Text sprite (positioned above the line like an underscore) ---
-    const sprite = this.createTextSprite(
-      String(labelText),
-      color,
-      lineLength,
-      fontSize,
-    );
-    const mid = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5);
-    // Use the perpendicular direction already calculated for end segments
-    // Position text above the line at a fixed offset distance
-    const OFFSET_DIST = 2.5; //* unitScale;
-    const offsetVec = perpDir.clone().multiplyScalar(OFFSET_DIST);
-    sprite.position.set(
-      mid.x + offsetVec.x,
-      mid.y + offsetVec.y,
-      mid.z + offsetVec.z,
-    );
-    sprite.name = "label-text";
-    geometryArray.push(sprite);
-
-    this.nonReplicadGeom = {
-      geometry: geometryArray,
-      material: null,
-      hideMainMesh: false,
+    const faces = [start, end].filter(Boolean);
+    const centers = await this.resolvePicks(geometry, faces);
+    const centerOf = (pick) => {
+      const resolved = centers[faces.indexOf(pick)];
+      if (!resolved) {
+        throw new Error(
+          "A picked face isn't on the model any more. Pick the face again.",
+        );
+      }
+      return resolved.center;
     };
-
-    return this.buildSerializableLabelGeometry(
-      start,
-      end,
-      labelText,
-      color,
-      fontSize,
-      mid,
-      offsetVec,
-    );
+    return {
+      start: start
+        ? centerOf(start)
+        : await this.extractCoordinates(this.findIOValue("startPosition")),
+      end: end
+        ? centerOf(end)
+        : await this.extractCoordinates(this.findIOValue("endPosition")),
+    };
   }
 
-  buildSerializableLabelGeometry(
-    start,
-    end,
-    labelText,
-    color,
-    fontSize = 10,
-    movement = { x: 0, y: 0, z: 0 },
-    rotation = { x: 0, y: 0, z: 0 },
-  ) {
-    const unitScale = this.getUnitScale();
-    const mid = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5);
+  /**
+   * The serializable label that Atom.reconstructLabelGeometry draws and the
+   * worker's Move/Rotate actions transform.
+   */
+  serializeLabel(start, end) {
+    const color = String(this.findIOValue("color") || "#3F3CDD");
+    const length = Math.hypot(...start.map((v, i) => end[i] - v));
+    const mid = start.map((v, i) => (v + end[i]) / 2);
 
-    // Calculate perpendicular direction to the line
-    const lineDir = new THREE.Vector3().subVectors(end, start).normalize();
-
-    // Find a perpendicular direction that works for any line orientation
-    let referenceVec;
-    if (Math.abs(lineDir.z) < 0.9) {
-      // Line is mostly horizontal, use vertical as reference
-      referenceVec = new THREE.Vector3(0, 0, 1);
-    } else {
-      // Line is mostly vertical, use horizontal as reference
-      referenceVec = new THREE.Vector3(1, 0, 0);
-    }
-
-    const segmentDir = new THREE.Vector3()
-      .crossVectors(lineDir, referenceVec)
-      .normalize();
-
-    // For text, use perpendicular in XY plane
-    const perpDir = new THREE.Vector3(-lineDir.y, lineDir.x, 0).normalize();
-    const OFFSET_DIST = 2.5; //* unitScale;
-    const offset = perpDir.clone().multiplyScalar(OFFSET_DIST);
-
-    // Calculate end segments
-    const lineLength = start.distanceTo(end);
-    const endSegmentLength = Math.max(lineLength * 0.05, lineLength * 0.02); // 5% of line length, minimum 2%
-
-    const startSegStart = new THREE.Vector3()
-      .copy(start)
-      .sub(segmentDir.clone().multiplyScalar(endSegmentLength / 2));
-    const startSegEnd = new THREE.Vector3()
-      .copy(start)
-      .add(segmentDir.clone().multiplyScalar(endSegmentLength / 2));
-
-    const endSegStart = new THREE.Vector3()
-      .copy(end)
-      .sub(segmentDir.clone().multiplyScalar(endSegmentLength / 2));
-    const endSegEnd = new THREE.Vector3()
-      .copy(end)
-      .add(segmentDir.clone().multiplyScalar(endSegmentLength / 2));
+    // End marks: perpendicular to the line, 5% of its length
+    const dir = start.map((v, i) => (end[i] - v) / (length || 1));
+    const ref = Math.abs(dir[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0];
+    const cross = [
+      dir[1] * ref[2] - dir[2] * ref[1],
+      dir[2] * ref[0] - dir[0] * ref[2],
+      dir[0] * ref[1] - dir[1] * ref[0],
+    ];
+    const crossLength = Math.hypot(...cross) || 1;
+    const half = (length * 0.05) / 2;
+    const mark = (p, sign) =>
+      p.map((v, i) => v + sign * (cross[i] / crossLength) * half);
 
     return {
       type: "Label",
-      fontSize: fontSize,
-      line: {
-        start: start.toArray(),
-        end: end.toArray(),
-        color: color,
-        linewidth: 5,
-      },
+      line: { start, end, color, linewidth: 5 },
       endSegments: {
-        start: {
-          p1: startSegStart.toArray(),
-          p2: startSegEnd.toArray(),
-        },
-        end: {
-          p1: endSegStart.toArray(),
-          p2: endSegEnd.toArray(),
-        },
-        color: color,
+        start: { p1: mark(start, -1), p2: mark(start, 1) },
+        end: { p1: mark(end, -1), p2: mark(end, 1) },
+        color,
         linewidth: 5,
       },
       text: {
-        value: labelText,
-        color: color,
-        position: [mid.x + offset.x, mid.y + offset.y, mid.z + offset.z],
-        scale: [lineLength * 0.1 * fontSize, lineLength * 0.05 * fontSize, 1],
-        font: `Bold ${fontSize}px Arial`,
-        linewidth: fontSize * 0.4, // Line width for text stroke, scaled with font size
+        value: this.labelText(length),
+        color,
+        position: mid,
+        // Text height in screen pixels, the same at any zoom
+        screenHeight: 28 * this.textScale(),
       },
-      movement: { ...movement }, // e.g. {x: 10, y: 0, z: 0}
-      rotation: { ...rotation }, // e.g. {x: 0, y: 0, z: Math.PI/2}
+      movement: { x: 0, y: 0, z: 0 },
+      rotation: { x: 0, y: 0, z: 0 },
     };
   }
 
   /**
-   * Compute the label atom: build label geometry and pass through the input geometry.
-   * @param {object} inputs - The resolved input values
-   * @returns {Promise} The input geometry unchanged
+   * Compute the label atom: work out its ends and pass the input geometry
+   * through with the label attached.
+   * @returns {Promise} The input geometry, carrying the label
    */
   async compute() {
-    this.serializedLabel = await this.buildLabelGeometry();
-    let assembly = this.findIOValue("geometry");
+    const assembly = this.findIOValue("geometry");
+    const { start, end } = await this.resolveEnds(assembly);
+    this.serializedLabel = this.serializeLabel(start, end);
 
     const prev = Array.isArray(assembly.nonReplicadSerialized)
       ? assembly.nonReplicadSerialized
       : assembly.nonReplicadSerialized
         ? [assembly.nonReplicadSerialized]
         : [];
-    return Promise.resolve({
+    return {
       ...assembly,
       nonReplicadSerialized: [...prev, this.serializedLabel],
+    };
+  }
+
+  /** Set or clear one of the picks ("edge", "start" or "end") and recompute. */
+  setAnchor(slot, pick) {
+    this.anchors = { ...this.anchors, [slot]: pick };
+    if (slot === "edge" && pick) {
+      this.anchors.start = null;
+      this.anchors.end = null;
+    }
+    this.onUpstreamChange();
+    this.setInputChanged?.(String(Date.now()));
+  }
+
+  /**
+   * Pick an edge or face on the input geometry in the 3D view, using the
+   * selection mode Input atoms use. The first click sets the pick and exits.
+   * @param {"edge"|"face"} kind - What to pick
+   * @param {"edge"|"start"|"end"} slot - Which pick to set
+   */
+  startPicking(kind, slot) {
+    const label = this;
+    const current = this.anchors[slot];
+    const highlight = current ? { [current.leaf]: [current.index] } : {};
+    const choose = (leaf, index) => {
+      label.anchors = { ...label.anchors, [slot]: { kind, leaf, index } };
+      if (slot === "edge") {
+        label.anchors.start = null;
+        label.anchors.end = null;
+      }
+      // Exiting recomputes the label and refreshes the panel
+      GlobalVariables.exitSelectionMode();
+    };
+    GlobalVariables.enterSelectionMode({
+      type: kind === "edge" ? "edgeselect" : "faceselect",
+      selectedEdgeData: kind === "edge" ? highlight : {},
+      selectedFaceData: kind === "face" ? highlight : {},
+      parentAP: { getState: () => ({ value: label.findIOValue("geometry") }) },
+      parent: label.parent,
+      getContext: () => label.getContext(),
+      toggleEdgeForLeaf: choose,
+      toggleFaceForLeaf: choose,
+      onUpstreamChange: () => label.onUpstreamChange(),
+      setInputChanged: (value) => label.setInputChanged?.(value),
     });
+  }
+
+  /** "Edge 3 of part 1", for showing a pick in the panel. */
+  describePick(pick) {
+    const what = pick.kind === "edge" ? "Edge" : "Face";
+    return `${what} ${pick.index + 1} of part ${pick.leaf + 1}`;
   }
 
   createInputParams(setInputChanged) {
     let inputParams = super.createInputParams(setInputChanged);
+    const picking = GlobalVariables.selectionModeAtom != null;
+
+    const pickControls = (slot, kind, pickLabel) => {
+      const pick = this.anchors[slot];
+      if (pick) {
+        inputParams[this.uniqueID + slot + "Pick"] = {
+          type: "string",
+          label: pickLabel,
+          value: this.describePick(pick),
+          disabled: true,
+        };
+        inputParams[this.uniqueID + slot + "Clear"] = {
+          type: "button",
+          label: `Clear ${pickLabel.toLowerCase()}`,
+          title: `Stop using the picked ${kind}`,
+          onClick: () => this.setAnchor(slot, null),
+        };
+      }
+      const what =
+        slot === "edge"
+          ? "edge to measure"
+          : `${slot === "start" ? "start" : "end"} face`;
+      inputParams[this.uniqueID + slot + "PickButton"] = {
+        type: "button",
+        label: picking
+          ? "Click the model…"
+          : `${pick ? "Change" : "Pick"} ${what}`,
+        title: `Click ${kind === "edge" ? "an edge" : "a face"} of the input geometry in the 3D view`,
+        onClick: () => (picking ? null : this.startPicking(kind, slot)),
+      };
+    };
 
     if (this.inputs) {
       this.inputs.forEach((input) => {
@@ -413,8 +317,8 @@ export default class Label extends Atom {
         if (input.name === "text") {
           inputParams[this.uniqueID + "text"] = {
             type: "string",
-            value: input.value,
-            label: "Label text",
+            value: input.value === LEGACY_DEFAULT_TEXT ? "" : input.value,
+            label: "Label text (empty shows the length)",
             disabled: checkConnector(),
             onChange: async (value) => {
               if (input.value !== value) {
@@ -425,8 +329,8 @@ export default class Label extends Atom {
         } else if (input.name === "fontSize") {
           inputParams[this.uniqueID + "fontSize"] = {
             type: "range",
-            value: input.value,
-            label: "Font size",
+            value: this.textScale(),
+            label: "Text size",
             min: 0.5,
             max: 3,
             step: 0.1,
@@ -434,32 +338,38 @@ export default class Label extends Atom {
               input.setValue(value);
             },
           };
-        } else if (input.name === "startPosition") {
-          inputParams[this.uniqueID + "startPosition"] = {
-            type: "point",
-            value: Array.isArray(input.value)
-              ? [input.value[0], input.value[1], input.value[2]]
-              : [0, 0, 0], // Default while async lookup completes
-            label: "Start position",
-            step: 0.1,
-            disabled: checkConnector(),
-            onChange: (value) => {
-              input.setValue([value[0], value[1], value[2]]);
-            },
-          };
-        } else if (input.name === "endPosition") {
-          inputParams[this.uniqueID + "endPosition"] = {
-            type: "point",
-            value: Array.isArray(input.value)
-              ? [input.value[0], input.value[1], input.value[2]]
-              : [0, 0, 0],
-            label: "End position",
-            step: 0.1,
-            disabled: checkConnector(),
-            onChange: (value) => {
-              input.setValue([value[0], value[1], value[2]]);
-            },
-          };
+        } else if (input.name === "startPosition" && !this.anchors.edge) {
+          if (!this.anchors.start) {
+            inputParams[this.uniqueID + "startPosition"] = {
+              type: "point",
+              value: Array.isArray(input.value)
+                ? [input.value[0], input.value[1], input.value[2]]
+                : [0, 0, 0],
+              label: "Start position",
+              step: 0.1,
+              disabled: checkConnector(),
+              onChange: (value) => {
+                input.setValue([value[0], value[1], value[2]]);
+              },
+            };
+          }
+          pickControls("start", "face", "Start face");
+        } else if (input.name === "endPosition" && !this.anchors.edge) {
+          if (!this.anchors.end) {
+            inputParams[this.uniqueID + "endPosition"] = {
+              type: "point",
+              value: Array.isArray(input.value)
+                ? [input.value[0], input.value[1], input.value[2]]
+                : [0, 0, 0],
+              label: "End position",
+              step: 0.1,
+              disabled: checkConnector(),
+              onChange: (value) => {
+                input.setValue([value[0], value[1], value[2]]);
+              },
+            };
+          }
+          pickControls("end", "face", "End face");
         } else if (input.name === "color") {
           inputParams[this.uniqueID + "color"] = {
             type: "color",
@@ -473,6 +383,51 @@ export default class Label extends Atom {
       });
     }
 
-    return inputParams;
+    // Measuring an edge replaces the start and end
+    pickControls("edge", "edge", "Measured edge");
+
+    // Positions that a pick replaces aren't editable
+    if (this.anchors.edge || this.anchors.start) {
+      delete inputParams[this.uniqueID + "startPosition"];
+    }
+    if (this.anchors.edge || this.anchors.end) {
+      delete inputParams[this.uniqueID + "endPosition"];
+    }
+
+    // Show the controls in reading order, with this atom's own buttons
+    // (Delete Selected) last
+    const order = [
+      "text",
+      "edgePick",
+      "edgeClear",
+      "edgePickButton",
+      "startPosition",
+      "startPick",
+      "startClear",
+      "startPickButton",
+      "endPosition",
+      "endPick",
+      "endClear",
+      "endPickButton",
+      "color",
+      "fontSize",
+    ].map((name) => this.uniqueID + name);
+    const ordered = {};
+    order.forEach((key) => {
+      if (key in inputParams) ordered[key] = inputParams[key];
+    });
+    Object.keys(inputParams).forEach((key) => {
+      if (!(key in ordered)) ordered[key] = inputParams[key];
+    });
+    return ordered;
+  }
+
+  serialize(offset) {
+    const serialized = super.serialize(offset);
+    const { edge, start, end } = this.anchors;
+    if (edge || start || end) {
+      serialized.anchors = { edge, start, end };
+    }
+    return serialized;
   }
 }
