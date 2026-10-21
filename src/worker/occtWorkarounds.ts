@@ -13,6 +13,14 @@ import * as replicad from "replicad";
  * Falling back to the unmerged result keeps these booleans valid. Fillets on a
  * valid merged solid can still fail under OpenCascade 8; atoms whose output is
  * invalid are flagged in the editor (src/js/geometryCheck.js).
+ *
+ * OpenCascade's booleans may also modify the shapes they are given, for example
+ * when the two shapes share faces. Cutting a channel by the keepout that fills
+ * it reversed one of the channel's faces. replicad's clone() shares the
+ * underlying shape, so a boolean on a cached shape corrupted the cache, and a
+ * batch then saved the corrupted shape over the stored one. The setting that
+ * stops this, SetNonDestructive, has to be made before the boolean runs, which
+ * replicad's builders don't allow, so booleans run on copies of their inputs.
  */
 
 type BooleanOptions = { optimisation?: "none" | "commonFace" | "sameFace" };
@@ -42,6 +50,24 @@ function isValidShape(shape: replicad.AnyShape): boolean {
   }
 }
 
+/** A copy of a shape that shares no geometry or topology with it. */
+function copyShape<T extends replicad.AnyShape>(shape: T): T {
+  const oc = replicad.getOC() as any;
+  const identity = new oc.gp_Trsf();
+  const builder = new oc.BRepBuilderAPI_Transform(
+    shape.wrapped,
+    identity,
+    true,
+    false,
+  );
+  try {
+    return replicad.cast(builder.ModifiedShape(shape.wrapped)) as T;
+  } finally {
+    builder.delete();
+    identity.delete();
+  }
+}
+
 /** The boolean as replicad builds it, without merging faces afterwards. */
 function unmergedBoolean(
   builderName: string,
@@ -65,10 +91,27 @@ function unmergedBoolean(
   }
 }
 
+/** Runs a boolean on copies of its inputs, which it may modify. */
+function onCopies<T>(
+  shape: replicad.Shape3D,
+  other: replicad.Shape3D,
+  boolean: (shape: replicad.Shape3D, other: replicad.Shape3D) => T,
+): T {
+  const shapeCopy = copyShape(shape);
+  const otherCopy = copyShape(other);
+  try {
+    return boolean(shapeCopy, otherCopy);
+  } finally {
+    shapeCopy.delete();
+    otherCopy.delete();
+  }
+}
+
 /**
- * Patches replicad's 3D shapes so a boolean whose merged result is invalid
- * returns the unmerged result instead. Covers Abundance's own atoms and Code
- * atoms, which call these methods directly. Safe to call more than once.
+ * Patches replicad's 3D shapes so booleans leave their inputs unchanged, and
+ * so a boolean whose merged result is invalid returns the unmerged result
+ * instead. Covers Abundance's own atoms and Code atoms, which call these
+ * methods directly. Safe to call more than once.
  */
 export function installOcctWorkarounds(): void {
   if (installed) return;
@@ -82,7 +125,9 @@ export function installOcctWorkarounds(): void {
       other: replicad.Shape3D,
       options?: BooleanOptions,
     ) {
-      const result = original.call(this, other, options);
+      const result = onCopies(this, other, (shape, tool) =>
+        original.call(shape, tool, options),
+      );
       // Only a merge that broke valid inputs can be undone; skip the extra
       // work for inputs that were already broken.
       if (
@@ -93,7 +138,9 @@ export function installOcctWorkarounds(): void {
         return result;
       }
 
-      const unmerged = unmergedBoolean(builderName, this, other, options);
+      const unmerged = onCopies(this, other, (shape, tool) =>
+        unmergedBoolean(builderName, shape, tool, options),
+      );
       if (!replicad.isShape3D(unmerged) || !isValidShape(unmerged)) {
         unmerged.delete();
         return result;

@@ -1163,22 +1163,19 @@ class GeometryProvider {
           if (leaf.geometry === this.EMPTY_SHAPE_SENTINEL) {
             continue; // Empty shapes don't exist in the cache
           }
-          const geom = this.getFromWarmCache(leaf.geometry, context);
-          if (geom) {
-            await putShape(
-              context.project,
-              leaf.geometry,
-              this.getFromWarmCache(leaf.geometry, context)!.serialize(),
-            );
-          } else {
-            // check that it's already in the serialized cache
-            const exists = await shapeExists(context.project, leaf.geometry);
-            if (!exists) {
-              throw new Error(
-                "Batch operation references unknown geometry: " + leaf.geometry,
-              );
-            }
+          // Shapes the batch read from the serialized cache are already
+          // there. Saving them again could only replace them with a copy the
+          // batch changed.
+          if (await shapeExists(context.project, leaf.geometry)) {
+            continue;
           }
+          const geom = this.getFromWarmCache(leaf.geometry, context);
+          if (!geom) {
+            throw new Error(
+              "Batch operation references unknown geometry: " + leaf.geometry,
+            );
+          }
+          await putShape(context.project, leaf.geometry, geom.serialize());
         }
       }
       await this.cacheAssemblyStructure(context.operationId, result, context);
