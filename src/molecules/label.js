@@ -324,6 +324,11 @@ export default class Label extends Atom {
     this.setInputChanged?.(String(Date.now()));
   }
 
+  /** Stop waiting for a click on the model, so another choice can be made. */
+  cancelPicking() {
+    if (GlobalVariables.selectionModeAtom) GlobalVariables.exitSelectionMode();
+  }
+
   /**
    * Choose what one end uses. Edge and face start picking on the model;
    * point uses the typed or wired coordinates.
@@ -331,6 +336,7 @@ export default class Label extends Atom {
    * @param {"edge"|"face"|"point"} mode - What it uses
    */
   chooseAnchor(slot, mode) {
+    this.cancelPicking();
     const wasMode = this.anchorModes[slot];
     this.anchorModes = { ...this.anchorModes, [slot]: mode };
     const anchors = { ...this.anchors };
@@ -353,6 +359,7 @@ export default class Label extends Atom {
    * @param {"edge"|"start"|"end"} slot - Which pick to set
    */
   startPicking(kind, slot) {
+    this.cancelPicking();
     const label = this;
     const current = this.anchors[slot];
     const highlight = current ? { [current.leaf]: [current.index] } : {};
@@ -431,7 +438,7 @@ export default class Label extends Atom {
         },
       ].map((button) => ({
         ...button,
-        onClick: () => !picking && this.chooseAnchor(slot, button.key),
+        onClick: () => this.chooseAnchor(slot, button.key),
       })),
     });
 
@@ -464,7 +471,7 @@ export default class Label extends Atom {
               ? `${this.describePick(pick)} · change`
               : `Pick ${what} on the model`,
         title: `Click ${what} of the input geometry in the 3D view`,
-        onClick: () => !picking && this.startPicking(mode, pickSlot),
+        onClick: () => this.startPicking(mode, pickSlot),
       };
     };
 

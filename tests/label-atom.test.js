@@ -184,3 +184,50 @@ describe("Label offset", () => {
     expect(label.offsetSliderMax()).toBe(1000);
   });
 });
+
+describe("Label picking", () => {
+  it("lets another choice replace an edge that was never picked", () => {
+    const label = makeLabel("MM");
+    label.refreshAnchors = () => {};
+    label.onUpstreamChange = () => {};
+    const entered = [];
+    const enter = GlobalVariables.enterSelectionMode;
+    const exit = GlobalVariables.exitSelectionMode;
+    GlobalVariables.enterSelectionMode = (atom) => {
+      entered.push(atom.type);
+      GlobalVariables.selectionModeAtom = atom;
+    };
+    GlobalVariables.exitSelectionMode = () => {
+      GlobalVariables.selectionModeAtom = null;
+    };
+    try {
+      const startChoices = () =>
+        Object.values(label.createInputParams()).find(
+          (param) => param.label === "Start",
+        );
+      const click = (key) =>
+        startChoices()
+          .buttons.find((button) => button.key === key)
+          .onClick();
+
+      click("edge");
+      expect(GlobalVariables.selectionModeAtom?.type).toBe("edgeselect");
+
+      // Waiting for an edge, choose Point instead
+      click("point");
+      expect(GlobalVariables.selectionModeAtom).toBeNull();
+      expect(label.anchorModes.start).toBe("point");
+
+      // And Face, which picks a face instead
+      click("edge");
+      click("face");
+      expect(label.anchorModes.start).toBe("face");
+      expect(GlobalVariables.selectionModeAtom?.type).toBe("faceselect");
+      expect(entered).toEqual(["edgeselect", "edgeselect", "faceselect"]);
+    } finally {
+      GlobalVariables.enterSelectionMode = enter;
+      GlobalVariables.exitSelectionMode = exit;
+      GlobalVariables.selectionModeAtom = null;
+    }
+  });
+});
