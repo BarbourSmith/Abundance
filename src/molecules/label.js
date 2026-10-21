@@ -101,12 +101,6 @@ export default class Label extends Atom {
         type: "input",
       },
       {
-        name: "fontSize",
-        valueType: "number",
-        defaultValue: 1,
-        type: "input",
-      },
-      {
         name: "offset",
         valueType: "number",
         defaultValue: 0,
@@ -126,13 +120,6 @@ export default class Label extends Atom {
       end: this.anchors.end?.kind === "face" ? "face" : "point",
       ...this.anchorModes,
     };
-  }
-
-  /** The text size multiplier, 0.5 to 3. Old projects saved 40 by default. */
-  textScale() {
-    const value = Number(this.findIOValue("fontSize"));
-    if (!Number.isFinite(value) || value <= 0 || value > 3) return 1;
-    return Math.max(0.5, value);
   }
 
   /** The measured length formatted in the project's units. */
@@ -267,8 +254,8 @@ export default class Label extends Atom {
         position: lineStart.map((v, i) => (v + lineEnd[i]) / 2),
         // Text size in screen pixels: it shrinks with the line on screen,
         // between these
-        size: 16 * this.textScale(),
-        minSize: 10 * this.textScale(),
+        size: 16,
+        minSize: 10,
       },
       movement: { x: 0, y: 0, z: 0 },
       rotation: { x: 0, y: 0, z: 0 },
@@ -404,7 +391,9 @@ export default class Label extends Atom {
       selectedFaceData: kind === "face" ? highlight : {},
       selectedVertexData: kind === "vertex" ? highlight : {},
       parentAP: { getState: () => ({ value: label.findIOValue("geometry") }) },
-      parent: label.parent,
+      // The atom picking: clicking away from it ends the pick, and leaving
+      // shows its output again
+      parent: label,
       getContext: () => label.getContext(),
       toggleEdgeForLeaf: choose,
       toggleFaceForLeaf: choose,
@@ -520,7 +509,6 @@ export default class Label extends Atom {
       });
 
     const text = input("text");
-    const fontSize = input("fontSize");
     const color = input("color");
     const textMode = this.currentTextMode();
     const panel = {
@@ -597,15 +585,6 @@ export default class Label extends Atom {
       label: "Label color",
       onChange: (value) => color.setValue(value),
     };
-    panel[id + "fontSize"] = {
-      type: "range",
-      value: this.textScale(),
-      label: "Text size",
-      min: 0.5,
-      max: 3,
-      step: 0.1,
-      onChange: (value) => fontSize.setValue(value),
-    };
 
     // Then this atom's own buttons (Delete Selected), leaving out the generic
     // controls for the inputs shown above
@@ -615,7 +594,6 @@ export default class Label extends Atom {
       "startPosition",
       "endPosition",
       "color",
-      "fontSize",
       "offset",
     ];
     Object.keys(inputParams).forEach((key) => {
