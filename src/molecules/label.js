@@ -99,6 +99,12 @@ export default class Label extends Atom {
         defaultValue: 1,
         type: "input",
       },
+      {
+        name: "offset",
+        valueType: "number",
+        defaultValue: 0,
+        type: "input",
+      },
     ]);
 
     this.setValues(values);
@@ -209,43 +215,84 @@ export default class Label extends Atom {
    * The serializable label that Atom.reconstructLabelGeometry draws and the
    * worker's Move/Rotate actions transform.
    */
-  serializeLabel(start, end) {
+  serializeLabel(start, end, bounds = null) {
     const color = String(this.findIOValue("color") || "#3F3CDD");
     const length = Math.hypot(...start.map((v, i) => end[i] - v));
-    const mid = start.map((v, i) => (v + end[i]) / 2);
-
-    // End marks: perpendicular to the line, 5% of its length
     const dir = start.map((v, i) => (end[i] - v) / (length || 1));
+    const unit = (v) => {
+      const size = Math.hypot(...v);
+      return size > 1e-9 ? v.map((x) => x / size) : null;
+    };
+
+    // The side the line moves to: away from the model's center, across the
+    // line. When the line runs through the center, any direction across it.
     const ref = Math.abs(dir[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0];
-    const cross = [
+    let away = unit([
       dir[1] * ref[2] - dir[2] * ref[1],
       dir[2] * ref[0] - dir[0] * ref[2],
       dir[0] * ref[1] - dir[1] * ref[0],
-    ];
-    const crossLength = Math.hypot(...cross) || 1;
+    ]);
+    if (bounds) {
+      const mid = start.map((v, i) => (v + end[i]) / 2);
+      const fromCenter = mid.map(
+        (v, i) => v - (bounds.min[i] + bounds.max[i]) / 2,
+      );
+      const along = fromCenter.reduce((sum, v, i) => sum + v * dir[i], 0);
+      away = unit(fromCenter.map((v, i) => v - along * dir[i])) || away;
+    }
+    const shift = (p, distance) => p.map((v, i) => v + away[i] * distance);
+
+    const offset = this.offsetDistance();
+    const lineStart = shift(start, offset);
+    const lineEnd = shift(end, offset);
     const half = (length * 0.05) / 2;
-    const mark = (p, sign) =>
-      p.map((v, i) => v + sign * (cross[i] / crossLength) * half);
 
     return {
       type: "Label",
-      line: { start, end, color, linewidth: 5 },
+      line: { start: lineStart, end: lineEnd, color, linewidth: 5 },
+      // End marks 5% of the length, across the line. With an offset they
+      // run from the measured points to just past the line, like a drawing's
+      // extension lines.
       endSegments: {
-        start: { p1: mark(start, -1), p2: mark(start, 1) },
-        end: { p1: mark(end, -1), p2: mark(end, 1) },
+        start:
+          offset > 0
+            ? { p1: start, p2: shift(start, offset + half) }
+            : { p1: shift(start, -half), p2: shift(start, half) },
+        end:
+          offset > 0
+            ? { p1: end, p2: shift(end, offset + half) }
+            : { p1: shift(end, -half), p2: shift(end, half) },
         color,
         linewidth: 5,
       },
       text: {
         value: this.labelText(length),
         color,
-        position: mid,
+        position: lineStart.map((v, i) => (v + lineEnd[i]) / 2),
         // Text height in screen pixels, the same at any zoom
         screenHeight: 28 * this.textScale(),
       },
       movement: { x: 0, y: 0, z: 0 },
       rotation: { x: 0, y: 0, z: 0 },
     };
+  }
+
+  /** How far the line sits from what it measures, in project units. */
+  offsetDistance() {
+    const value = Number(this.findIOValue("offset"));
+    return Number.isFinite(value) && value > 0 ? value : 0;
+  }
+
+  /** The offset slider's top: about half the model's size, rounded up. */
+  offsetSliderMax() {
+    const bounds = this.modelBounds;
+    const size = bounds
+      ? Math.max(...bounds.max.map((v, i) => v - bounds.min[i]))
+      : 0;
+    const wanted = Math.max(size / 2, this.offsetDistance(), 1);
+    const power = 10 ** Math.floor(Math.log10(wanted));
+    const nice = [1, 2, 5, 10].find((m) => m * power >= wanted);
+    return nice * power;
   }
 
   /**
@@ -256,7 +303,9 @@ export default class Label extends Atom {
   async compute() {
     const assembly = this.findIOValue("geometry");
     const { start, end } = await this.resolveEnds(assembly);
-    this.serializedLabel = this.serializeLabel(start, end);
+    const [bounds] = await this.resolvePicks(assembly, [{ kind: "bounds" }]);
+    this.modelBounds = bounds;
+    this.serializedLabel = this.serializeLabel(start, end, bounds);
 
     const prev = Array.isArray(assembly.nonReplicadSerialized)
       ? assembly.nonReplicadSerialized
@@ -430,7 +479,7 @@ export default class Label extends Atom {
         buttons: [
           {
             key: "measure",
-            label: "Measure",
+            label: "Length",
             title: "Show the measured length",
           },
           {
@@ -461,6 +510,19 @@ export default class Label extends Atom {
       [id + "endChoice"]: choices("end"),
     });
     if (!measuringEdge) panel[id + "endDetails"] = details("end");
+    const offset = input("offset");
+    const offsetMax = this.offsetSliderMax();
+    panel[id + "offset"] = {
+      type: "rangeSlider",
+      value: this.offsetDistance(),
+      label: "Offset",
+      title: "Move the line away from the model",
+      min: 0,
+      max: offsetMax,
+      step: offsetMax / 100,
+      disabled: offset.connectors.length > 0,
+      onChange: (value) => offset.setValue(value),
+    };
     panel[id + "color"] = {
       type: "color",
       value: color.value,
@@ -486,6 +548,7 @@ export default class Label extends Atom {
       "endPosition",
       "color",
       "fontSize",
+      "offset",
     ];
     Object.keys(inputParams).forEach((key) => {
       if (!shown.some((name) => key === id + name))

@@ -39,7 +39,7 @@ describe("Label text", () => {
     expect(makeLabel("MM", { text: " Gap " }).labelText(14)).toBe("Gap");
   });
 
-  it("shows the length when Measure is chosen, even with typed text", () => {
+  it("shows the length when Length is chosen, even with typed text", () => {
     const label = makeLabel("MM", { text: "Gap" });
     label.textMode = "measure";
     expect(label.labelText(14)).toBe("14 mm");
@@ -150,5 +150,37 @@ describe("Label choices", () => {
     const labels = Object.values(label.createInputParams()).map((p) => p.label);
     expect(labels).toContain("Start point");
     expect(labels).toContain("End point");
+  });
+});
+
+describe("Label offset", () => {
+  const bounds = { min: [-10, -10, 0], max: [10, 10, 20] };
+
+  it("moves the line away from the model, with extension lines", () => {
+    const label = makeLabel("MM", { offset: 5 });
+    // An edge on the model's +x side, running up z
+    const serialized = label.serializeLabel([10, 0, 0], [10, 0, 20], bounds);
+
+    expect(serialized.line.start).toEqual([15, 0, 0]);
+    expect(serialized.line.end).toEqual([15, 0, 20]);
+    expect(serialized.text.position).toEqual([15, 0, 10]);
+    expect(serialized.text.value).toBe("20 mm");
+    // From the measured point to just past the line
+    expect(serialized.endSegments.start.p1).toEqual([10, 0, 0]);
+    expect(serialized.endSegments.start.p2[0]).toBeCloseTo(15.5);
+  });
+
+  it("keeps the line on the measured points with no offset", () => {
+    const label = makeLabel("MM");
+    const serialized = label.serializeLabel([10, 0, 0], [10, 0, 20], bounds);
+    expect(serialized.line.start).toEqual([10, 0, 0]);
+  });
+
+  it("sizes the slider to about half the model", () => {
+    const label = makeLabel("MM");
+    label.modelBounds = bounds;
+    expect(label.offsetSliderMax()).toBe(10);
+    label.modelBounds = { min: [0, 0, 0], max: [1200, 300, 40] };
+    expect(label.offsetSliderMax()).toBe(1000);
   });
 });

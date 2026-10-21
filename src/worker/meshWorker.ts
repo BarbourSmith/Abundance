@@ -525,7 +525,8 @@ function partsOf(value: AbundanceObject): AbundanceLeaf[] {
 }
 
 /** A pick on a part, as the 3D view's selection mode reports it. */
-type SelectionRef = { kind: "edge" | "face"; leaf: number; index: number };
+type SelectionRef =
+  { kind: "edge" | "face"; leaf: number; index: number } | { kind: "bounds" };
 
 /**
  * Coordinates for picked edges and faces, for the Label atom: an edge's start
@@ -552,6 +553,25 @@ async function resolveSelectionPoints(
   const results = [];
   for (const ref of refs) {
     try {
+      // The bounding box of all the parts
+      if (ref.kind === "bounds") {
+        const min = [Infinity, Infinity, Infinity];
+        const max = [-Infinity, -Infinity, -Infinity];
+        for (const part of parts) {
+          const shape = (await getShapeCached(
+            part.geometry,
+            context,
+          )) as replicad.Shape<any>;
+          const bounds = shape?.boundingBox?.bounds;
+          if (!bounds) continue;
+          for (let i = 0; i < 3; i++) {
+            min[i] = Math.min(min[i], bounds[0][i]);
+            max[i] = Math.max(max[i], bounds[1][i]);
+          }
+        }
+        results.push(Number.isFinite(min[0]) ? { min, max } : null);
+        continue;
+      }
       const part = parts[ref.leaf];
       if (!part) {
         results.push(null);
