@@ -218,6 +218,8 @@
   }
   .menu {
     position: absolute;
+    /* Above the search bar and project cards, below dialogs (1000) */
+    z-index: 100;
     top: 70px;
     margin-top: 50px;
     left: 0;

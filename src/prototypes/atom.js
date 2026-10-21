@@ -184,13 +184,18 @@ export default class Atom extends ObservableEntity {
   /**
    * Gets the context of this atom for passing to the worker functions.
    * See RequestContext type defined in geometryProvider.ts
+   *
+   * The project is looked up on every call: the top-level molecule's uniqueID
+   * changes when a project loads into it, and an atom can move to a new parent.
+   * A context kept from before then points the worker at another project's
+   * cache, so lookups fail with "not found in cache".
    */
   getContext() {
-    if (!this.context) {
-      let curr = this;
-      while (curr.parent) {
-        curr = curr.parent;
-      }
+    let curr = this;
+    while (curr.parent) {
+      curr = curr.parent;
+    }
+    if (this.context?.project !== curr.uniqueID) {
       this.context = { project: curr.uniqueID };
     }
     return this.context;
