@@ -92,7 +92,12 @@ function unmergedBoolean(
   }
 }
 
-/** Runs a boolean on copies of its inputs, which it may modify. */
+/**
+ * Runs a boolean on copies of its inputs, which it may modify.
+ *
+ * TODO: once replicad lets booleans skip SimplifyResult and we turn that step
+ * off, try removing the copies, since only that step changed the inputs.
+ */
 function onCopies<T>(
   shape: replicad.Shape3D,
   other: replicad.Shape3D,
