@@ -37,7 +37,10 @@ export default class Loft extends Atom {
      * @type {string}
      */
     this.description =
-      "Joins two or more shapes into a single solid by filling in the space between them.";
+      "Joins two or more shapes into a single solid by filling in the space between them. Turn on smooth to blend through the profiles as one smooth surface instead of straight sections between them.";
+
+    this._addIOWithoutSubscribing("smooth", "boolean", false).noConnections =
+      true;
 
     /**
      * This was used when there was a drop down to select closed...may be deleted
@@ -117,11 +120,15 @@ export default class Loft extends Atom {
     addOrDeletePorts(this); // clean up ports then check if we're in a ready state.
     // Preserve input order.
     const nonnullInputIds = this.inputs
-      .filter((io) => io.connectors.length > 0)
+      .filter((io) => io.connectors.length > 0 && io.valueType == "geometry")
       .map((io) => inputs[io.name])
       .filter(Boolean);
 
-    return this.cad.loftShapes(nonnullInputIds, this.getContext());
+    return this.cad.loftShapes(
+      nonnullInputIds,
+      this.getContext(),
+      inputs.smooth === true,
+    );
   }
 
   /**
