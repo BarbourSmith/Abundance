@@ -40,6 +40,22 @@ function warningFor(invalidCount, partCount) {
 }
 
 /**
+ * Forgets the check results for a project's parts. Recompute Project rebuilds
+ * the stored shapes, and one stored broken can come back valid under the same
+ * id. Waits for checks already under way so they can't store old results
+ * afterwards.
+ */
+export function forgetGeometryChecks(project) {
+  const prefix = `${project ?? ""}|`;
+  queue = queue.then(() => {
+    for (const key of [...validity.keys()]) {
+      if (key.startsWith(prefix)) validity.delete(key);
+    }
+  });
+  return queue;
+}
+
+/**
  * Checks the parts `atom` made in `value`, its newly computed output, and
  * flags the atom if any are invalid. Safe to call on every compute: work for a
  * value the atom has since replaced is skipped.

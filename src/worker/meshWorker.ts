@@ -44,8 +44,9 @@ void started.then(() => util.startHeapMonitor("meshWorker"));
  * Display requests carry no operation id, so geometryProvider.get() reads
  * every leaf from IndexedDB and re-parses its BREP on every request. Clicking
  * back to something shown a moment ago paid that full cost again. Geometry ids
- * are content addressed, so a cached shape can never be stale; entries are
- * only evicted to bound memory.
+ * are content addressed, so a cached shape only goes stale when Recompute
+ * Project rebuilds the stored shapes, which calls forgetProject. Otherwise
+ * entries are only evicted to bound memory.
  *
  * workerpool runs one task at a time per worker, and eviction only happens
  * between tasks (see withShapeCache), so a shape is never deleted while a task
@@ -71,16 +72,30 @@ async function getShapeCached(
   return shape;
 }
 
+function evictShape(key: string): void {
+  const shape = shapeCache.get(key);
+  shapeCache.delete(key);
+  try {
+    (shape as { delete?: () => void } | undefined)?.delete?.();
+  } catch {
+    // Already freed; nothing to do.
+  }
+}
+
 function trimShapeCache(): void {
   while (shapeCache.size > SHAPE_CACHE_MAX_ENTRIES) {
-    const oldest = shapeCache.keys().next().value as string;
-    const shape = shapeCache.get(oldest);
-    shapeCache.delete(oldest);
-    try {
-      (shape as { delete?: () => void } | undefined)?.delete?.();
-    } catch {
-      // Already freed; nothing to do.
-    }
+    evictShape(shapeCache.keys().next().value as string);
+  }
+}
+
+/**
+ * Drops a project's cached shapes. Recompute Project rebuilds the stored
+ * shapes, and one stored broken can come back different under the same id.
+ */
+function forgetProject(project: string): void {
+  const prefix = `${project ?? ""}|`;
+  for (const key of [...shapeCache.keys()]) {
+    if (key.startsWith(prefix)) evictShape(key);
   }
 }
 
@@ -785,4 +800,5 @@ workerpool.worker({
     context: RequestContext,
     opts: { minVolume: number; budgetMs: number },
   ) => withShapeCache(() => checkInterference(groups, context, opts)),
+  forgetProject,
 });
