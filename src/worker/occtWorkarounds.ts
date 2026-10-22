@@ -14,13 +14,14 @@ import * as replicad from "replicad";
  * valid merged solid can still fail under OpenCascade 8; atoms whose output is
  * invalid are flagged in the editor (src/js/geometryCheck.js).
  *
- * OpenCascade's booleans may also modify the shapes they are given, for example
- * when the two shapes share faces. Cutting a channel by the keepout that fills
- * it reversed one of the channel's faces. replicad's clone() shares the
- * underlying shape, so a boolean on a cached shape corrupted the cache, and a
- * batch then saved the corrupted shape over the stored one. The setting that
- * stops this, SetNonDestructive, has to be made before the boolean runs, which
- * replicad's builders don't allow, so booleans run on copies of their inputs.
+ * replicad's booleans can also modify the shapes they are given. After the
+ * boolean, replicad merges faces in the result (SimplifyResult). Where the
+ * result reuses an input's own faces, as when a cut changes nothing, the merge
+ * edits them in place and so changes the input: cutting a channel by the
+ * keepout that fills it reversed one of the channel's faces. replicad's
+ * clone() shares the underlying shape, so a boolean on a cached shape
+ * corrupted the cache, and a batch then saved the corrupted shape over the
+ * stored one. Booleans therefore run on copies of their inputs.
  */
 
 type BooleanOptions = { optimisation?: "none" | "commonFace" | "sameFace" };

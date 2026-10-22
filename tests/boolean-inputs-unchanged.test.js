@@ -1,8 +1,9 @@
-// OpenCascade booleans can modify the shapes they are given. Cutting this
-// channel (from Maslow_Mini's dust collector) by the keepout that fills it
-// reversed one of the channel's faces, leaving an invalid shape with ten times
-// the volume. A cached shape cut this way was then saved over the stored one,
-// so a Move further up showed the broken part.
+// replicad's booleans can modify the shapes they are given: after the boolean
+// it merges faces in the result, and a result that reuses an input's faces
+// has them merged in place. Cutting this channel by the keepout that fills it
+// changes nothing, and the merge reversed one of the channel's faces, leaving
+// an invalid shape with ten times the volume. A cached shape cut this way was
+// then saved over the stored one, so a Move further up showed the broken part.
 //
 // Run: npx vitest run --config=vitest.headless.config.ts tests/boolean-inputs-unchanged.test.js
 
