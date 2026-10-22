@@ -642,21 +642,25 @@ class GlobalVariables {
       this.writeToDisplay(rawGeom, inputAtom.getContext());
     }
 
-    // For edge/face select modes, kick off async per-element mesh generation.
+    // For edge/face/corner select modes, kick off async per-element mesh
+    // generation.
     // Show outdatedMesh state during the async load so the user gets feedback.
     if (
       rawGeom &&
-      (inputAtom.type === "edgeselect" || inputAtom.type === "faceselect") &&
+      (inputAtom.type === "edgeselect" ||
+        inputAtom.type === "faceselect" ||
+        inputAtom.type === "vertexselect") &&
       this.displayScheduler
     ) {
       inputAtom._perElementMeshes = null;
       if (typeof this.setOutdatedMesh === "function") {
         this.setOutdatedMesh(true);
       }
-      const workerFn =
-        inputAtom.type === "faceselect"
-          ? "generatePerFaceMeshes"
-          : "generatePerEdgeMeshes";
+      const workerFn = {
+        faceselect: "generatePerFaceMeshes",
+        edgeselect: "generatePerEdgeMeshes",
+        vertexselect: "generatePerVertexPoints",
+      }[inputAtom.type];
       const context = inputAtom.getContext();
       // Runs in the "selection" slot: ahead of background wireframes, and a
       // newer selection mode supersedes this one before it starts.

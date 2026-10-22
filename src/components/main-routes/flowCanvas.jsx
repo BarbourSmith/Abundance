@@ -528,6 +528,20 @@ export default memo(function FlowCanvas({
         }
       }
 
+      // Clicking away from the atom that's picking on the model (an Input's
+      // part/edge/face selection, a Label's pick) ends the pick. Done here,
+      // once the clicked atom is known, so leaving selection mode can't redraw
+      // the old atom over the one just clicked.
+      const picking = GlobalVariables.selectionModeAtom;
+      if (
+        picking &&
+        !GlobalVariables.ctrlDown &&
+        picking.parent !== activeAtom
+      ) {
+        GlobalVariables.exitSelectionMode();
+        activeAtom?.sendToRender();
+      }
+
       // Set the active atom after all atoms have been processed
       if (activeAtom) {
         /* If it's an unloaded GitHub molecule, show GitHub search menu otherwise show params */

@@ -531,6 +531,59 @@ async function generatePerEdgeMeshes(
   return result;
 }
 
+/**
+ * A shape's corners: the distinct ends of its edges, in edge order, so the
+ * same shape always numbers them the same way.
+ */
+function cornersOf(shape: replicad.Shape<any>): number[][] {
+  const corners: number[][] = [];
+  const seen = new Set<string>();
+  for (const edge of shape?.edges ?? []) {
+    for (const v of [edge.startPoint, edge.endPoint]) {
+      const key = [v.x, v.y, v.z].map((n) => n.toFixed(6)).join(",");
+      if (seen.has(key)) continue;
+      seen.add(key);
+      corners.push([v.x, v.y, v.z]);
+    }
+  }
+  return corners;
+}
+
+/**
+ * The corners of each leaf shape, keyed by leaf index, numbered as cornersOf
+ * does. Used by vertexselect mode.
+ *
+ * Returns `{ [leafIndex]: Array<{ index: number; point: number[] }> }`.
+ */
+async function generatePerVertexPoints(
+  id: AbundanceObject,
+  context: RequestContext,
+): Promise<Record<number, { index: number; point: number[] }[]>> {
+  await started;
+  const result: Record<number, { index: number; point: number[] }[]> = {};
+  if (!util.isAbundanceObject(id) || id.geometry.length === 0) {
+    return result;
+  }
+  const flattened = util.flattenAssembly(id).filter((part) => {
+    return part.geometry !== util.geometryProvider?.EMPTY_SHAPE_SENTINEL;
+  });
+  for (let leafIndex = 0; leafIndex < flattened.length; leafIndex++) {
+    const shape = await getShapeCached(flattened[leafIndex].geometry, context);
+    if (
+      !shape ||
+      shape instanceof replicad.Vertex ||
+      shape instanceof replicad.Drawing
+    ) {
+      result[leafIndex] = [];
+      continue;
+    }
+    result[leafIndex] = cornersOf(shape as replicad.Shape<any>).map(
+      (point, index) => ({ index, point }),
+    );
+  }
+  return result;
+}
+
 /** The parts of a value in display order, the order agent tools number them. */
 function partsOf(value: AbundanceObject): AbundanceLeaf[] {
   if (!util.isAbundanceObject(value)) return [];
@@ -541,7 +594,8 @@ function partsOf(value: AbundanceObject): AbundanceLeaf[] {
 
 /** A pick on a part, as the 3D view's selection mode reports it. */
 type SelectionRef =
-  { kind: "edge" | "face"; leaf: number; index: number } | { kind: "bounds" };
+  | { kind: "edge" | "face" | "vertex"; leaf: number; index: number }
+  | { kind: "bounds" };
 
 /**
  * Coordinates for picked edges and faces, for the Label atom: an edge's start
@@ -603,6 +657,9 @@ async function resolveSelectionPoints(
             ? { start: xyz(edge.startPoint), end: xyz(edge.endPoint) }
             : null,
         );
+      } else if (ref.kind === "vertex") {
+        const corner = cornersOf(shape)[ref.index];
+        results.push(corner ? { point: corner } : null);
       } else {
         const face = shape?.faces?.[ref.index];
         results.push(face ? { center: xyz(face.center) } : null);
@@ -780,6 +837,8 @@ workerpool.worker({
     withShapeCache(() => generatePerFaceMeshes(id, context)),
   generatePerEdgeMeshes: (id: AbundanceObject, context: RequestContext) =>
     withShapeCache(() => generatePerEdgeMeshes(id, context)),
+  generatePerVertexPoints: (id: AbundanceObject, context: RequestContext) =>
+    withShapeCache(() => generatePerVertexPoints(id, context)),
   resolveSelectionPoints: (
     value: AbundanceObject,
     refs: SelectionRef[],
