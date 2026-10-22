@@ -18,6 +18,6 @@ export default defineConfig({
   },
 
   optimizeDeps: {
-    exclude: ["polygon-packer", "geometry-utils"],
+    exclude: ["polygon-packer"],
   },
 });
