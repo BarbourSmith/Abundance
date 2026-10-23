@@ -3,6 +3,7 @@ import Connector from "../prototypes/connector.js";
 import AttachmentPoint from "../prototypes/attachmentpoint.js";
 import GlobalVariables from "../js/globalvariables.js";
 import { fetchGitHubFileContent } from "../js/githubFileUtils.js";
+import { forgetGeometryChecks } from "../js/geometryCheck.js";
 import {
   AddAtomCommand,
   ReplaceConnectionCommand,
@@ -1547,7 +1548,16 @@ export default class Molecule extends Atom {
 
     try {
       // Clear CAD cache
-      await GlobalVariables.cad.clearCache(this.getContext());
+      const context = this.getContext();
+      await GlobalVariables.cad.clearCache(context);
+      // The mesh worker, the 3D view and the geometry check remember shapes
+      // by id. A shape stored broken can come back different under the same
+      // id, so they forget this project's shapes too. The mesh worker runs
+      // one task at a time, so by the time it has forgotten them any mesh
+      // already requested is in the view's cache, which is cleared last.
+      await GlobalVariables.pool?.exec("forgetProject", [context.project]);
+      await forgetGeometryChecks(context.project);
+      GlobalVariables.displayScheduler?.cache.clear();
     } catch (err) {
       // If cache clear fails before deserialize runs, ensure the flag is cleared
       GlobalVariables.projectIsLoading = false;

@@ -12,6 +12,21 @@ import {
  */
 const SUPERSEDABLE_METHODS = new Set(["code"]);
 
+/** localStorage key for the user's stall timeout in seconds (Settings > Advanced). */
+export const CAD_TIMEOUT_STORAGE_KEY = "cadWorkerTimeoutSeconds";
+export const DEFAULT_CAD_TIMEOUT_SECONDS = 90;
+
+/** The user's stall timeout in seconds, or the default if unset or invalid. */
+export function savedCadTimeoutSeconds() {
+  try {
+    const seconds = Number(localStorage.getItem(CAD_TIMEOUT_STORAGE_KEY));
+    if (Number.isFinite(seconds) && seconds > 0) return seconds;
+  } catch {
+    // Storage can be unavailable (private mode, tests); use the default.
+  }
+  return DEFAULT_CAD_TIMEOUT_SECONDS;
+}
+
 /**
  * Wraps a comlink-based Web Worker with a per-call timeout watchdog.
  *
@@ -368,11 +383,12 @@ export class CadWorkerManager {
    * previously-scheduled timeout is cleared first, so calling this on each
    * progress report effectively keeps a making-progress operation alive.
    */
-  _armTimeout(entry) {
+  _armTimeout(entry, delayMs = this._timeoutMs) {
     if (entry.timeoutId) {
       clearTimeout(entry.timeoutId);
     }
-    entry.lastActivityAt = Date.now();
+    // A shorter delay means the entry has already been silent for the rest.
+    entry.lastActivityAt = Date.now() - (this._timeoutMs - delayMs);
     entry.timeoutId = setTimeout(() => {
       clearInterval(entry.progressIntervalId);
       entry.progressIntervalId = null;
@@ -438,7 +454,7 @@ export class CadWorkerManager {
       });
       entry.reject(new Error(message));
       this._restartWorker();
-    }, this._timeoutMs);
+    }, delayMs);
   }
 
   /**
@@ -682,6 +698,20 @@ export class CadWorkerManager {
         entry.reject(err);
       },
     );
+  }
+
+  /**
+   * Change the stall timeout (Settings > Advanced). Running calls keep the time
+   * they have already been silent, so lowering it can time one out at once.
+   * @param {number} timeoutMs
+   */
+  setTimeoutMs(timeoutMs) {
+    this._timeoutMs = timeoutMs;
+    for (const entry of this._pendingCalls) {
+      if (!entry.timeoutId) continue;
+      const silentMs = Date.now() - entry.lastActivityAt;
+      this._armTimeout(entry, Math.max(0, timeoutMs - silentMs));
+    }
   }
 
   /**

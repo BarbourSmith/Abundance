@@ -16,7 +16,10 @@ import {
   serializeProjectForChangeDetection,
 } from "./js/projectSaveBaseline.js";
 import { filterGeometryByTags } from "./utils/geometryFilterByTags.js";
-import { CadWorkerManager } from "./worker/cadWorkerManager.js";
+import {
+  CadWorkerManager,
+  savedCadTimeoutSeconds,
+} from "./worker/cadWorkerManager.js";
 import { DisplayScheduler, meshKey } from "./js/displayScheduler.js";
 import LoginMode from "./components/main-routes/LoginMode.jsx";
 import RunMode from "./components/main-routes/RunMode.jsx";
@@ -81,7 +84,8 @@ const pool = workerpool.pool(RenderURL, {
 // a long-running operation only times out if it goes truly silent (stalled). If
 // the worker hangs it is automatically terminated and restarted, so the UI never
 // gets permanently stuck waiting for a computation that will never return.
-const cad = new CadWorkerManager(cadWorker, 90_000);
+// The timeout is a user setting (Settings > Advanced), 90 s by default.
+const cad = new CadWorkerManager(cadWorker, savedCadTimeoutSeconds() * 1000);
 window._debugWorkerHandle = cad;
 
 // Every mesh-worker request goes through this scheduler. It keeps one pending

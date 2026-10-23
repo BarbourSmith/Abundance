@@ -44,8 +44,9 @@ void started.then(() => util.startHeapMonitor("meshWorker"));
  * Display requests carry no operation id, so geometryProvider.get() reads
  * every leaf from IndexedDB and re-parses its BREP on every request. Clicking
  * back to something shown a moment ago paid that full cost again. Geometry ids
- * are content addressed, so a cached shape can never be stale; entries are
- * only evicted to bound memory.
+ * are content addressed, so a cached shape only goes stale when Recompute
+ * Project rebuilds the stored shapes, which calls forgetProject. Otherwise
+ * entries are only evicted to bound memory.
  *
  * workerpool runs one task at a time per worker, and eviction only happens
  * between tasks (see withShapeCache), so a shape is never deleted while a task
@@ -71,16 +72,30 @@ async function getShapeCached(
   return shape;
 }
 
+function evictShape(key: string): void {
+  const shape = shapeCache.get(key);
+  shapeCache.delete(key);
+  try {
+    (shape as { delete?: () => void } | undefined)?.delete?.();
+  } catch {
+    // Already freed; nothing to do.
+  }
+}
+
 function trimShapeCache(): void {
   while (shapeCache.size > SHAPE_CACHE_MAX_ENTRIES) {
-    const oldest = shapeCache.keys().next().value as string;
-    const shape = shapeCache.get(oldest);
-    shapeCache.delete(oldest);
-    try {
-      (shape as { delete?: () => void } | undefined)?.delete?.();
-    } catch {
-      // Already freed; nothing to do.
-    }
+    evictShape(shapeCache.keys().next().value as string);
+  }
+}
+
+/**
+ * Drops a project's cached shapes. Recompute Project rebuilds the stored
+ * shapes, and one stored broken can come back different under the same id.
+ */
+function forgetProject(project: string): void {
+  const prefix = `${project ?? ""}|`;
+  for (const key of [...shapeCache.keys()]) {
+    if (key.startsWith(prefix)) evictShape(key);
   }
 }
 
@@ -524,6 +539,81 @@ function partsOf(value: AbundanceObject): AbundanceLeaf[] {
   });
 }
 
+/** A pick on a part, as the 3D view's selection mode reports it. */
+type SelectionRef =
+  { kind: "edge" | "face"; leaf: number; index: number } | { kind: "bounds" };
+
+/**
+ * Coordinates for picked edges and faces, for the Label atom: an edge's start
+ * and end points, a face's center. Parts are numbered as in
+ * generatePerEdgeMeshes / generatePerFaceMeshes (non-empty leaves in order),
+ * so picks made in selection mode resolve to the same element. A reference
+ * that no longer exists (the model changed) resolves to null.
+ */
+async function resolveSelectionPoints(
+  value: AbundanceObject,
+  refs: SelectionRef[],
+  context: RequestContext,
+) {
+  await started;
+  const parts = util.isAbundanceObject(value)
+    ? util
+        .flattenAssembly(value)
+        .filter(
+          (part) =>
+            part.geometry !== util.geometryProvider?.EMPTY_SHAPE_SENTINEL,
+        )
+    : [];
+  const xyz = (v: replicad.Vector) => [v.x, v.y, v.z];
+  const results = [];
+  for (const ref of refs) {
+    try {
+      // The bounding box of all the parts
+      if (ref.kind === "bounds") {
+        const min = [Infinity, Infinity, Infinity];
+        const max = [-Infinity, -Infinity, -Infinity];
+        for (const part of parts) {
+          const shape = (await getShapeCached(
+            part.geometry,
+            context,
+          )) as replicad.Shape<any>;
+          const bounds = shape?.boundingBox?.bounds;
+          if (!bounds) continue;
+          for (let i = 0; i < 3; i++) {
+            min[i] = Math.min(min[i], bounds[0][i]);
+            max[i] = Math.max(max[i], bounds[1][i]);
+          }
+        }
+        results.push(Number.isFinite(min[0]) ? { min, max } : null);
+        continue;
+      }
+      const part = parts[ref.leaf];
+      if (!part) {
+        results.push(null);
+        continue;
+      }
+      const shape = (await getShapeCached(
+        part.geometry,
+        context,
+      )) as replicad.Shape<any>;
+      if (ref.kind === "edge") {
+        const edge = shape?.edges?.[ref.index];
+        results.push(
+          edge
+            ? { start: xyz(edge.startPoint), end: xyz(edge.endPoint) }
+            : null,
+        );
+      } else {
+        const face = shape?.faces?.[ref.index];
+        results.push(face ? { center: xyz(face.center) } : null);
+      }
+    } catch {
+      results.push(null);
+    }
+  }
+  return results;
+}
+
 /**
  * Agent diagnostics: check each part (or one part) for invalid shapes, faces
  * that fail to mesh, and sliver faces. Stops after budgetMs and reports how
@@ -690,16 +780,25 @@ workerpool.worker({
     withShapeCache(() => generatePerFaceMeshes(id, context)),
   generatePerEdgeMeshes: (id: AbundanceObject, context: RequestContext) =>
     withShapeCache(() => generatePerEdgeMeshes(id, context)),
+  resolveSelectionPoints: (
+    value: AbundanceObject,
+    refs: SelectionRef[],
+    context: RequestContext,
+  ) => withShapeCache(() => resolveSelectionPoints(value, refs, context)),
   inspectParts: (
     value: AbundanceObject,
     context: RequestContext,
     opts: { part?: number; minFeature: number; budgetMs: number },
   ) => withShapeCache(() => inspectParts(value, context, opts)),
-  findInvalidParts: (ids: string[], context: RequestContext, budgetMs: number) =>
-    withShapeCache(() => findInvalidParts(ids, context, budgetMs)),
+  findInvalidParts: (
+    ids: string[],
+    context: RequestContext,
+    budgetMs: number,
+  ) => withShapeCache(() => findInvalidParts(ids, context, budgetMs)),
   checkInterference: (
     groups: { label: string; value: AbundanceObject }[],
     context: RequestContext,
     opts: { minVolume: number; budgetMs: number },
   ) => withShapeCache(() => checkInterference(groups, context, opts)),
+  forgetProject,
 });

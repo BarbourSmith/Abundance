@@ -1241,18 +1241,19 @@ class GeometryProvider {
           }
           // A moved or rotated part isn't stored itself; its base shape is.
           const id = storedId(leaf.geometry);
-          const geom = this.getFromWarmCache(id, context);
-          if (geom) {
-            await putShape(context.project, id, geom.serialize());
-          } else {
-            // check that it's already in the serialized cache
-            const exists = await shapeExists(context.project, id);
-            if (!exists) {
-              throw new Error(
-                "Batch operation references unknown geometry: " + id,
-              );
-            }
+          // Shapes the batch read from the serialized cache are already
+          // there. Saving them again could only replace them with a copy the
+          // batch changed.
+          if (await shapeExists(context.project, id)) {
+            continue;
           }
+          const geom = this.getFromWarmCache(id, context);
+          if (!geom) {
+            throw new Error(
+              "Batch operation references unknown geometry: " + id,
+            );
+          }
+          await putShape(context.project, id, geom.serialize());
         }
       }
       await this.cacheAssemblyStructure(context.operationId, result, context);

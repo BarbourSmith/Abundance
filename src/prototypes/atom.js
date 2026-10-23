@@ -26,6 +26,44 @@ const AlertType = Object.freeze({
   NONE: "none",
 });
 
+const labelViewport = new THREE.Vector2();
+const labelPoint = new THREE.Vector3();
+
+/** World units per screen pixel at an object's position, for the camera. */
+function labelWorldPerPixel(renderer, camera, object) {
+  renderer.getSize(labelViewport);
+  if (!labelViewport.y) return 0;
+  if (camera.isOrthographicCamera) {
+    return (camera.top - camera.bottom) / camera.zoom / labelViewport.y;
+  }
+  const distance = camera.position.distanceTo(
+    object.getWorldPosition(labelPoint),
+  );
+  const viewHeight =
+    (2 * distance * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)) /
+    camera.zoom;
+  return viewHeight / labelViewport.y;
+}
+
+/**
+ * A label line's direction and length on screen, in pixels.
+ * @returns {{dx: number, dy: number, length: number}}
+ */
+function labelLineOnScreen(renderer, camera, object, start, end) {
+  renderer.getSize(labelViewport);
+  const a = object.parent
+    ? object.parent.localToWorld(start.clone())
+    : start.clone();
+  const b = object.parent
+    ? object.parent.localToWorld(end.clone())
+    : end.clone();
+  a.project(camera);
+  b.project(camera);
+  const dx = ((b.x - a.x) * labelViewport.x) / 2;
+  const dy = ((b.y - a.y) * labelViewport.y) / 2;
+  return { dx, dy, length: Math.hypot(dx, dy) };
+}
+
 /**
  * This class is the prototype for all atoms.
  */
@@ -1141,6 +1179,163 @@ export default class Atom extends ObservableEntity {
     }
   }
 
+  /**
+   * A label's text on a small white tag, beside the middle of the line. The
+   * text is sized from the line's length on screen, between text.minSize and
+   * text.size pixels, so it shrinks as you zoom out, and it hides when the
+   * line is too short to fit it.
+   * @param {{value: string, color: string, position: number[], size: number, minSize: number}} text
+   * @param {number[][]} line - The label line's start and end
+   */
+  labelTagSprite(text, line) {
+    const fontPx = 48;
+    const padX = 18;
+    const padY = 10;
+    const border = 3;
+    const font = `500 ${fontPx}px "Work Sans", Arial, sans-serif`;
+    const measure = document.createElement("canvas").getContext("2d");
+    measure.font = font;
+    const value = String(text.value ?? "");
+
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.ceil(measure.measureText(value).width) + padX * 2;
+    canvas.height = fontPx + padY * 2;
+    const ctx = canvas.getContext("2d");
+    ctx.beginPath();
+    ctx.roundRect(
+      border / 2,
+      border / 2,
+      canvas.width - border,
+      canvas.height - border,
+      12,
+    );
+    ctx.fillStyle = "white";
+    ctx.fill();
+    ctx.lineWidth = border;
+    ctx.strokeStyle = text.color;
+    ctx.stroke();
+    ctx.font = font;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    // The label color, darkened, so the text reads on white
+    ctx.fillStyle = `#${new THREE.Color(text.color).multiplyScalar(0.45).getHexString()}`;
+    ctx.fillText(value, canvas.width / 2, canvas.height / 2 + 2);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    const material = new THREE.SpriteMaterial({
+      map: texture,
+      depthTest: false,
+      transparent: true,
+    });
+    const sprite = new THREE.Sprite(material);
+    sprite.renderOrder = 2;
+    sprite.position.set(...text.position);
+    const start = new THREE.Vector3(...line[0]);
+    const end = new THREE.Vector3(...line[1]);
+    const tagPerFont = canvas.height / fontPx;
+    const aspect = canvas.width / canvas.height;
+
+    sprite.onBeforeRender = (renderer, scene, camera) => {
+      const worldPerPixel = labelWorldPerPixel(renderer, camera, sprite);
+      if (!worldPerPixel) return;
+      const onScreen = labelLineOnScreen(renderer, camera, sprite, start, end);
+      const fontSize = Math.min(
+        text.size,
+        Math.max(text.minSize, onScreen.length * 0.12),
+      );
+      // Too short to fit the text: show just the line
+      material.opacity = onScreen.length < fontSize * 3 ? 0 : 1;
+
+      const height = fontSize * tagPerFont;
+      const width = height * aspect;
+      // Beside the line: to its right, or above a horizontal line
+      let nx = onScreen.length ? -onScreen.dy / onScreen.length : 0;
+      let ny = onScreen.length ? onScreen.dx / onScreen.length : 1;
+      if (nx < -1e-3 || (Math.abs(nx) <= 1e-3 && ny < 0)) {
+        nx = -nx;
+        ny = -ny;
+      }
+      const gap = (Math.abs(nx) * width) / 2 + (Math.abs(ny) * height) / 2 + 6;
+      sprite.center.set(0.5 - (nx * gap) / width, 0.5 - (ny * gap) / height);
+      sprite.scale.set(width * worldPerPixel, height * worldPerPixel, 1);
+      sprite.updateMatrixWorld();
+    };
+    return sprite;
+  }
+
+  /**
+   * An arrowhead at one end of a label line, pointing out along the line and
+   * the same size on screen at any zoom.
+   * @param {number[]} tip - The line end the arrow points at
+   * @param {number[]} from - The line's other end
+   * @param {string} color
+   */
+  labelArrowSprite(tip, from, color) {
+    const canvas = document.createElement("canvas");
+    canvas.width = 40;
+    canvas.height = 32;
+    const ctx = canvas.getContext("2d");
+    ctx.beginPath();
+    ctx.moveTo(0, 2);
+    ctx.lineTo(40, 16);
+    ctx.lineTo(0, 30);
+    ctx.closePath();
+    ctx.fillStyle = color;
+    ctx.fill();
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    const material = new THREE.SpriteMaterial({
+      map: texture,
+      depthTest: false,
+      transparent: true,
+    });
+    const sprite = new THREE.Sprite(material);
+    sprite.renderOrder = 1;
+    sprite.position.set(...tip);
+    // The tip sits on the line end
+    sprite.center.set(1, 0.5);
+    const start = new THREE.Vector3(...from);
+    const end = new THREE.Vector3(...tip);
+
+    sprite.onBeforeRender = (renderer, scene, camera) => {
+      const worldPerPixel = labelWorldPerPixel(renderer, camera, sprite);
+      if (!worldPerPixel) return;
+      const onScreen = labelLineOnScreen(renderer, camera, sprite, start, end);
+      material.rotation = Math.atan2(onScreen.dy, onScreen.dx);
+      sprite.scale.set(10 * worldPerPixel, 8 * worldPerPixel, 1);
+      sprite.updateMatrixWorld();
+    };
+    return sprite;
+  }
+
+  /** Text for labels serialized before the tag style existed. */
+  legacyLabelTextSprite(text) {
+    const canvas = document.createElement("canvas");
+    canvas.width = 2048;
+    canvas.height = 1024;
+    const ctx = canvas.getContext("2d");
+    ctx.font = text.font;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.strokeStyle = text.color;
+    ctx.lineWidth = 15;
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    ctx.strokeText(text.value, canvas.width / 2, canvas.height / 2);
+    ctx.fillStyle = "white";
+    ctx.fillText(text.value, canvas.width / 2, canvas.height / 2);
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    const sprite = new THREE.Sprite(
+      new THREE.SpriteMaterial({ map: texture, depthTest: false }),
+    );
+    sprite.scale.set(...text.scale);
+    sprite.position.set(...text.position);
+    return sprite;
+  }
+
   reconstructLabelGeometry(serializedLabels) {
     // Accepts an array of label objects
     const labels = Array.isArray(serializedLabels)
@@ -1176,9 +1371,12 @@ export default class Atom extends ObservableEntity {
           ...serializedLabel.endSegments.start.p1,
           ...serializedLabel.endSegments.start.p2,
         ]);
+        const segOpacity = serializedLabel.endSegments.opacity ?? 1;
         const startSegMat = new LineMaterial({
           color: serializedLabel.endSegments.color,
           linewidth: serializedLabel.endSegments.linewidth,
+          transparent: segOpacity < 1,
+          opacity: segOpacity,
           resolution: new THREE.Vector2(window.innerWidth, window.innerHeight),
         });
         const startSegLine = new Line2(startSegGeo, startSegMat);
@@ -1194,6 +1392,8 @@ export default class Atom extends ObservableEntity {
         const endSegMat = new LineMaterial({
           color: serializedLabel.endSegments.color,
           linewidth: serializedLabel.endSegments.linewidth,
+          transparent: segOpacity < 1,
+          opacity: segOpacity,
           resolution: new THREE.Vector2(window.innerWidth, window.innerHeight),
         });
         const endSegLine = new Line2(endSegGeo, endSegMat);
@@ -1201,43 +1401,26 @@ export default class Atom extends ObservableEntity {
         geometries.push(endSegLine);
       }
 
+      // --- Arrowheads ---
+      if (serializedLabel.arrows) {
+        const { start: a, end: b, color } = serializedLabel.line;
+        [
+          [a, b],
+          [b, a],
+        ].forEach(([tip, from], i) => {
+          const arrow = this.labelArrowSprite(tip, from, color);
+          arrow.name = `label-arrow-${i}-${idx}`;
+          geometries.push(arrow);
+        });
+      }
+
       // --- Text Sprite ---
-      const canvas = document.createElement("canvas");
-      canvas.width = 2048; // Large width to accommodate longer text, will be scaled down by sprite scale
-      canvas.height = 1024;
-      const ctx = canvas.getContext("2d");
-      ctx.font = serializedLabel.text.font;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-
-      // Draw stroke (text color)
-      ctx.strokeStyle = serializedLabel.text.color;
-      ctx.lineWidth = 15;
-      ctx.lineJoin = "round";
-      ctx.lineCap = "round";
-      ctx.strokeText(
-        serializedLabel.text.value,
-        canvas.width / 2,
-        canvas.height / 2,
-      );
-
-      // Draw fill (white)
-      ctx.fillStyle = "white";
-      ctx.fillText(
-        serializedLabel.text.value,
-        canvas.width / 2,
-        canvas.height / 2,
-      );
-
-      const texture = new THREE.CanvasTexture(canvas);
-      texture.colorSpace = THREE.SRGBColorSpace;
-      const material = new THREE.SpriteMaterial({
-        map: texture,
-        depthTest: false,
-      });
-      const sprite = new THREE.Sprite(material);
-      sprite.scale.set(...serializedLabel.text.scale);
-      sprite.position.set(...serializedLabel.text.position);
+      const sprite = serializedLabel.text.size
+        ? this.labelTagSprite(serializedLabel.text, [
+            serializedLabel.line.start,
+            serializedLabel.line.end,
+          ])
+        : this.legacyLabelTextSprite(serializedLabel.text);
       sprite.name = `label-text-${idx}`;
 
       geometries.push(sprite);
@@ -1648,7 +1831,7 @@ export default class Atom extends ObservableEntity {
               value:
                 displayValue !== undefined && displayValue !== null
                   ? displayValue
-                  : dropdownOptions[0] ?? "",
+                  : (dropdownOptions[0] ?? ""),
               label: input.name,
               options: dropdownOptions,
               disabled: hasConnector,
