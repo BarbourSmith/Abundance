@@ -7,6 +7,11 @@ import {
 } from "../src/worker/cutlayout";
 import { layout } from "../src/worker/cutlayout";
 import { RequestContext } from "../src/worker/geometryProvider";
+import {
+  rotationXYZ,
+  transformId,
+  translation,
+} from "../src/worker/lazyTransform";
 import { rectangle } from "../src/worker/shapes";
 import { assemblyOf, flattenAssembly, init } from "../src/worker/util";
 
@@ -108,14 +113,24 @@ describe("cutlayout integration", () => {
     expect(placements).toHaveLength(1);
     expect(placements[0].map((placement) => placement.id)).toEqual([0, 1]);
 
-    // Every part actually got transformed, so no leaf keeps its input geometry.
+    // Every part got its own placement applied: rotated, then moved so the
+    // sheet is centred on the origin. (The default placements put parts at
+    // the centre of the sheet, which is no move at all.)
     const defaultLeafIds = flattenAssembly(defaultLayout).map(
       (leaf) => leaf.geometry,
     );
-    expect(defaultLeafIds).toHaveLength(2);
-    defaultLeafIds.forEach((id, index) => {
-      expect(id).not.toEqual(inputLeafIds[index]);
-    });
+    expect(defaultLeafIds).toEqual(
+      placements[0].map(({ id, rotate, translate }) =>
+        transformId(
+          transformId(inputLeafIds[id], rotationXYZ(0, 0, rotate)),
+          translation(
+            translate.x - layoutConfig.width / 2,
+            translate.y - layoutConfig.height / 2,
+            0,
+          ),
+        ),
+      ),
+    );
 
     // Editing a position by hand moves that part and leaves the other alone.
     placements[0][0].translate.x += 25;

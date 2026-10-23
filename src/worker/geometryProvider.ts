@@ -20,6 +20,14 @@ import {
 } from "./indexeddbUtils";
 import { reportBooleanInflight, reportCadProgress } from "./progress";
 import { BooleanOpCache } from "./booleanOpCache";
+import {
+  RigidTransform,
+  parseTransformedId,
+  rotationXYZ,
+  storedId,
+  transformId,
+  translation,
+} from "./lazyTransform";
 
 type ReplicadObject =
   | replicad.Shape3D
@@ -425,6 +433,13 @@ class GeometryProvider {
       console.warn("Attempting to retrieve empty sentinel from the cache");
       return replicad.makeCompound([]) as replicad.Shape3D;
     }
+    // Moves and rotations aren't stored; apply them to the stored base shape.
+    const transformed = parseTransformedId(id);
+    if (transformed) {
+      const base = await this.get(transformed.base, context);
+      return this.applyTransform(base, transformed.transform);
+    }
+
     const warmCached = this.getFromWarmCache(id, context);
     if (warmCached) {
       this.cacheHit("deserialize");
@@ -464,6 +479,58 @@ class GeometryProvider {
     return Promise.resolve(result);
   }
 
+  /**
+   * Applies a lazy move/rotate to a shape loaded from the cache. `shape` is
+   * left alone: within a batch it is the warm cache's own copy.
+   *
+   * 3D shapes are given an OpenCascade location rather than copied, so this
+   * is cheap whatever the size of the shape. The result shares its geometry
+   * with `shape`, as the copy=false transforms OpenCascade uses do.
+   */
+  private applyTransform(
+    shape: ReplicadObject,
+    transform: RigidTransform,
+  ): ReplicadObject {
+    const [w, x, y, z] = transform.rotation;
+    const [tx, ty, tz] = transform.translation;
+
+    if (shape instanceof replicad.Drawing) {
+      // Sketches are moved and rotated within their own plane; actions.ts
+      // moves and tilts the plane itself, so as before a z offset doesn't
+      // move a sketch.
+      if (x !== 0 || y !== 0) {
+        throw new Error("A 2D sketch can only be rotated about the Z axis");
+      }
+      const angle = (2 * Math.atan2(z, w) * 180) / Math.PI;
+      const rotated = angle !== 0 ? shape.rotate(angle, [0, 0]) : shape;
+      return tx !== 0 || ty !== 0 ? rotated.translate(tx, ty) : rotated;
+    }
+
+    const oc = replicad.getOC();
+    const trsf = new oc.gp_Trsf();
+    const sinHalf = Math.hypot(x, y, z);
+    if (sinHalf > 0) {
+      const axis = replicad.makeAx1(
+        [0, 0, 0],
+        [x / sinHalf, y / sinHalf, z / sinHalf],
+      );
+      trsf.SetRotation(axis, 2 * Math.atan2(sinHalf, w));
+      axis.delete();
+    }
+    const offset = new oc.gp_Vec(tx, ty, tz);
+    trsf.SetTranslationPart(offset);
+    const location = new oc.TopLoc_Location(trsf);
+    try {
+      return replicad.cast(
+        shape.wrapped.Moved(location, false),
+      ) as ReplicadObject;
+    } finally {
+      location.delete();
+      offset.delete();
+      trsf.delete();
+    }
+  }
+
   async clearCache(context: RequestContext): Promise<boolean> {
     this.projectLRU = this.projectLRU.filter((id) => id !== context.project);
     await deleteProjectCache(context.project);
@@ -493,13 +560,18 @@ class GeometryProvider {
     );
 
     // Step 1: filter geometries based on key since that's a much faster approach
-    // and we don't need access to the geom values.
+    // and we don't need access to the geom values. A moved or rotated shape
+    // isn't stored, so keep the base shape it's computed from.
+    const storedIds = new Set<string>();
+    for (const id of idsToRetain) {
+      storedIds.add(storedId(id));
+    }
     phase("scanning ReplicadObject keys");
     const deletedGeoms = await filter(
       context.project,
       "ReplicadObject",
       (shapeKey: string) => {
-        return idsToRetain.has(shapeKey);
+        return storedIds.has(shapeKey);
       },
       false,
       (visited, deleted) =>
@@ -623,6 +695,15 @@ class GeometryProvider {
     if (id === this.EMPTY_SHAPE_SENTINEL) {
       return [this.EMPTY_SHAPE_SENTINEL];
     }
+    // Split the stored shape and move its parts, so the parts of every moved
+    // copy are stored once.
+    const transformed = parseTransformedId(id);
+    if (transformed) {
+      const partIds = await this.expandCompoundShape(transformed.base, context);
+      return partIds.map((partId) =>
+        transformId(partId, transformed.transform),
+      );
+    }
     const compound = await this.get(id, context);
     if (!(compound instanceof replicad.Compound)) {
       return [id];
@@ -697,47 +778,42 @@ class GeometryProvider {
     return extrudedId;
   }
 
+  /**
+   * Moves are lazy: nothing is computed or stored until the shape is loaded.
+   * See lazyTransform.ts.
+   */
   async move(
     id: string,
     dx: number,
     dy: number,
     dz: number,
+    // Kept so callers needn't know which operations are lazy.
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     context: RequestContext,
   ): Promise<string> {
     if (id === this.EMPTY_SHAPE_SENTINEL) {
       return this.EMPTY_SHAPE_SENTINEL;
     }
-    const movedId = this._makeId("move", id, dx, dy, dz);
-    await this.createIfAbsent(movedId, context, async () => {
-      const geometry = await this.get(id, context);
-      return geometry.translate(dx, dy, dz);
-    });
-    return movedId;
+    return transformId(id, translation(dx, dy, dz));
   }
 
+  /**
+   * Rotates about the X, Y and Z axes through the origin, in that order.
+   * Sketches can only be rotated about Z. Rotations are lazy like moves.
+   */
   async rotate(
     id: string,
     x: number,
     y: number,
     z: number,
+    // Kept so callers needn't know which operations are lazy.
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     context: RequestContext,
   ): Promise<string> {
     if (id === this.EMPTY_SHAPE_SENTINEL) {
       return this.EMPTY_SHAPE_SENTINEL;
     }
-    const rotateId = this._makeId("rotate", id, x, y, z);
-    await this.createIfAbsent(rotateId, context, async () => {
-      const geometry = await this.get(id, context);
-      if (geometry instanceof replicad.Drawing) {
-        return geometry.rotate(z, [0, 0]);
-      } else {
-        return geometry
-          .rotate(x, [0, 0, 0], [1, 0, 0])
-          .rotate(y, [0, 0, 0], [0, 1, 0])
-          .rotate(z, [0, 0, 0], [0, 0, 1]);
-      }
-    });
-    return rotateId;
+    return transformId(id, rotationXYZ(x, y, z));
   }
 
   async scale(
@@ -1163,19 +1239,17 @@ class GeometryProvider {
           if (leaf.geometry === this.EMPTY_SHAPE_SENTINEL) {
             continue; // Empty shapes don't exist in the cache
           }
-          const geom = this.getFromWarmCache(leaf.geometry, context);
+          // A moved or rotated part isn't stored itself; its base shape is.
+          const id = storedId(leaf.geometry);
+          const geom = this.getFromWarmCache(id, context);
           if (geom) {
-            await putShape(
-              context.project,
-              leaf.geometry,
-              this.getFromWarmCache(leaf.geometry, context)!.serialize(),
-            );
+            await putShape(context.project, id, geom.serialize());
           } else {
             // check that it's already in the serialized cache
-            const exists = await shapeExists(context.project, leaf.geometry);
+            const exists = await shapeExists(context.project, id);
             if (!exists) {
               throw new Error(
-                "Batch operation references unknown geometry: " + leaf.geometry,
+                "Batch operation references unknown geometry: " + id,
               );
             }
           }
