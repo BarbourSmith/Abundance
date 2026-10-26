@@ -499,7 +499,7 @@ class GeometryProvider {
       // moves and tilts the plane itself, so as before a z offset doesn't
       // move a sketch.
       if (x !== 0 || y !== 0) {
-        throw new Error("A 2D sketch can only be rotated about the Z axis");
+        throw new Error("Internal error. Nonzero x or y rotation found on 2D sketch, these rotations should have been applied to the hosting plane instead.");
       }
       const angle = (2 * Math.atan2(z, w) * 180) / Math.PI;
       const rotated = angle !== 0 ? shape.rotate(angle, [0, 0]) : shape;
