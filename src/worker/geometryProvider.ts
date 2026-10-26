@@ -1233,6 +1233,7 @@ class GeometryProvider {
     planes: SimplePlane[],
     startPoint: string | undefined,
     endPoint: string | undefined,
+    smooth: boolean,
     context: RequestContext,
   ): Promise<string> {
     if (sketchIds.length != planes.length) {
@@ -1244,6 +1245,7 @@ class GeometryProvider {
       ...planes,
       startPoint,
       endPoint,
+      smooth ? "smooth" : "ruled",
     );
     await this.createIfAbsent(loftId, context, async () => {
       const sketches = [];
@@ -1265,6 +1267,7 @@ class GeometryProvider {
         }
       }
       const config = {
+        ruled: !smooth,
         startPoint: startPoint
           ? (await this._getAsPoint(startPoint, context)).asTuple()
           : undefined,
@@ -1281,9 +1284,16 @@ class GeometryProvider {
     wireIds: string[],
     startPoint: string | undefined,
     endPoint: string | undefined,
+    smooth: boolean,
     context: RequestContext,
   ): Promise<string> {
-    const loftId = this._makeId("loftWire", ...wireIds, startPoint, endPoint);
+    const loftId = this._makeId(
+      "loftWire",
+      ...wireIds,
+      startPoint,
+      endPoint,
+      smooth ? "smooth" : "ruled",
+    );
     await this.createIfAbsent(loftId, context, async () => {
       const wires = [];
       for (let i = 0; i < wireIds.length; i++) {
@@ -1294,6 +1304,7 @@ class GeometryProvider {
         wires.push(partObj);
       }
       const config = {
+        ruled: !smooth,
         startPoint: startPoint
           ? (await this._getAsPoint(startPoint, context)).asTuple()
           : undefined,
