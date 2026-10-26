@@ -32,15 +32,24 @@ type TransformedId = { base: string; transform: RigidTransform };
 const PREFIX = "xf|";
 const IDENTITY_ROTATION: Quaternion = [1, 0, 0, 0];
 
-// Values are rounded so that ids are stable: moving by 0.1 then 0.2 should
-// give the same id as moving by 0.3, and four quarter turns should give back
-// the base id. Both are far below OpenCascade's 1e-7 modelling tolerance.
+// Values that are float noise away from a round number are snapped to it, so
+// that ids are stable: moving by 0.1 then 0.2 gives the same id as moving by
+// 0.3, and four quarter turns give back the base id. Anything else is kept
+// exactly. Rounding it would move the shape slightly, and replicad's 2D
+// booleans fail ("Point ... not on curve") when edges that should coincide are
+// even 1e-10 apart.
 const ROTATION_DECIMALS = 1e12;
 const TRANSLATION_DECIMALS = 1e9;
+// A few units in the last place, relative to the value.
+const NOISE = 8 * Number.EPSILON;
 
 function round(value: number, decimals: number): number {
   const rounded = Math.round(value * decimals) / decimals;
-  return rounded === 0 ? 0 : rounded; // no "-0" in ids
+  const snapped =
+    Math.abs(value - rounded) <= NOISE * Math.max(1, Math.abs(value))
+      ? rounded
+      : value;
+  return snapped === 0 ? 0 : snapped; // no "-0" in ids
 }
 
 function multiply(a: Quaternion, b: Quaternion): Quaternion {

@@ -157,7 +157,61 @@ describe("lazy move and rotate in GeometryProvider", () => {
     );
 
     const tilted = await gp.rotate(sketchId, 10, 0, 0, context);
-    await expect(gp.get(tilted, context)).rejects.toThrow(/Z axis/);
+    await expect(gp.get(tilted, context)).rejects.toThrow(/x or y rotation/);
+  });
+
+  // replicad's 2D booleans need shared edges to line up exactly, as they did
+  // when moves were applied eagerly. Rounding the move in the id put this
+  // rectangle's edge 5e-10 off the rounded rectangle's, and fusing them threw
+  // "Point ... not on curve" (Arm Outline in Blocky_Adorondac_Chair).
+  it("moves sketches exactly so 2D booleans on shared edges still work", async () => {
+    const length = 774.3462118379725;
+    const rounded = await gp.addSingularToCache(
+      replicad.drawRoundedRectangle(length, 140, 45).translate(length / 2, 0),
+      context,
+      "rounded-rectangle",
+      [length],
+    );
+    const half = await gp.move(
+      await gp.drawRectangle(length / 2, 140, context),
+      length / 4,
+      0,
+      0,
+      context,
+    );
+    const fused = await gp.get(await gp.fuse(rounded, half, context), context);
+    const [[x0], [x1]] = fused.boundingBox.bounds;
+    expect([x0, x1].map((c) => +c.toFixed(3) || 0)).toEqual([0, +length.toFixed(3)]);
+  });
+
+  // The same after a rotation that isn't a multiple of 90 degrees and a
+  // chain of moves (Runner in Blocky_Adorondac_Chair).
+  it("rotates and moves sketches exactly so 2D booleans still work", async () => {
+    const place = async (id, dx, dy) =>
+      gp.move(
+        await gp.rotate(await gp.move(id, dx, dy, 0, context), 0, 0, -18.06, context),
+        0,
+        380,
+        0,
+        context,
+      );
+    const strip = await place(await gp.drawRectangle(1, 82, context), 0.5, -41);
+    const block = await place(
+      await gp.drawRectangle(19.05, 60, context),
+      -9.525,
+      -41,
+    );
+    const eager = (w, h, dx, dy) =>
+      replicad
+        .drawRectangle(w, h)
+        .translate(dx, dy)
+        .rotate(-18.06, [0, 0])
+        .translate(0, 380);
+    const expected = eager(1, 82, 0.5, -41).fuse(eager(19.05, 60, -9.525, -41));
+    const fused = await gp.get(await gp.fuse(strip, block, context), context);
+    expect(fused.boundingBox.bounds.flat().map((c) => +c.toFixed(6))).toEqual(
+      expected.boundingBox.bounds.flat().map((c) => +c.toFixed(6)),
+    );
   });
 
   it("expands a moved compound into moved parts of the stored compound", async () => {
