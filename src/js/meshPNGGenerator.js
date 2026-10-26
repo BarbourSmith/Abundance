@@ -1,9 +1,8 @@
 import * as THREE from "three";
 import {
-  syncFaces,
-  syncLines,
-  syncLinesFromFaces,
-} from "replicad-threejs-helper";
+  applyTransform,
+  buildDisplayGeometries,
+} from "./displayMeshGeometry.js";
 
 /**
  * Generate a high-resolution PNG from mesh data returned by the worker
@@ -32,6 +31,7 @@ export async function generateMeshPNG(
     return null;
   }
 
+  let disposeGeometries = () => {};
   try {
     // Create a temporary scene
     const scene = new THREE.Scene();
@@ -41,45 +41,38 @@ export async function generateMeshPNG(
     let cameraZoom = 1;
     const meshGroup = new THREE.Group();
 
-    for (const m of meshArray) {
+    // Moved copies of a shape share one geometry; see displayMeshGeometry.js
+    const geometries = buildDisplayGeometries(meshArray);
+    disposeGeometries = geometries.dispose;
+    for (const m of geometries.parts) {
       // Store camera zoom from first mesh (they should all be the same)
-      if (m.cameraZoom) cameraZoom = m.cameraZoom;
+      if (m.source.cameraZoom) cameraZoom = m.source.cameraZoom;
 
       // Skip point-only geometries for PNG generation
       if (m.point) continue;
 
-      // Create geometry from mesh data
-      const geometry = new THREE.BufferGeometry();
-
-      // Use replicad-threejs-helper to populate geometry
-      if (m.faces) {
-        syncFaces(geometry, m.faces);
+      if (m.body) {
+        // Create material with proper color
+        const material = new THREE.MeshStandardMaterial({
+          color: m.color || "#888888",
+          side: THREE.DoubleSide,
+          metalness: 0.3,
+          roughness: 0.7,
+        });
+        meshGroup.add(applyTransform(new THREE.Mesh(m.body, material), m.transform));
       }
 
-      // Create material with proper color
-      const material = new THREE.MeshStandardMaterial({
-        color: m.color || "#888888",
-        side: THREE.DoubleSide,
-        metalness: 0.3,
-        roughness: 0.7,
-      });
-
-      // Create mesh and add to group
-      const mesh = new THREE.Mesh(geometry, material);
-      meshGroup.add(mesh);
-
       // Add wireframe edges if they exist
-      if (m.edges) {
-        const edgeGeometry = new THREE.BufferGeometry();
-        syncLines(edgeGeometry, m.edges);
+      if (m.source.edges) {
         const edgeMaterial = new THREE.LineBasicMaterial({
           color: "#000000",
           linewidth: 1,
           transparent: true,
           opacity: 0.3,
         });
-        const wireframe = new THREE.LineSegments(edgeGeometry, edgeMaterial);
-        meshGroup.add(wireframe);
+        meshGroup.add(
+          applyTransform(new THREE.LineSegments(m.lines, edgeMaterial), m.transform),
+        );
       }
     }
 
@@ -147,6 +140,8 @@ export async function generateMeshPNG(
   } catch (error) {
     console.error("Error generating mesh PNG:", error);
     return null;
+  } finally {
+    disposeGeometries();
   }
 }
 

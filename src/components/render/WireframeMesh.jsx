@@ -1,11 +1,9 @@
 import React, { useRef, useLayoutEffect, useEffect, useState } from "react";
 import { useThree } from "@react-three/fiber";
-import { BufferGeometry } from "three";
 import {
-  syncLines,
-  syncFaces,
-  syncLinesFromFaces,
-} from "replicad-threejs-helper";
+  buildDisplayGeometries,
+  transformProps,
+} from "../../js/displayMeshGeometry.js";
 import { Wireframe } from "@react-three/drei";
 import { useRendering } from "../../contexts/index.js";
 
@@ -16,49 +14,16 @@ export default React.memo(function ShapeMeshes() {
   const [fullMesh, setFullMesh] = useState([]);
 
   useLayoutEffect(() => {
-    let meshArray = [];
-    mesh.map((m) => {
-      // Point3D — translucent point, no buffer geometry to build
-      if (m.point) {
-        meshArray.push({
-          pointPosition: m.point,
-          color: m.color,
-        });
-        return;
-      }
-      const body = new BufferGeometry();
-      const lines = new BufferGeometry();
-      // We use the three helpers to synchronise the buffer geometry with the
-      // new data from the parameters
-      if (m.faces) syncFaces(body, m.faces);
-      //if (faces) syncFaces(wire.current, faces);
-
-      if (m.edges) syncLines(lines, m.edges);
-      else if (m.faces) syncLinesFromFaces(lines, body);
-
-      const thisBody = body;
-      const thisLines = lines;
-      const thisColor = m.color;
-      // Wire — edges only, no faces
-      const isWireType = !m.faces && !!m.edges;
-      meshArray.push({
-        body: m.faces ? thisBody : null,
-        lines: thisLines,
-        color: thisColor,
-        isWire: isWireType,
-      });
-    });
-    setFullMesh(meshArray);
+    // Moved copies of a shape share one geometry; see displayMeshGeometry.js
+    const { parts, dispose } = buildDisplayGeometries(mesh);
+    setFullMesh(
+      parts.map((m) => ({ ...m, pointPosition: m.point })),
+    );
     // We have configured the canvas to only refresh when there is a change,
     // the invalidate function is here to tell it to recompute
     invalidate();
     // Release the GPU buffers of this mesh once it is replaced or unmounted.
-    return () => {
-      meshArray.forEach((m) => {
-        m.body?.dispose?.();
-        m.lines?.dispose?.();
-      });
-    };
+    return dispose;
   }, [mesh, invalidate]);
 
   useEffect(
@@ -73,7 +38,7 @@ export default React.memo(function ShapeMeshes() {
     <>
       {fullMesh.map((m, index) => {
         return (
-          <group key={"groupwire" + m.color + index}>
+          <group key={"groupwire" + m.color + index} {...transformProps(m.transform)}>
             {m.pointPosition ? (
               // Translucent background point
               <points>

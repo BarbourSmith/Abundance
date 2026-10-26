@@ -7,7 +7,7 @@ import React, {
   forwardRef,
 } from "react";
 import { useThree, useFrame } from "@react-three/fiber";
-import { BufferGeometry, BufferAttribute, DoubleSide } from "three";
+import { BufferGeometry, DoubleSide } from "three";
 import {
   Scene,
   Mesh,
@@ -17,11 +17,12 @@ import {
   Vector3,
   Box3,
 } from "three";
+import { syncFaces, syncLines } from "replicad-threejs-helper";
 import {
-  syncFaces,
-  syncLines,
-  syncLinesFromFaces,
-} from "replicad-threejs-helper";
+  buildDisplayGeometries,
+  transformMatrix,
+  transformProps,
+} from "../../js/displayMeshGeometry.js";
 import { Wireframe } from "@react-three/drei";
 import { useRendering } from "../../contexts/index.js";
 
@@ -51,14 +52,14 @@ export default React.memo(
     const [fullMesh, setFullMesh] = useState([]);
 
     useLayoutEffect(() => {
-      let meshArray = makeMeshes(mesh);
-      setFullMesh(meshArray);
+      const { parts, dispose } = makeMeshes(mesh);
+      setFullMesh(parts);
       // We have configured the canvas to only refresh when there is a change,
       // the invalidate function is here to tell it to recompute
       invalidate();
       // Free the GPU buffers of the previous mesh once it is replaced. They
       // were never released before, so every displayed atom leaked them.
-      return () => disposeMeshArray(meshArray);
+      return dispose;
     }, [mesh, invalidate]);
 
     // Per-element geometries for face/edge selection mode. Built once per
@@ -104,72 +105,25 @@ export default React.memo(
       invalidate();
     }, [selectionVersion, selectionModeAtom, isSolid, invalidate]);
 
+    /**
+     * Geometry for each part of the worker's mesh array. Moved copies of a
+     * shape share one geometry; each part's `transform` places its group.
+     * Returns `{ parts, dispose }`.
+     */
     function makeMeshes(meshes) {
-      let meshArray = [];
-      if (!Array.isArray(meshes)) return meshArray;
-      meshes.map((m) => {
-        // Point3D — no buffer geometry to build, just store the coordinate
-        if (m.point) {
-          meshArray.push({
-            pointPosition: m.point,
-            color: m.color,
-            solid: false,
-            isWire: false,
-          });
-          return;
-        }
-
-        const body = new BufferGeometry();
-        const lines = new BufferGeometry();
-        // We use the three helpers to synchronise the buffer geometry with the
-        // new data from the parameters
-        if (m.faces) syncFaces(body, m.faces);
-        //if (faces) syncFaces(wire.current, faces);
-
-        if (m.edges) syncLines(lines, m.edges);
-        else if (m.faces) syncLinesFromFaces(lines, body);
-
-        // Per-vertex colours from a meshOverride. The override travels as a
-        // plain number[] so it round-trips through JSON cache; wrap into a
-        // Float32Array here for the BufferAttribute.
-        if (m.vertexColors && m.faces) {
-          body.setAttribute(
-            "color",
-            new BufferAttribute(new Float32Array(m.vertexColors), 3),
-          );
-        }
-
-        const thisBody = body;
-        const thisLines = lines;
-        const thisColor = m.color;
-        // Wire has edges but no faces — render as lines only
-        const isWireType = !m.faces && !!m.edges;
-        // If the color is keep out or glass make it transparent
-        if (thisColor == "#D9544D" || thisColor == "#E6F3FF") {
-          meshArray.push({
-            body: thisBody,
-            lines: thisLines,
-            color: thisColor,
-            solid: false,
-            isWire: isWireType,
-            hasVertexColors: !!m.vertexColors,
-            rawFaces: m.faces || null,
-            rawEdges: m.edges || null,
-          });
-        } else {
-          meshArray.push({
-            body: thisBody,
-            lines: thisLines,
-            color: thisColor,
-            solid: isSolid,
-            isWire: isWireType,
-            hasVertexColors: !!m.vertexColors,
-            rawFaces: m.faces || null,
-            rawEdges: m.edges || null,
-          });
-        }
-      });
-      return meshArray;
+      const { parts, dispose } = buildDisplayGeometries(meshes);
+      return {
+        parts: parts.map((m) => ({
+          ...m,
+          pointPosition: m.point,
+          // Keep out and glass are always transparent
+          solid:
+            !m.point && m.color != "#D9544D" && m.color != "#E6F3FF"
+              ? isSolid
+              : false,
+        })),
+        dispose,
+      };
     }
 
     /**
@@ -214,23 +168,36 @@ export default React.memo(
       }
     }
 
-    function disposeMeshArray(meshArray) {
-      meshArray.forEach((m) => {
-        m.body?.dispose?.();
-        m.lines?.dispose?.();
-      });
-    }
-
     useImperativeHandle(ref, () => ({
       buildThumbnail: async (m) => {
-        const meshArray = makeMeshes(m);
+        const { parts, dispose } = makeMeshes(m);
         try {
-          return await meshArrayToSVG2(meshArray);
+          return await meshArrayToSVG2(parts);
         } finally {
-          disposeMeshArray(meshArray);
+          dispose();
         }
       },
     }));
+
+    /**
+     * A part's edge-line points as [start, end] pairs of Vector3, placed with
+     * the part's transform. The SVG thumbnail reads the points itself rather
+     * than drawing three.js objects, so it has to apply the transform.
+     */
+    function placedLinePoints(m) {
+      const positions = m.lines?.attributes?.position?.array;
+      if (!positions) return [];
+      const matrix = transformMatrix(m.transform);
+      const point = (i) => {
+        const v = new Vector3(positions[i], positions[i + 1], positions[i + 2]);
+        return matrix ? v.applyMatrix4(matrix) : v;
+      };
+      const segments = [];
+      for (let i = 0; i + 5 < positions.length; i += 6) {
+        segments.push([point(i), point(i + 3)]);
+      }
+      return segments;
+    }
     /**
      * Converts an array of mesh objects to an SVG string for 2D preview or thumbnail generation.
      *
@@ -242,34 +209,24 @@ export default React.memo(
      *   const svg = meshArrayToSVG2(meshArray, 400, 400);
      */
     function meshArrayToSVG2(meshArray, width = 800, height = 800) {
+      const partSegments = meshArray
+        .filter((m) => m.lines)
+        .map((m) => placedLinePoints(m));
+
       // 1. Calculate bounding box of all geometry
       const boundingBox = new Box3();
-      meshArray.forEach((m) => {
-        if (m.lines && m.lines.attributes && m.lines.attributes.position) {
-          const positions = m.lines.attributes.position.array;
-          for (let i = 0; i < positions.length; i += 3) {
-            boundingBox.expandByPoint(
-              new Vector3(positions[i], positions[i + 1], positions[i + 2]),
-            );
-          }
-        }
-      });
+      partSegments.forEach((segments) =>
+        segments.forEach(([start, end]) => {
+          boundingBox.expandByPoint(start);
+          boundingBox.expandByPoint(end);
+        }),
+      );
 
       // Calculate bounding box dimensions
       const boxSize = new Vector3();
       boundingBox.getSize(boxSize);
-      const boundingBoxDimensions = {
-        width: boxSize.x,
-        height: boxSize.y,
-        depth: boxSize.z,
-      };
 
-      const zoomFromBounds = calculateZoom(
-        boundingBoxDimensions.width,
-        boundingBoxDimensions.height,
-        boundingBoxDimensions.depth,
-        9,
-      );
+      const zoomFromBounds = calculateZoom(boxSize.x, boxSize.y, boxSize.z, 9);
 
       // 2. Setup camera with dynamic positioning
       const camera = new PerspectiveCamera(25, width / height, 0.1, 10000);
@@ -285,42 +242,15 @@ export default React.memo(
       camera.updateMatrixWorld();
       camera.updateProjectionMatrix();
 
-      // 3. Project all points to 2D and collect for bounding box
-      let allProjectedPoints = [];
-      let svgPaths = [];
-      meshArray.forEach((m) => {
-        if (!m.lines) return;
-        const positions = m.lines.attributes.position.array;
-        let path = "";
-        for (let i = 0; i < positions.length; i += 6) {
-          // Project first point
-          const v1 = new Vector3(
-            positions[i],
-            positions[i + 1],
-            positions[i + 2],
-          );
-          v1.project(camera);
-          const x1 = (v1.x * 0.5 + 0.5) * width;
-          const y1 = (1 - (v1.y * 0.5 + 0.5)) * height;
-          allProjectedPoints.push([x1, y1]);
-
-          // Project second point
-          const v2 = new Vector3(
-            positions[i + 3],
-            positions[i + 4],
-            positions[i + 5],
-          );
-          v2.project(camera);
-          const x2 = (v2.x * 0.5 + 0.5) * width;
-          const y2 = (1 - (v2.y * 0.5 + 0.5)) * height;
-          allProjectedPoints.push([x2, y2]);
-
-          path += `M${x1},${y1} L${x2},${y2} `;
-        }
-        svgPaths.push(
-          `<path d="${path.trim()}" stroke="${m.color}" fill="none"/>`,
-        );
-      });
+      // 3. Project all points to 2D
+      const toScreen = (v) => {
+        const p = v.clone().project(camera);
+        return [(p.x * 0.5 + 0.5) * width, (1 - (p.y * 0.5 + 0.5)) * height];
+      };
+      const projected = partSegments.map((segments) =>
+        segments.map(([start, end]) => [toScreen(start), toScreen(end)]),
+      );
+      const allProjectedPoints = projected.flat(2);
 
       // 4. Compute bounding box and center
       if (allProjectedPoints.length === 0) {
@@ -328,53 +258,20 @@ export default React.memo(
       }
       const xs = allProjectedPoints.map((p) => p[0]);
       const ys = allProjectedPoints.map((p) => p[1]);
-      const minX = Math.min(...xs),
-        maxX = Math.max(...xs);
-      const minY = Math.min(...ys),
-        maxY = Math.max(...ys);
-      const centerX = (minX + maxX) / 2;
-      const centerY = (minY + maxY) / 2;
+      const centerX = (Math.min(...xs) + Math.max(...xs)) / 2;
+      const centerY = (Math.min(...ys) + Math.max(...ys)) / 2;
 
       // 5. Shift all paths by center
-      let centeredPaths = [];
-      meshArray.forEach((m, idx) => {
-        if (!m.lines) return;
-        const positions = m.lines.attributes.position.array;
-        let path = "";
-        for (let i = 0; i < positions.length; i += 6) {
-          // Project first point
-          const v1 = new Vector3(
-            positions[i],
-            positions[i + 1],
-            positions[i + 2],
-          );
-          v1.project(camera);
-          const x1 = (v1.x * 0.5 + 0.5) * width - centerX + width / 2;
-          const y1 = (1 - (v1.y * 0.5 + 0.5)) * height - centerY + height / 2;
-
-          // Project second point
-          const v2 = new Vector3(
-            positions[i + 3],
-            positions[i + 4],
-            positions[i + 5],
-          );
-          v2.project(camera);
-          const x2 = (v2.x * 0.5 + 0.5) * width - centerX + width / 2;
-          const y2 = (1 - (v2.y * 0.5 + 0.5)) * height - centerY + height / 2;
-
-          path += `M${x1},${y1} L${x2},${y2} `;
-        }
-        centeredPaths.push(
-          /*`<path d="${path.trim()}" stroke="${
-            m.color
-          }" stroke-width="4" fill="none"/>`*/
-          `<path d="${path.trim()}" stroke="black"  stroke-width="4"  fill="red"/>`,
-        );
+      const centeredPaths = projected.map((segments) => {
+        const shift = ([x, y]) =>
+          `${x - centerX + width / 2},${y - centerY + height / 2}`;
+        const path = segments
+          .map(([a, b]) => `M${shift(a)} L${shift(b)}`)
+          .join(" ");
+        return `<path d="${path}" stroke="black"  stroke-width="4"  fill="red"/>`;
       });
 
       // 6. SVG viewBox centered at 0,0
-      const svgWidth = maxX - minX;
-      const svgHeight = maxY - minY;
       return `<svg viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">${centeredPaths.join("\n")}</svg>`;
     }
 
@@ -456,7 +353,7 @@ export default React.memo(
           const perEdgeGeoms = isEdgeMode ? perElement : null;
 
           return (
-            <group key={index}>
+            <group key={index} {...transformProps(m.transform)}>
               {m.pointPosition ? (
                 // Point3D — render as a fixed screen-space sprite point
                 <points key={"point" + JSON.stringify(m.pointPosition) + index}>
