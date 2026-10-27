@@ -41,7 +41,7 @@ const AMAZON_AFFILIATE_TAG = "maslowcnc01-20";
  * Shown with a bill of materials whenever one of its links carries our tag.
  */
 export const AFFILIATE_DISCLOSURE =
-  "Amazon links in this list are affiliate links. As an Amazon Associate, Maslow CNC earns from qualifying purchases.";
+  "Amazon links in this list are affiliate links to fund development";
 
 // Amazon storefronts: amazon.com, www.amazon.co.uk, smile.amazon.de, ...
 // Not amazonaws.com or other hosts that only contain "amazon".
