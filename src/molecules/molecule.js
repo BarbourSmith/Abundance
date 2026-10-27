@@ -10,7 +10,7 @@ import {
 } from "../js/undoCommands.js";
 
 import { Octokit } from "octokit";
-import { BOMEntry, convertLinks } from "../js/BOM";
+import { BOMEntry, affiliateUrl, convertLinks } from "../js/BOM";
 
 import { ObservableEntity, Status } from "../prototypes/observableEntity.js";
 import { saveAs } from "file-saver";
@@ -899,7 +899,8 @@ export default class Molecule extends Atom {
     if (bomToShow) {
       if (bomToShow.length > 0) {
         bomToShow.map((item) => {
-          const sourceLink = normalizedBomSourceLink(item.source);
+          const sourceLink =
+            affiliateUrl(item.source) || normalizedBomSourceLink(item.source);
           bomParams[item.BOMitemName] = {
             type: "label",
             value: item.numberNeeded,

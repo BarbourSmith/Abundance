@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { convertLinks } from "../src/js/BOM.js";
+import { affiliateUrl, convertLinks } from "../src/js/BOM.js";
+// Load order matters: attachmentpoint first, or molecule.js hits a circular import.
+import "../src/prototypes/attachmentpoint.js";
+import Molecule from "../src/molecules/molecule.js";
 
 describe("convertLinks", () => {
   it("adds the affiliate tag to a plain Amazon link", () => {
@@ -55,5 +58,45 @@ describe("convertLinks", () => {
     expect(convertLinks("www.example.com")).toBe("www.example.com");
     expect(convertLinks("")).toBe("");
     expect(convertLinks(undefined)).toBe(undefined);
+  });
+});
+
+describe("affiliateUrl", () => {
+  it("returns the tagged URL for Amazon links", () => {
+    expect(affiliateUrl("www.amazon.com/dp/B07XYZ1234?th=1")).toBe(
+      "https://www.amazon.com/dp/B07XYZ1234?th=1&tag=maslowcnc01-20",
+    );
+  });
+
+  it("returns null for other links", () => {
+    expect(affiliateUrl("https://www.mcmaster.com/91251A540")).toBeNull();
+    expect(affiliateUrl("")).toBeNull();
+    expect(affiliateUrl(undefined)).toBeNull();
+  });
+});
+
+describe("BOM side panel source links", () => {
+  const sourceLinks = (compiledBom) => {
+    const params = Molecule.prototype.createBom.call({ compiledBom }, () => {});
+    return Object.fromEntries(
+      compiledBom.map((item) => [
+        item.BOMitemName,
+        params[item.BOMitemName].sourceLink,
+      ]),
+    );
+  };
+
+  it("tags Amazon links and leaves others as they were", () => {
+    expect(
+      sourceLinks([
+        { BOMitemName: "Motor", numberNeeded: 1, source: "amazon.com/dp/B1" },
+        { BOMitemName: "Bolt", numberNeeded: 4, source: "mcmaster.com/9125" },
+        { BOMitemName: "Washer", numberNeeded: 4, source: "  " },
+      ]),
+    ).toEqual({
+      Motor: "https://amazon.com/dp/B1?tag=maslowcnc01-20",
+      Bolt: "https://mcmaster.com/9125",
+      Washer: undefined,
+    });
   });
 });

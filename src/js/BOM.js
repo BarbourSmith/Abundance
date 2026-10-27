@@ -42,14 +42,13 @@ const AMAZON_AFFILIATE_TAG = "maslowcnc01-20";
 const AMAZON_STORE_HOST = /(^|\.)amazon(\.[a-z]{2,3}){1,2}$/;
 
 /**
- * Takes a link and converts it to be an affiliate link if it should be.
- * Amazon store links get our tag (unless they already carry one) and are
- * returned as a markdown link; anything else is returned unchanged.
+ * Returns the link with our affiliate tag added if it points at an Amazon
+ * store (unless it already carries a tag), or null if it doesn't.
  * @param {string} link - The link to check.
  */
-export const convertLinks = function (link) {
+export const affiliateUrl = function (link) {
   if (typeof link !== "string") {
-    return link;
+    return null;
   }
   const trimmed = link.trim();
   let url;
@@ -58,13 +57,24 @@ export const convertLinks = function (link) {
       /^https?:\/\//i.test(trimmed) ? trimmed : "https://" + trimmed,
     );
   } catch {
-    return link;
+    return null;
   }
   if (!AMAZON_STORE_HOST.test(url.hostname)) {
-    return link;
+    return null;
   }
   if (!url.searchParams.has("tag")) {
     url.searchParams.set("tag", AMAZON_AFFILIATE_TAG);
   }
-  return "[Amazon](" + url.href + ")";
+  return url.href;
+};
+
+/**
+ * Takes a link and converts it to be an affiliate link if it should be.
+ * Amazon store links are returned as a tagged markdown link; anything else
+ * is returned unchanged.
+ * @param {string} link - The link to check.
+ */
+export const convertLinks = function (link) {
+  const tagged = affiliateUrl(link);
+  return tagged ? "[Amazon](" + tagged + ")" : link;
 };
