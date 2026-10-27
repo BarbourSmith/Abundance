@@ -1,8 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { affiliateUrl, convertLinks } from "../src/js/BOM.js";
+import {
+  AFFILIATE_DISCLOSURE,
+  affiliateUrl,
+  convertLinks,
+} from "../src/js/BOM.js";
 // Load order matters: attachmentpoint first, or molecule.js hits a circular import.
 import "../src/prototypes/attachmentpoint.js";
 import Molecule from "../src/molecules/molecule.js";
+import GlobalVariables from "../src/js/globalvariables.js";
 
 describe("convertLinks", () => {
   it("adds the affiliate tag to a plain Amazon link", () => {
@@ -98,5 +103,53 @@ describe("BOM side panel source links", () => {
       Bolt: "https://mcmaster.com/9125",
       Washer: undefined,
     });
+  });
+});
+
+describe("affiliate disclosure", () => {
+  const amazonItem = {
+    BOMitemName: "Motor",
+    numberNeeded: 1,
+    costUSD: 20,
+    source: "amazon.com/dp/B1",
+  };
+  const otherItem = {
+    BOMitemName: "Bolt",
+    numberNeeded: 4,
+    costUSD: 1,
+    source: "mcmaster.com/9125",
+  };
+
+  const panelNote = (compiledBom) =>
+    Molecule.prototype.createBom.call({ compiledBom }, () => {})[
+      "Affiliate Disclosure"
+    ];
+
+  const bomFile = (compiledBom) => {
+    // Set the backing field: the setter disables the old molecule.
+    const previous = GlobalVariables._topLevelMolecule;
+    GlobalVariables._topLevelMolecule = { compiledBom };
+    try {
+      return Molecule.prototype.formatBom.call({});
+    } finally {
+      GlobalVariables._topLevelMolecule = previous;
+    }
+  };
+
+  it("appears in the side panel and BOM file when a link is tagged", () => {
+    expect(panelNote([amazonItem, otherItem])).toEqual({
+      type: "note",
+      value: AFFILIATE_DISCLOSURE,
+    });
+    expect(bomFile([amazonItem, otherItem])).toMatch(
+      new RegExp(
+        "\\|\\n\\n_" + AFFILIATE_DISCLOSURE.replace(/\./g, "\\.") + "_$",
+      ),
+    );
+  });
+
+  it("is left out when no link is tagged", () => {
+    expect(panelNote([otherItem])).toBeUndefined();
+    expect(bomFile([otherItem])).not.toContain(AFFILIATE_DISCLOSURE);
   });
 });

@@ -2184,6 +2184,20 @@ export const SimpleControlPanel = forwardRef(function SimpleControlPanel(
                         })}
                       </div>
                     );
+                  case "note":
+                    return (
+                      <div
+                        key={key}
+                        style={{
+                          ...labelStyle,
+                          fontSize: 12,
+                          fontWeight: 400,
+                          color: "var(--control-text-muted)",
+                        }}
+                      >
+                        {config.value}
+                      </div>
+                    );
                   case "markdown":
                     return (
                       <div

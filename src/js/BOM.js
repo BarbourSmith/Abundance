@@ -37,6 +37,12 @@ export class BOMEntry {
 
 const AMAZON_AFFILIATE_TAG = "maslowcnc01-20";
 
+/**
+ * Shown with a bill of materials whenever one of its links carries our tag.
+ */
+export const AFFILIATE_DISCLOSURE =
+  "Amazon links in this list are affiliate links. As an Amazon Associate, Maslow CNC earns from qualifying purchases.";
+
 // Amazon storefronts: amazon.com, www.amazon.co.uk, smile.amazon.de, ...
 // Not amazonaws.com or other hosts that only contain "amazon".
 const AMAZON_STORE_HOST = /(^|\.)amazon(\.[a-z]{2,3}){1,2}$/;

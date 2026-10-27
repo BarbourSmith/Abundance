@@ -10,7 +10,12 @@ import {
 } from "../js/undoCommands.js";
 
 import { Octokit } from "octokit";
-import { BOMEntry, affiliateUrl, convertLinks } from "../js/BOM";
+import {
+  AFFILIATE_DISCLOSURE,
+  BOMEntry,
+  affiliateUrl,
+  convertLinks,
+} from "../js/BOM";
 
 import { ObservableEntity, Status } from "../prototypes/observableEntity.js";
 import { saveAs } from "file-saver";
@@ -872,6 +877,9 @@ export default class Molecule extends Atom {
       "|" +
       " " +
       "|";
+    if (bomItems.some((item) => affiliateUrl(item.source))) {
+      bomContent = bomContent + "\n\n_" + AFFILIATE_DISCLOSURE + "_";
+    }
     return bomContent;
   }
 
@@ -909,6 +917,13 @@ export default class Molecule extends Atom {
             bomItem: true,
           };
         });
+
+        if (bomToShow.some((item) => affiliateUrl(item.source))) {
+          bomParams["Affiliate Disclosure"] = {
+            type: "note",
+            value: AFFILIATE_DISCLOSURE,
+          };
+        }
 
         bomParams["Download List of Materials"] = {
           type: "button",
