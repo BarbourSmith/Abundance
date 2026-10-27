@@ -35,13 +35,36 @@ export class BOMEntry {
   }
 }
 
+const AMAZON_AFFILIATE_TAG = "maslowcnc01-20";
+
+// Amazon storefronts: amazon.com, www.amazon.co.uk, smile.amazon.de, ...
+// Not amazonaws.com or other hosts that only contain "amazon".
+const AMAZON_STORE_HOST = /(^|\.)amazon(\.[a-z]{2,3}){1,2}$/;
+
 /**
  * Takes a link and converts it to be an affiliate link if it should be.
+ * Amazon store links get our tag (unless they already carry one) and are
+ * returned as a markdown link; anything else is returned unchanged.
  * @param {string} link - The link to check.
  */
 export const convertLinks = function (link) {
-  if (link.toLowerCase().includes("amazon")) {
-    return "[Amazon](" + link + "?tag=maslowcnc01-20)";
+  if (typeof link !== "string") {
+    return link;
   }
-  return link;
+  const trimmed = link.trim();
+  let url;
+  try {
+    url = new URL(
+      /^https?:\/\//i.test(trimmed) ? trimmed : "https://" + trimmed,
+    );
+  } catch {
+    return link;
+  }
+  if (!AMAZON_STORE_HOST.test(url.hostname)) {
+    return link;
+  }
+  if (!url.searchParams.has("tag")) {
+    url.searchParams.set("tag", AMAZON_AFFILIATE_TAG);
+  }
+  return "[Amazon](" + url.href + ")";
 };
