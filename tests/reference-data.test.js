@@ -361,6 +361,20 @@ describe("references in the graph", () => {
     expect(referencesOf(valueOf(cutByImage))).toEqual([]);
   });
 
+  it("have no geometry to intersect with", async () => {
+    const image = await importFile("plan.png", await pngBytes(40, 20));
+    const part = await box();
+    const intersection = await add("Intersection");
+    await connect(part, intersection, "geometry1");
+    await connect(image, intersection, "geometry2");
+    await settle();
+    expect(resolveAtom(intersection).status).toBe(Status.READY);
+    // The part meets nothing; the result carries the first input's side data
+    expect(flattenAssembly(valueOf(intersection))).toEqual([]);
+    expect(referencesOf(valueOf(intersection))).toEqual([]);
+    expectWorkerSawNoSideData();
+  });
+
   it("are picked out by tag", async () => {
     const image = await importFile("plan.png", await pngBytes(40, 20));
     const tagImage = await add("Tag");
