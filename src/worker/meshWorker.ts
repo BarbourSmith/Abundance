@@ -278,6 +278,70 @@ async function textMesh(text: string): Promise<DisplayMesh[]> {
   ];
 }
 
+const DRAWING_MESH_OPTIONS = { tolerance: 0.1, angularTolerance: 0.5 };
+
+/** A flat solid shown in place of a drawing, which has no faces of its own. */
+function meshFilled(
+  drawing: { sketchOnPlane(plane: replicad.Plane): any },
+  plane: replicad.Plane,
+  cameraZoom: number,
+  color: string,
+): DisplayMesh {
+  const threeDShape = drawing.sketchOnPlane(plane).extrude(0.0001);
+  return {
+    cameraZoom,
+    faces: threeDShape.mesh(DRAWING_MESH_OPTIONS),
+    edges: threeDShape.meshEdges(DRAWING_MESH_OPTIONS),
+    color,
+  };
+}
+
+/** The outlines in a drawing, through any nesting of blueprints. */
+function drawingOutlines(shape: any, outlines: any[] = []): any[] {
+  if (shape.curves) outlines.push(shape);
+  else
+    (shape.blueprints ?? []).forEach((b: any) => drawingOutlines(b, outlines));
+  return outlines;
+}
+
+/**
+ * Display meshes for a drawing. A drawing that can't be filled as a whole,
+ * such as an SVG export's projection, which can come back as open fragments,
+ * is shown piece by piece: closed outlines filled, open ones as lines.
+ */
+function drawingMeshes(
+  drawing: replicad.Drawing,
+  plane: replicad.Plane,
+  cameraZoom: number,
+  color: string,
+): DisplayMesh[] {
+  try {
+    return [meshFilled(drawing, plane, cameraZoom, color)];
+  } catch (e) {
+    if (e instanceof WebAssembly.RuntimeError) throw e;
+  }
+  const meshes: DisplayMesh[] = [];
+  //@ts-expect-error - ignore access of private innerShape field
+  for (const outline of drawingOutlines(drawing.innerShape)) {
+    try {
+      if (outline.isClosed()) {
+        meshes.push(meshFilled(outline, plane, cameraZoom, color));
+      } else {
+        const wire = outline.sketchOnPlane(plane).wire;
+        meshes.push({
+          cameraZoom,
+          edges: wire.meshEdges(DRAWING_MESH_OPTIONS),
+          color,
+        });
+      }
+    } catch (e) {
+      if (e instanceof WebAssembly.RuntimeError) throw e;
+      console.warn("Skipping a drawing outline that couldn't be meshed", e);
+    }
+  }
+  return meshes;
+}
+
 async function generateDisplayMesh(
   id: AbundanceObject,
   context: RequestContext,
@@ -379,24 +443,14 @@ async function generateDisplayMesh(
             color: meshObj.color,
           });
         } else if (meshObj.geometry instanceof replicad.Drawing) {
-          const sketchPlane = util.asReplicadPlane(meshObj.plane);
-          const threeDShape = meshObj.geometry
-            .sketchOnPlane(sketchPlane)
-            .extrude(0.0001);
-          const faces = threeDShape.mesh({
-            tolerance: 0.1,
-            angularTolerance: 0.5,
-          });
-          const edges = threeDShape.meshEdges({
-            tolerance: 0.1,
-            angularTolerance: 0.5,
-          });
-          finalMeshes.push({
-            cameraZoom: cameraZoom,
-            faces,
-            edges,
-            color: meshObj.color,
-          });
+          finalMeshes.push(
+            ...drawingMeshes(
+              meshObj.geometry,
+              util.asReplicadPlane(meshObj.plane),
+              cameraZoom,
+              meshObj.color,
+            ),
+          );
         } else {
           // Shape3D — mesh normally
           finalMeshes.push({
