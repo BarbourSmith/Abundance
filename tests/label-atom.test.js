@@ -61,17 +61,11 @@ describe("Label text", () => {
   it("treats the old default text 'label' as showing the length", () => {
     expect(makeLabel("MM", { text: "label" }).labelText(16)).toBe("16 mm");
   });
-
-  it("uses size 1 for old projects' font size of 40", () => {
-    expect(makeLabel("MM", { fontSize: 40 }).textScale()).toBe(1);
-    expect(makeLabel("MM", { fontSize: 2 }).textScale()).toBe(2);
-    expect(makeLabel("MM", { fontSize: 0.1 }).textScale()).toBe(0.5);
-  });
 });
 
 describe("Label.serializeLabel", () => {
   it("draws a thin line with arrows and the text on a tag", () => {
-    const label = makeLabel("MM", { color: "#ff0000", fontSize: 2 });
+    const label = makeLabel("MM", { color: "#ff0000" });
     const serialized = label.serializeLabel([0, 0, 0], [0, 0, 20]);
 
     expect(serialized.type).toBe("Label");
@@ -82,12 +76,12 @@ describe("Label.serializeLabel", () => {
       linewidth: 1.5,
     });
     expect(serialized.arrows).toBe(true);
-    // Text between 10 and 16 pixels, times the text size
+    // Text between 10 and 16 pixels
     expect(serialized.text).toMatchObject({
       value: "20 mm",
       position: [0, 0, 10],
-      size: 32,
-      minSize: 20,
+      size: 16,
+      minSize: 10,
     });
     // No offset, no extension lines
     expect(serialized.endSegments).toBeUndefined();
@@ -258,5 +252,68 @@ describe("Label picking", () => {
       GlobalVariables.exitSelectionMode = exit;
       GlobalVariables.selectionModeAtom = null;
     }
+  });
+});
+
+describe("Label corners", () => {
+  it("offers a corner pick with the point input, and hides the input once picked", () => {
+    const label = makeLabel("MM");
+    const params = () => Object.values(label.createInputParams());
+    const labels = () => params().map((param) => param.label);
+    expect(labels()).toContain("Pick a corner on the model");
+    expect(labels()).toContain("Start point");
+
+    label.anchors = {
+      ...label.anchors,
+      start: { kind: "vertex", leaf: 0, index: 2 },
+    };
+    expect(labels()).toContain("Corner 3 of part 1 · change");
+    expect(labels()).not.toContain("Start point");
+    // Still Point: corners are a kind of point
+    expect(label.anchorModes.start).toBe("point");
+  });
+
+  it("uses a picked corner as that end", async () => {
+    const label = makeLabel("MM");
+    const corner = { kind: "vertex", leaf: 0, index: 2 };
+    label.anchors = { edge: null, start: corner, end: null };
+    label.resolvePicks = async (geometry, refs) =>
+      refs.map((ref) => (ref === corner ? { point: [1, 2, 3] } : null));
+    const ends = await label.resolveEnds({});
+    expect(ends.start).toEqual([1, 2, 3]);
+    expect(ends.end).toEqual([10, 10, 0]);
+  });
+
+  it("goes back to typed coordinates when Point is chosen again", () => {
+    const label = makeLabel("MM");
+    label.refreshAnchors = () => {};
+    label.anchors = {
+      edge: null,
+      start: { kind: "vertex", leaf: 0, index: 2 },
+      end: null,
+    };
+    label.chooseAnchor("start", "point");
+    expect(label.anchors.start).toBeNull();
+  });
+
+  it("restores a saved corner as a point", () => {
+    const corner = { kind: "vertex", leaf: 0, index: 2 };
+    const label = new Label({
+      parent: makeLabel("MM").parent,
+      anchors: { edge: null, start: corner, end: null },
+    });
+    expect(label.anchorModes.start).toBe("point");
+  });
+});
+
+describe("Label text size", () => {
+  it("has no text size parameter, and ignores one saved by old projects", () => {
+    const label = new Label({
+      parent: makeLabel("MM").parent,
+      ioValues: [{ name: "fontSize", ioValue: 40 }],
+    });
+    expect(label.inputs.map((input) => input.name)).not.toContain("fontSize");
+    const labels = Object.values(label.createInputParams()).map((p) => p.label);
+    expect(labels).not.toContain("Text size");
   });
 });

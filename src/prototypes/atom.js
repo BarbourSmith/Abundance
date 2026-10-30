@@ -713,10 +713,6 @@ export default class Atom extends ObservableEntity {
     //Deselect this if it wasn't clicked on, unless control is held
     else if (!GlobalVariables.ctrlDown) {
       this.selected = false;
-      // If this atom hosts the active partselect input, exit selection mode
-      if (GlobalVariables.selectionModeAtom?.parent === this) {
-        GlobalVariables.exitSelectionMode();
-      }
     }
     //Returns true if something was done with the click
     this.inputs.forEach((child) => {
