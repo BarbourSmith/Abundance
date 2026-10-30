@@ -1,5 +1,6 @@
 import Atom from "../prototypes/atom";
 import GlobalVariables from "../js/globalvariables.js";
+import { hasGeometry, sideDataOf } from "../js/sideData.js";
 
 /**
  * This class creates the intersection atom.
@@ -89,6 +90,15 @@ export default class Intersection extends Atom {
   compute(inputs) {
     const input1 = inputs.geometry1;
     const input2 = inputs.geometry2;
+    // A reference (image, PDF, model) isn't geometry, so it doesn't take part.
+    if (!hasGeometry(input1) || !hasGeometry(input2)) {
+      return Promise.resolve(input1);
+    }
     return this.cad.intersect(input1, input2, this.getContext());
+  }
+
+  /** The result carries what the first shape carried. */
+  outputSideData(inputs) {
+    return sideDataOf(inputs.geometry1);
   }
 }

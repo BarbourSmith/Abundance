@@ -18,6 +18,9 @@ import {
  *   Camera direction when `fit` is set. "iso" is a three-quarter view from the
  *   front right and above, "iso_below" the same from below; the others look
  *   straight down an axis with Z up, matching the 3D view.
+ * @param {THREE.Object3D[]} [options.objects] - More objects to draw and
+ *   frame with the mesh, such as references (see referenceObjects.js). They
+ *   stay the caller's to free.
  * @returns {Promise<string>} Base64-encoded PNG data URL
  */
 export async function generateMeshPNG(
@@ -27,7 +30,9 @@ export async function generateMeshPNG(
   options = {},
 ) {
   const view = options.view || "iso";
-  if (!meshArray || !Array.isArray(meshArray) || meshArray.length === 0) {
+  const objects = options.objects || [];
+  if (!Array.isArray(meshArray)) meshArray = [];
+  if (meshArray.length === 0 && objects.length === 0) {
     console.warn("No mesh data provided for PNG generation");
     return null;
   }
@@ -84,9 +89,14 @@ export async function generateMeshPNG(
     }
 
     scene.add(meshGroup);
+    const extraGroup = new THREE.Group();
+    objects.forEach((object) => extraGroup.add(object));
+    scene.add(extraGroup);
 
     // Calculate camera position from bounding box
-    const boundingBox = new THREE.Box3().setFromObject(meshGroup);
+    const boundingBox = new THREE.Box3()
+      .setFromObject(meshGroup)
+      .union(new THREE.Box3().setFromObject(extraGroup));
     const center = boundingBox.getCenter(new THREE.Vector3());
     const camera = options.fit
       ? fitCameraToBounds(boundingBox, center, width, height, view)
@@ -131,6 +141,7 @@ export async function generateMeshPNG(
     const dataURL = canvas.toDataURL("image/png", 0.7); // Match quality from useScreenshotCapture
 
     // Cleanup
+    extraGroup.clear();
     renderer.dispose();
     meshGroup.traverse((child) => {
       if (child.geometry) child.geometry.dispose();

@@ -77,7 +77,7 @@ export const TOOLS = [
     name: "get_atom",
     permission: "read",
     description:
-      "Everything about one atom: status and error, inputs and what feeds them, what its output feeds, its editable parameters (the same fields the user sees in the properties panel, used with set_param), code and console output for Code atoms, and a summary of its computed value (dimension, bounding box, part count, tags). geometry_warnings lists parts with broken geometry: invalid shapes, faces that fail to mesh (they render see-through), and sliver faces; it checks for a few seconds, and check_geometry covers the rest. For a GitHub molecule made in other units than the project, units gives the units its number inputs take, the scale applied to geometry wired into it, and the scale applied to its output to convert it to the project's units. With part, it also describes that one part." +
+      "Everything about one atom: status and error, inputs and what feeds them, what its output feeds, its editable parameters (the same fields the user sees in the properties panel, used with set_param), code and console output for Code atoms, and a summary of its computed value (dimension, bounding box, part count, tags, and the reference files it carries: images, PDF pages, and 3D models, each with its bounding box in project units). geometry_warnings lists parts with broken geometry: invalid shapes, faces that fail to mesh (they render see-through), and sliver faces; it checks for a few seconds, and check_geometry covers the rest. For a GitHub molecule made in other units than the project, units gives the units its number inputs take, the scale applied to geometry wired into it, and the scale applied to its output to convert it to the project's units. With part, it also describes that one part." +
       UNTRUSTED_NOTE,
     inputSchema: {
       type: "object",
@@ -230,13 +230,18 @@ export const TOOLS = [
     name: "render_image",
     permission: "read",
     description:
-      "Render an atom's 3D output to a PNG so you can look at it. Views: iso (default, from above the front right), iso_below (from below the front right), top, bottom, front, back, left, right. Use part to render one part on its own, such as one flagged by check_geometry.",
+      "Render an atom's 3D output to a PNG so you can look at it. Views: iso (default, from above the front right), iso_below (from below the front right), top, bottom, front, back, left, right. Reference files the output carries (images, PDF pages, 3D models such as scans) are drawn with the geometry, so you can check a part against a plan or scan; set references to false to leave them out. Use part to render one part on its own, such as one flagged by check_geometry.",
     output: "image",
     inputSchema: {
       type: "object",
       properties: {
         atom: OPTIONAL_ATOM_REF,
         part: PART_INDEX,
+        references: {
+          type: "boolean",
+          description:
+            "Draw the reference files the output carries (default true).",
+        },
         view: {
           type: "string",
           enum: [
@@ -255,6 +260,36 @@ export const TOOLS = [
           minimum: 128,
           maximum: 2048,
           description: "Square image size in pixels (default 800).",
+        },
+      },
+    },
+  },
+  {
+    name: "get_reference",
+    permission: "read",
+    description:
+      "Get a copy of a reference file an atom's output carries: an image, PDF, or 3D model loaded by an Import atom, such as a datasheet, a floor plan, or a 3D scan. The bridge writes the file to disk and returns its path, so you can open or analyze it with your own tools. A PDF also returns its text as page_text (every page, or those in pages) and a picture of the page shown in the 3D view; an image returns a picture of itself; a model returns its mesh and triangle counts. Every reference also returns its bounding box in project units, where it sits in the 3D view." +
+      UNTRUSTED_NOTE,
+    output: "file",
+    inputSchema: {
+      type: "object",
+      properties: {
+        atom: OPTIONAL_ATOM_REF,
+        index: {
+          type: "integer",
+          minimum: 0,
+          description:
+            "Which reference, counting from 0 in the order get_atom lists them (default 0).",
+        },
+        pages: {
+          type: "string",
+          description:
+            'PDF pages to read the text of, such as "1-3, 5". Default all.',
+        },
+        output_path: {
+          type: "string",
+          description:
+            "Where to write the file. Defaults to the bridge output directory.",
         },
       },
     },
@@ -432,14 +467,19 @@ export const TOOLS = [
     name: "import_file",
     permission: "edit",
     description:
-      "Add an Import atom that loads a STEP, STL, or SVG file from a public GitHub repository, like the editor's Load File button. The atom links to the file where it lives, so nothing is uploaded or committed. The part keeps the position and orientation it has in the file: place it with Move and Rotate atoms. Returns the atom's ID and path; call wait_for_settle, then get_atom or render_image to see what loaded.",
+      "Add an Import atom that loads a file, like the editor's Load File button. STEP, STL, and SVG files become geometry. PNG, JPG, PDF, GLB, and glTF files become references to model against: an image or PDF page lies flat on the XY plane, centered on the origin; a 3D model (such as a scan) keeps its position in the file, converted from meters (glTF's unit; set File Units if it's in others). References show and move with geometry but never cut or get cut. Give a url to link a file in a public GitHub repository (nothing is uploaded), or the path of a file on this computer to upload it into the project's repository, so it opens with the project from then on. Imported geometry keeps the position and orientation it has in the file: place it with Move and Rotate atoms. Returns the atom's ID and path; call wait_for_settle, then get_atom or render_image to see what loaded.",
     inputSchema: {
       type: "object",
       properties: {
         url: {
           type: "string",
           description:
-            'The file\'s GitHub address, such as "https://github.com/owner/repo/blob/main/parts/Arm.step" or a raw.githubusercontent.com link. The extension (.step, .stp, .stl, .svg) sets the file type.',
+            'The file\'s GitHub address, such as "https://github.com/owner/repo/blob/main/parts/Arm.step" or a raw.githubusercontent.com link. The extension (.step, .stp, .stl, .svg, .png, .jpg, .jpeg, .pdf, .glb, .gltf) sets the file type.',
+        },
+        path: {
+          type: "string",
+          description:
+            "Instead of url: the path of a file on this computer, read by the bridge and uploaded to the project's GitHub repository (up to 50 MB). Same file types as url; a .gltf must hold its data inside it, so prefer .glb.",
         },
         molecule: OPTIONAL_ATOM_REF,
         ref: {
@@ -450,7 +490,6 @@ export const TOOLS = [
         x: { type: "number", minimum: 0, maximum: 1 },
         y: { type: "number", minimum: 0, maximum: 1 },
       },
-      required: ["url"],
     },
   },
   {
@@ -594,6 +633,20 @@ export const TOOLS = [
       },
     },
   },
+];
+
+/** File extensions import_file loads (lowercase, no dot). */
+export const IMPORT_EXTENSIONS = [
+  "step",
+  "stp",
+  "stl",
+  "svg",
+  "png",
+  "jpg",
+  "jpeg",
+  "pdf",
+  "glb",
+  "gltf",
 ];
 
 /** Tools that apply_edits may run. */

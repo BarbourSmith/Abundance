@@ -344,6 +344,151 @@ try {
     },
   );
 
+  await check(
+    "models against a plan, scans, and a datasheet, then undoes it",
+    async () => {
+      const github = "https://github.com";
+      const before = (await call("list_atoms")).data.atoms.length;
+      const { data: batch } = await call("apply_edits", {
+        description: "e2e reference check",
+        edits: [
+          {
+            tool: "import_file",
+            arguments: {
+              url: `${github}/BarbourSmith/Abundance/blob/main/Puppet/images/Wall-Anchor-Deployed.png`,
+              ref: "E2E_Plan",
+            },
+          },
+          {
+            tool: "import_file",
+            arguments: {
+              url: `${github}/KhronosGroup/glTF-Sample-Assets/blob/main/Models/Duck/glTF-Binary/Duck.glb`,
+              ref: "E2E_Scan",
+            },
+          },
+          {
+            // A .gltf whose mesh is in a .bin file beside it
+            tool: "import_file",
+            arguments: {
+              url: `${github}/KhronosGroup/glTF-Sample-Assets/blob/main/Models/Box/glTF/Box.gltf`,
+              ref: "E2E_Box",
+            },
+          },
+          {
+            tool: "import_file",
+            arguments: {
+              url: `${github}/mozilla/pdf.js/blob/master/web/compressed.tracemonkey-pldi-09.pdf`,
+              ref: "E2E_Sheet",
+            },
+          },
+          { tool: "add_atom", arguments: { type: "Move", ref: "E2E_Move" } },
+          {
+            tool: "connect",
+            arguments: { from: "E2E_Scan", to: "E2E_Move", input: "geometry" },
+          },
+          {
+            tool: "set_param",
+            arguments: { atom: "E2E_Move", param: "xDist", value: 500 },
+          },
+          {
+            tool: "add_atom",
+            arguments: { type: "Rectangle", ref: "E2E_Part" },
+          },
+          {
+            tool: "add_atom",
+            arguments: { type: "Extrude", ref: "E2E_Solid" },
+          },
+          {
+            tool: "connect",
+            arguments: { from: "E2E_Part", to: "E2E_Solid", input: "geometry" },
+          },
+          {
+            tool: "add_atom",
+            arguments: { type: "Assembly", ref: "E2E_Assembly" },
+          },
+          {
+            tool: "connect",
+            arguments: {
+              from: "E2E_Plan",
+              to: "E2E_Assembly",
+              input: "Shape1",
+            },
+          },
+          {
+            tool: "connect",
+            arguments: {
+              from: "E2E_Solid",
+              to: "E2E_Assembly",
+              input: "Shape2",
+            },
+          },
+          {
+            tool: "connect",
+            arguments: {
+              from: "E2E_Move",
+              to: "E2E_Assembly",
+              input: "Shape3",
+            },
+          },
+        ],
+      });
+      const id = (edit) => batch.results[edit].result.id;
+      const [plan, scan, box, sheet, move] = [0, 1, 2, 3, 4].map(id);
+      const assembly = id(10);
+      await call("wait_for_settle", { timeout_ms: 180_000 });
+
+      for (const id of [plan, scan, box, sheet]) {
+        const { data } = await call("get_atom", { atom: id });
+        assert.equal(data.status, "ready", JSON.stringify(data.error));
+        assert.equal(data.output.part_count, 0);
+        assert.equal(data.output.references.length, 1);
+      }
+
+      // The scan moved 500 along X with the Move atom
+      const scanBox = (await call("get_atom", { atom: scan })).data.output
+        .references[0].bounding_box;
+      const movedBox = (await call("get_atom", { atom: move })).data.output
+        .references[0].bounding_box;
+      assert.ok(Math.abs(movedBox.min[0] - scanBox.min[0] - 500) < 1e-6);
+
+      // The assembly holds the one solid, with the plan and scan uncut
+      const { data: assembled } = await call("get_atom", { atom: assembly });
+      assert.equal(assembled.output.part_count, 1);
+      assert.deepEqual(
+        assembled.output.references.map((r) => r.kind),
+        ["image", "model"],
+      );
+
+      const { content, data: render } = await call("render_image", {
+        atom: assembly,
+        size: 400,
+      });
+      assert.ok(content.find((c) => c.type === "image"));
+      assert.equal(render.references_shown, 2);
+
+      const { content: sheetContent, data: sheetData } = await call(
+        "get_reference",
+        { atom: sheet, pages: "1" },
+      );
+      assert.ok(fs.statSync(sheetData.path).size > 100_000);
+      assert.match(sheetData.page_text[0].text, /Trace-based/);
+      assert.ok(
+        sheetContent.find((c) => c.type === "image"),
+        "a page preview",
+      );
+
+      // Run mode has no repository to upload to
+      const local = path.join(outDir, "photo.png");
+      const png = content.find((c) => c.type === "image").data;
+      fs.writeFileSync(local, Buffer.from(png, "base64"));
+      await expectError("import_file", { path: local }, "CONFLICT");
+
+      await call("undo");
+      await call("wait_for_settle", { timeout_ms: 120_000 });
+      assert.equal((await call("list_atoms")).data.atoms.length, before);
+    },
+  );
+
   if (firstGeometryAtom) {
     await check("selects an atom in the page", async () => {
       await call("select_atom", { atom: firstGeometryAtom.id });

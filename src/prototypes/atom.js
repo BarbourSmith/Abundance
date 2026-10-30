@@ -6,6 +6,13 @@ import { ObservableEntity, Status } from "./observableEntity.js";
 import { getPredictedAtoms } from "../js/atomPrediction.js";
 import { checkAtomGeometry } from "../js/geometryCheck.js";
 import {
+  isLabel,
+  mergeSideData,
+  sideDataOf,
+  withSideData,
+  withoutSideData,
+} from "../js/sideData.js";
+import {
   EQUATION_UNIT_WORDS,
   equationUnitFactor,
   unitsContextOf,
@@ -1432,45 +1439,35 @@ export default class Atom extends ObservableEntity {
     };
   }
 
-  //gets called after compute if there is a non-Replicad geometry result to convert it to threeJS geometry for rendering
+  /**
+   * Gets called after compute to build three.js objects for the labels in the
+   * result's side data. References (images, PDFs, models) in it are drawn by
+   * the 3D view when the value is displayed, so atoms don't hold them.
+   */
   buildNonReplicadGeom(atomValue) {
     // Dispose old label geometries first
     this.disposeLabelGeometry();
 
-    let nrs = atomValue.nonReplicadSerialized;
+    const labels = sideDataOf(atomValue).filter(isLabel);
+    this.nonReplicadGeom = labels.length
+      ? this.reconstructLabelGeometry(labels)
+      : { geometry: [], material: null, hideMainMesh: false };
+  }
 
-    // Filter out empty objects from the array
-    if (Array.isArray(nrs)) {
-      nrs = nrs.filter((item) => item && Object.keys(item).length > 0);
-    }
-
-    // Check if we have valid data to process
-    if (!nrs || (Array.isArray(nrs) && nrs.length === 0)) {
-      // No geometry to process
-      this.nonReplicadGeom = {
-        geometry: [],
-        material: null,
-        hideMainMesh: false,
-      };
-      return;
-    }
-
-    // Check if this is Label geometry
-    const hasLabels =
-      (Array.isArray(nrs) && nrs.length > 0 && nrs[0].type === "Label") ||
-      nrs.type === "Label";
-
-    if (hasLabels) {
-      this.nonReplicadGeom = this.reconstructLabelGeometry(nrs);
-    } else {
-      // For non-Label geometry, pass it through as-is
-      // The nonReplicadGeometry context will handle rendering
-      this.nonReplicadGeom = {
-        geometry: [],
-        material: null,
-        hideMainMesh: false,
-      };
-    }
+  /**
+   * The side data (labels, reference images, PDFs, 3D models; see
+   * src/js/sideData.js) this atom's output carries, given the input values it
+   * was computed from. By default the output carries everything its geometry
+   * inputs carry, unchanged, so side data passes through atoms that don't
+   * know about it. Atoms that place geometry (Move, Rotate) transform it,
+   * atoms that pick parts (Extract Tag) filter it, and atoms that make
+   * something other than the shapes they're given (Cut Layout) drop it.
+   * @param {object} inputs - Input values by name, with their side data
+   * @param {*} value - What compute returned
+   * @returns {object[]} Side data items
+   */
+  outputSideData(inputs, value) {
+    return mergeSideData(this.inputs.map((input) => inputs[input.name]));
   }
 
   /**
@@ -1508,12 +1505,18 @@ export default class Atom extends ObservableEntity {
       const argsDict = Object.fromEntries(
         this.inputs.map((input) => [input.name, input.getState().value]),
       );
+      // Compute from the geometry alone; outputSideData puts back the side
+      // data the result carries.
+      const computeArgs = Object.fromEntries(
+        Object.entries(argsDict).map(([name, v]) => [name, withoutSideData(v)]),
+      );
       this.setProcessing();
 
       const handleError = this.alertingErrorHandler();
-      this.compute(argsDict)
+      this.compute(computeArgs)
         .then((value) => {
           if (!isCurrent()) return;
+          value = withSideData(value, this.outputSideData(argsDict, value));
           this.buildNonReplicadGeom(value);
           this.setReady(value);
           checkAtomGeometry(this, value);

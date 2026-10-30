@@ -18,9 +18,14 @@ export function FileImportProvider({ children }) {
    * Upload a file to the current GitHub repository
    * @param {File} file - The file to upload
    * @param {Object} activeAtom - The atom requesting the upload
-   * @param {Function} onSave - Callback to trigger project save after upload
+   * @returns {Promise<{fileName: string, sha: string}>} Settles once the atom
+   *   has the file. A failure is also shown to the user.
    */
   const uploadFile = async function (file, activeAtom) {
+    let settle;
+    const uploaded = new Promise((resolve, reject) => {
+      settle = { resolve, reject };
+    });
     var reader = new FileReader();
 
     reader.onload = function (e) {
@@ -80,12 +85,17 @@ export function FileImportProvider({ children }) {
           // Show upload notification
           //setNotification(`File uploaded: ${uniqueFileName}`);
           setNotification(`File uploaded: ${uniqueFileName}`, "notice");
+          settle.resolve({
+            fileName: uniqueFileName,
+            sha: result.data.content.sha,
+          });
         } catch (error) {
           setNotification(
             `Failed to Upload File: Corrupt or exceeded size limit`,
             "error",
           );
           console.error("Error during file upload:", error);
+          settle.reject(error);
         }
       })();
     };
@@ -93,8 +103,10 @@ export function FileImportProvider({ children }) {
     reader.onerror = function (error) {
       console.error("Error reading file:", error);
       setNotification("Failed to read the file. Please try again.", "error");
+      settle.reject(error);
     };
     reader.readAsDataURL(file);
+    return uploaded;
   };
 
   /**

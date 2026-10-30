@@ -6,6 +6,7 @@ import TopLevelWireframeMesh from "../render/TopLevelWireframeMesh.jsx";
 import globalvariables from "../../js/globalvariables.js";
 import { useRendering } from "../../contexts/index.js";
 import NonReplicadMesh from "../render/NonReplicadMesh.jsx";
+import ReferenceMeshes from "../render/ReferenceMeshes.jsx";
 
 const LowerHalf = forwardRef(function LowerHalf({ windowSize }, ref) {
   const { mesh, wireMesh, wireParam, solidParam, isViewingOutputMesh, computingLabel, selectionModeAtom } =
@@ -94,6 +95,7 @@ const LowerHalf = forwardRef(function LowerHalf({ windowSize }, ref) {
               ) : null}
               <TopLevelWireframeMesh />
               <NonReplicadMesh />
+              <ReferenceMeshes />
               <ReplicadMesh
                 isSolid={solidParam}
                 ref={ref}

@@ -15,6 +15,10 @@ export function RenderingProvider({ children }) {
   const [geometryType, setGeometryType] = useState(null);
   const [gcodeParts, setGcodeParts] = useState(null);
   const [nonReplicadGeometry, setNonReplicadGeometry] = useState(null);
+  // References (images, PDF pages, 3D models) carried by the displayed value,
+  // and by the open molecule's output shown behind it
+  const [referenceItems, setReferenceItems] = useState([]);
+  const [backgroundReferenceItems, setBackgroundReferenceItems] = useState([]);
 
   // Render progress state
   const [renderProgress, setRenderProgress] = useState(0);
@@ -65,6 +69,10 @@ export function RenderingProvider({ children }) {
     setGeometryType,
     nonReplicadGeometry,
     setNonReplicadGeometry,
+    referenceItems,
+    setReferenceItems,
+    backgroundReferenceItems,
+    setBackgroundReferenceItems,
 
     // Render progress
     renderProgress,

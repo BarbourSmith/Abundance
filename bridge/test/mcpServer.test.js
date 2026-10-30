@@ -238,6 +238,75 @@ describe("MCP server", () => {
     expect(page.calls[0].arguments).toEqual({ atom: "Gcode" });
   });
 
+  it("returns get_reference previews as image content and writes the file", async () => {
+    const bytes = Buffer.from("%PDF-1.4 datasheet");
+    await connectPage(async () => ({
+      filename: "datasheet.pdf",
+      base64: bytes.toString("base64"),
+      preview: { base64: "iVBORw0KGgo=", mimeType: "image/png" },
+      page_text: [{ page: 1, text: "Bore 12 mm" }],
+    }));
+    const result = await client.callTool({
+      name: "get_reference",
+      arguments: { atom: "Import" },
+    });
+    expect(result.content[0]).toEqual({
+      type: "image",
+      data: "iVBORw0KGgo=",
+      mimeType: "image/png",
+    });
+    const summary = text(result);
+    expect(summary.path).toBe(path.join(outDir, "datasheet.pdf"));
+    expect(summary.preview).toBeUndefined();
+    expect(summary.page_text).toEqual([{ page: 1, text: "Bore 12 mm" }]);
+    expect(fs.readFileSync(summary.path)).toEqual(bytes);
+  });
+
+  it("reads a local file for import_file and sends its contents to the page", async () => {
+    const page = await connectPage(async () => ({ id: "7" }));
+    const file = path.join(outDir, "plan.png");
+    fs.writeFileSync(file, Buffer.from([137, 80, 78, 71]));
+    await client.callTool({ name: "import_file", arguments: { path: file } });
+    expect(page.calls[0].arguments).toEqual({
+      file_base64: Buffer.from([137, 80, 78, 71]).toString("base64"),
+      file_name: "plan.png",
+    });
+
+    await client.callTool({
+      name: "apply_edits",
+      arguments: {
+        description: "x",
+        edits: [{ tool: "import_file", arguments: { path: file, ref: "p" } }],
+      },
+    });
+    expect(page.calls[1].arguments.edits[0].arguments).toEqual({
+      file_base64: Buffer.from([137, 80, 78, 71]).toString("base64"),
+      file_name: "plan.png",
+      ref: "p",
+    });
+  });
+
+  it("refuses local files import_file can't load", async () => {
+    const page = await connectPage(async () => ({ id: "7" }));
+    const call = async (file) =>
+      text(
+        await client.callTool({
+          name: "import_file",
+          arguments: { path: file },
+        }),
+      );
+    const secret = path.join(outDir, "credentials");
+    fs.writeFileSync(secret, "key");
+    expect((await call(secret)).message).toMatch(/can't be imported/);
+    expect((await call(path.join(outDir, "missing.png"))).message).toMatch(
+      /There's no file/,
+    );
+    const gltf = path.join(outDir, "scan.gltf");
+    fs.writeFileSync(gltf, JSON.stringify({ buffers: [{ uri: "scan.bin" }] }));
+    expect((await call(gltf)).message).toMatch(/Import the model as a \.glb/);
+    expect(page.calls).toHaveLength(0);
+  });
+
   it("transpiles TypeScript for set_code and apply_edits", async () => {
     const page = await connectPage(async () => ({ ok: true }));
     const code =

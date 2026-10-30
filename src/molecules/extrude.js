@@ -1,5 +1,6 @@
 import Atom from "../prototypes/atom";
 import GlobalVariables from "../js/globalvariables.js";
+import { hasGeometry } from "../js/sideData.js";
 /**
  * This class creates the Extrude atom.
  */
@@ -78,6 +79,11 @@ export default class Extrude extends Atom {
 
   // order of args dictated by the order in which they're initialized in the constructor.
   compute(argsDict) {
+    // References (images, PDFs, models) alone have nothing to extrude; they
+    // pass through
+    if (!hasGeometry(argsDict.geometry)) {
+      return Promise.resolve(argsDict.geometry);
+    }
     return this.cad.extrude(argsDict.geometry, argsDict.height, this.getContext());
   }
 }
