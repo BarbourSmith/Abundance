@@ -8,7 +8,6 @@ import {
 import { expose } from "comlink";
 import type { AnyShape, Edge, Shape3D } from "replicad";
 import * as replicad from "replicad";
-import { getOC } from "replicad";
 import { drawSVG } from "replicad-decorate";
 import { chamfer, extrude, fillet, move, rotate, scale } from "./actions";
 import { executeCode as code } from "./code";
@@ -22,6 +21,7 @@ import {
 } from "./cutlayout";
 import { RequestContext } from "./geometryProvider";
 import { reportCadProgress } from "./progress";
+import { outlineProjection } from "./projectionOutline";
 import {
   assembly,
   difference,
@@ -55,15 +55,11 @@ interface TaskSnapshot {
 
 function _takeSnapshot(): TaskSnapshot {
   const counts = getReplicadLiveCounts();
-  let wasmHeapBytes = 0;
-  try {
-    wasmHeapBytes =
-      (getOC() as unknown as { HEAP8?: { buffer?: { byteLength?: number } } })
-        .HEAP8?.buffer?.byteLength ?? 0;
-  } catch {
-    // getOC() throws before init; ignore
-  }
-  return { live: counts.live, registered: counts.registered, wasmHeapBytes };
+  return {
+    live: counts.live,
+    registered: counts.registered,
+    wasmHeapBytes: util.wasmHeapBytes(),
+  };
 }
 
 function _logTaskMetrics(
@@ -214,12 +210,16 @@ function visExport(
           context,
         )) as AnyShape;
 
-        const drawing = util.replicad.drawProjection(shape3d, "bottom").visible;
+        const drawing = outlineProjection(
+          util.replicad.drawProjection(shape3d, "bottom").visible,
+          shape3d,
+        );
 
         const cachedGeom = await util.geometryProvider!.addSingularToCache(
           drawing,
           context,
-          "export",
+          // Named apart from the fragmented projections stored before
+          "exportOutline",
           [fileType, input],
         );
         finalGeometry = {
@@ -297,10 +297,10 @@ async function downExport(
         fusedGeometry.geometry,
         context,
       )) as AnyShape;
-      const drawingResult = util.replicad.drawProjection(
+      const drawingResult = outlineProjection(
+        util.replicad.drawProjection(shape3d, "bottom").visible,
         shape3d,
-        "bottom",
-      ).visible;
+      );
 
       if ("toSVG" in drawingResult == false) {
         throw new Error("SVG export requires 2D geometry");
@@ -895,16 +895,17 @@ if (
     forwardWorkerLog("warn", args);
     originalWarn(...args);
   };
+  // Converting the error also reports an OpenCascade crash to the main thread.
   self.addEventListener("error", (event) => {
+    util.toCloneableError(event.error);
     forwardWorkerLog("error", [
       event.message || event.error || "uncaught worker error",
     ]);
   });
   self.addEventListener("unhandledrejection", (event) => {
-    forwardWorkerLog("error", [
-      "unhandledrejection:",
-      (event as PromiseRejectionEvent).reason,
-    ]);
+    const reason = (event as PromiseRejectionEvent).reason;
+    util.toCloneableError(reason);
+    forwardWorkerLog("error", ["unhandledrejection:", reason]);
   });
 
   const handlers = {

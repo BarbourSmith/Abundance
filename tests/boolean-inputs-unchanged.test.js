@@ -1,9 +1,11 @@
-// replicad's booleans can modify the shapes they are given: after the boolean
-// it merges faces in the result, and a result that reuses an input's faces
-// has them merged in place. Cutting this channel by the keepout that fills it
-// changes nothing, and the merge reversed one of the channel's faces, leaving
-// an invalid shape with ten times the volume. A cached shape cut this way was
-// then saved over the stored one, so a Move further up showed the broken part.
+// replicad's booleans could modify the shapes they are given: after the
+// boolean it merged faces in the result, and a result that reused an input's
+// faces had them merged in place. Cutting this channel by the keepout that
+// fills it changes nothing, and the merge reversed one of the channel's faces,
+// leaving an invalid shape with ten times the volume. A cached shape cut this
+// way was then saved over the stored one, so a Move further up showed the
+// broken part. Booleans now skip that merge, and merges asked for run on a copy
+// (src/worker/occtWorkarounds.ts).
 //
 // Run: npx vitest run --config=vitest.headless.config.ts tests/boolean-inputs-unchanged.test.js
 
@@ -88,6 +90,33 @@ describe("booleans leave their inputs unchanged", () => {
     expect(result.geometry.map((part) => part.geometry)).toContain("channel");
     const stored = await getShape(context.project, "channel");
     expect(describe3D(replicad.deserializeShape(stored.serialized))).toEqual({
+      valid: true,
+      volume: CHANNEL_VOLUME,
+    });
+  });
+
+  it("a cut asked to merge faces doesn't change either shape", () => {
+    const channel = replicad.deserializeShape(channelBrep);
+    const keepout = replicad.deserializeShape(keepoutBrep);
+
+    const result = channel.cut(keepout, { simplify: true });
+
+    expect(describe3D(result)).toEqual({ valid: true, volume: CHANNEL_VOLUME });
+    expect(describe3D(channel)).toEqual({
+      valid: true,
+      volume: CHANNEL_VOLUME,
+    });
+  });
+
+  it("simplify() on a cut doesn't change the shape that was cut", () => {
+    const channel = replicad.deserializeShape(channelBrep);
+    const keepout = replicad.deserializeShape(keepoutBrep);
+
+    // The cut changes nothing, so it shares the channel's faces
+    const merged = channel.cut(keepout).simplify();
+
+    expect(describe3D(merged)).toEqual({ valid: true, volume: CHANNEL_VOLUME });
+    expect(describe3D(channel)).toEqual({
       valid: true,
       volume: CHANNEL_VOLUME,
     });

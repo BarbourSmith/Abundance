@@ -137,12 +137,18 @@ function trimShapeCache(): void {
  */
 type Bounds3 = [Vec3, Vec3];
 type MeshEntry =
-  | { kind: "shape"; faces: DisplayFaces; edges: DisplayEdges; bounds?: Bounds3 }
+  | {
+      kind: "shape";
+      faces: DisplayFaces;
+      edges: DisplayEdges;
+      bounds?: Bounds3;
+    }
   | { kind: "wire"; edges: DisplayEdges; bounds?: Bounds3 }
   | { kind: "vertex" }
   | { kind: "drawing" };
-type PlacedDrawing = {
-  faces: DisplayFaces;
+/** One piece of a placed sketch: filled, or an open outline as lines. */
+type DrawingPiece = {
+  faces?: DisplayFaces;
   edges: DisplayEdges;
   bounds?: number[][];
 };
@@ -349,23 +355,66 @@ function meshStoredShape(shape: ReplicadObject): MeshEntry {
   };
 }
 
-/** Meshes a sketch on its plane, as a thin solid. */
-function meshDrawing(
-  drawing: replicad.Drawing,
-  plane: AbundanceLeaf["plane"],
-): PlacedDrawing {
+/** A closed outline or whole sketch filled on its plane, as a thin solid. */
+function meshFilled(
+  drawing: { sketchOnPlane(plane: replicad.Plane): any },
+  plane: replicad.Plane,
+): DrawingPiece {
   const solid = drawing
-    .sketchOnPlane(util.asReplicadPlane(plane))
+    .sketchOnPlane(plane)
     .extrude(0.0001) as replicad.Shape3D;
   try {
+    const faces = packFaces(solid.mesh(MESH_TOLERANCE));
     return {
-      faces: packFaces(solid.mesh(MESH_TOLERANCE)),
+      faces,
       edges: packEdges(solid.meshEdges(MESH_TOLERANCE)),
-      bounds: boundsOf(drawing) as number[][] | undefined,
+      bounds: boundsOfPoints(faces.vertices),
     };
   } finally {
     solid.delete();
   }
+}
+
+/** The outlines in a drawing, through any nesting of blueprints. */
+function drawingOutlines(shape: any, outlines: any[] = []): any[] {
+  if (shape.curves) outlines.push(shape);
+  else
+    (shape.blueprints ?? []).forEach((b: any) => drawingOutlines(b, outlines));
+  return outlines;
+}
+
+/**
+ * Meshes a sketch on its plane. A sketch that can't be filled as a whole,
+ * such as an SVG export's projection, which can come back as open fragments,
+ * is meshed piece by piece: closed outlines filled, open ones as lines.
+ */
+function meshDrawing(
+  drawing: replicad.Drawing,
+  leafPlane: AbundanceLeaf["plane"],
+): DrawingPiece[] {
+  const plane = util.asReplicadPlane(leafPlane);
+  try {
+    return [meshFilled(drawing, plane)];
+  } catch (e) {
+    if (e instanceof WebAssembly.RuntimeError) throw e;
+  }
+  const pieces: DrawingPiece[] = [];
+  //@ts-expect-error - ignore access of private innerShape field
+  for (const outline of drawingOutlines(drawing.innerShape)) {
+    try {
+      if (outline.isClosed()) {
+        pieces.push(meshFilled(outline, plane));
+      } else {
+        const wire = outline.sketchOnPlane(plane).wire as replicad.Wire;
+        const edges = packEdges(wire.meshEdges(MESH_TOLERANCE));
+        pieces.push({ edges, bounds: boundsOfPoints(edges.lines) });
+      }
+    } catch (e) {
+      if (e instanceof WebAssembly.RuntimeError) throw e;
+      console.warn("Skipping a drawing outline that couldn't be meshed", e);
+    }
+  }
+  return pieces;
 }
 
 type DisplayPart = {
@@ -375,13 +424,13 @@ type DisplayPart = {
 };
 
 /**
- * The display mesh for one leaf. Throws when the leaf's shape can't be loaded
- * or meshed.
+ * The display meshes for one leaf: one, or several for a sketch shown piece
+ * by piece. Throws when the leaf's shape can't be loaded or meshed.
  */
 async function displayPart(
   leaf: AbundanceLeaf,
   context: RequestContext,
-): Promise<DisplayPart> {
+): Promise<DisplayPart[]> {
   const color = leaf.color;
 
   // Generic atom-supplied mesh: short-circuits all tessellation. The atom
@@ -389,17 +438,19 @@ async function displayPart(
   // meshWorker stays domain-agnostic.
   const override = leaf.metadata?.meshOverride;
   if (override && override.faces && override.id == leaf.geometry) {
-    return {
-      mesh: {
-        faces: override.faces,
-        edges: override.edges,
-        color,
-        ...(override.vertexColors
-          ? { vertexColors: override.vertexColors }
-          : {}),
+    return [
+      {
+        mesh: {
+          faces: override.faces,
+          edges: override.edges,
+          color,
+          ...(override.vertexColors
+            ? { vertexColors: override.vertexColors }
+            : {}),
+        },
+        bounds: boundsOfPoints(override.faces.vertices),
       },
-      bounds: boundsOfPoints(override.faces.vertices),
-    };
+    ];
   }
 
   const { base, transform } = util.geometryProvider!.splitTransform(
@@ -415,26 +466,30 @@ async function displayPart(
   switch (entry.kind) {
     case "shape":
     case "wire":
-      return {
-        mesh: {
-          ...(entry.kind === "shape" ? { faces: entry.faces } : {}),
-          edges: entry.edges,
-          color,
-          ...(transform ? { transform: asPositionQuaternion(transform) } : {}),
+      return [
+        {
+          mesh: {
+            ...(entry.kind === "shape" ? { faces: entry.faces } : {}),
+            edges: entry.edges,
+            color,
+            ...(transform
+              ? { transform: asPositionQuaternion(transform) }
+              : {}),
+          },
+          bounds: entry.bounds && moveBounds(entry.bounds, transform),
         },
-        bounds: entry.bounds && moveBounds(entry.bounds, transform),
-      };
+      ];
     case "vertex": {
       const vertex = (await getShapeCached(
         leaf.geometry,
         context,
       )) as replicad.Vertex;
-      return { mesh: { point: vertex.asTuple() as Vec3, color } };
+      return [{ mesh: { point: vertex.asTuple() as Vec3, color } }];
     }
     case "drawing": {
       // Sent in place: see meshCache.
       const key = `${baseKey}|placed|${leaf.geometry}|${JSON.stringify(leaf.plane)}`;
-      let placed = meshCache.get(key) as PlacedDrawing | undefined;
+      let placed = meshCache.get(key) as DrawingPiece[] | undefined;
       if (!placed) {
         const drawing = (await getShapeCached(
           leaf.geometry,
@@ -443,10 +498,10 @@ async function displayPart(
         placed = meshDrawing(drawing, leaf.plane);
         meshCache.set(key, placed);
       }
-      return {
-        mesh: { faces: placed.faces, edges: placed.edges, color },
-        bounds: placed.bounds,
-      };
+      return placed.map(({ faces, edges, bounds }) => ({
+        mesh: { ...(faces ? { faces } : {}), edges, color },
+        bounds,
+      }));
     }
   }
 }
@@ -518,7 +573,7 @@ async function generateDisplayMesh(
     const parts: DisplayPart[] = [];
     for (const [index, leaf] of flattened.entries()) {
       try {
-        parts.push(await displayPart(leaf, context));
+        parts.push(...(await displayPart(leaf, context)));
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         console.error(
