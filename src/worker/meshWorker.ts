@@ -321,6 +321,7 @@ function drawingMeshes(
     if (e instanceof WebAssembly.RuntimeError) throw e;
   }
   const meshes: DisplayMesh[] = [];
+  //@ts-expect-error - ignore access of private innerShape field
   for (const outline of drawingOutlines(drawing.innerShape)) {
     try {
       if (outline.isClosed()) {

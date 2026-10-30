@@ -21,6 +21,7 @@ import {
 } from "./cutlayout";
 import { RequestContext } from "./geometryProvider";
 import { reportCadProgress } from "./progress";
+import { outlineProjection } from "./projectionOutline";
 import {
   assembly,
   difference,
@@ -209,12 +210,16 @@ function visExport(
           context,
         )) as AnyShape;
 
-        const drawing = util.replicad.drawProjection(shape3d, "bottom").visible;
+        const drawing = outlineProjection(
+          util.replicad.drawProjection(shape3d, "bottom").visible,
+          shape3d,
+        );
 
         const cachedGeom = await util.geometryProvider!.addSingularToCache(
           drawing,
           context,
-          "export",
+          // Named apart from the fragmented projections stored before
+          "exportOutline",
           [fileType, input],
         );
         finalGeometry = {
@@ -292,10 +297,10 @@ async function downExport(
         fusedGeometry.geometry,
         context,
       )) as AnyShape;
-      const drawingResult = util.replicad.drawProjection(
+      const drawingResult = outlineProjection(
+        util.replicad.drawProjection(shape3d, "bottom").visible,
         shape3d,
-        "bottom",
-      ).visible;
+      );
 
       if ("toSVG" in drawingResult == false) {
         throw new Error("SVG export requires 2D geometry");
