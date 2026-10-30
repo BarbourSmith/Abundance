@@ -24,6 +24,19 @@ import {
 import AttachmentPoint from "../prototypes/attachmentpoint.js";
 import { ObservableEntity, Status } from "../prototypes/observableEntity.js";
 import { extractBomList, flattenAssembly } from "../worker/util";
+import {
+  hasGeometry,
+  referencesOf,
+  summarizeReference,
+  withoutSideData,
+} from "../js/sideData.js";
+import {
+  REFERENCE_TYPES,
+  getAsset,
+  pdfText,
+  renderPdfPage,
+} from "../js/referenceFiles.js";
+import { createReferenceObjects } from "../js/referenceObjects.js";
 import { addOrDeletePorts } from "../js/alwaysOneFreeInput.js";
 import { isTranspilerReady } from "../molecules/code.js";
 import { fetchGitHubFileContent } from "../js/githubFileUtils.js";
@@ -215,7 +228,37 @@ function parseRepo(repo) {
 }
 
 /** Import atom file types by extension. */
-const IMPORT_FILE_TYPES = { step: "STEP", stp: "STEP", stl: "STL", svg: "SVG" };
+const IMPORT_FILE_TYPES = {
+  step: "STEP",
+  stp: "STEP",
+  stl: "STL",
+  svg: "SVG",
+  ...Object.fromEntries(
+    Object.entries(REFERENCE_TYPES).flatMap(([type, { extensions }]) =>
+      extensions.map((extension) => [extension, type]),
+    ),
+  ),
+};
+
+/** The extensions Import atoms load, for messages. */
+const IMPORT_EXTENSIONS = Object.keys(IMPORT_FILE_TYPES)
+  .map((extension) => "." + extension)
+  .join(", ");
+
+/** The Import atom file type for a file name, or a ToolError. */
+function importFileType(name) {
+  const extension = name.includes(".")
+    ? name.slice(name.lastIndexOf(".") + 1).toLowerCase()
+    : "";
+  const type = IMPORT_FILE_TYPES[extension];
+  if (!type) {
+    throw new ToolError(
+      ERROR_CODES.INVALID_PARAMS,
+      `${name} can't be imported. Import atoms load ${IMPORT_EXTENSIONS} files.`,
+    );
+  }
+  return type;
+}
 
 /**
  * Split a GitHub file address into its repository, ref, and path. Accepts
@@ -264,17 +307,7 @@ export function parseGitHubFileUrl(url) {
   }
   const path = pathParts.join("/");
   const name = pathParts[pathParts.length - 1];
-  const extension = name.includes(".")
-    ? name.slice(name.lastIndexOf(".") + 1).toLowerCase()
-    : "";
-  const type = IMPORT_FILE_TYPES[extension];
-  if (!type) {
-    throw new ToolError(
-      ERROR_CODES.INVALID_PARAMS,
-      `${name} can't be imported. Import atoms load .step, .stp, .stl, and .svg files.`,
-    );
-  }
-  return { owner, repo, ref, path, name, type };
+  return { owner, repo, ref, path, name, type: importFileType(name) };
 }
 
 /**
@@ -519,7 +552,14 @@ export function summarizeValue(value) {
       : value;
   }
   if (isGeometryValue(value)) {
-    return `<${value.dimension || "assembly"} geometry>`;
+    const references = referencesOf(value);
+    if (references.length && !hasGeometry(value)) {
+      return `<references: ${references.map((r) => r.name).join(", ")}>`;
+    }
+    const carried = references.length
+      ? ` with ${references.length} reference file(s)`
+      : "";
+    return `<${value.dimension || "assembly"} geometry${carried}>`;
   }
   if (Array.isArray(value)) {
     if (value.length <= 16 && value.every((v) => typeof v !== "object")) {
@@ -1118,8 +1158,14 @@ const handlers = {
       if (logs.length) detail.console = logs;
     }
     if (atom.status === Status.READY) {
-      if (isGeometryValue(atom.value)) {
+      const references = isGeometryValue(atom.value)
+        ? referencesOf(atom.value).map(summarizeReference)
+        : [];
+      if (references.length && !hasGeometry(atom.value)) {
+        detail.output = { part_count: 0, references };
+      } else if (isGeometryValue(atom.value)) {
         detail.output = await summarizeGeometry(atom);
+        if (references.length) detail.output.references = references;
         if (atom.atomType === "Code" && detail.output.part_count > 1) {
           detail.warning = `This Code atom builds ${detail.output.part_count} separate parts. Give each physical part a molecule of its own, built from built-in atoms where they can do the job, and keep code to the one part it can't.`;
         }
@@ -1495,34 +1541,55 @@ const handlers = {
     return result;
   },
 
-  async render_image({ atom: ref, part, view = "iso", size = 800 }) {
+  async render_image({
+    atom: ref,
+    part,
+    view = "iso",
+    size = 800,
+    references: showReferences = true,
+  }) {
     const atom = ref
       ? resolveAtom(ref)
       : GlobalVariables.currentMolecule || topLevel();
     let value = requireGeometry(atom);
+    // Images, PDF pages and 3D models the output carries are drawn with it
+    const references =
+      showReferences && part === undefined ? referencesOf(value) : [];
+    value = withoutSideData(value);
     if (part !== undefined) value = partOf(atom, value, part);
-    const context = atom.getContext();
-    const meshTask = GlobalVariables.displayScheduler
-      ? GlobalVariables.displayScheduler.run(
-          "generateDisplayMesh",
-          [value, context],
-          meshKey(value, context),
-        )
-      : GlobalVariables.pool
-          .proxy()
-          .then((worker) => worker.generateDisplayMesh(value, context));
-    const result = await withTimeout(meshTask, 240000);
-    const mesh = result?.mesh;
-    if (!mesh || !mesh.length) {
+    let mesh = [];
+    if (hasGeometry(value)) {
+      const context = atom.getContext();
+      const meshTask = GlobalVariables.displayScheduler
+        ? GlobalVariables.displayScheduler.run(
+            "generateDisplayMesh",
+            [value, context],
+            meshKey(value, context),
+          )
+        : GlobalVariables.pool
+            .proxy()
+            .then((worker) => worker.generateDisplayMesh(value, context));
+      const result = await withTimeout(meshTask, 240000);
+      mesh = result?.mesh || [];
+    }
+    const built = await createReferenceObjects(references);
+    if (!mesh.length && !built.objects.length) {
+      built.release();
       throw new ToolError(
         ERROR_CODES.CONFLICT,
         `${atomPath(atom)} produced no visible mesh.`,
       );
     }
-    const dataUrl = await generateMeshPNG(mesh, size, size, {
-      view,
-      fit: true,
-    });
+    let dataUrl;
+    try {
+      dataUrl = await generateMeshPNG(mesh, size, size, {
+        view,
+        fit: true,
+        objects: built.objects,
+      });
+    } finally {
+      built.release();
+    }
     if (!dataUrl) {
       throw new ToolError(
         ERROR_CODES.INTERNAL_ERROR,
@@ -1534,9 +1601,75 @@ const handlers = {
       mimeType: "image/png",
       atom: atomRef(atom),
       ...(part !== undefined ? { part } : {}),
+      ...(built.objects.length
+        ? { references_shown: built.objects.length }
+        : {}),
       view,
       size,
     };
+  },
+
+  async get_reference({ atom: ref, index = 0, pages }) {
+    const atom = ref
+      ? resolveAtom(ref)
+      : GlobalVariables.currentMolecule || topLevel();
+    const value = requireValue(atom);
+    const references = isGeometryValue(value) ? referencesOf(value) : [];
+    if (!references.length) {
+      throw new ToolError(
+        ERROR_CODES.NOT_FOUND,
+        `${atomPath(atom)} carries no reference files (images, PDFs, or 3D models).`,
+      );
+    }
+    const item = references[index];
+    if (!item) {
+      throw new ToolError(
+        ERROR_CODES.NOT_FOUND,
+        `${atomPath(atom)} carries ${references.length} reference file(s), numbered from 0; there is no ${index}.`,
+      );
+    }
+    const asset = getAsset(item.asset);
+    if (!asset) {
+      throw new ToolError(
+        ERROR_CODES.CONFLICT,
+        `${item.name} isn't loaded in the page yet. Call wait_for_settle, then try again.`,
+      );
+    }
+    const result = {
+      filename: item.name,
+      base64: arrayBufferToBase64(await asset.blob.arrayBuffer()),
+      mime_type: asset.mimeType,
+      atom: atomRef(atom),
+      reference_count: references.length,
+      reference: summarizeReference(item, index),
+      ...(item.source
+        ? {
+            source: `https://github.com/${item.source.owner}/${item.source.repo}/blob/${item.source.ref || "HEAD"}/${item.source.path}`,
+          }
+        : {}),
+    };
+    if (item.kind === "model") {
+      result.model = {
+        file_units: item.modelUnits,
+        meshes: item.stats?.meshes,
+        triangles: item.stats?.triangles,
+      };
+    }
+    if (item.kind === "pdf") {
+      Object.assign(result, await readPdfText(item.asset, pages));
+      result.preview = await previewOf(
+        await renderPdfPage(item.asset, item.page || 1, PREVIEW_PIXELS),
+        "image/png",
+      );
+    }
+    if (item.kind === "image") {
+      // PNGs can be transparent, which JPEG would turn black
+      result.preview = await previewOf(
+        asset.blob,
+        item.mimeType === "image/png" ? "image/png" : "image/jpeg",
+      );
+    }
+    return result;
   },
 
   async export_geometry({ atom: ref, format }) {
@@ -1544,6 +1677,12 @@ const handlers = {
       ? resolveAtom(ref)
       : GlobalVariables.currentMolecule || topLevel();
     const value = requireGeometry(atom);
+    if (!hasGeometry(value)) {
+      throw new ToolError(
+        ERROR_CODES.CONFLICT,
+        `${atomPath(atom)} has no geometry to export, only reference files; get_reference returns those.`,
+      );
+    }
     const units = topLevel().unitsKey;
     const blob = await GlobalVariables.cad.downExport(
       value,
@@ -1955,7 +2094,22 @@ const handlers = {
     };
   },
 
-  async import_file({ url, molecule, x, y }) {
+  async import_file({ url, path, molecule, x, y, file_base64, file_name }) {
+    if (file_base64 !== undefined) {
+      return importLocalFile({ file_base64, file_name, molecule, x, y });
+    }
+    if (path !== undefined) {
+      throw new ToolError(
+        ERROR_CODES.INVALID_PARAMS,
+        "This bridge can't read files from disk. Update it, or give the file's GitHub url instead.",
+      );
+    }
+    if (url === undefined) {
+      throw new ToolError(
+        ERROR_CODES.INVALID_PARAMS,
+        'Give the file\'s GitHub "url", or the "path" of a file on this computer.',
+      );
+    }
     const file = parseGitHubFileUrl(url);
     const mol = resolveMolecule(molecule);
     assertEditableContainer(mol);
@@ -2272,6 +2426,159 @@ const handlers = {
   },
 };
 
+/** Longest side of the preview images get_reference returns, in pixels. */
+const PREVIEW_PIXELS = 1568;
+
+/** Most PDF text get_reference returns at once, in characters. */
+const MAX_PDF_TEXT = 40000;
+
+/**
+ * A preview image of a reference for the agent to look at, scaled down to
+ * PREVIEW_PIXELS: { base64, mimeType }.
+ * @param {Blob|HTMLCanvasElement} source
+ */
+async function previewOf(source, mimeType) {
+  const bitmap =
+    source instanceof HTMLCanvasElement
+      ? source
+      : await createImageBitmap(source);
+  const scale = Math.min(
+    1,
+    PREVIEW_PIXELS / Math.max(bitmap.width, bitmap.height),
+  );
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+  canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+  canvas.getContext("2d").drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close?.();
+  return {
+    base64: extractBase64FromDataURL(canvas.toDataURL(mimeType, 0.85)),
+    mimeType,
+  };
+}
+
+/** The text of a PDF's pages for get_reference, cut off at MAX_PDF_TEXT. */
+async function readPdfText(assetId, pages) {
+  let wanted;
+  try {
+    wanted = pages ? parsePageList(pages) : undefined;
+  } catch (err) {
+    throw new ToolError(ERROR_CODES.INVALID_PARAMS, err.message);
+  }
+  const { page_count, pages: read } = await pdfText(assetId, wanted);
+  const text = [];
+  let length = 0;
+  let truncated = false;
+  for (const { page, text: pageText } of read) {
+    if (length + pageText.length > MAX_PDF_TEXT) {
+      text.push({ page, text: pageText.slice(0, MAX_PDF_TEXT - length) });
+      truncated = true;
+      break;
+    }
+    text.push({ page, text: pageText });
+    length += pageText.length;
+  }
+  // Not "text", which file results use for a text file's contents
+  return {
+    page_count,
+    page_text: text,
+    ...(truncated
+      ? {
+          text_truncated: `Text stops at ${MAX_PDF_TEXT} characters; ask for fewer pages to read the rest.`,
+        }
+      : {}),
+  };
+}
+
+/** "1-3, 5" -> [1, 2, 3, 5]. */
+export function parsePageList(text) {
+  const pages = [];
+  for (const part of String(text).split(",")) {
+    const range = part.trim().match(/^(\d+)(?:\s*-\s*(\d+))?$/);
+    if (!range) {
+      throw new Error(`"${text}" isn't a list of pages, such as "1-3, 5".`);
+    }
+    const first = Number(range[1]);
+    const last = Number(range[2] ?? range[1]);
+    if (first < 1 || last < first || last - first > 500) {
+      throw new Error(`"${part.trim()}" isn't a range of pages.`);
+    }
+    for (let page = first; page <= last; page++) pages.push(page);
+  }
+  return [...new Set(pages)];
+}
+
+/**
+ * Upload a file the bridge read from the agent's disk to the project's
+ * GitHub repository, as the editor's Load File button does, and load it in a
+ * new Import atom. The file then opens with the project wherever it goes.
+ */
+async function importLocalFile({ file_base64, file_name, molecule, x, y }) {
+  const name = String(file_name || "")
+    .split(/[\\/]/)
+    .pop();
+  const type = importFileType(name);
+  const node = GlobalVariables.currentAWSnode;
+  // The editor registers the save hook only for a project the user can write
+  if (
+    !canSave() ||
+    typeof GlobalVariables.uploadFile !== "function" ||
+    !node?.owner
+  ) {
+    throw new ToolError(
+      ERROR_CODES.CONFLICT,
+      "Importing a file from disk uploads it to the project's GitHub repository, which needs the project open in the editor by a user who can write to it. Import it from a GitHub url instead.",
+    );
+  }
+  const mol = resolveMolecule(molecule);
+  assertEditableContainer(mol);
+  const bytes = Uint8Array.from(atob(file_base64), (c) => c.charCodeAt(0));
+  const file = new File([bytes], name, {
+    type: REFERENCE_TYPES[type]?.mimeType || "application/octet-stream",
+  });
+
+  const siblings = children(mol).filter((a) => a.atomType !== "Output");
+  const maxX = siblings.reduce((m, a) => Math.max(m, Number(a.x) || 0), 0.1);
+  const obj = {
+    atomType: "Import",
+    parent: mol,
+    parentMolecule: mol,
+    uniqueID: GlobalVariables.generateUniqueID(),
+    x: x ?? Math.min(0.85, maxX + 0.08),
+    y: y ?? 0.2 + (siblings.length % 6) * 0.12,
+    type,
+  };
+  const placed = await mol.placeAtom(obj, false);
+  const atom =
+    (placed && placed.uniqueID === obj.uniqueID && placed) ||
+    children(mol).find((a) => a.uniqueID === obj.uniqueID);
+  if (!atom) {
+    throw new ToolError(
+      ERROR_CODES.INTERNAL_ERROR,
+      `Could not place an Import atom for ${name}.`,
+    );
+  }
+  GlobalVariables.pushUndoCommand(
+    new AddAtomCommand(atom.uniqueID, mol, `Import ${name}`),
+  );
+  let uploaded;
+  try {
+    uploaded = await GlobalVariables.uploadFile(file, atom);
+  } catch (err) {
+    throw new ToolError(
+      ERROR_CODES.INTERNAL_ERROR,
+      `Uploading ${name} to ${node.owner}/${node.repoName} failed: ${err?.message || err}`,
+    );
+  }
+  return {
+    ...atomRef(atom),
+    type: atom.atomType,
+    file: `${node.owner}/${node.repoName}/${uploaded.fileName}`,
+    file_type: type,
+    uploaded: true,
+  };
+}
+
 /** Run apply_edits' edits in order; the caller's undo group rolls back on failure. */
 async function runBatch(edits, ctx, results) {
   for (let i = 0; i < edits.length; i++) {
@@ -2345,7 +2652,11 @@ function typeMatches(schema, value) {
 }
 
 /** Arguments the bridge adds on its own (never shown to the model). */
-const BRIDGE_ADDED_ARGS = new Set(["compiled_code"]);
+const BRIDGE_ADDED_ARGS = new Set([
+  "compiled_code",
+  "file_base64",
+  "file_name",
+]);
 
 export function validateArgs(tool, args, prefix = "") {
   const schema = tool.inputSchema || {};
@@ -2447,7 +2758,10 @@ function describeEdit(name, args) {
     case "add_github_molecule":
       return `import ${args.repo}`;
     case "import_file": {
-      const name = String(args.url).split(/[?#]/)[0].split("/").pop();
+      const name = String(args.file_name ?? args.path ?? args.url)
+        .split(/[?#]/)[0]
+        .split(/[\\/]/)
+        .pop();
       try {
         return `import ${decodeURIComponent(name)}`;
       } catch {

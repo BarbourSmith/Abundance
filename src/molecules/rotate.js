@@ -1,5 +1,6 @@
 import Atom from "../prototypes/atom";
 import GlobalVariables from "../js/globalvariables.js";
+import { rotateSideData, sideDataOf } from "../js/sideData.js";
 
 /**
  * This class creates the rotate atom.
@@ -69,5 +70,15 @@ export default class Rotate extends Atom {
     const y = inputs["y-axis degrees"];
     const z = inputs["z-axis degrees"];
     return this.cad.rotate(inputID, x, y, z, this.getContext());
+  }
+
+  /** Labels and references turn with the geometry, about the origin. */
+  outputSideData(inputs) {
+    return rotateSideData(
+      sideDataOf(inputs.geometry),
+      Number(inputs["x-axis degrees"]) || 0,
+      Number(inputs["y-axis degrees"]) || 0,
+      Number(inputs["z-axis degrees"]) || 0,
+    );
   }
 }

@@ -1,5 +1,6 @@
 import Atom from "../prototypes/atom.js";
 import GlobalVariables from "../js/globalvariables.js";
+import { sideDataOf, withSideData } from "../js/sideData.js";
 import { unitAbbreviation, unitsContextOf } from "../js/units.js";
 
 /** The text old projects saved by default; it now means "show the length". */
@@ -8,8 +9,8 @@ const LEGACY_DEFAULT_TEXT = "label";
 /**
  * This class creates the label atom, which adds a dimension label (a line with
  * end marks and text) to the 3D view. The input geometry passes through
- * unchanged, carrying the label as nonReplicadSerialized data that Atom's
- * reconstructLabelGeometry draws and Move/Rotate carry along.
+ * unchanged, carrying the label as side data (see src/js/sideData.js) that
+ * Atom's reconstructLabelGeometry draws and Move/Rotate carry along.
  *
  * The label measures either:
  * - an edge picked on the input geometry (its two endpoints), or
@@ -219,8 +220,8 @@ export default class Label extends Atom {
   }
 
   /**
-   * The serializable label that Atom.reconstructLabelGeometry draws and the
-   * worker's Move/Rotate actions transform.
+   * The serializable label that Atom.reconstructLabelGeometry draws and
+   * Move/Rotate atoms transform (src/js/sideData.js).
    */
   serializeLabel(start, end) {
     const color = String(this.findIOValue("color") || "#3F3CDD");
@@ -315,7 +316,8 @@ export default class Label extends Atom {
   /**
    * Compute the label atom: work out its ends and pass the input geometry
    * through with the label attached.
-   * @returns {Promise} The input geometry, carrying the label
+   * @returns {Promise} The input geometry, carrying only the label;
+   *   outputSideData adds back what the input carried
    */
   async compute() {
     const assembly = this.findIOValue("geometry");
@@ -323,16 +325,12 @@ export default class Label extends Atom {
     const [bounds] = await this.resolvePicks(assembly, [{ kind: "bounds" }]);
     this.modelBounds = bounds;
     this.serializedLabel = this.serializeLabel(start, end);
+    return withSideData(assembly, [this.serializedLabel]);
+  }
 
-    const prev = Array.isArray(assembly.nonReplicadSerialized)
-      ? assembly.nonReplicadSerialized
-      : assembly.nonReplicadSerialized
-        ? [assembly.nonReplicadSerialized]
-        : [];
-    return {
-      ...assembly,
-      nonReplicadSerialized: [...prev, this.serializedLabel],
-    };
+  /** The input's labels and references, and this label. */
+  outputSideData(inputs, value) {
+    return [...sideDataOf(inputs.geometry), ...sideDataOf(value)];
   }
 
   /** Recompute and refresh the panel after the picks or choices change. */

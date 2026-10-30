@@ -865,7 +865,8 @@ function CreateMode() {
           onChange={(value) => {
             let file = value.target.files[0];
             if (file) {
-              uploadFile(file, activeAtom);
+              // A failed upload is already shown to the user
+              uploadFile(file, activeAtom).catch(() => {});
             }
           }}
         />
