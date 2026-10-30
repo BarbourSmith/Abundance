@@ -103,3 +103,27 @@ export function reportBooleanInflight(
     }
   }
 }
+
+/**
+ * Message type posted once by a worker whose OpenCascade module has crashed:
+ * a WebAssembly trap ("index out of bounds", "indirect call to null",
+ * "Aborted()") or OpenCascade running out of memory. Its memory may be
+ * corrupt, so every later operation in it can fail. CadWorkerManager restarts
+ * the worker and replays the pending calls when it sees this.
+ */
+export const CAD_WASM_CRASHED_TYPE = "cad-wasm-crashed";
+
+/** Tell the main thread this worker's OpenCascade module has crashed. */
+export function reportWasmCrash(message: string): void {
+  if (
+    typeof self !== "undefined" &&
+    typeof (self as any).postMessage === "function" &&
+    typeof (self as any).document === "undefined"
+  ) {
+    try {
+      (self as any).postMessage({ type: CAD_WASM_CRASHED_TYPE, message });
+    } catch {
+      // Best-effort; never let it break the operation.
+    }
+  }
+}
