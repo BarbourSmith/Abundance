@@ -131,6 +131,26 @@ function rotationXYZ(x: number, y: number, z: number): RigidTransform {
   return { rotation, translation: [0, 0, 0] };
 }
 
+/** Where `transform` takes `point`. */
+function transformPoint(transform: RigidTransform, point: Vec3): Vec3 {
+  const [x, y, z] = rotateVector(transform.rotation, point);
+  const [tx, ty, tz] = transform.translation;
+  return [x + tx, y + ty, z + tz];
+}
+
+/**
+ * The transform as a position and an [x, y, z, w] quaternion, the order
+ * three.js's Object3D.position and .quaternion take them in. Three.js applies
+ * an object's rotation before its position, as RigidTransform does.
+ */
+function asPositionQuaternion(transform: RigidTransform): {
+  position: Vec3;
+  quaternion: [number, number, number, number];
+} {
+  const [w, x, y, z] = transform.rotation;
+  return { position: [...transform.translation], quaternion: [x, y, z, w] };
+}
+
 /** The base and transform of a transformed id, or undefined for any other id. */
 function parseTransformedId(id: string): TransformedId | undefined {
   if (!id.startsWith(PREFIX)) {
@@ -187,6 +207,8 @@ function storedId(id: string): string {
 
 export {
   RigidTransform,
+  asPositionQuaternion,
+  transformPoint,
   TransformedId,
   parseTransformedId,
   rotationXYZ,

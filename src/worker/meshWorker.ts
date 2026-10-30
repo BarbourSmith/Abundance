@@ -1,9 +1,12 @@
 import Fonts from "../js/fonts.js";
+import { MeshLruCache } from "../js/meshCache.js";
 import * as workerpool from "workerpool";
 import type { ShapeMesh } from "replicad";
 import * as replicad from "replicad";
 import { ReplicadObject, RequestContext } from "./geometryProvider";
 import { text } from "./shapes";
+import { asPositionQuaternion, transformPoint } from "./lazyTransform";
+import type { RigidTransform } from "./lazyTransform";
 import type { AbundanceLeaf, AbundanceObject } from "./util";
 import * as util from "./util";
 import {
@@ -15,19 +18,50 @@ import {
   shapeBounds,
 } from "./geometryDiagnostics";
 
+type Vec3 = [number, number, number];
+
+/**
+ * Triangles for display. Arrays from the mesh cache are typed arrays, which
+ * cross to the main thread several times faster than number[] and take half
+ * the memory; atom-supplied meshOverrides are plain arrays.
+ */
+type DisplayFaces = {
+  vertices: Float32Array | number[];
+  normals: Float32Array | number[];
+  triangles: Uint32Array | number[];
+  faceGroups: ShapeMesh["faceGroups"];
+};
+
+type DisplayEdges = {
+  lines: Float32Array | number[];
+  edgeGroups: {
+    start: number;
+    count: number;
+    edgeId: number;
+  }[];
+};
+
+/**
+ * One part of a displayed value.
+ *
+ * Moved and rotated copies of a shape share one `faces` and `edges` object,
+ * meshed once from the untransformed shape, and each carries its own
+ * `transform`. postMessage keeps shared objects shared, so the main thread
+ * receives one copy of the triangles, and readers build one three.js geometry
+ * for it and place each part with `transform`. A part without a transform is
+ * already in place.
+ */
 type DisplayMesh = {
   cameraZoom: number;
-  faces?: ShapeMesh;
-  edges?: {
-    lines: number[];
-    edgeGroups: {
-      start: number;
-      count: number;
-      edgeId: number;
-    }[];
+  faces?: DisplayFaces;
+  edges?: DisplayEdges;
+  /** Where to put the mesh: three.js Object3D.position and .quaternion. */
+  transform?: {
+    position: Vec3;
+    quaternion: [number, number, number, number];
   };
   color: string;
-  point?: [number, number, number];
+  point?: Vec3;
   // Per-vertex RGB triples in [0,1], aligned with faces.vertices. Set
   // when an atom supplies a pre-baked metadata.meshOverride. Plain array
   // so it survives JSON serialization through the assembly cache.
@@ -39,7 +73,7 @@ const started: Promise<boolean> = util.init(false);
 void started.then(() => util.startHeapMonitor("meshWorker"));
 
 /**
- * LRU of deserialized shapes, keyed by project and geometry id.
+ * LRU of deserialized shapes, keyed by project and the id of the stored shape.
  *
  * Display requests carry no operation id, so geometryProvider.get() reads
  * every leaf from IndexedDB and re-parses its BREP on every request. Clicking
@@ -47,6 +81,9 @@ void started.then(() => util.startHeapMonitor("meshWorker"));
  * are content addressed, so a cached shape only goes stale when Recompute
  * Project rebuilds the stored shapes, which calls forgetProject. Otherwise
  * entries are only evicted to bound memory.
+ *
+ * Moved and rotated copies share their base shape's entry: getShapeCached
+ * applies the transform to the cached base, which is cheap.
  *
  * workerpool runs one task at a time per worker, and eviction only happens
  * between tasks (see withShapeCache), so a shape is never deleted while a task
@@ -59,17 +96,18 @@ async function getShapeCached(
   id: string,
   context: RequestContext,
 ): Promise<ReplicadObject> {
-  const key = `${context?.project ?? ""}|${id}`;
-  const hit = shapeCache.get(key);
-  if (hit) {
+  const provider = util.geometryProvider!;
+  const { base, transform } = provider.splitTransform(id);
+  const key = `${context?.project ?? ""}|${base}`;
+  let shape = shapeCache.get(key);
+  if (shape) {
     // Refresh recency.
     shapeCache.delete(key);
-    shapeCache.set(key, hit);
-    return hit;
+  } else {
+    shape = await provider.get(base, context);
   }
-  const shape = await util.geometryProvider!.get(id, context);
   shapeCache.set(key, shape);
-  return shape;
+  return transform ? provider.transformShape(shape, transform) : shape;
 }
 
 function evictShape(key: string): void {
@@ -89,13 +127,50 @@ function trimShapeCache(): void {
 }
 
 /**
- * Drops a project's cached shapes. Recompute Project rebuilds the stored
- * shapes, and one stored broken can come back different under the same id.
+ * Meshes of stored shapes, keyed like shapeCache, so a shape is meshed once
+ * however many moved copies of it are shown and however many displayed values
+ * include it. Meshing is by far the slowest step of displaying a shape.
+ *
+ * Sketches are the exception: a moved sketch also gets a new plane, so they
+ * are meshed in place and cached per placement under `<key>|placed|...`; the
+ * base entry only records that the shape is a sketch.
+ */
+type Bounds3 = [Vec3, Vec3];
+type MeshEntry =
+  | {
+      kind: "shape";
+      faces: DisplayFaces;
+      edges: DisplayEdges;
+      bounds?: Bounds3;
+    }
+  | { kind: "wire"; edges: DisplayEdges; bounds?: Bounds3 }
+  | { kind: "vertex" }
+  | { kind: "drawing" };
+/** One piece of a placed sketch: filled, or an open outline as lines. */
+type DrawingPiece = {
+  faces?: DisplayFaces;
+  edges: DisplayEdges;
+  bounds?: number[][];
+};
+
+const MESH_CACHE_MAX_BYTES = 256 * 1024 * 1024;
+const meshCache = new MeshLruCache({
+  maxEntries: Infinity,
+  maxBytes: MESH_CACHE_MAX_BYTES,
+});
+
+/**
+ * Drops a project's cached shapes and meshes. Recompute Project rebuilds the
+ * stored shapes, and one stored broken can come back different under the
+ * same id.
  */
 function forgetProject(project: string): void {
   const prefix = `${project ?? ""}|`;
   for (const key of [...shapeCache.keys()]) {
     if (key.startsWith(prefix)) evictShape(key);
+  }
+  for (const key of [...meshCache.keys()] as string[]) {
+    if (key.startsWith(prefix)) meshCache.delete(key);
   }
 }
 
@@ -108,85 +183,36 @@ async function withShapeCache<T>(task: () => Promise<T>): Promise<T> {
   }
 }
 
-function getLargestBoundingBox(meshArray: ReplicadObject[]):
-  | {
-      width: number;
-      height: number;
-      depth: number;
-    }
-  | undefined {
-  const overallMin: [number, number, number] = [Infinity, Infinity, Infinity];
-  const overallMax: [number, number, number] = [
-    -Infinity,
-    -Infinity,
-    -Infinity,
-  ];
-
-  try {
-    if (!Array.isArray(meshArray)) {
-      throw new Error("meshArray is not defined or not an array");
-    }
-    meshArray.forEach((mesh, idx) => {
-      //console.log(mesh.boundingBox.bounds);
-      if (!mesh.boundingBox || !Array.isArray(mesh.boundingBox.bounds)) {
-        console.error(
-          `mesh[${idx}] missing boundingBox or bounds:`,
-          mesh.boundingBox,
-        );
-        throw new Error("Invalid mesh geometry or boundingBox structure");
-      }
-
-      if (mesh.boundingBox.bounds instanceof Error) {
-        throw new Error("Bounding box calculation error");
-        // handle or skip this mesh
-      }
-      const boundingBox = mesh.boundingBox.bounds;
-      if (
-        boundingBox.length < 2 ||
-        !Array.isArray(boundingBox[0]) ||
-        !Array.isArray(boundingBox[1])
-      ) {
-        console.error(
-          `mesh[${idx}] boundingBox bounds not properly defined:`,
-          boundingBox,
-        );
-        throw new Error("boundingBox bounds are not properly defined");
-      }
-
-      const min = boundingBox[0];
-      const max = boundingBox[1];
-
-      // Update overall minimum coordinates
-      overallMin[0] = Math.min(overallMin[0], min[0]);
-      overallMin[1] = Math.min(overallMin[1], min[1]);
-      if (min[2] != undefined) {
-        overallMin[2] = Math.min(overallMin[2], min[2]);
-      }
-      // Update overall maximum coordinates
-      overallMax[0] = Math.max(overallMax[0], max[0]);
-      overallMax[1] = Math.max(overallMax[1], max[1]);
-      if (max[2] != undefined) {
-        overallMax[2] = Math.max(overallMax[2], max[2]);
-      }
-    });
-
+/**
+ * Width, height and depth of the box around all of `boxes`. Each box is a
+ * [min, max] pair; 2D sketch boxes have no z.
+ */
+function overallSize(boxes: number[][][]): {
+  width: number;
+  height: number;
+  depth: number;
+} {
+  const overallMin = [Infinity, Infinity, Infinity];
+  const overallMax = [-Infinity, -Infinity, -Infinity];
+  for (const [min, max] of boxes) {
     for (let i = 0; i < 3; i++) {
-      if (!isFinite(overallMax[i]) || !isFinite(overallMin[i])) {
-        overallMin[i] = 0;
-        overallMax[i] = 0;
+      if (Number.isFinite(min?.[i]) && Number.isFinite(max?.[i])) {
+        overallMin[i] = Math.min(overallMin[i], min[i]);
+        overallMax[i] = Math.max(overallMax[i], max[i]);
       }
     }
-
-    return {
-      width: overallMax[0] - overallMin[0],
-      height: overallMax[1] - overallMin[1],
-      depth: overallMax[2] - overallMin[2],
-    };
-  } catch (error) {
-    console.error("Error in getLargestBoundingBox:", error);
-    // Return a default bounding box if error occurs
-    //return { width: 0, height: 0, depth: 0 };
   }
+  for (let i = 0; i < 3; i++) {
+    if (!isFinite(overallMax[i]) || !isFinite(overallMin[i])) {
+      overallMin[i] = 0;
+      overallMax[i] = 0;
+    }
+  }
+  return {
+    width: overallMax[0] - overallMin[0],
+    height: overallMax[1] - overallMin[1],
+    depth: overallMax[2] - overallMin[2],
+  };
 }
 
 function calculateZoom(boundingBox: {
@@ -230,19 +256,256 @@ function calculateZoom(boundingBox: {
   }
 }
 
-function generateCameraPosition(meshArray: ReplicadObject[]): number {
-  // Get the largest bounding box from the mesh array
-  const largestBoundingBox = getLargestBoundingBox(meshArray);
-  if (largestBoundingBox == undefined) {
-    throw new Error("Could not determine largest bounding box");
-  }
-  const zoom = calculateZoom(largestBoundingBox);
-  if (zoom == 0) {
+function generateCameraPosition(boxes: number[][][]): number {
+  const zoom = calculateZoom(overallSize(boxes));
+  if (zoom == 0 || !Number.isFinite(zoom)) {
     throw new Error("Calculated zoom level is zero");
   }
-  /*console.log("Generated camera zoom:", zoom);*/
   return zoom;
 }
+
+/** The box around `bounds` once moved by `transform`. */
+function moveBounds(bounds: Bounds3, transform?: RigidTransform): Bounds3 {
+  if (!transform) return bounds;
+  const min: Vec3 = [Infinity, Infinity, Infinity];
+  const max: Vec3 = [-Infinity, -Infinity, -Infinity];
+  for (let corner = 0; corner < 8; corner++) {
+    const point = transformPoint(transform, [
+      bounds[(corner >> 0) & 1][0],
+      bounds[(corner >> 1) & 1][1],
+      bounds[(corner >> 2) & 1][2],
+    ]);
+    for (let i = 0; i < 3; i++) {
+      min[i] = Math.min(min[i], point[i]);
+      max[i] = Math.max(max[i], point[i]);
+    }
+  }
+  return [min, max];
+}
+
+/** The box around a flat list of xyz coordinates. */
+function boundsOfPoints(points: ArrayLike<number>): Bounds3 | undefined {
+  if (!points || points.length < 3) return undefined;
+  const min: Vec3 = [Infinity, Infinity, Infinity];
+  const max: Vec3 = [-Infinity, -Infinity, -Infinity];
+  for (let j = 0; j < points.length; j += 3) {
+    for (let i = 0; i < 3; i++) {
+      min[i] = Math.min(min[i], points[j + i]);
+      max[i] = Math.max(max[i], points[j + i]);
+    }
+  }
+  return [min, max];
+}
+
+/** A shape's bounding box, or undefined when OpenCascade can't give one. */
+function boundsOf(shape: {
+  boundingBox: { bounds: unknown; delete?: () => void };
+}) {
+  let box;
+  try {
+    box = shape.boundingBox;
+    const bounds = box.bounds;
+    if (Array.isArray(bounds) && Array.isArray(bounds[0])) {
+      return bounds.map((corner) => [...corner]) as Bounds3;
+    }
+  } catch (e) {
+    console.error("Error computing bounding box:", e);
+  } finally {
+    box?.delete?.();
+  }
+  return undefined;
+}
+
+const MESH_TOLERANCE = { tolerance: 0.1, angularTolerance: 0.5 };
+const WIRE_TOLERANCE = { tolerance: 0.03, angularTolerance: 0.1 };
+
+function packFaces(mesh: ShapeMesh): DisplayFaces {
+  return {
+    vertices: new Float32Array(mesh.vertices),
+    normals: new Float32Array(mesh.normals),
+    triangles: new Uint32Array(mesh.triangles),
+    faceGroups: mesh.faceGroups,
+  };
+}
+
+function packEdges(edges: {
+  lines: number[];
+  edgeGroups: DisplayEdges["edgeGroups"];
+}): DisplayEdges {
+  return { lines: new Float32Array(edges.lines), edgeGroups: edges.edgeGroups };
+}
+
+/** Meshes a stored (untransformed) shape for the mesh cache. */
+function meshStoredShape(shape: ReplicadObject): MeshEntry {
+  if (shape instanceof replicad.Vertex) return { kind: "vertex" };
+  if (shape instanceof replicad.Drawing) return { kind: "drawing" };
+  if (shape instanceof replicad.Wire) {
+    return {
+      kind: "wire",
+      edges: packEdges(shape.meshEdges(WIRE_TOLERANCE)),
+      bounds: boundsOf(shape),
+    };
+  }
+  const solid = shape as replicad.Shape3D;
+  return {
+    kind: "shape",
+    faces: packFaces(solid.mesh(MESH_TOLERANCE)),
+    edges: packEdges(solid.meshEdges(MESH_TOLERANCE)),
+    bounds: boundsOf(solid),
+  };
+}
+
+/** A closed outline or whole sketch filled on its plane, as a thin solid. */
+function meshFilled(
+  drawing: { sketchOnPlane(plane: replicad.Plane): any },
+  plane: replicad.Plane,
+): DrawingPiece {
+  const solid = drawing
+    .sketchOnPlane(plane)
+    .extrude(0.0001) as replicad.Shape3D;
+  try {
+    const faces = packFaces(solid.mesh(MESH_TOLERANCE));
+    return {
+      faces,
+      edges: packEdges(solid.meshEdges(MESH_TOLERANCE)),
+      bounds: boundsOfPoints(faces.vertices),
+    };
+  } finally {
+    solid.delete();
+  }
+}
+
+/** The outlines in a drawing, through any nesting of blueprints. */
+function drawingOutlines(shape: any, outlines: any[] = []): any[] {
+  if (shape.curves) outlines.push(shape);
+  else
+    (shape.blueprints ?? []).forEach((b: any) => drawingOutlines(b, outlines));
+  return outlines;
+}
+
+/**
+ * Meshes a sketch on its plane. A sketch that can't be filled as a whole,
+ * such as an SVG export's projection, which can come back as open fragments,
+ * is meshed piece by piece: closed outlines filled, open ones as lines.
+ */
+function meshDrawing(
+  drawing: replicad.Drawing,
+  leafPlane: AbundanceLeaf["plane"],
+): DrawingPiece[] {
+  const plane = util.asReplicadPlane(leafPlane);
+  try {
+    return [meshFilled(drawing, plane)];
+  } catch (e) {
+    if (e instanceof WebAssembly.RuntimeError) throw e;
+  }
+  const pieces: DrawingPiece[] = [];
+  //@ts-expect-error - ignore access of private innerShape field
+  for (const outline of drawingOutlines(drawing.innerShape)) {
+    try {
+      if (outline.isClosed()) {
+        pieces.push(meshFilled(outline, plane));
+      } else {
+        const wire = outline.sketchOnPlane(plane).wire as replicad.Wire;
+        const edges = packEdges(wire.meshEdges(MESH_TOLERANCE));
+        pieces.push({ edges, bounds: boundsOfPoints(edges.lines) });
+      }
+    } catch (e) {
+      if (e instanceof WebAssembly.RuntimeError) throw e;
+      console.warn("Skipping a drawing outline that couldn't be meshed", e);
+    }
+  }
+  return pieces;
+}
+
+type DisplayPart = {
+  mesh: Omit<DisplayMesh, "cameraZoom">;
+  /** For the camera zoom; undefined for points. */
+  bounds?: number[][];
+};
+
+/**
+ * The display meshes for one leaf: one, or several for a sketch shown piece
+ * by piece. Throws when the leaf's shape can't be loaded or meshed.
+ */
+async function displayPart(
+  leaf: AbundanceLeaf,
+  context: RequestContext,
+): Promise<DisplayPart[]> {
+  const color = leaf.color;
+
+  // Generic atom-supplied mesh: short-circuits all tessellation. The atom
+  // owns the full render contract (faces, edges, optional vertex colours);
+  // meshWorker stays domain-agnostic.
+  const override = leaf.metadata?.meshOverride;
+  if (override && override.faces && override.id == leaf.geometry) {
+    return [
+      {
+        mesh: {
+          faces: override.faces,
+          edges: override.edges,
+          color,
+          ...(override.vertexColors
+            ? { vertexColors: override.vertexColors }
+            : {}),
+        },
+        bounds: boundsOfPoints(override.faces.vertices),
+      },
+    ];
+  }
+
+  const { base, transform } = util.geometryProvider!.splitTransform(
+    leaf.geometry,
+  );
+  const baseKey = `${context?.project ?? ""}|${base}`;
+  let entry = meshCache.get(baseKey) as MeshEntry | undefined;
+  if (!entry) {
+    entry = meshStoredShape(await getShapeCached(base, context));
+    meshCache.set(baseKey, entry);
+  }
+
+  switch (entry.kind) {
+    case "shape":
+    case "wire":
+      return [
+        {
+          mesh: {
+            ...(entry.kind === "shape" ? { faces: entry.faces } : {}),
+            edges: entry.edges,
+            color,
+            ...(transform
+              ? { transform: asPositionQuaternion(transform) }
+              : {}),
+          },
+          bounds: entry.bounds && moveBounds(entry.bounds, transform),
+        },
+      ];
+    case "vertex": {
+      const vertex = (await getShapeCached(
+        leaf.geometry,
+        context,
+      )) as replicad.Vertex;
+      return [{ mesh: { point: vertex.asTuple() as Vec3, color } }];
+    }
+    case "drawing": {
+      // Sent in place: see meshCache.
+      const key = `${baseKey}|placed|${leaf.geometry}|${JSON.stringify(leaf.plane)}`;
+      let placed = meshCache.get(key) as DrawingPiece[] | undefined;
+      if (!placed) {
+        const drawing = (await getShapeCached(
+          leaf.geometry,
+          context,
+        )) as replicad.Drawing;
+        placed = meshDrawing(drawing, leaf.plane);
+        meshCache.set(key, placed);
+      }
+      return placed.map(({ faces, edges, bounds }) => ({
+        mesh: { ...(faces ? { faces } : {}), edges, color },
+        bounds,
+      }));
+    }
+  }
+}
+
 /**
  * Generates and memoizes default mesh for display when no output is available.
  * @param {string} id - The unique identifier to store the default mesh in the library
@@ -278,70 +541,6 @@ async function textMesh(text: string): Promise<DisplayMesh[]> {
   ];
 }
 
-const DRAWING_MESH_OPTIONS = { tolerance: 0.1, angularTolerance: 0.5 };
-
-/** A flat solid shown in place of a drawing, which has no faces of its own. */
-function meshFilled(
-  drawing: { sketchOnPlane(plane: replicad.Plane): any },
-  plane: replicad.Plane,
-  cameraZoom: number,
-  color: string,
-): DisplayMesh {
-  const threeDShape = drawing.sketchOnPlane(plane).extrude(0.0001);
-  return {
-    cameraZoom,
-    faces: threeDShape.mesh(DRAWING_MESH_OPTIONS),
-    edges: threeDShape.meshEdges(DRAWING_MESH_OPTIONS),
-    color,
-  };
-}
-
-/** The outlines in a drawing, through any nesting of blueprints. */
-function drawingOutlines(shape: any, outlines: any[] = []): any[] {
-  if (shape.curves) outlines.push(shape);
-  else
-    (shape.blueprints ?? []).forEach((b: any) => drawingOutlines(b, outlines));
-  return outlines;
-}
-
-/**
- * Display meshes for a drawing. A drawing that can't be filled as a whole,
- * such as an SVG export's projection, which can come back as open fragments,
- * is shown piece by piece: closed outlines filled, open ones as lines.
- */
-function drawingMeshes(
-  drawing: replicad.Drawing,
-  plane: replicad.Plane,
-  cameraZoom: number,
-  color: string,
-): DisplayMesh[] {
-  try {
-    return [meshFilled(drawing, plane, cameraZoom, color)];
-  } catch (e) {
-    if (e instanceof WebAssembly.RuntimeError) throw e;
-  }
-  const meshes: DisplayMesh[] = [];
-  //@ts-expect-error - ignore access of private innerShape field
-  for (const outline of drawingOutlines(drawing.innerShape)) {
-    try {
-      if (outline.isClosed()) {
-        meshes.push(meshFilled(outline, plane, cameraZoom, color));
-      } else {
-        const wire = outline.sketchOnPlane(plane).wire;
-        meshes.push({
-          cameraZoom,
-          edges: wire.meshEdges(DRAWING_MESH_OPTIONS),
-          color,
-        });
-      }
-    } catch (e) {
-      if (e instanceof WebAssembly.RuntimeError) throw e;
-      console.warn("Skipping a drawing outline that couldn't be meshed", e);
-    }
-  }
-  return meshes;
-}
-
 async function generateDisplayMesh(
   id: AbundanceObject,
   context: RequestContext,
@@ -371,117 +570,42 @@ async function generateDisplayMesh(
       return { id: id, mesh: await generateDefaultMesh() };
     }
 
-    const meshArray: {
-      sourceId: string;
-      color: string;
-      geometry: ReplicadObject;
-      metadata?: Record<string, any>;
-      plane: typeof geom.plane;
-    }[] = [];
-
-    for (let i = 0; i < flattened.length; i++) {
-      const displayObject = flattened[i];
-      const geom = await getShapeCached(displayObject.geometry, context);
-      meshArray.push({
-        sourceId: displayObject.geometry,
-        color: displayObject.color,
-        geometry: geom,
-        metadata: displayObject.metadata,
-        plane: displayObject.plane,
-      });
-    }
-
-    let cameraZoom;
-    try {
-      // Exclude Vertex (Point3D) geometries from bounding box — they produce a
-      // degenerate single-point box that would skew or zero-out the zoom level.
-      const cameraGeoms = meshArray
-        .map((m) => m.geometry)
-        .filter((g) => !(g instanceof replicad.Vertex));
-      cameraZoom =
-        cameraGeoms.length > 0 ? generateCameraPosition(cameraGeoms) : 1;
-    } catch (e) {
-      console.error("Error generating camera position:", e);
-      cameraZoom = 1;
-    }
-
-    const finalMeshes = [];
-    // Iterate through the meshArray and create final meshes with faces, edges and color to pass to display
-    for (const [index, meshObj] of meshArray.entries()) {
+    const parts: DisplayPart[] = [];
+    for (const [index, leaf] of flattened.entries()) {
       try {
-        // Generic atom-supplied mesh: short-circuits all tessellation. The
-        // atom owns the full render contract (faces, edges, optional vertex
-        // colours); meshWorker stays domain-agnostic.
-        const override = meshObj.metadata?.meshOverride;
-        if (override && override.faces && override.id == meshObj.sourceId) {
-          finalMeshes.push({
-            cameraZoom: cameraZoom,
-            faces: override.faces,
-            edges: override.edges,
-            color: meshObj.color,
-            ...(override.vertexColors
-              ? { vertexColors: override.vertexColors }
-              : {}),
-          });
-          continue;
-        }
-        if (meshObj.geometry instanceof replicad.Vertex) {
-          // Point3D — emit a point coordinate, no mesh geometry
-          finalMeshes.push({
-            cameraZoom: cameraZoom,
-            point: (meshObj.geometry as replicad.Vertex).asTuple(),
-            color: meshObj.color,
-          });
-        } else if (meshObj.geometry instanceof replicad.Wire) {
-          // Wire — edges only, no faces
-          finalMeshes.push({
-            cameraZoom: cameraZoom,
-            edges: meshObj.geometry.meshEdges({
-              tolerance: 0.03,
-              angularTolerance: 0.1,
-            }),
-            color: meshObj.color,
-          });
-        } else if (meshObj.geometry instanceof replicad.Drawing) {
-          finalMeshes.push(
-            ...drawingMeshes(
-              meshObj.geometry,
-              util.asReplicadPlane(meshObj.plane),
-              cameraZoom,
-              meshObj.color,
-            ),
-          );
-        } else {
-          // Shape3D — mesh normally
-          finalMeshes.push({
-            cameraZoom: cameraZoom,
-            faces: meshObj.geometry.mesh({
-              tolerance: 0.1,
-              angularTolerance: 0.5,
-            }),
-            edges: meshObj.geometry.meshEdges({
-              tolerance: 0.1,
-              angularTolerance: 0.5,
-            }),
-            color: meshObj.color,
-          });
-        }
+        parts.push(...(await displayPart(leaf, context)));
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         console.error(
-          `Error meshing geometry part ${index} (color: ${meshObj.color}): ${msg}`,
+          `Error meshing geometry part ${index} (color: ${leaf.color}): ${msg}`,
           e,
         );
         // Skip this part and continue so other parts still display
       }
     }
-    if (finalMeshes.length === 0 && meshArray.length > 0) {
+    if (parts.length === 0) {
       console.error(
         "All geometry parts failed to mesh — falling back to default mesh",
       );
       return { id: id, mesh: await generateDefaultMesh() };
     }
-    return { id: geom, mesh: finalMeshes };
+
+    let cameraZoom;
+    try {
+      // Points have no box: a single point would skew or zero the zoom.
+      const boxes = parts
+        .map((part) => part.bounds)
+        .filter((bounds): bounds is number[][] => !!bounds);
+      cameraZoom = boxes.length > 0 ? generateCameraPosition(boxes) : 1;
+    } catch (e) {
+      console.error("Error generating camera position:", e);
+      cameraZoom = 1;
+    }
+
+    return {
+      id: geom,
+      mesh: parts.map((part) => ({ cameraZoom, ...part.mesh })),
+    };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("Error in generateDisplayMesh:", msg, e);
@@ -512,7 +636,12 @@ async function generatePerFaceMeshes(
   });
   for (let leafIndex = 0; leafIndex < flattened.length; leafIndex++) {
     const displayObject = flattened[leafIndex];
-    const shape = await getShapeCached(displayObject.geometry, context);
+    // In the untransformed shape's coordinates, like the display mesh:
+    // the 3D view places each part's face and edge meshes with its transform.
+    const { base } = util.geometryProvider!.splitTransform(
+      displayObject.geometry,
+    );
+    const shape = await getShapeCached(base, context);
     // Only Shape (3D solids, faces) have a `.faces` accessor.
     if (
       !shape ||
@@ -558,7 +687,12 @@ async function generatePerEdgeMeshes(
   });
   for (let leafIndex = 0; leafIndex < flattened.length; leafIndex++) {
     const displayObject = flattened[leafIndex];
-    const shape = await getShapeCached(displayObject.geometry, context);
+    // In the untransformed shape's coordinates, like the display mesh:
+    // the 3D view places each part's face and edge meshes with its transform.
+    const { base } = util.geometryProvider!.splitTransform(
+      displayObject.geometry,
+    );
+    const shape = await getShapeCached(base, context);
     if (
       !shape ||
       shape instanceof replicad.Vertex ||
