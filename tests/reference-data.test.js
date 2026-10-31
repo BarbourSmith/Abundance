@@ -460,6 +460,125 @@ describe("agent tools", () => {
     expect(second.page_text).toEqual([{ page: 2, text: "Mounting holes M4" }]);
   });
 
+  /**
+   * A 200 x 100 px picture: a red circle (radius 30 px, centered at pixel
+   * 60, 50) and a smaller blue square (40 px, centered at 150, 50) on white.
+   * Imported 100 mm wide, so 0.5 mm per pixel, then moved 100 mm along X and
+   * turned a quarter about Z: the circle is centered at (0, 80) with radius
+   * 15 mm, and the square at (0, 125), 20 mm on a side.
+   */
+  async function placedShapes() {
+    const canvas = new OffscreenCanvas(200, 100);
+    const context = canvas.getContext("2d");
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, 200, 100);
+    context.fillStyle = "#ff0000";
+    context.beginPath();
+    context.arc(60, 50, 30, 0, Math.PI * 2);
+    context.fill();
+    context.fillStyle = "#0000ff";
+    context.fillRect(130, 30, 40, 40);
+    const blob = await canvas.convertToBlob({ type: "image/png" });
+    const image = await importFile(
+      "shapes.png",
+      new Uint8Array(await blob.arrayBuffer()),
+    );
+    const move = await add("Move");
+    await connect(image, move, "geometry");
+    await setParam(move, "xDist", 100);
+    const rotate = await add("Rotate");
+    await connect(move, rotate, "geometry");
+    await setParam(rotate, "z-axis degrees", 90);
+    await settle();
+    return rotate;
+  }
+
+  const expectNear = (actual, expected, within) =>
+    actual.forEach((v, i) =>
+      expect(Math.abs(v - expected[i])).toBeLessThan(within),
+    );
+
+  it("trace_reference traces a shape into points in project units", async () => {
+    const atom = await placedShapes();
+
+    // Without a point: the largest shape, the circle
+    const circle = await runTool("trace_reference", { atom }, READ);
+    expect(circle.mimeType).toBe("image/png");
+    expect(circle.base64.length).toBeGreaterThan(100);
+    expect(circle.flat).toBe(true);
+    expect(Math.abs(circle.area / (Math.PI * 15 * 15) - 1)).toBeLessThan(0.03);
+    expectNear(circle.bounding_box.min, [-15, 65], 1);
+    expectNear(circle.bounding_box.max, [15, 95], 1);
+    expect(circle.point_count).toBe(circle.points.length);
+    // Counterclockwise, as Replicad expects a profile
+    let twice = 0;
+    circle.points.forEach(([x0, y0], i) => {
+      const [x1, y1] = circle.points[(i + 1) % circle.points.length];
+      twice += x0 * y1 - x1 * y0;
+    });
+    expect(twice).toBeGreaterThan(0);
+    for (const [x, y] of circle.points) {
+      expect(Math.abs(Math.hypot(x, y - 80) - 15)).toBeLessThan(1);
+    }
+
+    // A point picks the shape under it
+    const square = await runTool(
+      "trace_reference",
+      { atom, point: [0, 125], spacing: 2 },
+      READ,
+    );
+    expect(Math.abs(square.area / 400 - 1)).toBeLessThan(0.05);
+    expectNear(square.bounding_box.min, [-10, 115], 1);
+    expectNear(square.bounding_box.max, [10, 135], 1);
+    expect(square.point_count).toBeGreaterThan(35);
+    expect(square.point_count).toBeLessThan(45);
+
+    // A color picks the shapes that match it
+    const blue = await runTool(
+      "trace_reference",
+      { atom, color: "#0000ff" },
+      READ,
+    );
+    expectNear(blue.bounding_box.min, [-10, 115], 1);
+
+    await expect(
+      runTool("trace_reference", { atom, point: [500, 500] }, READ),
+    ).rejects.toThrow(/isn't on the reference/);
+    await expect(
+      runTool("trace_reference", { atom, color: "green" }, READ),
+    ).rejects.toThrow(/hex color/);
+  });
+
+  it("view_reference zooms into a region with a grid in project units", async () => {
+    const atom = await placedShapes();
+    const whole = await runTool("view_reference", { atom, size: 512 }, READ);
+    expect(whole).toMatchObject({ mimeType: "image/png", pixels: [256, 512] });
+
+    const view = await runTool(
+      "view_reference",
+      { atom, region: { min: [-20, 60], max: [20, 100] } },
+      READ,
+    );
+    expect(view).toMatchObject({
+      mimeType: "image/png",
+      pixels: [1024, 1024],
+      grid: 5,
+      pixels_per_unit: 25.6,
+      region: { min: [-20, 60], max: [20, 100] },
+    });
+    const bitmap = await createImageBitmap(
+      new Blob([Uint8Array.from(atob(view.base64), (c) => c.charCodeAt(0))]),
+    );
+    const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+    canvas.getContext("2d").drawImage(bitmap, 0, 0);
+    const pixel = (x, y) =>
+      Array.from(canvas.getContext("2d").getImageData(x, y, 1, 1).data);
+    // (1, 81) is inside the circle, next to the darker X = 0 line through
+    // the middle of the view; (18, 98) is outside the circle
+    expectNear(pixel(538, 486).slice(0, 3), [255, 0, 0], 30);
+    expectNear(pixel(973, 51).slice(0, 3), [255, 255, 255], 30);
+  });
+
   it("render_image draws references, with or without geometry", async () => {
     const image = await importFile("plan.png", await pngBytes(40, 20));
     const alone = await runTool(

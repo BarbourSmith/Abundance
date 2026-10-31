@@ -37,6 +37,7 @@ import {
   renderPdfPage,
 } from "../js/referenceFiles.js";
 import { createReferenceObjects } from "../js/referenceObjects.js";
+import { traceReference, viewReference } from "./referenceTrace.js";
 import { addOrDeletePorts } from "../js/alwaysOneFreeInput.js";
 import { isTranspilerReady } from "../molecules/code.js";
 import { fetchGitHubFileContent } from "../js/githubFileUtils.js";
@@ -1610,31 +1611,7 @@ const handlers = {
   },
 
   async get_reference({ atom: ref, index = 0, pages }) {
-    const atom = ref
-      ? resolveAtom(ref)
-      : GlobalVariables.currentMolecule || topLevel();
-    const value = requireValue(atom);
-    const references = isGeometryValue(value) ? referencesOf(value) : [];
-    if (!references.length) {
-      throw new ToolError(
-        ERROR_CODES.NOT_FOUND,
-        `${atomPath(atom)} carries no reference files (images, PDFs, or 3D models).`,
-      );
-    }
-    const item = references[index];
-    if (!item) {
-      throw new ToolError(
-        ERROR_CODES.NOT_FOUND,
-        `${atomPath(atom)} carries ${references.length} reference file(s), numbered from 0; there is no ${index}.`,
-      );
-    }
-    const asset = getAsset(item.asset);
-    if (!asset) {
-      throw new ToolError(
-        ERROR_CODES.CONFLICT,
-        `${item.name} isn't loaded in the page yet. Call wait_for_settle, then try again.`,
-      );
-    }
+    const { atom, item, asset, references } = requireReference(ref, index);
     const result = {
       filename: item.name,
       base64: arrayBufferToBase64(await asset.blob.arrayBuffer()),
@@ -1670,6 +1647,78 @@ const handlers = {
       );
     }
     return result;
+  },
+
+  async trace_reference({
+    atom: ref,
+    index = 0,
+    point,
+    color,
+    tolerance,
+    close_gaps,
+    spacing,
+    smoothing,
+  }) {
+    const { atom, item } = requireFlatPicture(ref, index);
+    let traced;
+    try {
+      traced = await traceReference(item, {
+        point,
+        color,
+        tolerance,
+        closeGaps: close_gaps,
+        spacing,
+        smoothing,
+      });
+    } catch (err) {
+      if (err instanceof RangeError) {
+        throw new ToolError(ERROR_CODES.INVALID_PARAMS, err.message);
+      }
+      throw err;
+    }
+    const { preview, ...result } = traced;
+    return {
+      base64: extractBase64FromDataURL(preview),
+      mimeType: "image/png",
+      atom: atomRef(atom),
+      reference: summarizeReference(item, index),
+      units: topLevel().unitsKey || null,
+      ...result,
+    };
+  },
+
+  async view_reference({ atom: ref, index = 0, region, grid, size = 1024 }) {
+    const { atom, item } = requireFlatPicture(ref, index);
+    const bounds = summarizeReference(item, index).bounding_box;
+    const view = {
+      min: region?.min || bounds.min.slice(0, 2),
+      max: region?.max || bounds.max.slice(0, 2),
+    };
+    if (!(view.max[0] > view.min[0] && view.max[1] > view.min[1])) {
+      throw new ToolError(
+        ERROR_CODES.INVALID_PARAMS,
+        "region needs max greater than min in both X and Y.",
+      );
+    }
+    let drawn;
+    try {
+      drawn = await viewReference(item, { region: view, spacing: grid, size });
+    } catch (err) {
+      if (err instanceof RangeError) {
+        throw new ToolError(ERROR_CODES.INVALID_PARAMS, err.message);
+      }
+      throw err;
+    }
+    const { dataUrl, ...rest } = drawn;
+    return {
+      base64: extractBase64FromDataURL(dataUrl),
+      mimeType: "image/png",
+      atom: atomRef(atom),
+      reference: summarizeReference(item, index),
+      units: topLevel().unitsKey || null,
+      region: view,
+      ...rest,
+    };
   },
 
   async export_geometry({ atom: ref, format }) {
@@ -2425,6 +2474,51 @@ const handlers = {
     );
   },
 };
+
+/**
+ * The reference file numbered `index` in an atom's output (default: the open
+ * molecule's), loaded in the page.
+ */
+function requireReference(ref, index) {
+  const atom = ref
+    ? resolveAtom(ref)
+    : GlobalVariables.currentMolecule || topLevel();
+  const value = requireValue(atom);
+  const references = isGeometryValue(value) ? referencesOf(value) : [];
+  if (!references.length) {
+    throw new ToolError(
+      ERROR_CODES.NOT_FOUND,
+      `${atomPath(atom)} carries no reference files (images, PDFs, or 3D models).`,
+    );
+  }
+  const item = references[index];
+  if (!item) {
+    throw new ToolError(
+      ERROR_CODES.NOT_FOUND,
+      `${atomPath(atom)} carries ${references.length} reference file(s), numbered from 0; there is no ${index}.`,
+    );
+  }
+  const asset = getAsset(item.asset);
+  if (!asset) {
+    throw new ToolError(
+      ERROR_CODES.CONFLICT,
+      `${item.name} isn't loaded in the page yet. Call wait_for_settle, then try again.`,
+    );
+  }
+  return { atom, item, asset, references };
+}
+
+/** requireReference, for an image or PDF page: something with pixels. */
+function requireFlatPicture(ref, index) {
+  const found = requireReference(ref, index);
+  if (found.item.kind === "model") {
+    throw new ToolError(
+      ERROR_CODES.INVALID_PARAMS,
+      `${found.item.name} is a 3D model; this works on images and PDF pages. Measure a model from its bounding box in get_atom, or look at it with render_image.`,
+    );
+  }
+  return found;
+}
 
 /** Longest side of the preview images get_reference returns, in pixels. */
 const PREVIEW_PIXELS = 1568;

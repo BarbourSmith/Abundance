@@ -477,6 +477,20 @@ try {
         "a page preview",
       );
 
+      // A shape in the plan traces to points, and a zoomed view comes back
+      const { content: traceContent, data: traced } = await call(
+        "trace_reference",
+        { atom: plan },
+      );
+      assert.ok(traceContent.find((c) => c.type === "image"));
+      assert.ok(traced.points.length >= 3, JSON.stringify(traced));
+      const { content: viewContent, data: viewed } = await call(
+        "view_reference",
+        { atom: sheet, size: 400 },
+      );
+      assert.ok(viewContent.find((c) => c.type === "image"));
+      assert.ok(viewed.grid > 0);
+
       // Run mode has no repository to upload to
       const local = path.join(outDir, "photo.png");
       const png = content.find((c) => c.type === "image").data;

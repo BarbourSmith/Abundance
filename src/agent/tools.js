@@ -295,6 +295,114 @@ export const TOOLS = [
     },
   },
   {
+    name: "trace_reference",
+    permission: "read",
+    description:
+      "Trace the outline of one shape in an image or PDF page reference, such as a guitar body in a photo or a room in a floor plan, and return it as points in project units, in the 3D view's coordinates wherever Move and Rotate placed the reference. A shape is a region of pixels that stand out from the background (sampled from the image's edges), or that match color. point picks the shape under or nearest it; without it, the largest shape is traced. Holes are filled, so the outline is the outer edge. Points go counterclockwise in XY, ready to draw as a closed spline in a Code atom (get_code_atom_guide shows how) and extrude. Returns a picture of the reference with the outline drawn on it: check it before using the points, and pass color, tolerance, or close_gaps to separate a shape that merged with its neighbor or leaked into the background. Set the reference's real size (the Import atom's Width) first.",
+    output: "image",
+    inputSchema: {
+      type: "object",
+      properties: {
+        atom: OPTIONAL_ATOM_REF,
+        index: {
+          type: "integer",
+          minimum: 0,
+          description:
+            "Which reference, counting from 0 in the order get_atom lists them (default 0).",
+        },
+        point: {
+          type: "array",
+          items: { type: "number" },
+          minItems: 2,
+          maxItems: 2,
+          description:
+            "[x, y] in project units on or near the shape to trace. Read positions off view_reference.",
+        },
+        color: {
+          type: "string",
+          description:
+            'Hex color of the shape, such as "#c83020", to trace pixels close to it instead of everything that isn\'t background.',
+        },
+        tolerance: {
+          type: "number",
+          minimum: 0,
+          maximum: 442,
+          description:
+            "How far, as RGB distance (0 to 442), a pixel's color may be from color, or must be from the background, to count as the shape. Default 40.",
+        },
+        close_gaps: {
+          type: "number",
+          minimum: 0,
+          description:
+            "Bridge gaps and thin lines up to about this wide, in project units, such as the glare that splits a photographed edge. Default 0.",
+        },
+        spacing: {
+          type: "number",
+          exclusiveMinimum: 0,
+          description:
+            "Distance between points along the outline, in project units. Default: about 150 points around the shape (at most 1000).",
+        },
+        smoothing: {
+          type: "number",
+          minimum: 0,
+          description:
+            "How far to smooth out the pixel staircase, in project units. Default 1.5 pixels; larger rounds corners.",
+        },
+      },
+    },
+  },
+  {
+    name: "view_reference",
+    permission: "read",
+    description:
+      "Show part of an image or PDF page reference zoomed in, with grid lines labeled in project units, in the 3D view's coordinates wherever Move and Rotate placed the reference. Use it to read positions and sizes off a photo or drawing (where a hole, a bolt, or a knob sits) instead of estimating them, and to pick a point for trace_reference. The X and Y zero lines are drawn darker. Set the reference's real size (the Import atom's Width) first.",
+    output: "image",
+    inputSchema: {
+      type: "object",
+      properties: {
+        atom: OPTIONAL_ATOM_REF,
+        index: {
+          type: "integer",
+          minimum: 0,
+          description:
+            "Which reference, counting from 0 in the order get_atom lists them (default 0).",
+        },
+        region: {
+          type: "object",
+          description:
+            "The part to show, in project units: { min: [x, y], max: [x, y] }. Default: the whole reference.",
+          properties: {
+            min: {
+              type: "array",
+              items: { type: "number" },
+              minItems: 2,
+              maxItems: 2,
+            },
+            max: {
+              type: "array",
+              items: { type: "number" },
+              minItems: 2,
+              maxItems: 2,
+            },
+          },
+          required: ["min", "max"],
+        },
+        grid: {
+          type: "number",
+          exclusiveMinimum: 0,
+          description:
+            "Grid spacing in project units. Default: a round number giving about 10 lines across.",
+        },
+        size: {
+          type: "integer",
+          minimum: 128,
+          maximum: 2048,
+          description: "Longest side of the picture in pixels (default 1024).",
+        },
+      },
+    },
+  },
+  {
     name: "export_geometry",
     permission: "read",
     description:
