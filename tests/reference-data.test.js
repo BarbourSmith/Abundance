@@ -13,6 +13,7 @@ import {
   describe,
   expect,
   it,
+  onTestFinished,
   vi,
 } from "vitest";
 
@@ -41,6 +42,7 @@ import {
 } from "../src/js/sideData.js";
 import { __test__, resolveAtom, runTool } from "../src/agent/runtime.js";
 import { agentBridge } from "../src/agent/bridgeClient.js";
+import { projectPoint } from "../src/agent/photoCamera.js";
 
 const EDIT = { mode: "edit" };
 const READ = { mode: "read" };
@@ -94,6 +96,35 @@ async function glbBytes() {
   );
   box.position.set(0, 1, 0);
   scene.add(box);
+  const buffer = await new GLTFExporter().parseAsync(scene, { binary: true });
+  return new Uint8Array(buffer);
+}
+
+/**
+ * A GLB of a room as a scanner might leave it: a 4 x 3 m floor, 2.5 m walls
+ * 10 cm thick around it, and a 1 x 0.5 m bench 0.45 m tall against one long
+ * wall, all centered on the origin, then tilted 2°, turned 25° about the
+ * vertical, and lifted 0.3 m. Built in glTF's axes: Y up, so the room's
+ * length runs along X and its depth along glTF Z.
+ */
+async function roomGlbBytes() {
+  const scene = new THREE.Scene();
+  const room = new THREE.Group();
+  const material = new THREE.MeshStandardMaterial({ color: "#888888" });
+  const slab = (w, h, d, x, y, z) => {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
+    mesh.position.set(x, y, z);
+    room.add(mesh);
+  };
+  slab(4, 0.02, 3, 0, -0.01, 0); // floor, top at y = 0
+  slab(0.1, 2.5, 3.2, 2.05, 1.25, 0); // end walls, inner faces at x = ±2
+  slab(0.1, 2.5, 3.2, -2.05, 1.25, 0);
+  slab(4, 2.5, 0.1, 0, 1.25, 1.55); // long walls, inner faces at z = ±1.5
+  slab(4, 2.5, 0.1, 0, 1.25, -1.55);
+  slab(1, 0.45, 0.5, 0, 0.225, -1.25); // bench against the far long wall
+  room.rotation.set((2 * Math.PI) / 180, (25 * Math.PI) / 180, 0, "YXZ");
+  room.position.set(0, 0.3, 0);
+  scene.add(room);
   const buffer = await new GLTFExporter().parseAsync(scene, { binary: true });
   return new Uint8Array(buffer);
 }
@@ -577,6 +608,271 @@ describe("agent tools", () => {
     // the middle of the view; (18, 98) is outside the circle
     expectNear(pixel(538, 486).slice(0, 3), [255, 0, 0], 30);
     expectNear(pixel(973, 51).slice(0, 3), [255, 255, 255], 30);
+  });
+
+  /** roomGlbBytes imported, then turned and moved as measure_scan says. */
+  async function alignedRoom() {
+    const scan = await importFile("room.glb", await roomGlbBytes());
+    const measured = await runTool("measure_scan", { atom: scan }, READ);
+    const rotate = await add("Rotate");
+    await connect(scan, rotate, "geometry");
+    for (const [param, value] of Object.entries(measured.to_align.rotate)) {
+      await setParam(rotate, param, value);
+    }
+    const move = await add("Move");
+    await connect(rotate, move, "geometry");
+    for (const [param, value] of Object.entries(measured.to_align.move)) {
+      await setParam(move, param, value);
+    }
+    await settle();
+    return { scan, measured, aligned: move };
+  }
+
+  it("measure_scan levels and squares a scan and lists its surfaces", async () => {
+    const { measured, aligned } = await alignedRoom();
+    expect(measured.already_aligned).toBe(false);
+    expect(Math.abs(measured.as_placed.floor_tilt_degrees - 2)).toBeLessThan(
+      0.1,
+    );
+    expect(
+      Math.abs(Math.abs(measured.as_placed.wall_angle_degrees) - 25),
+    ).toBeLessThan(0.1);
+
+    const after = await runTool("measure_scan", { atom: aligned }, READ);
+    expect(after.already_aligned, JSON.stringify(after.as_placed)).toBe(true);
+    expect(after.to_align).toBeNull();
+    const { planes } = after.after_aligning;
+    const near = (list, at, within = 3) =>
+      list.find((p) => Math.abs(p.at - at) <= within);
+    // The floor at 0 and the bench top at 450, the bench 1000 long
+    expect(near(planes.facing_up, 0).area_m2).toBeGreaterThan(11);
+    const bench = near(planes.facing_up, 450);
+    expect(Math.abs(bench.area_m2 - 0.5)).toBeLessThan(0.02);
+    expect(Math.abs(bench.x[1] - bench.x[0] - 1000)).toBeLessThan(40);
+    // The inner faces of the walls face into the room, 4000 apart along X
+    // and 3000 along Y. (Leveling turns about the origin, 300 below the
+    // floor, so the room also shifts about 10 along Y.)
+    const apart = (far, nearer, distance) =>
+      far.some((p) =>
+        nearer.some((q) => Math.abs(p.at - q.at - distance) <= 3),
+      );
+    expect(apart(planes.facing_minus_x, planes.facing_plus_x, 4000)).toBe(true);
+    expect(apart(planes.facing_minus_y, planes.facing_plus_y, 3000)).toBe(true);
+    // Under a floor slab isn't a ceiling
+    expect(after.after_aligning.ceiling_height).toBeNull();
+  });
+
+  it("measure_scan refuses pictures", async () => {
+    const image = await importFile("plan.png", await pngBytes(40, 20));
+    await expect(
+      runTool("measure_scan", { atom: image }, READ),
+    ).rejects.toThrow(/this measures 3D models/);
+  });
+
+  it("section_view cuts through geometry and scans together", async () => {
+    // Display meshes come from the mesh worker, which these tests don't run:
+    // stand in a mesh of the 10 x 10 x 10 box box() builds
+    const cube = new THREE.BoxGeometry(10, 10, 10).translate(0, 0, 5);
+    const boxMesh = {
+      faces: {
+        vertices: Array.from(cube.attributes.position.array),
+        triangles: Array.from(cube.index.array),
+      },
+      color: "#888888",
+    };
+    const realPool = GlobalVariables.pool;
+    GlobalVariables.pool = {
+      proxy: async () => ({
+        generateDisplayMesh: async () => ({ mesh: [boxMesh] }),
+        findInvalidParts: async (ids) => ({ checked: ids, invalid: [] }),
+      }),
+    };
+    onTestFinished(() => {
+      GlobalVariables.pool = realPool;
+    });
+    const { aligned } = await alignedRoom();
+    const part = await box();
+    const assembly = await add("Assembly");
+    await connect(part, assembly, "Shape 1");
+    await connect(aligned, assembly, "Shape2");
+    await settle();
+
+    const plan = await runTool(
+      "section_view",
+      { atom: assembly, axis: "z", at: 5, size: 512 },
+      READ,
+    );
+    expect(plan).toMatchObject({
+      mimeType: "image/png",
+      cut: "z = 5",
+      picture_axes: { right: "x", up: "y" },
+    });
+    expect(plan.geometry_segments).toBeGreaterThan(0);
+    expect(plan.reference_segments).toBeGreaterThan(0);
+    // The plan spans the room's walls, 4.2 x 3.2 m outside
+    expectNear(plan.region.min, [-2100, -1600], 150);
+    expectNear(plan.region.max, [2100, 1600], 150);
+
+    // A section across x through the bench: its top at z = 450
+    const section = await runTool(
+      "section_view",
+      {
+        atom: aligned,
+        axis: "x",
+        at: 0,
+        region: { min: [900, 0], max: [1600, 700] },
+      },
+      READ,
+    );
+    expect(section.picture_axes).toEqual({ right: "y", up: "z" });
+    expect(section.geometry_segments).toBeUndefined();
+    const bitmap = await createImageBitmap(
+      new Blob([Uint8Array.from(atob(section.base64), (c) => c.charCodeAt(0))]),
+    );
+    const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+    canvas.getContext("2d").drawImage(bitmap, 0, 0);
+    const darkAt = (u, v) => {
+      // Darkest pixel within 2 px of (u, v) in project units
+      const x = Math.round((u - 900) * section.pixels_per_unit);
+      const y = Math.round((700 - v) * section.pixels_per_unit);
+      const data = canvas
+        .getContext("2d")
+        .getImageData(x - 2, y - 2, 5, 5).data;
+      let darkest = 255;
+      for (let i = 0; i < data.length; i += 4) {
+        darkest = Math.min(darkest, data[i], data[i + 1], data[i + 2]);
+      }
+      return darkest < 100;
+    };
+    expect(darkAt(1200, 450)).toBe(true); // the bench top
+    expect(darkAt(1200, 300)).toBe(false); // inside the bench
+
+    await expect(
+      runTool("section_view", { atom: aligned, axis: "z", at: 5000 }, READ),
+    ).rejects.toThrow(/Nothing in .* crosses z = 5000/);
+  });
+
+  /**
+   * A 1200 x 900 px photo taken from (500, -3000, 1500), looking at
+   * (0, 0, 1200), with a 1000 px focal length, and the pixels where it sees
+   * the corners of a 4 x 3 m room 2.5 m tall whose far wall is at y = 0.
+   */
+  async function roomPhoto() {
+    const camera = {
+      position: [500, -3000, 1500],
+      focal: 1000,
+      width: 1200,
+      height: 900,
+    };
+    const forward = new THREE.Vector3(-500, 3000, -300).normalize();
+    const right = new THREE.Vector3()
+      .crossVectors(forward, new THREE.Vector3(0, 0, 1))
+      .normalize();
+    const down = new THREE.Vector3().crossVectors(forward, right);
+    camera.rotation = [right.toArray(), down.toArray(), forward.toArray()];
+    const corners = [];
+    for (const x of [-2000, 2000]) {
+      for (const z of [0, 2500]) {
+        corners.push([x, 0, z], [x, -1500, z]);
+      }
+    }
+    corners.push([0, 0, 450], [-1000, -800, 0]);
+    const points = corners.map((at) => ({
+      pixel: projectPoint(camera, at).slice(0, 2),
+      at,
+    }));
+    const photo = await importFile("room.png", await pngBytes(1200, 900));
+    return { camera, points, photo };
+  }
+
+  it("locate_photo finds the camera and stands the photo in front of it", async () => {
+    const { points, photo } = await roomPhoto();
+    const located = await runTool(
+      "locate_photo",
+      { atom: photo, points },
+      READ,
+    );
+    expect(located.mimeType).toBe("image/jpeg");
+    expectNear(located.camera.position, [500, -3000, 1500], 2);
+    expect(Math.abs(located.camera.focal_px - 1000)).toBeLessThanOrEqual(1);
+    expect(located.rms_px).toBeLessThan(0.2);
+    expect(located.to_place.import).toEqual({ "Width (mm)": 1200 });
+
+    // Placed as it says, the photo stands 1000 in front of the camera
+    await setParam(photo, "Width (mm)", located.to_place.import["Width (mm)"]);
+    const rotate = await add("Rotate");
+    await connect(photo, rotate, "geometry");
+    for (const [param, value] of Object.entries(located.to_place.rotate)) {
+      await setParam(rotate, param, value);
+    }
+    const move = await add("Move");
+    await connect(rotate, move, "geometry");
+    for (const [param, value] of Object.entries(located.to_place.move)) {
+      await setParam(move, param, value);
+    }
+    await settle();
+    const [placed] = referencesOf(valueOf(move));
+    const forward = [-500, 3000, -300].map(
+      (v) => v / Math.hypot(500, 3000, 300),
+    );
+    const center = [500, -3000, 1500].map((v, i) => v + 1000 * forward[i]);
+    expectNear(
+      referenceBounds(placed).min.map(
+        (v, i) => (v + referenceBounds(placed).max[i]) / 2,
+      ),
+      center,
+      2,
+    );
+
+    // Measuring through it finds the far wall's points again
+    const measured = await runTool(
+      "photo_point",
+      {
+        atom: move,
+        pixels: [points[0].pixel, points[8].pixel],
+        axis: "y",
+        at: 0,
+      },
+      READ,
+    );
+    expectNear(measured.camera_position, [500, -3000, 1500], 2);
+    expectNear(measured.points[0].at, [-2000, 0, 0], 3);
+    expectNear(measured.points[1].at, [0, 0, 450], 3);
+
+    // An upright photo can still be viewed in its own pixels
+    const view = await runTool(
+      "view_reference",
+      { atom: move, pixels: true, region: { min: [0, 0], max: [600, 450] } },
+      READ,
+    );
+    expect(view).toMatchObject({ units: "pixels", pixels: [1024, 768] });
+    await expect(
+      runTool("view_reference", { atom: move }, READ),
+    ).rejects.toThrow(/pixels: true/);
+  });
+
+  it("locate_photo uses a known focal length, and photo_point needs a placed photo", async () => {
+    const { points, photo } = await roomPhoto();
+    const located = await runTool(
+      "locate_photo",
+      { atom: photo, points: points.slice(0, 4), focal_px: 1000 },
+      READ,
+    );
+    expectNear(located.camera.position, [500, -3000, 1500], 2);
+    await expect(
+      runTool(
+        "locate_photo",
+        { atom: photo, points: points.slice(0, 4) },
+        READ,
+      ),
+    ).rejects.toThrow(/at least 5 points/);
+    await expect(
+      runTool(
+        "photo_point",
+        { atom: photo, pixels: [[600, 450]], axis: "y", at: 0 },
+        READ,
+      ),
+    ).rejects.toThrow(/locate_photo first/);
   });
 
   it("render_image draws references, with or without geometry", async () => {

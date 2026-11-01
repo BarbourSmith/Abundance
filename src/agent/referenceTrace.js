@@ -582,9 +582,105 @@ export function niceSpacing(extent) {
 }
 
 /** A grid value as short text: 12.5, not 12.500000001. */
-function label(value, spacing) {
+export function gridLabel(value, spacing) {
   const decimals = Math.max(0, -Math.floor(Math.log10(spacing)) + 1);
   return String(Number(value.toFixed(decimals)));
+}
+
+/**
+ * Draw part of an image reference in its own pixels, region { min: [u, v],
+ * max: [u, v] } with (0, 0) at the top-left and v running down, with grid
+ * lines every `spacing` pixels labeled in pixels. Works wherever the image
+ * is placed, such as a photo stood up where it was taken.
+ * @returns {Promise<{ dataUrl: string, grid: number, scale: number,
+ *   pixels: number[] }>} scale is picture pixels per image pixel
+ */
+export async function viewReferencePixels(
+  item,
+  { region, spacing, size = 1024 },
+) {
+  const [width, height] = item.pixels;
+  const [u0, v0] = region.min;
+  const [u1, v1] = region.max;
+  const extent = Math.max(u1 - u0, v1 - v0);
+  const scale = size / extent;
+  const outWidth = Math.max(1, Math.round((u1 - u0) * scale));
+  const outHeight = Math.max(1, Math.round((v1 - v0) * scale));
+  // Enough of the image's resolution that the view isn't blurrier than it must be
+  const wanted = Math.min(
+    MAX_SOURCE_PIXELS,
+    Math.max(width, height),
+    Math.ceil((Math.max(width, height) / extent) * size * 1.5),
+  );
+  const source = await referenceCanvas(item, Math.max(256, wanted));
+  const sourceScale = source.width / width;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = outWidth;
+  canvas.height = outHeight;
+  const context = canvas.getContext("2d");
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, outWidth, outHeight);
+  context.imageSmoothingQuality = "high";
+  context.drawImage(
+    source,
+    u0 * sourceScale,
+    v0 * sourceScale,
+    (u1 - u0) * sourceScale,
+    (v1 - v0) * sourceScale,
+    0,
+    0,
+    outWidth,
+    outHeight,
+  );
+
+  const grid = spacing || niceSpacing(extent);
+  const toX = (u) => (u - u0) * scale;
+  const toY = (v) => (v - v0) * scale;
+  context.font = "12px sans-serif";
+  context.lineJoin = "round";
+  const text = (value, tx, ty, align, baseline) => {
+    context.textAlign = align;
+    context.textBaseline = baseline;
+    context.lineWidth = 3;
+    context.strokeStyle = "rgba(255, 255, 255, 0.9)";
+    context.strokeText(value, tx, ty);
+    context.fillStyle = "#1a3fd6";
+    context.fillText(value, tx, ty);
+  };
+  const lines = (from, to) => {
+    const out = [];
+    for (let k = Math.ceil(from / grid); k * grid <= to + grid * 1e-9; k++) {
+      out.push(k * grid);
+    }
+    return out.slice(0, 400);
+  };
+  context.strokeStyle = "rgba(26, 63, 214, 0.45)";
+  context.lineWidth = 1;
+  for (const u of lines(u0, u1)) {
+    context.beginPath();
+    context.moveTo(Math.round(toX(u)) + 0.5, 0);
+    context.lineTo(Math.round(toX(u)) + 0.5, outHeight);
+    context.stroke();
+  }
+  for (const v of lines(v0, v1)) {
+    context.beginPath();
+    context.moveTo(0, Math.round(toY(v)) + 0.5);
+    context.lineTo(outWidth, Math.round(toY(v)) + 0.5);
+    context.stroke();
+  }
+  for (const u of lines(u0, u1)) {
+    text(gridLabel(u, grid), toX(u) + 3, 3, "left", "top");
+  }
+  for (const v of lines(v0, v1)) {
+    text(gridLabel(v, grid), 3, toY(v) + 2, "left", "top");
+  }
+  return {
+    dataUrl: canvas.toDataURL("image/png"),
+    grid,
+    scale: Number(scale.toPrecision(4)),
+    pixels: [outWidth, outHeight],
+  };
 }
 
 /**
@@ -611,7 +707,7 @@ export async function viewReference(item, { region, spacing, size = 1024 }) {
   const placement = pixelPlacement(item, source.width, source.height);
   if (!placement.flat) {
     throw new RangeError(
-      "This reference doesn't lie flat in XY; render_image shows it from any side.",
+      "This reference doesn't lie flat in XY, so it can't be read in project units. Pass pixels: true to view it in its own pixels, or use render_image to see it from any side.",
     );
   }
 
@@ -666,7 +762,7 @@ export async function viewReference(item, { region, spacing, size = 1024 }) {
     context.moveTo(Math.round(toX(x)) + 0.5, 0);
     context.lineTo(Math.round(toX(x)) + 0.5, height);
     context.stroke();
-    text(label(x, grid), toX(x) + 3, 3, "left", "top");
+    text(gridLabel(x, grid), toX(x) + 3, 3, "left", "top");
   }
   for (const y of lines(y0, y1)) {
     context.strokeStyle =
@@ -678,7 +774,7 @@ export async function viewReference(item, { region, spacing, size = 1024 }) {
     context.moveTo(0, Math.round(toY(y)) + 0.5);
     context.lineTo(width, Math.round(toY(y)) + 0.5);
     context.stroke();
-    text(label(y, grid), 3, toY(y) - 2, "left", "bottom");
+    text(gridLabel(y, grid), 3, toY(y) - 2, "left", "bottom");
   }
   return {
     dataUrl: canvas.toDataURL("image/png"),

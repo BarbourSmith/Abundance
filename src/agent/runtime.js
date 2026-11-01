@@ -25,6 +25,7 @@ import AttachmentPoint from "../prototypes/attachmentpoint.js";
 import { ObservableEntity, Status } from "../prototypes/observableEntity.js";
 import { extractBomList, flattenAssembly } from "../worker/util";
 import {
+  IDENTITY,
   hasGeometry,
   referencesOf,
   summarizeReference,
@@ -37,7 +38,30 @@ import {
   renderPdfPage,
 } from "../js/referenceFiles.js";
 import { createReferenceObjects } from "../js/referenceObjects.js";
-import { traceReference, viewReference } from "./referenceTrace.js";
+import {
+  traceReference,
+  viewReference,
+  viewReferencePixels,
+} from "./referenceTrace.js";
+import {
+  drawThroughCamera,
+  meshEdgeSegments,
+  photoPlacement,
+  pixelOnPlane,
+  placedPhotoCamera,
+  solveCamera,
+} from "./photoCamera.js";
+import {
+  SECTION_AXES,
+  SECTION_COLORS,
+  cutTriangles,
+  drawSection,
+  measureScan,
+  meshTriangles,
+  referenceTriangles,
+  segmentsBounds,
+} from "./scanMeasure.js";
+import { millimetersPerUnit, unitAbbreviation } from "../js/units.js";
 import { addOrDeletePorts } from "../js/alwaysOneFreeInput.js";
 import { isTranspilerReady } from "../molecules/code.js";
 import { fetchGitHubFileContent } from "../js/githubFileUtils.js";
@@ -944,6 +968,26 @@ function requireGeometry(atom) {
   return value;
 }
 
+/**
+ * The display meshes the CAD worker makes for a geometry value, as the 3D
+ * view draws it; empty when the value has no geometry.
+ */
+async function displayMeshOf(atom, value) {
+  if (!hasGeometry(value)) return [];
+  const context = atom.getContext();
+  const meshTask = GlobalVariables.displayScheduler
+    ? GlobalVariables.displayScheduler.run(
+        "generateDisplayMesh",
+        [value, context],
+        meshKey(value, context),
+      )
+    : GlobalVariables.pool
+        .proxy()
+        .then((worker) => worker.generateDisplayMesh(value, context));
+  const result = await withTimeout(meshTask, 240000);
+  return result?.mesh || [];
+}
+
 function notifyEdit(detail) {
   if (typeof window === "undefined") return;
   window.dispatchEvent(new CustomEvent(AGENT_EDIT_EVENT, { detail }));
@@ -1558,21 +1602,7 @@ const handlers = {
       showReferences && part === undefined ? referencesOf(value) : [];
     value = withoutSideData(value);
     if (part !== undefined) value = partOf(atom, value, part);
-    let mesh = [];
-    if (hasGeometry(value)) {
-      const context = atom.getContext();
-      const meshTask = GlobalVariables.displayScheduler
-        ? GlobalVariables.displayScheduler.run(
-            "generateDisplayMesh",
-            [value, context],
-            meshKey(value, context),
-          )
-        : GlobalVariables.pool
-            .proxy()
-            .then((worker) => worker.generateDisplayMesh(value, context));
-      const result = await withTimeout(meshTask, 240000);
-      mesh = result?.mesh || [];
-    }
+    const mesh = await displayMeshOf(atom, value);
     const built = await createReferenceObjects(references);
     if (!mesh.length && !built.objects.length) {
       built.release();
@@ -1687,8 +1717,42 @@ const handlers = {
     };
   },
 
-  async view_reference({ atom: ref, index = 0, region, grid, size = 1024 }) {
+  async view_reference({
+    atom: ref,
+    index = 0,
+    region,
+    grid,
+    size = 1024,
+    pixels = false,
+  }) {
     const { atom, item } = requireFlatPicture(ref, index);
+    if (pixels) {
+      const photo = requirePhoto(item);
+      const view = {
+        min: region?.min || [0, 0],
+        max: region?.max || [...photo.pixels],
+      };
+      if (!(view.max[0] > view.min[0] && view.max[1] > view.min[1])) {
+        throw new ToolError(
+          ERROR_CODES.INVALID_PARAMS,
+          "region needs max greater than min in both u and v.",
+        );
+      }
+      const { dataUrl, ...rest } = await viewReferencePixels(photo, {
+        region: view,
+        spacing: grid,
+        size,
+      });
+      return {
+        base64: extractBase64FromDataURL(dataUrl),
+        mimeType: "image/png",
+        atom: atomRef(atom),
+        reference: summarizeReference(item, index),
+        units: "pixels",
+        region: view,
+        ...rest,
+      };
+    }
     const bounds = summarizeReference(item, index).bounding_box;
     const view = {
       min: region?.min || bounds.min.slice(0, 2),
@@ -1718,6 +1782,287 @@ const handlers = {
       units: topLevel().unitsKey || null,
       region: view,
       ...rest,
+    };
+  },
+
+  async locate_photo({
+    atom: ref,
+    index = 0,
+    points,
+    focal_px,
+    distance,
+    geometry,
+    size = 1024,
+  }) {
+    const { atom, item } = requireReference(ref, index);
+    const photo = requirePhoto(item);
+    const [width, height] = photo.pixels;
+    const away = photoDistance(distance);
+    let camera;
+    try {
+      camera = solveCamera(points, { width, height, focal: focal_px });
+    } catch (err) {
+      if (err instanceof RangeError) {
+        throw new ToolError(ERROR_CODES.INVALID_PARAMS, err.message);
+      }
+      throw err;
+    }
+    // Draw a model through the camera to check it against the photo
+    let segments = [];
+    if (geometry) {
+      const shapes = withoutSideData(requireGeometry(resolveAtom(geometry)));
+      segments = meshEdgeSegments(
+        await displayMeshOf(resolveAtom(geometry), shapes),
+      );
+    }
+    const { dataUrl } = await drawThroughCamera(photo, camera, {
+      segments,
+      points,
+      size,
+    });
+    const placement = photoPlacement(camera, away);
+    const unitsKey = topLevel().unitsKey;
+    const r = (v, step = 0.1) =>
+      Number((Math.round(v / step) * step).toFixed(2)) || 0;
+    const [right, down, forward] = camera.rotation;
+    return {
+      base64: extractBase64FromDataURL(dataUrl),
+      mimeType: "image/jpeg",
+      atom: atomRef(atom),
+      reference: summarizeReference(item, index),
+      units: unitsKey || null,
+      camera: {
+        position: camera.position.map((v) => r(v, 1)),
+        looking: forward.map((v) => r(v, 0.001)),
+        up: down.map((v) => r(-v, 0.001)),
+        right: right.map((v) => r(v, 0.001)),
+        focal_px: r(camera.focal, 1),
+        field_of_view_degrees: r(
+          2 *
+            Math.atan(Math.max(width, height) / 2 / camera.focal) *
+            (180 / Math.PI),
+        ),
+      },
+      misses_px: camera.misses.map((m) => r(m)),
+      rms_px: r(camera.rms),
+      to_place: {
+        distance: away,
+        import: {
+          [`Width (${unitAbbreviation(unitsKey) || "units"})`]: r(
+            placement.width,
+          ),
+        },
+        rotate: {
+          "x-axis degrees": r(placement.rotate.x, 0.01),
+          "y-axis degrees": r(placement.rotate.y, 0.01),
+          "z-axis degrees": r(placement.rotate.z, 0.01),
+        },
+        move: {
+          xDist: r(placement.move[0]),
+          yDist: r(placement.move[1]),
+          zDist: r(placement.move[2]),
+        },
+        how: `Set the photo's Import atom Width to this, wire the Import atom (as imported, flat at the origin) into a Rotate atom with these angles, then a Move atom with these distances. The photo then stands ${away} ${unitsKey === "Inches" ? "in" : "mm"} in front of the camera, filling its view; photo_point measures through it with the same distance.`,
+      },
+    };
+  },
+
+  async photo_point({ atom: ref, index = 0, pixels, axis, at, distance }) {
+    const { atom, item } = requireReference(ref, index);
+    const photo = requirePhoto(item);
+    const away = photoDistance(distance);
+    const camera = placedPhotoCamera(photo, away);
+    // As imported, a photo lies flat at the origin and records no camera
+    const matrix = photo.matrix || IDENTITY;
+    if (matrix.every((v, i) => Math.abs(v - IDENTITY[i]) < 1e-9)) {
+      throw new ToolError(
+        ERROR_CODES.CONFLICT,
+        `${item.name} lies where Import put it, so it records no camera. Place it where it was taken with locate_photo first, and measure through the atom that places it.`,
+      );
+    }
+    const r = (v) => Number(v.toFixed(1)) || 0;
+    return {
+      atom: atomRef(atom),
+      units: topLevel().unitsKey || null,
+      camera_position: camera.position.map(r),
+      plane: `${axis} = ${at}`,
+      points: pixels.map((pixel) => {
+        const hit = pixelOnPlane(camera, pixel, axis, at);
+        return { pixel, at: hit ? hit.map(r) : null };
+      }),
+    };
+  },
+
+  async measure_scan({ atom: ref, index = 0 }) {
+    const { atom, item } = requireReference(ref, index);
+    if (item.kind !== "model") {
+      throw new ToolError(
+        ERROR_CODES.INVALID_PARAMS,
+        `${item.name} is ${item.kind === "pdf" ? "a PDF" : "an image"}; this measures 3D models. view_reference reads positions off pictures.`,
+      );
+    }
+    const unitsKey = topLevel().unitsKey;
+    const mmPerUnit = millimetersPerUnit(unitsKey) || 1;
+    let measured;
+    try {
+      measured = measureScan(await referenceTriangles(item), { mmPerUnit });
+    } catch (err) {
+      if (err instanceof RangeError) {
+        throw new ToolError(ERROR_CODES.INVALID_PARAMS, err.message);
+      }
+      throw err;
+    }
+    // Lengths to about a millimeter, angles to a hundredth of a degree
+    const step = mmPerUnit >= 10 ? 0.01 : 1;
+    const len = (v) => Number((Math.round(v / step) * step).toFixed(2));
+    const deg = (v) => Number(v.toFixed(2)) || 0;
+    const plane = ({ at, area_m2, extents }) => ({
+      at: len(at),
+      area_m2: Number(area_m2.toFixed(2)),
+      ...Object.fromEntries(
+        Object.entries(extents).map(([axis, [lo, hi]]) => [
+          axis,
+          [len(lo), len(hi)],
+        ]),
+      ),
+    });
+    const { floor, walls, rotate, move, planes } = measured;
+    const aligned =
+      floor.tilt_degrees < 0.2 &&
+      (!walls || Math.abs(walls.angle_degrees) < 0.2) &&
+      Math.abs(move.z) * mmPerUnit < 2;
+    return {
+      atom: atomRef(atom),
+      reference: summarizeReference(item, index),
+      units: unitsKey || null,
+      as_placed: {
+        floor_tilt_degrees: deg(floor.tilt_degrees),
+        floor_z: len(floor.z),
+        wall_angle_degrees: walls ? deg(walls.angle_degrees) : null,
+      },
+      already_aligned: aligned,
+      to_align: aligned
+        ? null
+        : {
+            rotate: {
+              "x-axis degrees": deg(rotate.x),
+              "y-axis degrees": deg(rotate.y),
+              "z-axis degrees": deg(rotate.z),
+            },
+            move: { xDist: 0, yDist: 0, zDist: len(move.z) },
+            how: `Wire ${atomPath(atom)} into a Rotate atom with these angles, then a Move atom with these distances, and model against the Move's output. The floor then lies at Z = 0 with the main walls along X and Y. Move it in X and Y as well to put the origin at a corner you choose.`,
+          },
+      after_aligning: {
+        floor_flatness: len(floor.flatness),
+        ceiling_height: measured.ceiling_height
+          ? len(measured.ceiling_height)
+          : null,
+        planes: Object.fromEntries(
+          Object.entries(planes).map(([key, list]) => [key, list.map(plane)]),
+        ),
+      },
+    };
+  },
+
+  async section_view({
+    atom: ref,
+    axis,
+    at,
+    region,
+    grid,
+    size = 1024,
+    geometry: showGeometry = true,
+    references: showReferences = true,
+  }) {
+    const atom = ref
+      ? resolveAtom(ref)
+      : GlobalVariables.currentMolecule || topLevel();
+    const value = requireGeometry(atom);
+    const layers = [];
+    const counts = {};
+
+    // Scans first, so the model's cut shows on top of them
+    if (showReferences) {
+      const models = referencesOf(value).filter((r) => r.kind === "model");
+      let segments = 0;
+      for (const item of models) {
+        if (!getAsset(item.asset)) {
+          throw new ToolError(
+            ERROR_CODES.CONFLICT,
+            `${item.name} isn't loaded in the page yet. Call wait_for_settle, then try again.`,
+          );
+        }
+        const cut = cutTriangles(await referenceTriangles(item), axis, at);
+        segments += cut.length / 4;
+        layers.push({
+          segments: cut,
+          color: SECTION_COLORS.reference,
+          width: 1,
+        });
+      }
+      if (models.length) counts.reference_segments = segments;
+    }
+    if (showGeometry) {
+      const shapes = withoutSideData(value);
+      if (hasGeometry(shapes)) {
+        let segments = 0;
+        for (const tris of meshTriangles(await displayMeshOf(atom, shapes))) {
+          const cut = cutTriangles(tris, axis, at);
+          segments += cut.length / 4;
+          layers.push({
+            segments: cut,
+            color: SECTION_COLORS.geometry,
+            width: 2,
+          });
+        }
+        counts.geometry_segments = segments;
+      }
+    }
+
+    const found = segmentsBounds(layers.map((l) => l.segments));
+    if (!found) {
+      throw new ToolError(
+        ERROR_CODES.CONFLICT,
+        `Nothing in ${atomPath(atom)} crosses ${axis} = ${at}. get_atom gives its bounding box.`,
+      );
+    }
+    let view = region;
+    if (!view) {
+      // Everything the plane cuts, with a little room around it
+      const pad =
+        0.03 *
+        Math.max(found.max[0] - found.min[0], found.max[1] - found.min[1]);
+      view = {
+        min: [found.min[0] - pad, found.min[1] - pad],
+        max: [found.max[0] + pad, found.max[1] + pad],
+      };
+    } else if (!(view.max[0] > view.min[0] && view.max[1] > view.min[1])) {
+      throw new ToolError(
+        ERROR_CODES.INVALID_PARAMS,
+        "region needs max greater than min on both picture axes.",
+      );
+    }
+    const axisNames = SECTION_AXES[axis].map((k) => "xyz"[k]);
+    const { dataUrl, ...drawn } = drawSection(layers, {
+      region: view,
+      axisNames,
+      spacing: grid,
+      size,
+    });
+    return {
+      base64: extractBase64FromDataURL(dataUrl),
+      mimeType: "image/png",
+      atom: atomRef(atom),
+      units: topLevel().unitsKey || null,
+      cut: `${axis} = ${at}`,
+      picture_axes: { right: axisNames[0], up: axisNames[1] },
+      region: view,
+      colors: {
+        geometry: `${SECTION_COLORS.geometry} (red)`,
+        references: `${SECTION_COLORS.reference} (dark gray)`,
+      },
+      ...counts,
+      ...drawn,
     };
   },
 
@@ -2518,6 +2863,23 @@ function requireFlatPicture(ref, index) {
     );
   }
   return found;
+}
+
+/** An image reference, for the tools that work in a photo's pixels. */
+function requirePhoto(item) {
+  if (item.kind !== "image") {
+    throw new ToolError(
+      ERROR_CODES.INVALID_PARAMS,
+      `${item.name} is ${item.kind === "pdf" ? "a PDF page" : "a 3D model"}; this works on images (PNG and JPG photos).`,
+    );
+  }
+  return item;
+}
+
+/** The photo's camera distance: the given one, else 1000 mm in project units. */
+function photoDistance(distance) {
+  if (distance !== undefined) return distance;
+  return 1000 / (millimetersPerUnit(topLevel().unitsKey) || 1);
 }
 
 /** Longest side of the preview images get_reference returns, in pixels. */
