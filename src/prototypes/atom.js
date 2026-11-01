@@ -1042,8 +1042,9 @@ export default class Atom extends ObservableEntity {
     });
     var object = {
       atomType: this.atomType,
-      x: Math.round((this.x + offset.x) * 10) / 10,
-      y: Math.round((this.y - offset.y) * 10) / 10,
+      // Fractions of the canvas: 4 decimals is under a pixel on a large screen
+      x: Math.round((this.x + offset.x) * 10000) / 10000,
+      y: Math.round((this.y - offset.y) * 10000) / 10000,
       uniqueID: this.uniqueID,
     };
 
