@@ -876,10 +876,36 @@ export const TOOLS = [
     },
   },
   {
+    name: "group_atoms",
+    permission: "edit",
+    description:
+      "Move atoms into a new molecule, with the connections between them, as the editor's Ctrl+M does: to gather a design into one molecule, or split a crowded molecule into named parts. The atoms get new IDs (moved lists old and new). The atom that feeds the molecule's Output is output, or the one atom whose connections leave the group; its outside connections are rewired from the new molecule. Other connections into or out of the group are removed and listed in dropped; restore them with Input atoms or from the new molecule's output. One undo step.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        atoms: {
+          type: "array",
+          items: ATOM_REF,
+          minItems: 1,
+          description: "Atoms in one molecule, not its Output atom.",
+        },
+        name: { type: "string", description: "The new molecule's name." },
+        output: {
+          ...ATOM_REF,
+          description:
+            "One of the atoms, to wire to the new molecule's Output. Default: the one atom whose connections leave the group, if there is just one.",
+        },
+        x: { type: "number", minimum: 0, maximum: 1 },
+        y: { type: "number", minimum: 0, maximum: 1 },
+      },
+      required: ["atoms"],
+    },
+  },
+  {
     name: "apply_edits",
     permission: "edit",
     description:
-      "Run several edit tools (set_param, set_code, add_atom, add_github_molecule, import_file, connect, disconnect, delete_atoms) as one change that the user can undo in a single step. Later edits may refer to atoms added earlier in the batch by their ref (or name).",
+      "Run several edit tools (set_param, set_code, add_atom, add_github_molecule, import_file, connect, disconnect, delete_atoms, group_atoms) as one change that the user can undo in a single step. Later edits may refer to atoms added earlier in the batch by their ref (or name).",
     inputSchema: {
       type: "object",
       properties: {
@@ -967,6 +993,7 @@ export const BATCHABLE_TOOLS = [
   "connect",
   "disconnect",
   "delete_atoms",
+  "group_atoms",
 ];
 
 export const TOOLS_BY_NAME = Object.fromEntries(TOOLS.map((t) => [t.name, t]));

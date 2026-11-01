@@ -49,7 +49,7 @@ npm publish
 | Always | `bridge_status`, `take_over_bridge`, `list_sessions`, `use_session` |
 | Read | `get_project`, `list_atoms`, `get_atom`, `list_atom_types`, `list_library_molecules`, `search_molecules`, `get_errors`, `wait_for_settle`, `get_state_report`, `get_worker_logs`, `get_bom`, `get_readme`, `check_geometry`, `check_interference`, `render_image`, `get_reference`, `trace_reference`, `view_reference`, `locate_photo`, `photo_point`, `measure_scan`, `section_view`, `export_geometry`, `get_gcode`, `get_undo_history` |
 | View | `select_atom`, `open_molecule` |
-| Edit | `set_param`, `set_code`, `add_atom`, `add_github_molecule`, `import_file`, `connect`, `disconnect`, `delete_atoms`, `apply_edits`, `undo`, `save_project` |
+| Edit | `set_param`, `set_code`, `add_atom`, `add_github_molecule`, `import_file`, `connect`, `disconnect`, `delete_atoms`, `group_atoms`, `apply_edits`, `undo`, `save_project` |
 
 The tool list and schemas live in `src/agent/tools.js`, shared by the page and the bridge. The page-side implementations are in `src/agent/runtime.js`.
 

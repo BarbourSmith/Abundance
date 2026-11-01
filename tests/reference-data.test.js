@@ -875,6 +875,72 @@ describe("agent tools", () => {
     ).rejects.toThrow(/locate_photo first/);
   });
 
+  it("group_atoms moves atoms into a molecule, keeping their wiring", async () => {
+    // Work inside a molecule, which has an Output atom
+    const outer = await runTool(
+      "add_atom",
+      { type: "Molecule", name: "Space" },
+      EDIT,
+    );
+    await runTool("open_molecule", { molecule: outer.id }, READ);
+    const part = await box();
+    const extrude = resolveAtom(part);
+    const rectangle = extrude.inputs.find((ap) => ap.name === "geometry")
+      .connectors[0].attachmentPoint1.parentMolecule.uniqueID;
+    const image = await importFile("plan.png", await pngBytes(40, 20));
+    const assembly = await add("Assembly");
+    await connect(part, assembly, "Shape 1");
+    await connect(image, assembly, "Shape2");
+    const top = resolveAtom(outer.id);
+    const output = resolveAtom(outer.output.id);
+    await connect(assembly, output.uniqueID, "number or geometry");
+    await settle();
+    const before = round(referenceBounds(referencesOf(valueOf(assembly))[0]));
+
+    const grouped = await runTool(
+      "group_atoms",
+      { atoms: [rectangle, part, image, assembly], name: "Room" },
+      EDIT,
+    );
+    await settle();
+    expect(grouped.moved).toHaveLength(4);
+    expect(grouped.output_from.path).toBe("Proj/Space/Room/Assembly");
+    expect(grouped.rewired).toEqual([
+      expect.objectContaining({ input: "number or geometry" }),
+    ]);
+    expect(grouped.dropped).toBeUndefined();
+    const room = resolveAtom(grouped.molecule.id);
+    // The moved Assembly kept both its inputs, not just the first
+    const movedAssembly = resolveAtom(grouped.output_from.id);
+    expect(
+      movedAssembly.inputs
+        .filter((ap) => ap.name.startsWith("Shape"))
+        .map((ap) => ap.connectors.length),
+    ).toEqual([1, 1, 0]);
+    expect(top.nodesOnTheScreen.map((a) => a.atomType).sort()).toEqual([
+      "Molecule",
+      "Output",
+    ]);
+    // The molecule outputs what the assembly did: the box and the image
+    expect(room.status, room.alert?.message).toBe(Status.READY);
+    expect(hasGeometry(room.value)).toBe(true);
+    expect(round(referenceBounds(referencesOf(output.value)[0]))).toEqual(
+      before,
+    );
+
+    // One undo puts it all back
+    await runTool("undo", {}, EDIT);
+    await settle();
+    expect(top.nodesOnTheScreen.map((a) => a.atomType).sort()).toEqual([
+      "Assembly",
+      "Extrude",
+      "Import",
+      "Output",
+      "Rectangle",
+    ]);
+    expect(resolveAtom(part).output.connectors).toHaveLength(1);
+  });
+
   it("render_image draws references, with or without geometry", async () => {
     const image = await importFile("plan.png", await pngBytes(40, 20));
     const alone = await runTool(

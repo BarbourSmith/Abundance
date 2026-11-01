@@ -3,7 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import GlobalVariables from "../src/js/globalvariables.js";
-import { ProjectProvider, useProject } from "../src/contexts/ProjectContext.jsx";
+import {
+  ProjectProvider,
+  useProject,
+} from "../src/contexts/ProjectContext.jsx";
 import { serializeProjectForChangeDetection } from "../src/js/projectSaveBaseline.js";
 
 const mocks = vi.hoisted(() => ({
@@ -44,6 +47,8 @@ describe("project save no-op handling", () => {
     };
     name = "Proj";
     molecule = {
+      // As loadProject marks a project it loaded from GitHub
+      loadedProjectKey: "tester/Proj",
       inputs: [],
       nodesOnTheScreen: [],
       compiledBom: [],
@@ -60,7 +65,9 @@ describe("project save no-op handling", () => {
       deepGeomList: () => [],
       getContext: () => ({ project: "top" }),
     };
-    vi.spyOn(GlobalVariables, "topLevelMolecule", "get").mockReturnValue(molecule);
+    vi.spyOn(GlobalVariables, "topLevelMolecule", "get").mockReturnValue(
+      molecule,
+    );
     GlobalVariables.currentAWSnode = {
       owner: "tester",
       repoName: "Proj",
@@ -135,7 +142,14 @@ describe("project save no-op handling", () => {
       json: serializeProjectForChangeDetection(molecule),
     };
     const onSaveStart = vi.fn();
-    await context.saveProject(progress, "Auto Save", false, null, null, onSaveStart);
+    await context.saveProject(
+      progress,
+      "Auto Save",
+      false,
+      null,
+      null,
+      onSaveStart,
+    );
     expect(onSaveStart).not.toHaveBeenCalled();
     expect(progress).not.toHaveBeenCalled();
     expect(mocks.octokit.request).not.toHaveBeenCalled();
@@ -153,6 +167,22 @@ describe("project save no-op handling", () => {
     );
     GlobalVariables.projectIsLoading = false;
     expect(await save()).toEqual({ committed: false });
+  });
+
+  it("never saves the empty placeholder of a project that didn't load", async () => {
+    // The page reloaded before the project file was read into it
+    delete molecule.loadedProjectKey;
+    await save();
+    await save(true, "User Save");
+    expect(mocks.octokit.request).not.toHaveBeenCalled();
+    expect(mocks.notify).toHaveBeenCalledWith(
+      expect.stringContaining("hasn't loaded"),
+      "error",
+    );
+    // A project created in the editor has nothing to load
+    molecule.topLevel = true;
+    expect(await save()).toEqual({ committed: false });
+    expect(git.createTree).toHaveBeenCalledTimes(1);
   });
 
   it.each(["worker", "nested atom"])(
@@ -177,8 +207,9 @@ describe("project save no-op handling", () => {
   it("leaves an uncompiled BOM out of the upload and retains its remote baseline", async () => {
     molecule.compiledBom = {};
     await save();
-    expect(git.createTree.mock.calls[0][0].tree.map((entry) => entry.path))
-      .not.toContain("BillOfMaterials.md");
+    expect(
+      git.createTree.mock.calls[0][0].tree.map((entry) => entry.path),
+    ).not.toContain("BillOfMaterials.md");
     expect(GlobalVariables.lastSavedProject.bom).toBe("BOM");
     molecule.compiledBom = [];
     const requests = mocks.octokit.request.mock.calls.length;
@@ -275,7 +306,9 @@ describe("project save no-op handling", () => {
       return { data: { sha: "tree" } };
     });
     await save();
-    expect(GlobalVariables.lastSavedProject.json).not.toContain("Edited while saving");
+    expect(GlobalVariables.lastSavedProject.json).not.toContain(
+      "Edited while saving",
+    );
     await save();
     expect(git.createTree).toHaveBeenCalledTimes(2);
   });

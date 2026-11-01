@@ -2716,6 +2716,148 @@ const handlers = {
     return { atom: atomRef(atom), input: ap.name, was_from: atomRef(source) };
   },
 
+  async group_atoms({ atoms: refs, name, output: outputRef, x, y }) {
+    const atoms = [
+      ...new Set(refs.map((r) => resolveAtom(r, { allowEmpty: false }))),
+    ];
+    const parent = atoms[0].parent;
+    for (const atom of atoms) {
+      assertEditable(atom);
+      if (!atom.parent || atom.parent !== parent) {
+        throw new ToolError(
+          ERROR_CODES.INVALID_PARAMS,
+          "All atoms in one group_atoms call must be in the same molecule.",
+        );
+      }
+      if (atom.atomType === "Output") {
+        throw new ToolError(
+          ERROR_CODES.INVALID_PARAMS,
+          "A molecule's Output atom stays where it is; leave it out.",
+        );
+      }
+    }
+    assertEditableContainer(parent);
+    const inGroup = new Set(atoms);
+
+    // Connections inside the group move with it. Connections leaving it are
+    // rewired from the new molecule when they leave from the atom that feeds
+    // its Output; connections into it can't cross a molecule boundary
+    // without an Input atom, so they're reported for the caller to redo.
+    const internal = [];
+    const leaving = [];
+    const entering = [];
+    for (const atom of atoms) {
+      atom.output?.connectors.forEach((conn) => {
+        const other = conn.attachmentPoint2.parentMolecule;
+        if (inGroup.has(other)) internal.push(conn.serialize());
+        else {
+          leaving.push({
+            from: atom,
+            to: other,
+            input: conn.attachmentPoint2.name,
+          });
+        }
+      });
+      atom.inputs.forEach((ap) =>
+        ap.connectors.forEach((conn) => {
+          const other = conn.attachmentPoint1.parentMolecule;
+          if (!inGroup.has(other)) {
+            entering.push({ from: other, to: atom, input: ap.name });
+          }
+        }),
+      );
+    }
+    let source = outputRef ? resolveAtom(outputRef) : null;
+    if (source && !inGroup.has(source)) {
+      throw new ToolError(
+        ERROR_CODES.INVALID_PARAMS,
+        `output must be one of the atoms being grouped; ${atomPath(source)} isn't.`,
+      );
+    }
+    if (!source) {
+      const leavingFrom = [...new Set(leaving.map((c) => c.from))];
+      if (leavingFrom.length === 1) source = leavingFrom[0];
+    }
+
+    // The new molecule, where the atoms were on average
+    const mean = (key) =>
+      atoms.reduce((s, a) => s + (Number(a[key]) || 0), 0) / atoms.length;
+    const molecule = await handlers.add_atom({
+      type: "Molecule",
+      molecule: parent.uniqueID,
+      name: name || "New Molecule",
+      x: x ?? mean("x"),
+      y: y ?? mean("y"),
+    });
+    const target = resolveAtom(molecule.id);
+
+    // Copies of the atoms and their connections inside it
+    const oldIDs = atoms.map((a) => a.uniqueID);
+    const copied = target.remapIDs({
+      allAtoms: atoms.map((a) => a.serialize()),
+      allConnectors: internal,
+      fileTypeVersion: 1,
+    });
+    const newID = new Map(
+      oldIDs.map((id, i) => [id, copied.allAtoms[i].uniqueID]),
+    );
+    // Placed locked, as loading a project does: an unlocked atom is enabled
+    // at once, and an Assembly that checks its inputs before its connections
+    // are placed deletes the empty ones (Shape2 and up)
+    for (const atomData of copied.allAtoms) {
+      await target.placeAtom(atomData, false);
+    }
+    copied.allConnectors.forEach((data) => target.placeConnector(data));
+    if (source) target.connectAtomByIDToOutput(newID.get(source.uniqueID));
+    // Atoms placed in a molecule that isn't open start disabled
+    target.enableAllChildrenInOrder();
+
+    // Remove the originals as delete_atoms does, so undo restores them
+    await handlers.delete_atoms({ atoms: oldIDs });
+    const rewired = [];
+    const dropped = [];
+    for (const conn of leaving) {
+      if (conn.from === source) {
+        await handlers.connect({
+          from: molecule.id,
+          to: conn.to.uniqueID,
+          input: conn.input,
+        });
+        rewired.push({ to: atomRef(conn.to), input: conn.input });
+      } else {
+        dropped.push({
+          from: `${atomPath(target)}/${conn.from.name}`,
+          to: atomRef(conn.to),
+          input: conn.input,
+        });
+      }
+    }
+    for (const conn of entering) {
+      dropped.push({
+        from: atomRef(conn.from),
+        to: `${atomPath(target)}/${conn.to.name}`,
+        input: conn.input,
+      });
+    }
+    return {
+      molecule: atomRef(target),
+      moved: oldIDs.map((id) => ({
+        was: id,
+        now: atomRef(resolveAtom(newID.get(id))),
+      })),
+      ...(source
+        ? { output_from: atomRef(resolveAtom(newID.get(source.uniqueID))) }
+        : {}),
+      ...(rewired.length ? { rewired } : {}),
+      ...(dropped.length
+        ? {
+            dropped,
+            note: "These connections crossed into or out of the group and were removed. Add Input atoms to the new molecule, or connect from its output, to restore them.",
+          }
+        : {}),
+    };
+  },
+
   async delete_atoms({ atoms: refs }) {
     const atoms = [
       ...new Set(refs.map((r) => resolveAtom(r, { allowEmpty: false }))),
@@ -2742,17 +2884,18 @@ const handlers = {
         );
       }
     }
+    // Every connection leaving a deleted atom, including those to other
+    // deleted atoms (undo re-places all the atoms before reconnecting), and
+    // those coming in from atoms that stay
     const connectorSnapshots = [];
     atoms.forEach((atom) => {
       atom.output?.connectors.forEach((conn) => {
         const other = conn.attachmentPoint2.parentMolecule;
-        if (!atoms.includes(other)) {
-          connectorSnapshots.push({
-            ap1ID: atom.uniqueID,
-            ap2ID: other.uniqueID,
-            ap2Name: conn.attachmentPoint2.name,
-          });
-        }
+        connectorSnapshots.push({
+          ap1ID: atom.uniqueID,
+          ap2ID: other.uniqueID,
+          ap2Name: conn.attachmentPoint2.name,
+        });
       });
       atom.inputs.forEach((ap) => {
         ap.connectors.forEach((conn) => {
