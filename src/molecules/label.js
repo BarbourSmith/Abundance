@@ -101,12 +101,6 @@ export default class Label extends Atom {
         type: "input",
       },
       {
-        name: "fontSize",
-        valueType: "number",
-        defaultValue: 1,
-        type: "input",
-      },
-      {
         name: "offset",
         valueType: "number",
         defaultValue: 0,
@@ -118,17 +112,14 @@ export default class Label extends Atom {
     this.anchors = { edge: null, start: null, end: null, ...this.anchors };
     // Labels saved before the choices existed: follow their picks
     this.anchorModes = {
-      start: this.anchors.edge ? "edge" : this.anchors.start ? "face" : "point",
-      end: this.anchors.end ? "face" : "point",
+      start: this.anchors.edge
+        ? "edge"
+        : this.anchors.start?.kind === "face"
+          ? "face"
+          : "point",
+      end: this.anchors.end?.kind === "face" ? "face" : "point",
       ...this.anchorModes,
     };
-  }
-
-  /** The text size multiplier, 0.5 to 3. Old projects saved 40 by default. */
-  textScale() {
-    const value = Number(this.findIOValue("fontSize"));
-    if (!Number.isFinite(value) || value <= 0 || value > 3) return 1;
-    return Math.max(0.5, value);
   }
 
   /** The measured length formatted in the project's units. */
@@ -197,23 +188,25 @@ export default class Label extends Atom {
       return { start: resolved.start, end: resolved.end };
     }
 
-    const faces = [start, end].filter(Boolean);
-    const centers = await this.resolvePicks(geometry, faces);
-    const centerOf = (pick) => {
-      const resolved = centers[faces.indexOf(pick)];
-      if (!resolved) {
+    // Each end: a picked face's center, a picked corner, or coordinates
+    const picks = [start, end].filter(Boolean);
+    const resolved = await this.resolvePicks(geometry, picks);
+    const pointOf = (pick) => {
+      const found = resolved[picks.indexOf(pick)];
+      if (!found) {
+        const what = pick.kind === "vertex" ? "corner" : "face";
         throw new Error(
-          "A picked face isn't on the model any more. Pick the face again.",
+          `A picked ${what} isn't on the model any more. Pick the ${what} again.`,
         );
       }
-      return resolved.center;
+      return found.center ?? found.point;
     };
     return {
       start: start
-        ? centerOf(start)
+        ? pointOf(start)
         : await this.extractCoordinates(this.findIOValue("startPosition")),
       end: end
-        ? centerOf(end)
+        ? pointOf(end)
         : await this.extractCoordinates(this.findIOValue("endPosition")),
     };
   }
@@ -261,8 +254,8 @@ export default class Label extends Atom {
         position: lineStart.map((v, i) => (v + lineEnd[i]) / 2),
         // Text size in screen pixels: it shrinks with the line on screen,
         // between these
-        size: 16 * this.textScale(),
-        minSize: 10 * this.textScale(),
+        size: 16,
+        minSize: 10,
       },
       movement: { x: 0, y: 0, z: 0 },
       rotation: { x: 0, y: 0, z: 0 },
@@ -358,7 +351,9 @@ export default class Label extends Atom {
     this.anchorModes = { ...this.anchorModes, [slot]: mode };
     const anchors = { ...this.anchors };
     if (slot === "start" && mode !== "edge") anchors.edge = null;
-    if (mode !== "face") anchors[slot] = null;
+    // A new choice drops the old pick; choosing Point again goes back to
+    // typed coordinates
+    if (mode !== wasMode || mode === "point") anchors[slot] = null;
     this.anchors = anchors;
 
     if (mode === "point") {
@@ -372,7 +367,7 @@ export default class Label extends Atom {
   /**
    * Pick an edge or face on the input geometry in the 3D view, using the
    * selection mode Input atoms use. The first click sets the pick and exits.
-   * @param {"edge"|"face"} kind - What to pick
+   * @param {"edge"|"face"|"vertex"} kind - What to pick
    * @param {"edge"|"start"|"end"} slot - Which pick to set
    */
   startPicking(kind, slot) {
@@ -391,14 +386,18 @@ export default class Label extends Atom {
     };
     this.pickingSlot = slot;
     GlobalVariables.enterSelectionMode({
-      type: kind === "edge" ? "edgeselect" : "faceselect",
+      type: `${kind}select`,
       selectedEdgeData: kind === "edge" ? highlight : {},
       selectedFaceData: kind === "face" ? highlight : {},
+      selectedVertexData: kind === "vertex" ? highlight : {},
       parentAP: { getState: () => ({ value: label.findIOValue("geometry") }) },
-      parent: label.parent,
+      // The atom picking: clicking away from it ends the pick, and leaving
+      // shows its output again
+      parent: label,
       getContext: () => label.getContext(),
       toggleEdgeForLeaf: choose,
       toggleFaceForLeaf: choose,
+      toggleVertexForLeaf: choose,
       onUpstreamChange: () => label.onUpstreamChange(),
       setInputChanged: (value) => label.setInputChanged?.(value),
     });
@@ -406,7 +405,7 @@ export default class Label extends Atom {
 
   /** "Edge 3 of part 1", for showing a pick in the panel. */
   describePick(pick) {
-    const what = pick.kind === "edge" ? "Edge" : "Face";
+    const what = { edge: "Edge", face: "Face", vertex: "Corner" }[pick.kind];
     return `${what} ${pick.index + 1} of part ${pick.leaf + 1}`;
   }
 
@@ -460,25 +459,12 @@ export default class Label extends Atom {
     });
 
     // What a choice needs: the pick (click to change it), or a point input
-    const details = (slot) => {
-      const mode = modes[slot];
-      if (mode === "point") {
-        const position = input(slot + "Position");
-        const value = position?.value;
-        return {
-          type: "point",
-          value: Array.isArray(value)
-            ? [value[0], value[1], value[2]]
-            : [0, 0, 0],
-          label: slot === "start" ? "Start point" : "End point",
-          step: 0.1,
-          disabled: position?.connectors.length > 0,
-          onChange: (v) => position.setValue([v[0], v[1], v[2]]),
-        };
-      }
-      const pickSlot = mode === "edge" ? "edge" : slot;
+    // A pick on the model: shows what's picked, and picks again on click
+    const pickButton = (kind, pickSlot) => {
       const pick = this.anchors[pickSlot];
-      const what = mode === "edge" ? "an edge" : "a face";
+      const what = { edge: "an edge", face: "a face", vertex: "a corner" }[
+        kind
+      ];
       return {
         type: "button",
         label:
@@ -488,12 +474,41 @@ export default class Label extends Atom {
               ? `${this.describePick(pick)} · change`
               : `Pick ${what} on the model`,
         title: `Click ${what} of the input geometry in the 3D view`,
-        onClick: () => this.startPicking(mode, pickSlot),
+        onClick: () => this.startPicking(kind, pickSlot),
       };
     };
 
+    // What a choice needs: the pick, or for Point a corner pick or the point
+    // input
+    const details = (slot) => {
+      const mode = modes[slot];
+      if (mode !== "point") {
+        return [pickButton(mode, mode === "edge" ? "edge" : slot)];
+      }
+      const position = input(slot + "Position");
+      const value = position?.value;
+      const pointInput = {
+        type: "point",
+        value: Array.isArray(value)
+          ? [value[0], value[1], value[2]]
+          : [0, 0, 0],
+        label: slot === "start" ? "Start point" : "End point",
+        step: 0.1,
+        disabled: position?.connectors.length > 0,
+        onChange: (v) => position.setValue([v[0], v[1], v[2]]),
+      };
+      // A wired point can't be replaced by a corner
+      if (position?.connectors.length > 0) return [pointInput];
+      return this.anchors[slot]
+        ? [pickButton("vertex", slot)]
+        : [pickButton("vertex", slot), pointInput];
+    };
+    const addDetails = (panel, slot) =>
+      details(slot).forEach((param, i) => {
+        panel[id + slot + "Details" + i] = param;
+      });
+
     const text = input("text");
-    const fontSize = input("fontSize");
     const color = input("color");
     const textMode = this.currentTextMode();
     const panel = {
@@ -530,10 +545,12 @@ export default class Label extends Atom {
     }
     Object.assign(panel, {
       [id + "startChoice"]: choices("start"),
-      [id + "startDetails"]: details("start"),
+      ...Object.fromEntries(
+        details("start").map((param, i) => [id + "startDetails" + i, param]),
+      ),
       [id + "endChoice"]: choices("end"),
     });
-    if (!measuringEdge) panel[id + "endDetails"] = details("end");
+    if (!measuringEdge) addDetails(panel, "end");
     const offset = input("offset");
     const offsetMax = this.offsetSliderMax();
     const axis = this.offsetAxis();
@@ -568,15 +585,6 @@ export default class Label extends Atom {
       label: "Label color",
       onChange: (value) => color.setValue(value),
     };
-    panel[id + "fontSize"] = {
-      type: "range",
-      value: this.textScale(),
-      label: "Text size",
-      min: 0.5,
-      max: 3,
-      step: 0.1,
-      onChange: (value) => fontSize.setValue(value),
-    };
 
     // Then this atom's own buttons (Delete Selected), leaving out the generic
     // controls for the inputs shown above
@@ -586,7 +594,6 @@ export default class Label extends Atom {
       "startPosition",
       "endPosition",
       "color",
-      "fontSize",
       "offset",
     ];
     Object.keys(inputParams).forEach((key) => {
