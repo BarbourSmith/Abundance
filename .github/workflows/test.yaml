@@ -89,15 +89,6 @@ jobs:
         run: |
           echo "Waiting for server to start..."
           timeout 30 bash -c 'until curl -s http://localhost:4444 > /dev/null; do sleep 1; done'
-      - name: Run performance metrics
-        run: node Puppet/metrics.js > metrics-${{ matrix.branch_name }}.json
-        timeout-minutes: 5
-      - name: Upload metrics as artifacts
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: performance-metrics-${{ matrix.branch_name }}
-          path: metrics-${{ matrix.branch_name }}.json
       - name: Run Tests
         run: npm test
       - name: Configure AWS credentials
@@ -229,247 +220,111 @@ jobs:
                 body: comment
               });
             }
-  compare-and-comment:
-    needs: test
+  # Measures the base and PR builds on the same runner, alternating between
+  # them, so the comparison isn't skewed by the two landing on different
+  # machines. Runs PR code, so it gets a read-only token and posts nothing;
+  # comment-performance posts the report it produces.
+  metrics:
     runs-on: ubuntu-latest
     if: github.event.action != 'closed'
+    permissions:
+      contents: read
     steps:
-      - name: Download base metrics
-        uses: actions/download-artifact@v4
+      - name: Checkout PR branch
+        uses: actions/checkout@v4.2.2
         with:
-          name: performance-metrics-base
-          path: ./base
-      - name: Download PR metrics
-        uses: actions/download-artifact@v4
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          path: pr
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check out the base the PR branched from
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref || 'main' }}
+        run: |
+          # Compare against the merge base, not the base branch's latest
+          # commit, so changes merged to the base since the PR branched
+          # aren't counted as the PR's.
+          BASE_SHA=$(git -C pr merge-base "origin/$BASE_REF" HEAD)
+          git -C pr worktree add ../base "$BASE_SHA"
+          echo "BASE_SHA=$BASE_SHA" >> $GITHUB_ENV
+          echo "PR_SHA=$(git -C pr rev-parse HEAD)" >> $GITHUB_ENV
+      - name: Set up Node
+        uses: actions/setup-node@v4
         with:
-          name: performance-metrics-pr
-          path: ./pr
-      - name: install compare dependencies
-        run: npm install jest-diff
-      - name: Compare metrics and comment
-        uses: actions/github-script@v7
+          node-version: 20
+          cache: "npm"
+          cache-dependency-path: |
+            pr/package-lock.json
+            base/package-lock.json
+      - name: Build base
+        working-directory: base
+        run: npm ci --legacy-peer-deps && npm run build
+      - name: Build PR
+        working-directory: pr
+        run: npm ci --legacy-peer-deps && npm run build
+      - name: Install Puppeteer Chromium
+        working-directory: pr
+        run: npx puppeteer install
+      - name: Serve both builds
+        run: |
+          (cd base && npx vite preview --port 4445 --strictPort > ../preview-base.log 2>&1 &)
+          (cd pr && npx vite preview --port 4446 --strictPort > ../preview-pr.log 2>&1 &)
+          timeout 60 bash -c 'until curl -sf http://localhost:4445 > /dev/null && curl -sf http://localhost:4446 > /dev/null; do sleep 1; done'
+      - name: Run performance metrics
+        working-directory: pr
+        run: >
+          node Puppet/metrics.js
+          --target base=http://localhost:4445
+          --target pr=http://localhost:4446
+          --runs 7
+          --out ../metrics.json
+        timeout-minutes: 40
+      - name: Build performance report
+        if: always() && hashFiles('metrics.json') != ''
+        working-directory: pr
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref || 'main' }}
+        run: |
+          npm install --no-save --legacy-peer-deps jest-diff
+          node Puppet/compareMetrics.js ../metrics.json \
+            --base-label "$BASE_REF at ${BASE_SHA::7}" \
+            --pr-label "${PR_SHA::7}" \
+            --out ../performance-report.md
+          cat ../performance-report.md >> $GITHUB_STEP_SUMMARY
+      - name: Upload metrics and report
+        uses: actions/upload-artifact@v4
         if: always()
+        with:
+          name: performance-metrics
+          path: |
+            metrics.json
+            performance-report.md
+          if-no-files-found: ignore
+
+  comment-performance:
+    needs: metrics
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request_target' && github.event.action != 'closed'
+    steps:
+      - name: Download report
+        uses: actions/download-artifact@v4
+        with:
+          name: performance-metrics
+          path: ./metrics
+      - name: Comment on PR
+        uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
-            const { diff } = require('jest-diff');
-
-            // Performance comparison threshold (20% change triggers warning emoji)
-            const PERF_CHANGE_WARNING_THRESHOLD = 20;
-
-            const prOutput = fs.readFileSync('pr/metrics-pr.json', 'utf8');
-            const baseOutput = fs.readFileSync('base/metrics-base.json', 'utf8');
-
-            const extractJson = (text) => {
-              const jsonStart = text.indexOf('[');
-              const jsonEnd = text.lastIndexOf(']') + 1;
-              if (jsonStart === -1 || jsonEnd === 0) return [];
-              return JSON.parse(text.slice(jsonStart, jsonEnd));
-            };
-
-            const keyByName = (metricsArray) => {
-              const result = {};
-              metricsArray.forEach((m) => {
-                result[m.projectName] = m;
-              });
-              return result;
-            };
-
-            const formatBytes = (bytes) => {
-              if (bytes === 0) return "0 Bytes";
-              const k = 1024;
-              const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
-              const i = Math.min(
-                Math.floor(Math.log(bytes) / Math.log(k)),
-                sizes.length - 1
-              );
-              return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
-            }
-
-            const safePercent = (pr, base) => {
-              if (base === 0) return 'N/A';
-              return (((pr - base) / base) * 100).toFixed(1);
-            }
-
-            const baseMetrics = keyByName(extractJson(baseOutput));
-            const prMetrics = keyByName(extractJson(prOutput));
-
-            const metricsAllowList = [
-              'coldLoadTimeMs',
-              'warmLoadTimeMs',
-              'cacheSize',
-              'cacheEntryCount',
-              'projectFileSize',
-            ];
-            const withDiffs = {};
-
-            let markdown = '## ⚡ Performance Metrics Comparison\n\n';
-            markdown += `| ProjectName | ${metricsAllowList.join(" | ")} |\n`;
-            markdown += `| --- | ${metricsAllowList.map(() => '------------').join(' | ')} |\n`;
-
-
-            Object.keys(prMetrics).forEach((projectName) => {
-              const prM = prMetrics[projectName];
-              const baseM = baseMetrics[projectName];
-              if (!baseM) return;
-
-              markdown += `| ${projectName} `;
-              metricsAllowList.forEach((key) => {
-                const prValue = prM[key];
-                const baseValue = baseM[key];
-                const diff = prValue - baseValue;
-                const pct = safePercent(prValue, baseValue);
-                const emoji = key.endsWith("TimeMs") ?
-                  (pct != 'N/A' && pct < PERF_CHANGE_WARNING_THRESHOLD ? '✅' : '⚠️') :
-                  (diff <= 0 ? '✅' : '⚠️');
-                if (key.endsWith("Size")) {
-                  markdown += `| ${formatBytes(baseValue)} → ${formatBytes(prValue)}<br> ${emoji} ${diff >= 0 ? '+' : '-'}${formatBytes(Math.abs(diff))} (${pct}%) `;
-                } else {
-                  markdown += `| ${baseValue} → ${prValue}<br> ${emoji} ${diff > 0 ? '+' : ''}${diff} (${pct}%) `;
-                }
-                if (diff != 0) {
-                  withDiffs[projectName] = (withDiffs[projectName] || []).concat(key);
-                }
-              });
-              markdown += '|\n';
-            });
-            markdown += '\n---\n';
-
-            // Add GCode metrics section if any project has GCode atoms
-            let hasAnyGcodeMetrics = false;
-            Object.keys(prMetrics).forEach((projectName) => {
-              const prM = prMetrics[projectName];
-              const baseM = baseMetrics[projectName];
-              if (!baseM) return;
-              
-              if (prM.gcodeMetrics?.hasGcodeAtom || baseM.gcodeMetrics?.hasGcodeAtom) {
-                hasAnyGcodeMetrics = true;
-              }
-            });
-
-            if (hasAnyGcodeMetrics) {
-              markdown += '\n### 🔧 GCode Generation & Visualization Metrics\n\n';
-              markdown += '| Project | GCode Atoms | Generation Time | Visualization Time | Lines | Commands |\n';
-              markdown += '| --- | --- | --- | --- | --- | --- |\n';
-              
-              Object.keys(prMetrics).forEach((projectName) => {
-                const prM = prMetrics[projectName];
-                const baseM = baseMetrics[projectName];
-                if (!baseM) return;
-                
-                const prGcode = prM.gcodeMetrics;
-                const baseGcode = baseM.gcodeMetrics;
-                
-                if (prGcode?.hasGcodeAtom || baseGcode?.hasGcodeAtom) {
-                  markdown += `| ${projectName} `;
-                  
-                  // Atom count
-                  const prAtomCount = prGcode?.gcodeAtomCount || 0;
-                  const baseAtomCount = baseGcode?.gcodeAtomCount || 0;
-                  markdown += `| ${baseAtomCount} → ${prAtomCount} `;
-                  
-                  // Generation time (sum across all atoms)
-                  const prGenTime = prGcode?.atoms?.reduce((sum, atom) => sum + (atom.generationTimeMs || 0), 0) || 0;
-                  const baseGenTime = baseGcode?.atoms?.reduce((sum, atom) => sum + (atom.generationTimeMs || 0), 0) || 0;
-                  if (prGenTime > 0 || baseGenTime > 0) {
-                    const genTimeDiff = prGenTime - baseGenTime;
-                    const genTimePct = safePercent(prGenTime, baseGenTime);
-                    const emoji = genTimePct !== 'N/A' && Math.abs(parseFloat(genTimePct)) < PERF_CHANGE_WARNING_THRESHOLD ? '✅' : '⚠️';
-                    markdown += `| ${baseGenTime.toFixed(0)}ms → ${prGenTime.toFixed(0)}ms<br> ${emoji} ${genTimeDiff > 0 ? '+' : ''}${genTimeDiff.toFixed(0)}ms (${genTimePct}%) `;
-                  } else {
-                    markdown += `| N/A `;
-                  }
-                  
-                  // Visualization time (sum across all atoms)
-                  const prVizTime = prGcode?.atoms?.reduce((sum, atom) => sum + (atom.visualizationTimeMs || 0), 0) || 0;
-                  const baseVizTime = baseGcode?.atoms?.reduce((sum, atom) => sum + (atom.visualizationTimeMs || 0), 0) || 0;
-                  if (prVizTime > 0 || baseVizTime > 0) {
-                    const vizTimeDiff = prVizTime - baseVizTime;
-                    const vizTimePct = safePercent(prVizTime, baseVizTime);
-                    const emoji = vizTimePct !== 'N/A' && Math.abs(parseFloat(vizTimePct)) < PERF_CHANGE_WARNING_THRESHOLD ? '✅' : '⚠️';
-                    markdown += `| ${baseVizTime.toFixed(0)}ms → ${prVizTime.toFixed(0)}ms<br> ${emoji} ${vizTimeDiff > 0 ? '+' : ''}${vizTimeDiff.toFixed(0)}ms (${vizTimePct}%) `;
-                  } else {
-                    markdown += `| N/A `;
-                  }
-                  
-                  // Line count
-                  const prLines = prGcode?.atoms?.reduce((sum, atom) => sum + (atom.gcodeLineCount || 0), 0) || 0;
-                  const baseLines = baseGcode?.atoms?.reduce((sum, atom) => sum + (atom.gcodeLineCount || 0), 0) || 0;
-                  if (prLines > 0 || baseLines > 0) {
-                    const linesDiff = prLines - baseLines;
-                    markdown += `| ${baseLines} → ${prLines}<br> ${linesDiff > 0 ? '+' : ''}${linesDiff} `;
-                  } else {
-                    markdown += `| N/A `;
-                  }
-                  
-                  // Command count
-                  const prCommands = prGcode?.atoms?.reduce((sum, atom) => sum + (atom.gcodeCommandCount || 0), 0) || 0;
-                  const baseCommands = baseGcode?.atoms?.reduce((sum, atom) => sum + (atom.gcodeCommandCount || 0), 0) || 0;
-                  if (prCommands > 0 || baseCommands > 0) {
-                    const cmdDiff = prCommands - baseCommands;
-                    markdown += `| ${baseCommands} → ${prCommands}<br> ${cmdDiff > 0 ? '+' : ''}${cmdDiff} `;
-                  } else {
-                    markdown += `| N/A `;
-                  }
-                  
-                  markdown += '|\n';
-                }
-              });
-              markdown += '\n';
-            }
-
-            console.log(withDiffs);
-
-            // First build markdown without detailed diffs
-            const maxCommentLength = 65500; // GitHub limit is 65536, leave buffer
-            const detailedDiffsSections = [];
-
-            Object.keys(withDiffs).forEach((projectName) => {
-              const projDiffs = withDiffs[projectName];
-              const prM = prMetrics[projectName];
-              const baseM = baseMetrics[projectName];
-              console.log(projDiffs);
-              console.log(prM);
-              console.log(baseM);
-
-              if (projDiffs.indexOf("projectFileSize") !== -1) {
-                const diffSection = '### Detailed Project File contents diff in project ' + projectName + '\n\n' +
-                  "```\n" +
-                  diff(
-                    (typeof baseM.projectFileRawJson === "string" ? baseM.projectFileRawJson : JSON.stringify(baseM.projectFileRawJson, null, 2)),
-                    (typeof prM.projectFileRawJson === "string" ? prM.projectFileRawJson : JSON.stringify(prM.projectFileRawJson, null, 2)),
-                    { expand: false, aAnnotation: 'Base branch', bAnnotation: 'PR branch' }
-                  ) + "\n```\n";
-                detailedDiffsSections.push(diffSection);
-              }
-            });
-
-            // Check if we need to truncate
-            let fullMarkdown = markdown + '\n' + detailedDiffsSections.join('\n');
-            if (fullMarkdown.length > maxCommentLength) {
-              console.log(`Comment too long (${fullMarkdown.length} chars). Omitting detailed diffs.`);
-              markdown += '\n\n⚠️ **Detailed project file diffs omitted** - Comment would exceed GitHub\'s 65536 character limit. Check the workflow artifacts for full metrics and diffs.';
-            } else {
-              markdown = fullMarkdown;
-            }
-
-            console.log(markdown);
-
-            const prNumber = context.issue.number;
-            if (!prNumber) {
-              console.log("No PR number found in context, skipping comment.");
-              return;
-            }
+            const markdown = fs.readFileSync('metrics/performance-report.md', 'utf8');
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: prNumber,
+              issue_number: context.issue.number,
             });
-
             const botComment = comments.find(c =>
               c.user.type === 'Bot' && c.body.includes('Performance Metrics Comparison')
             );
-
             if (botComment) {
               await github.rest.issues.updateComment({
                 owner: context.repo.owner,
@@ -481,7 +336,7 @@ jobs:
               await github.rest.issues.createComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                issue_number: prNumber,
+                issue_number: context.issue.number,
                 body: markdown
               });
             }
