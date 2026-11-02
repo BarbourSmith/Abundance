@@ -583,13 +583,34 @@ export const TOOLS = [
     name: "save_project",
     permission: "edit",
     description:
-      "Ask the user to save the project to GitHub. The user must confirm in the page; returns whether it was saved.",
+      "Save the project to GitHub now, as a commit to the user's repository. Returns whether it was saved.",
     inputSchema: {
       type: "object",
       properties: {
         reason: {
           type: "string",
-          description: "Shown to the user in the confirmation prompt.",
+          description:
+            "What changed, in a few words. Becomes the commit message.",
+        },
+      },
+    },
+  },
+  {
+    name: "open_pull_request",
+    permission: "edit",
+    description:
+      "Save the project, then open a pull request proposing its changes to the project it was forked from. The other project's owner sees it on GitHub. Returns the pull request's URL, or why none was opened: the project isn't a fork, a pull request is already open (the save updated it), or the original has newer changes the user must merge in first from the Pull Request menu.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        title: {
+          type: "string",
+          description: "The pull request's title.",
+        },
+        description: {
+          type: "string",
+          description:
+            "What changed and why, for the owner of the original project.",
         },
       },
     },

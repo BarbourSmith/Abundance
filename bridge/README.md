@@ -49,7 +49,7 @@ npm publish
 | Always | `bridge_status`, `take_over_bridge`, `list_sessions`, `use_session` |
 | Read | `get_project`, `list_atoms`, `get_atom`, `list_atom_types`, `list_library_molecules`, `search_molecules`, `get_errors`, `wait_for_settle`, `get_state_report`, `get_worker_logs`, `get_bom`, `get_readme`, `check_geometry`, `check_interference`, `render_image`, `export_geometry`, `get_gcode`, `get_undo_history` |
 | View | `select_atom`, `open_molecule` |
-| Edit | `set_param`, `set_code`, `add_atom`, `add_github_molecule`, `import_file`, `connect`, `disconnect`, `delete_atoms`, `apply_edits`, `undo`, `save_project` |
+| Edit | `set_param`, `set_code`, `add_atom`, `add_github_molecule`, `import_file`, `connect`, `disconnect`, `delete_atoms`, `apply_edits`, `undo`, `save_project`, `open_pull_request` |
 
 The tool list and schemas live in `src/agent/tools.js`, shared by the page and the bridge. The page-side implementations are in `src/agent/runtime.js`.
 
@@ -81,7 +81,7 @@ npm run agent:library
 - **Pairing token.** A tab must present the token stored in `~/.abundance-bridge/token`. Regenerate it with `node bridge/index.js --new-token`.
 - **Read-only by default.** Edits need the user to tick Allow edits, which resets on reload.
 - **One undo step per agent change.** Every edit, and every batch from `apply_edits`, is a single entry labeled `AI:` in the user's undo history. A failed batch is rolled back. The agent's `undo` refuses to undo the user's own changes.
-- **No silent commits.** Autosave pauses while edits are allowed. `save_project` shows a confirmation, and only the user's click saves to GitHub.
+- **Saves go to the user's own repository.** Autosave keeps running while the agent edits, and `save_project` commits without asking, since every change is in the repository's history. `open_pull_request` only proposes changes to the original project; merging stays with its owner.
 - **No arbitrary code in the page.** There is no tool that runs JavaScript in the tab. Code atoms run in the CAD worker as they do for users.
 - **The GitHub token never leaves the page.**
 - **Imported GitHub molecules are read-only** to the agent, since they belong to another repository.

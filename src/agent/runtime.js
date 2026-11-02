@@ -997,6 +997,10 @@ function canSave() {
   return typeof agentBridge.saveHandler === "function";
 }
 
+function canOpenPullRequest() {
+  return typeof agentBridge.pullRequestHandler === "function";
+}
+
 // ---------------------------------------------------------------------------
 // Tool implementations
 // ---------------------------------------------------------------------------
@@ -2266,9 +2270,17 @@ const handlers = {
         "This tab can't save: saving is only available in the editor for a project the user can write to.",
       );
     }
-    return agentBridge.saveHandler(
-      reason || "The AI agent asked to save the project.",
-    );
+    return agentBridge.saveHandler(reason || "Saved by the AI agent");
+  },
+
+  async open_pull_request({ title, description }) {
+    if (!canOpenPullRequest()) {
+      throw new ToolError(
+        ERROR_CODES.CONFLICT,
+        "This tab can't open a pull request: that's only available in the editor for a project the user can write to.",
+      );
+    }
+    return agentBridge.pullRequestHandler({ title, description });
   },
 };
 
@@ -2496,7 +2508,8 @@ export async function runTool(name, args = {}, ctx = { mode: "read" }) {
   if (
     tool.permission !== "edit" ||
     name === "undo" ||
-    name === "save_project"
+    name === "save_project" ||
+    name === "open_pull_request"
   ) {
     const result = await impl(args, ctx);
     if (name === "undo") notifyEdit({ tool: name });
