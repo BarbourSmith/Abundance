@@ -231,7 +231,7 @@ function convertCodeAtomResult(
       simpleReplicadGeomDim === "Point3D" || simpleReplicadGeomDim === "Wire";
     return new Assembly({
       geometry: value,
-      dimension: simpleReplicadGeomDim,
+      geometryType: simpleReplicadGeomDim,
       color: isFacelessType ? "#3c5a6e" : util.defaultColor,
       ...defaultProps(),
     });
@@ -286,7 +286,7 @@ async function addAssemblyPartsToCache(
         plane: assembly.plane
           ? util.asSimplePlane(assembly.plane)
           : util.XYPlane,
-        dimension: dimensionLabel,
+        geometryType: dimensionLabel,
       };
     } else {
       const children = await Promise.all(
@@ -537,7 +537,7 @@ async function executeTsCode(
           ...assembly,
           geometry: children,
           plane: util.asReplicadPlane(assembly.plane),
-          dimension: children[0].dimension,
+          geometryType: children[0].geometryType,
           __isRawAbundanceObj: true,
         };
       }
@@ -686,7 +686,7 @@ async function executeTsCode(
     // Ensure not a mix of 2d and 3d parts.
     const leafDims: string[] = [];
     rawResult.onLeafs((leaf: Assembly<LeafGeom>) => {
-      leafDims.push(leaf.dimension);
+      leafDims.push(leaf.geometryType);
     });
     if (new Set(leafDims).size > 1) {
       throw new Error(

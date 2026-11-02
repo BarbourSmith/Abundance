@@ -15,7 +15,7 @@ import * as util from "../src/worker/util.ts";
 
 const leaf2D = (id) => ({
   geometry: id,
-  dimension: "2D",
+  geometryType: "2D",
   plane: util.XYPlane,
   color: "#fefffa",
   tags: [],

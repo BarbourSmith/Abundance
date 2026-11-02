@@ -30,7 +30,7 @@ function describe3D(shape) {
 function leaf(id, tags) {
   return {
     geometry: id,
-    dimension: "3D",
+    geometryType: "3D",
     plane: XYPlane,
     color: "#aad7f2",
     tags,

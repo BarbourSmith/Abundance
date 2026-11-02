@@ -889,7 +889,7 @@ export default class Atom extends ObservableEntity {
     if (
       typeof value === "object" &&
       value !== null &&
-      (value.geometry || value.dimension || value.tags)
+      (value.geometry || value.geometryType || value.tags)
     ) {
       console.warn(
         `Skipping serialization of geometry object for ${atomName}.${key}`,
@@ -1661,7 +1661,7 @@ export default class Atom extends ObservableEntity {
     }
 
     // If it's a Point3D geometry object
-    if (value && typeof value === "object" && value.dimension === "Point3D") {
+    if (value && typeof value === "object" && value.geometryType === "Point3D") {
       // If we have geometryProvider and context, use them for hash ID lookup
       try {
         const vertex = await GlobalVariables.cad.getAsPoint3D(

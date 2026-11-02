@@ -16,7 +16,7 @@ import {
   DeleteAtomsCommand,
   DeleteConnectorCommand,
 } from "../js/undoCommands.js";
-import { meshKey } from "../js/displayScheduler.js";
+import { meshKey, splitDisplayMesh } from "../js/displayScheduler.js";
 import {
   extractBase64FromDataURL,
   generateMeshPNG,
@@ -24,6 +24,46 @@ import {
 import AttachmentPoint from "../prototypes/attachmentpoint.js";
 import { ObservableEntity, Status } from "../prototypes/observableEntity.js";
 import { extractBomList, flattenAssembly } from "../worker/util";
+import { parseTransformedId } from "../worker/lazyTransform";
+import {
+  hasShapes,
+  isReferenceLeaf,
+  referencesOf,
+  summarizeReference,
+  withoutReferences,
+} from "../js/referenceItems.js";
+import {
+  REFERENCE_TYPES,
+  getAsset,
+  registerAsset,
+  pdfText,
+  renderPdfPage,
+} from "../js/referenceFiles.js";
+import { createReferenceObjects } from "../js/referenceObjects.js";
+import {
+  traceReference,
+  viewReference,
+  viewReferencePixels,
+} from "./referenceTrace.js";
+import {
+  drawThroughCamera,
+  meshEdgeSegments,
+  photoPlacement,
+  pixelOnPlane,
+  placedPhotoCamera,
+  solveCamera,
+} from "./photoCamera.js";
+import {
+  SECTION_AXES,
+  SECTION_COLORS,
+  cutTriangles,
+  drawSection,
+  measureScan,
+  meshTriangles,
+  referenceTriangles,
+  segmentsBounds,
+} from "./scanMeasure.js";
+import { millimetersPerUnit, unitAbbreviation } from "../js/units.js";
 import { addOrDeletePorts } from "../js/alwaysOneFreeInput.js";
 import { isTranspilerReady } from "../molecules/code.js";
 import { fetchGitHubFileContent } from "../js/githubFileUtils.js";
@@ -32,6 +72,9 @@ import moleculeLibrary from "./moleculeLibrary.json";
 import { agentBridge } from "./bridgeClient.js";
 import { ERROR_CODES, ToolError } from "./protocol.js";
 import { BATCHABLE_TOOLS, TOOLS_BY_NAME, isToolAllowed } from "./tools.js";
+
+/** Whether a geometry id has been moved or rotated (see lazyTransform.ts). */
+const isTransformedId = (id) => !!id && !!parseTransformedId(id);
 
 /** Window event fired after every agent edit so UI can refresh. */
 export const AGENT_EDIT_EVENT = "abundance-agent-edit";
@@ -215,7 +258,37 @@ function parseRepo(repo) {
 }
 
 /** Import atom file types by extension. */
-const IMPORT_FILE_TYPES = { step: "STEP", stp: "STEP", stl: "STL", svg: "SVG" };
+const IMPORT_FILE_TYPES = {
+  step: "STEP",
+  stp: "STEP",
+  stl: "STL",
+  svg: "SVG",
+  ...Object.fromEntries(
+    Object.entries(REFERENCE_TYPES).flatMap(([type, { extensions }]) =>
+      extensions.map((extension) => [extension, type]),
+    ),
+  ),
+};
+
+/** The extensions Import atoms load, for messages. */
+const IMPORT_EXTENSIONS = Object.keys(IMPORT_FILE_TYPES)
+  .map((extension) => "." + extension)
+  .join(", ");
+
+/** The Import atom file type for a file name, or a ToolError. */
+function importFileType(name) {
+  const extension = name.includes(".")
+    ? name.slice(name.lastIndexOf(".") + 1).toLowerCase()
+    : "";
+  const type = IMPORT_FILE_TYPES[extension];
+  if (!type) {
+    throw new ToolError(
+      ERROR_CODES.INVALID_PARAMS,
+      `${name} can't be imported. Import atoms load ${IMPORT_EXTENSIONS} files.`,
+    );
+  }
+  return type;
+}
 
 /**
  * Split a GitHub file address into its repository, ref, and path. Accepts
@@ -264,17 +337,7 @@ export function parseGitHubFileUrl(url) {
   }
   const path = pathParts.join("/");
   const name = pathParts[pathParts.length - 1];
-  const extension = name.includes(".")
-    ? name.slice(name.lastIndexOf(".") + 1).toLowerCase()
-    : "";
-  const type = IMPORT_FILE_TYPES[extension];
-  if (!type) {
-    throw new ToolError(
-      ERROR_CODES.INVALID_PARAMS,
-      `${name} can't be imported. Import atoms load .step, .stp, .stl, and .svg files.`,
-    );
-  }
-  return { owner, repo, ref, path, name, type };
+  return { owner, repo, ref, path, name, type: importFileType(name) };
 }
 
 /**
@@ -503,7 +566,7 @@ function isGeometryValue(value) {
     !!value &&
     typeof value === "object" &&
     "geometry" in value &&
-    ("dimension" in value || Array.isArray(value.geometry))
+    ("geometryType" in value || Array.isArray(value.geometry))
   );
 }
 
@@ -519,7 +582,14 @@ export function summarizeValue(value) {
       : value;
   }
   if (isGeometryValue(value)) {
-    return `<${value.dimension || "assembly"} geometry>`;
+    const references = referencesOf(value);
+    if (references.length && !hasShapes(value)) {
+      return `<references: ${references.map((r) => r.name).join(", ")}>`;
+    }
+    const carried = references.length
+      ? ` with ${references.length} reference file(s)`
+      : "";
+    return `<${value.geometryType || "assembly"} geometry${carried}>`;
   }
   if (Array.isArray(value)) {
     if (value.length <= 16 && value.every((v) => typeof v !== "object")) {
@@ -715,7 +785,7 @@ function coerceParamValue(param, value) {
 async function summarizeGeometry(atom) {
   const value = atom.value;
   const summary = {
-    dimension: value.dimension || "assembly",
+    geometryType: value.geometryType || "assembly",
   };
   const cad = GlobalVariables.cad;
   const context = atom.getContext();
@@ -738,7 +808,10 @@ async function summarizeGeometry(atom) {
     tasks.push(
       withTimeout(cad.extractParts(value), 20000).then((leaves) => {
         if (!Array.isArray(leaves)) return;
-        summary.part_count = leaves.length;
+        // References are listed on their own, not counted as parts
+        summary.part_count = leaves.filter(
+          (leaf) => !isReferenceLeaf(leaf),
+        ).length;
         const tags = new Set();
         const colors = new Set();
         leaves.forEach((leaf) => {
@@ -901,6 +974,26 @@ function requireGeometry(atom) {
     );
   }
   return value;
+}
+
+/**
+ * The display meshes the CAD worker makes for a geometry value, as the 3D
+ * view draws it; empty when the value has no geometry.
+ */
+async function displayMeshOf(atom, value) {
+  if (!hasShapes(value) && !referencesOf(value).length) return [];
+  const context = atom.getContext();
+  const meshTask = GlobalVariables.displayScheduler
+    ? GlobalVariables.displayScheduler.run(
+        "generateDisplayMesh",
+        [value, context],
+        meshKey(value, context),
+      )
+    : GlobalVariables.pool
+        .proxy()
+        .then((worker) => worker.generateDisplayMesh(value, context));
+  const result = await withTimeout(meshTask, 240000);
+  return result?.mesh || [];
 }
 
 function notifyEdit(detail) {
@@ -1118,8 +1211,14 @@ const handlers = {
       if (logs.length) detail.console = logs;
     }
     if (atom.status === Status.READY) {
-      if (isGeometryValue(atom.value)) {
+      const references = isGeometryValue(atom.value)
+        ? referencesOf(atom.value).map(summarizeReference)
+        : [];
+      if (references.length && !hasShapes(atom.value)) {
+        detail.output = { part_count: 0, references };
+      } else if (isGeometryValue(atom.value)) {
         detail.output = await summarizeGeometry(atom);
+        if (references.length) detail.output.references = references;
         if (atom.atomType === "Code" && detail.output.part_count > 1) {
           detail.warning = `This Code atom builds ${detail.output.part_count} separate parts. Give each physical part a molecule of its own, built from built-in atoms where they can do the job, and keep code to the one part it can't.`;
         }
@@ -1495,34 +1594,43 @@ const handlers = {
     return result;
   },
 
-  async render_image({ atom: ref, part, view = "iso", size = 800 }) {
+  async render_image({
+    atom: ref,
+    part,
+    view = "iso",
+    size = 800,
+    references: showReferences = true,
+  }) {
     const atom = ref
       ? resolveAtom(ref)
       : GlobalVariables.currentMolecule || topLevel();
     let value = requireGeometry(atom);
     if (part !== undefined) value = partOf(atom, value, part);
-    const context = atom.getContext();
-    const meshTask = GlobalVariables.displayScheduler
-      ? GlobalVariables.displayScheduler.run(
-          "generateDisplayMesh",
-          [value, context],
-          meshKey(value, context),
-        )
-      : GlobalVariables.pool
-          .proxy()
-          .then((worker) => worker.generateDisplayMesh(value, context));
-    const result = await withTimeout(meshTask, 240000);
-    const mesh = result?.mesh;
-    if (!mesh || !mesh.length) {
+    // Images, PDF pages and 3D models in the output come with the meshes,
+    // with their files, and are drawn with them
+    const { meshes: mesh, references } = splitDisplayMesh(
+      await displayMeshOf(atom, value),
+    );
+    const built = await createReferenceObjects(
+      showReferences ? references : [],
+    );
+    if (!mesh.length && !built.objects.length) {
+      built.release();
       throw new ToolError(
         ERROR_CODES.CONFLICT,
         `${atomPath(atom)} produced no visible mesh.`,
       );
     }
-    const dataUrl = await generateMeshPNG(mesh, size, size, {
-      view,
-      fit: true,
-    });
+    let dataUrl;
+    try {
+      dataUrl = await generateMeshPNG(mesh, size, size, {
+        view,
+        fit: true,
+        objects: built.objects,
+      });
+    } finally {
+      built.release();
+    }
     if (!dataUrl) {
       throw new ToolError(
         ERROR_CODES.INTERNAL_ERROR,
@@ -1534,8 +1642,432 @@ const handlers = {
       mimeType: "image/png",
       atom: atomRef(atom),
       ...(part !== undefined ? { part } : {}),
+      ...(built.objects.length
+        ? { references_shown: built.objects.length }
+        : {}),
       view,
       size,
+    };
+  },
+
+  async get_reference({ atom: ref, index = 0, pages }) {
+    const { atom, item, asset, references } = await requireReference(ref, index);
+    const result = {
+      filename: item.name,
+      base64: arrayBufferToBase64(await asset.blob.arrayBuffer()),
+      mime_type: asset.mimeType,
+      atom: atomRef(atom),
+      reference_count: references.length,
+      reference: summarizeReference(item, index),
+      ...(item.source
+        ? {
+            source: `https://github.com/${item.source.owner}/${item.source.repo}/blob/${item.source.ref || "HEAD"}/${item.source.path}`,
+          }
+        : {}),
+    };
+    if (item.kind === "model") {
+      result.model = {
+        file_units: item.modelUnits,
+        meshes: item.stats?.meshes,
+        triangles: item.stats?.triangles,
+      };
+    }
+    if (item.kind === "pdf") {
+      Object.assign(result, await readPdfText(item.asset, pages));
+      result.preview = await previewOf(
+        await renderPdfPage(item.asset, item.page || 1, PREVIEW_PIXELS),
+        "image/png",
+      );
+    }
+    if (item.kind === "image") {
+      // PNGs can be transparent, which JPEG would turn black
+      result.preview = await previewOf(
+        asset.blob,
+        item.mimeType === "image/png" ? "image/png" : "image/jpeg",
+      );
+    }
+    return result;
+  },
+
+  async trace_reference({
+    atom: ref,
+    index = 0,
+    point,
+    color,
+    tolerance,
+    close_gaps,
+    spacing,
+    smoothing,
+  }) {
+    const { atom, item } = await requireFlatPicture(ref, index);
+    let traced;
+    try {
+      traced = await traceReference(item, {
+        point,
+        color,
+        tolerance,
+        closeGaps: close_gaps,
+        spacing,
+        smoothing,
+      });
+    } catch (err) {
+      if (err instanceof RangeError) {
+        throw new ToolError(ERROR_CODES.INVALID_PARAMS, err.message);
+      }
+      throw err;
+    }
+    const { preview, ...result } = traced;
+    return {
+      base64: extractBase64FromDataURL(preview),
+      mimeType: "image/png",
+      atom: atomRef(atom),
+      reference: summarizeReference(item, index),
+      units: topLevel().unitsKey || null,
+      ...result,
+    };
+  },
+
+  async view_reference({
+    atom: ref,
+    index = 0,
+    region,
+    grid,
+    size = 1024,
+    pixels = false,
+  }) {
+    const { atom, item } = await requireFlatPicture(ref, index);
+    if (pixels) {
+      const photo = requirePhoto(item);
+      const view = {
+        min: region?.min || [0, 0],
+        max: region?.max || [...photo.pixels],
+      };
+      if (!(view.max[0] > view.min[0] && view.max[1] > view.min[1])) {
+        throw new ToolError(
+          ERROR_CODES.INVALID_PARAMS,
+          "region needs max greater than min in both u and v.",
+        );
+      }
+      const { dataUrl, ...rest } = await viewReferencePixels(photo, {
+        region: view,
+        spacing: grid,
+        size,
+      });
+      return {
+        base64: extractBase64FromDataURL(dataUrl),
+        mimeType: "image/png",
+        atom: atomRef(atom),
+        reference: summarizeReference(item, index),
+        units: "pixels",
+        region: view,
+        ...rest,
+      };
+    }
+    const bounds = summarizeReference(item, index).bounding_box;
+    const view = {
+      min: region?.min || bounds.min.slice(0, 2),
+      max: region?.max || bounds.max.slice(0, 2),
+    };
+    if (!(view.max[0] > view.min[0] && view.max[1] > view.min[1])) {
+      throw new ToolError(
+        ERROR_CODES.INVALID_PARAMS,
+        "region needs max greater than min in both X and Y.",
+      );
+    }
+    let drawn;
+    try {
+      drawn = await viewReference(item, { region: view, spacing: grid, size });
+    } catch (err) {
+      if (err instanceof RangeError) {
+        throw new ToolError(ERROR_CODES.INVALID_PARAMS, err.message);
+      }
+      throw err;
+    }
+    const { dataUrl, ...rest } = drawn;
+    return {
+      base64: extractBase64FromDataURL(dataUrl),
+      mimeType: "image/png",
+      atom: atomRef(atom),
+      reference: summarizeReference(item, index),
+      units: topLevel().unitsKey || null,
+      region: view,
+      ...rest,
+    };
+  },
+
+  async locate_photo({
+    atom: ref,
+    index = 0,
+    points,
+    focal_px,
+    distance,
+    geometry,
+    size = 1024,
+  }) {
+    const { atom, item } = await requireReference(ref, index);
+    const photo = requirePhoto(item);
+    const [width, height] = photo.pixels;
+    const away = photoDistance(distance);
+    let camera;
+    try {
+      camera = solveCamera(points, { width, height, focal: focal_px });
+    } catch (err) {
+      if (err instanceof RangeError) {
+        throw new ToolError(ERROR_CODES.INVALID_PARAMS, err.message);
+      }
+      throw err;
+    }
+    // Draw a model through the camera to check it against the photo
+    let segments = [];
+    if (geometry) {
+      const shapes = withoutReferences(requireGeometry(resolveAtom(geometry)));
+      segments = meshEdgeSegments(
+        await displayMeshOf(resolveAtom(geometry), shapes),
+      );
+    }
+    const { dataUrl } = await drawThroughCamera(photo, camera, {
+      segments,
+      points,
+      size,
+    });
+    const placement = photoPlacement(camera, away);
+    const unitsKey = topLevel().unitsKey;
+    const r = (v, step = 0.1) =>
+      Number((Math.round(v / step) * step).toFixed(2)) || 0;
+    const [right, down, forward] = camera.rotation;
+    return {
+      base64: extractBase64FromDataURL(dataUrl),
+      mimeType: "image/jpeg",
+      atom: atomRef(atom),
+      reference: summarizeReference(item, index),
+      units: unitsKey || null,
+      camera: {
+        position: camera.position.map((v) => r(v, 1)),
+        looking: forward.map((v) => r(v, 0.001)),
+        up: down.map((v) => r(-v, 0.001)),
+        right: right.map((v) => r(v, 0.001)),
+        focal_px: r(camera.focal, 1),
+        field_of_view_degrees: r(
+          2 *
+            Math.atan(Math.max(width, height) / 2 / camera.focal) *
+            (180 / Math.PI),
+        ),
+      },
+      misses_px: camera.misses.map((m) => r(m)),
+      rms_px: r(camera.rms),
+      to_place: {
+        distance: away,
+        import: {
+          [`Width (${unitAbbreviation(unitsKey) || "units"})`]: r(
+            placement.width,
+          ),
+        },
+        rotate: {
+          "x-axis degrees": r(placement.rotate.x, 0.01),
+          "y-axis degrees": r(placement.rotate.y, 0.01),
+          "z-axis degrees": r(placement.rotate.z, 0.01),
+        },
+        move: {
+          xDist: r(placement.move[0]),
+          yDist: r(placement.move[1]),
+          zDist: r(placement.move[2]),
+        },
+        how: `Set the photo's Import atom Width to this, wire the Import atom (as imported, flat at the origin) into a Rotate atom with these angles, then a Move atom with these distances. The photo then stands ${away} ${unitsKey === "Inches" ? "in" : "mm"} in front of the camera, filling its view; photo_point measures through it with the same distance.`,
+      },
+    };
+  },
+
+  async photo_point({ atom: ref, index = 0, pixels, axis, at, distance }) {
+    const { atom, item } = await requireReference(ref, index);
+    const photo = requirePhoto(item);
+    const away = photoDistance(distance);
+    const camera = placedPhotoCamera(photo, away);
+    // As imported, a photo lies flat at the origin and records no camera:
+    // its geometry id has no Move or Rotate (lazy "xf|" transform) yet
+    if (!isTransformedId(photo.id)) {
+      throw new ToolError(
+        ERROR_CODES.CONFLICT,
+        `${item.name} lies where Import put it, so it records no camera. Place it where it was taken with locate_photo first, and measure through the atom that places it.`,
+      );
+    }
+    const r = (v) => Number(v.toFixed(1)) || 0;
+    return {
+      atom: atomRef(atom),
+      units: topLevel().unitsKey || null,
+      camera_position: camera.position.map(r),
+      plane: `${axis} = ${at}`,
+      points: pixels.map((pixel) => {
+        const hit = pixelOnPlane(camera, pixel, axis, at);
+        return { pixel, at: hit ? hit.map(r) : null };
+      }),
+    };
+  },
+
+  async measure_scan({ atom: ref, index = 0 }) {
+    const { atom, item } = await requireReference(ref, index);
+    if (item.kind !== "model") {
+      throw new ToolError(
+        ERROR_CODES.INVALID_PARAMS,
+        `${item.name} is ${item.kind === "pdf" ? "a PDF" : "an image"}; this measures 3D models. view_reference reads positions off pictures.`,
+      );
+    }
+    const unitsKey = topLevel().unitsKey;
+    const mmPerUnit = millimetersPerUnit(unitsKey) || 1;
+    let measured;
+    try {
+      measured = measureScan(await referenceTriangles(item), { mmPerUnit });
+    } catch (err) {
+      if (err instanceof RangeError) {
+        throw new ToolError(ERROR_CODES.INVALID_PARAMS, err.message);
+      }
+      throw err;
+    }
+    // Lengths to about a millimeter, angles to a hundredth of a degree
+    const step = mmPerUnit >= 10 ? 0.01 : 1;
+    const len = (v) => Number((Math.round(v / step) * step).toFixed(2));
+    const deg = (v) => Number(v.toFixed(2)) || 0;
+    const plane = ({ at, area_m2, extents }) => ({
+      at: len(at),
+      area_m2: Number(area_m2.toFixed(2)),
+      ...Object.fromEntries(
+        Object.entries(extents).map(([axis, [lo, hi]]) => [
+          axis,
+          [len(lo), len(hi)],
+        ]),
+      ),
+    });
+    const { floor, walls, rotate, move, planes } = measured;
+    const aligned =
+      floor.tilt_degrees < 0.2 &&
+      (!walls || Math.abs(walls.angle_degrees) < 0.2) &&
+      Math.abs(move.z) * mmPerUnit < 2;
+    return {
+      atom: atomRef(atom),
+      reference: summarizeReference(item, index),
+      units: unitsKey || null,
+      as_placed: {
+        floor_tilt_degrees: deg(floor.tilt_degrees),
+        floor_z: len(floor.z),
+        wall_angle_degrees: walls ? deg(walls.angle_degrees) : null,
+      },
+      already_aligned: aligned,
+      to_align: aligned
+        ? null
+        : {
+            rotate: {
+              "x-axis degrees": deg(rotate.x),
+              "y-axis degrees": deg(rotate.y),
+              "z-axis degrees": deg(rotate.z),
+            },
+            move: { xDist: 0, yDist: 0, zDist: len(move.z) },
+            how: `Wire ${atomPath(atom)} into a Rotate atom with these angles, then a Move atom with these distances, and model against the Move's output. The floor then lies at Z = 0 with the main walls along X and Y. Move it in X and Y as well to put the origin at a corner you choose.`,
+          },
+      after_aligning: {
+        floor_flatness: len(floor.flatness),
+        ceiling_height: measured.ceiling_height
+          ? len(measured.ceiling_height)
+          : null,
+        planes: Object.fromEntries(
+          Object.entries(planes).map(([key, list]) => [key, list.map(plane)]),
+        ),
+      },
+    };
+  },
+
+  async section_view({
+    atom: ref,
+    axis,
+    at,
+    region,
+    grid,
+    size = 1024,
+    geometry: showGeometry = true,
+    references: showReferences = true,
+  }) {
+    const atom = ref
+      ? resolveAtom(ref)
+      : GlobalVariables.currentMolecule || topLevel();
+    const value = requireGeometry(atom);
+    const layers = [];
+    const counts = {};
+
+    // Scans first, so the model's cut shows on top of them
+    if (showReferences) {
+      const models = referencesOf(value).filter((r) => r.kind === "model");
+      let segments = 0;
+      for (const item of models) {
+        await loadReferenceFiles(atom, item);
+        const cut = cutTriangles(await referenceTriangles(item), axis, at);
+        segments += cut.length / 4;
+        layers.push({
+          segments: cut,
+          color: SECTION_COLORS.reference,
+          width: 1,
+        });
+      }
+      if (models.length) counts.reference_segments = segments;
+    }
+    if (showGeometry) {
+      const shapes = withoutReferences(value);
+      if (hasShapes(shapes)) {
+        let segments = 0;
+        for (const tris of meshTriangles(await displayMeshOf(atom, shapes))) {
+          const cut = cutTriangles(tris, axis, at);
+          segments += cut.length / 4;
+          layers.push({
+            segments: cut,
+            color: SECTION_COLORS.geometry,
+            width: 2,
+          });
+        }
+        counts.geometry_segments = segments;
+      }
+    }
+
+    const found = segmentsBounds(layers.map((l) => l.segments));
+    if (!found) {
+      throw new ToolError(
+        ERROR_CODES.CONFLICT,
+        `Nothing in ${atomPath(atom)} crosses ${axis} = ${at}. get_atom gives its bounding box.`,
+      );
+    }
+    let view = region;
+    if (!view) {
+      // Everything the plane cuts, with a little room around it
+      const pad =
+        0.03 *
+        Math.max(found.max[0] - found.min[0], found.max[1] - found.min[1]);
+      view = {
+        min: [found.min[0] - pad, found.min[1] - pad],
+        max: [found.max[0] + pad, found.max[1] + pad],
+      };
+    } else if (!(view.max[0] > view.min[0] && view.max[1] > view.min[1])) {
+      throw new ToolError(
+        ERROR_CODES.INVALID_PARAMS,
+        "region needs max greater than min on both picture axes.",
+      );
+    }
+    const axisNames = SECTION_AXES[axis].map((k) => "xyz"[k]);
+    const { dataUrl, ...drawn } = drawSection(layers, {
+      region: view,
+      axisNames,
+      spacing: grid,
+      size,
+    });
+    return {
+      base64: extractBase64FromDataURL(dataUrl),
+      mimeType: "image/png",
+      atom: atomRef(atom),
+      units: topLevel().unitsKey || null,
+      cut: `${axis} = ${at}`,
+      picture_axes: { right: axisNames[0], up: axisNames[1] },
+      region: view,
+      colors: {
+        geometry: `${SECTION_COLORS.geometry} (red)`,
+        references: `${SECTION_COLORS.reference} (dark gray)`,
+      },
+      ...counts,
+      ...drawn,
     };
   },
 
@@ -1544,6 +2076,12 @@ const handlers = {
       ? resolveAtom(ref)
       : GlobalVariables.currentMolecule || topLevel();
     const value = requireGeometry(atom);
+    if (!hasShapes(value)) {
+      throw new ToolError(
+        ERROR_CODES.CONFLICT,
+        `${atomPath(atom)} has no geometry to export, only reference files; get_reference returns those.`,
+      );
+    }
     const units = topLevel().unitsKey;
     const blob = await GlobalVariables.cad.downExport(
       value,
@@ -1955,7 +2493,22 @@ const handlers = {
     };
   },
 
-  async import_file({ url, molecule, x, y }) {
+  async import_file({ url, path, molecule, x, y, file_base64, file_name }) {
+    if (file_base64 !== undefined) {
+      return importLocalFile({ file_base64, file_name, molecule, x, y });
+    }
+    if (path !== undefined) {
+      throw new ToolError(
+        ERROR_CODES.INVALID_PARAMS,
+        "This bridge can't read files from disk. Update it, or give the file's GitHub url instead.",
+      );
+    }
+    if (url === undefined) {
+      throw new ToolError(
+        ERROR_CODES.INVALID_PARAMS,
+        'Give the file\'s GitHub "url", or the "path" of a file on this computer.',
+      );
+    }
     const file = parseGitHubFileUrl(url);
     const mol = resolveMolecule(molecule);
     assertEditableContainer(mol);
@@ -2168,6 +2721,148 @@ const handlers = {
     return { atom: atomRef(atom), input: ap.name, was_from: atomRef(source) };
   },
 
+  async group_atoms({ atoms: refs, name, output: outputRef, x, y }) {
+    const atoms = [
+      ...new Set(refs.map((r) => resolveAtom(r, { allowEmpty: false }))),
+    ];
+    const parent = atoms[0].parent;
+    for (const atom of atoms) {
+      assertEditable(atom);
+      if (!atom.parent || atom.parent !== parent) {
+        throw new ToolError(
+          ERROR_CODES.INVALID_PARAMS,
+          "All atoms in one group_atoms call must be in the same molecule.",
+        );
+      }
+      if (atom.atomType === "Output") {
+        throw new ToolError(
+          ERROR_CODES.INVALID_PARAMS,
+          "A molecule's Output atom stays where it is; leave it out.",
+        );
+      }
+    }
+    assertEditableContainer(parent);
+    const inGroup = new Set(atoms);
+
+    // Connections inside the group move with it. Connections leaving it are
+    // rewired from the new molecule when they leave from the atom that feeds
+    // its Output; connections into it can't cross a molecule boundary
+    // without an Input atom, so they're reported for the caller to redo.
+    const internal = [];
+    const leaving = [];
+    const entering = [];
+    for (const atom of atoms) {
+      atom.output?.connectors.forEach((conn) => {
+        const other = conn.attachmentPoint2.parentMolecule;
+        if (inGroup.has(other)) internal.push(conn.serialize());
+        else {
+          leaving.push({
+            from: atom,
+            to: other,
+            input: conn.attachmentPoint2.name,
+          });
+        }
+      });
+      atom.inputs.forEach((ap) =>
+        ap.connectors.forEach((conn) => {
+          const other = conn.attachmentPoint1.parentMolecule;
+          if (!inGroup.has(other)) {
+            entering.push({ from: other, to: atom, input: ap.name });
+          }
+        }),
+      );
+    }
+    let source = outputRef ? resolveAtom(outputRef) : null;
+    if (source && !inGroup.has(source)) {
+      throw new ToolError(
+        ERROR_CODES.INVALID_PARAMS,
+        `output must be one of the atoms being grouped; ${atomPath(source)} isn't.`,
+      );
+    }
+    if (!source) {
+      const leavingFrom = [...new Set(leaving.map((c) => c.from))];
+      if (leavingFrom.length === 1) source = leavingFrom[0];
+    }
+
+    // The new molecule, where the atoms were on average
+    const mean = (key) =>
+      atoms.reduce((s, a) => s + (Number(a[key]) || 0), 0) / atoms.length;
+    const molecule = await handlers.add_atom({
+      type: "Molecule",
+      molecule: parent.uniqueID,
+      name: name || "New Molecule",
+      x: x ?? mean("x"),
+      y: y ?? mean("y"),
+    });
+    const target = resolveAtom(molecule.id);
+
+    // Copies of the atoms and their connections inside it
+    const oldIDs = atoms.map((a) => a.uniqueID);
+    const copied = target.remapIDs({
+      allAtoms: atoms.map((a) => a.serialize()),
+      allConnectors: internal,
+      fileTypeVersion: 1,
+    });
+    const newID = new Map(
+      oldIDs.map((id, i) => [id, copied.allAtoms[i].uniqueID]),
+    );
+    // Placed locked, as loading a project does: an unlocked atom is enabled
+    // at once, and an Assembly that checks its inputs before its connections
+    // are placed deletes the empty ones (Shape2 and up)
+    for (const atomData of copied.allAtoms) {
+      await target.placeAtom(atomData, false);
+    }
+    copied.allConnectors.forEach((data) => target.placeConnector(data));
+    if (source) target.connectAtomByIDToOutput(newID.get(source.uniqueID));
+    // Atoms placed in a molecule that isn't open start disabled
+    target.enableAllChildrenInOrder();
+
+    // Remove the originals as delete_atoms does, so undo restores them
+    await handlers.delete_atoms({ atoms: oldIDs });
+    const rewired = [];
+    const dropped = [];
+    for (const conn of leaving) {
+      if (conn.from === source) {
+        await handlers.connect({
+          from: molecule.id,
+          to: conn.to.uniqueID,
+          input: conn.input,
+        });
+        rewired.push({ to: atomRef(conn.to), input: conn.input });
+      } else {
+        dropped.push({
+          from: `${atomPath(target)}/${conn.from.name}`,
+          to: atomRef(conn.to),
+          input: conn.input,
+        });
+      }
+    }
+    for (const conn of entering) {
+      dropped.push({
+        from: atomRef(conn.from),
+        to: `${atomPath(target)}/${conn.to.name}`,
+        input: conn.input,
+      });
+    }
+    return {
+      molecule: atomRef(target),
+      moved: oldIDs.map((id) => ({
+        was: id,
+        now: atomRef(resolveAtom(newID.get(id))),
+      })),
+      ...(source
+        ? { output_from: atomRef(resolveAtom(newID.get(source.uniqueID))) }
+        : {}),
+      ...(rewired.length ? { rewired } : {}),
+      ...(dropped.length
+        ? {
+            dropped,
+            note: "These connections crossed into or out of the group and were removed. Add Input atoms to the new molecule, or connect from its output, to restore them.",
+          }
+        : {}),
+    };
+  },
+
   async delete_atoms({ atoms: refs }) {
     const atoms = [
       ...new Set(refs.map((r) => resolveAtom(r, { allowEmpty: false }))),
@@ -2194,17 +2889,18 @@ const handlers = {
         );
       }
     }
+    // Every connection leaving a deleted atom, including those to other
+    // deleted atoms (undo re-places all the atoms before reconnecting), and
+    // those coming in from atoms that stay
     const connectorSnapshots = [];
     atoms.forEach((atom) => {
       atom.output?.connectors.forEach((conn) => {
         const other = conn.attachmentPoint2.parentMolecule;
-        if (!atoms.includes(other)) {
-          connectorSnapshots.push({
-            ap1ID: atom.uniqueID,
-            ap2ID: other.uniqueID,
-            ap2Name: conn.attachmentPoint2.name,
-          });
-        }
+        connectorSnapshots.push({
+          ap1ID: atom.uniqueID,
+          ap2ID: other.uniqueID,
+          ap2Name: conn.attachmentPoint2.name,
+        });
       });
       atom.inputs.forEach((ap) => {
         ap.connectors.forEach((conn) => {
@@ -2271,6 +2967,248 @@ const handlers = {
     );
   },
 };
+
+/**
+ * The reference file numbered `index` in an atom's output (default: the open
+ * molecule's), loaded in the page.
+ */
+async function requireReference(ref, index) {
+  const atom = ref
+    ? resolveAtom(ref)
+    : GlobalVariables.currentMolecule || topLevel();
+  const value = requireValue(atom);
+  const references = isGeometryValue(value) ? referencesOf(value) : [];
+  if (!references.length) {
+    throw new ToolError(
+      ERROR_CODES.NOT_FOUND,
+      `${atomPath(atom)} carries no reference files (images, PDFs, or 3D models).`,
+    );
+  }
+  const item = references[index];
+  if (!item) {
+    throw new ToolError(
+      ERROR_CODES.NOT_FOUND,
+      `${atomPath(atom)} carries ${references.length} reference file(s), numbered from 0; there is no ${index}.`,
+    );
+  }
+  const asset = await loadReferenceFiles(atom, item);
+  return { atom, item, asset, references };
+}
+
+/**
+ * A reference's file, read in the page or else from the project's geometry
+ * cache, where the CAD worker stored it. Keeps the files (and a .gltf's
+ * others) in the page's store for the tools that read it from there.
+ */
+async function loadReferenceFiles(atom, item) {
+  const missing =
+    !getAsset(item.asset) ||
+    Object.values(item.resources || {}).some((id) => !getAsset(id));
+  if (missing && item.fileKey && GlobalVariables.cad?.getReferenceFile) {
+    const stored = await GlobalVariables.cad
+      .getReferenceFile(item.fileKey, atom.getContext())
+      .catch(() => undefined);
+    if (stored) {
+      registerAsset(item.asset, stored.file, {
+        name: item.name,
+        mimeType: item.mimeType,
+      });
+      for (const [path, id] of Object.entries(item.resources || {})) {
+        registerAsset(id, stored.resources?.[path], { name: path });
+      }
+    }
+  }
+  const asset = getAsset(item.asset);
+  if (!asset) {
+    throw new ToolError(
+      ERROR_CODES.CONFLICT,
+      `${item.name} isn't loaded in the page yet. Call wait_for_settle, then try again.`,
+    );
+  }
+  return asset;
+}
+
+/** requireReference, for an image or PDF page: something with pixels. */
+async function requireFlatPicture(ref, index) {
+  const found = await requireReference(ref, index);
+  if (found.item.kind === "model") {
+    throw new ToolError(
+      ERROR_CODES.INVALID_PARAMS,
+      `${found.item.name} is a 3D model; this works on images and PDF pages. Measure a model from its bounding box in get_atom, or look at it with render_image.`,
+    );
+  }
+  return found;
+}
+
+/** An image reference, for the tools that work in a photo's pixels. */
+function requirePhoto(item) {
+  if (item.kind !== "image") {
+    throw new ToolError(
+      ERROR_CODES.INVALID_PARAMS,
+      `${item.name} is ${item.kind === "pdf" ? "a PDF page" : "a 3D model"}; this works on images (PNG and JPG photos).`,
+    );
+  }
+  return item;
+}
+
+/** The photo's camera distance: the given one, else 1000 mm in project units. */
+function photoDistance(distance) {
+  if (distance !== undefined) return distance;
+  return 1000 / (millimetersPerUnit(topLevel().unitsKey) || 1);
+}
+
+/** Longest side of the preview images get_reference returns, in pixels. */
+const PREVIEW_PIXELS = 1568;
+
+/** Most PDF text get_reference returns at once, in characters. */
+const MAX_PDF_TEXT = 40000;
+
+/**
+ * A preview image of a reference for the agent to look at, scaled down to
+ * PREVIEW_PIXELS: { base64, mimeType }.
+ * @param {Blob|HTMLCanvasElement} source
+ */
+async function previewOf(source, mimeType) {
+  const bitmap =
+    source instanceof HTMLCanvasElement
+      ? source
+      : await createImageBitmap(source);
+  const scale = Math.min(
+    1,
+    PREVIEW_PIXELS / Math.max(bitmap.width, bitmap.height),
+  );
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+  canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+  canvas.getContext("2d").drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close?.();
+  return {
+    base64: extractBase64FromDataURL(canvas.toDataURL(mimeType, 0.85)),
+    mimeType,
+  };
+}
+
+/** The text of a PDF's pages for get_reference, cut off at MAX_PDF_TEXT. */
+async function readPdfText(assetId, pages) {
+  let wanted;
+  try {
+    wanted = pages ? parsePageList(pages) : undefined;
+  } catch (err) {
+    throw new ToolError(ERROR_CODES.INVALID_PARAMS, err.message);
+  }
+  const { page_count, pages: read } = await pdfText(assetId, wanted);
+  const text = [];
+  let length = 0;
+  let truncated = false;
+  for (const { page, text: pageText } of read) {
+    if (length + pageText.length > MAX_PDF_TEXT) {
+      text.push({ page, text: pageText.slice(0, MAX_PDF_TEXT - length) });
+      truncated = true;
+      break;
+    }
+    text.push({ page, text: pageText });
+    length += pageText.length;
+  }
+  // Not "text", which file results use for a text file's contents
+  return {
+    page_count,
+    page_text: text,
+    ...(truncated
+      ? {
+          text_truncated: `Text stops at ${MAX_PDF_TEXT} characters; ask for fewer pages to read the rest.`,
+        }
+      : {}),
+  };
+}
+
+/** "1-3, 5" -> [1, 2, 3, 5]. */
+export function parsePageList(text) {
+  const pages = [];
+  for (const part of String(text).split(",")) {
+    const range = part.trim().match(/^(\d+)(?:\s*-\s*(\d+))?$/);
+    if (!range) {
+      throw new Error(`"${text}" isn't a list of pages, such as "1-3, 5".`);
+    }
+    const first = Number(range[1]);
+    const last = Number(range[2] ?? range[1]);
+    if (first < 1 || last < first || last - first > 500) {
+      throw new Error(`"${part.trim()}" isn't a range of pages.`);
+    }
+    for (let page = first; page <= last; page++) pages.push(page);
+  }
+  return [...new Set(pages)];
+}
+
+/**
+ * Upload a file the bridge read from the agent's disk to the project's
+ * GitHub repository, as the editor's Load File button does, and load it in a
+ * new Import atom. The file then opens with the project wherever it goes.
+ */
+async function importLocalFile({ file_base64, file_name, molecule, x, y }) {
+  const name = String(file_name || "")
+    .split(/[\\/]/)
+    .pop();
+  const type = importFileType(name);
+  const node = GlobalVariables.currentAWSnode;
+  // The editor registers the save hook only for a project the user can write
+  if (
+    !canSave() ||
+    typeof GlobalVariables.uploadFile !== "function" ||
+    !node?.owner
+  ) {
+    throw new ToolError(
+      ERROR_CODES.CONFLICT,
+      "Importing a file from disk uploads it to the project's GitHub repository, which needs the project open in the editor by a user who can write to it. Import it from a GitHub url instead.",
+    );
+  }
+  const mol = resolveMolecule(molecule);
+  assertEditableContainer(mol);
+  const bytes = Uint8Array.from(atob(file_base64), (c) => c.charCodeAt(0));
+  const file = new File([bytes], name, {
+    type: REFERENCE_TYPES[type]?.mimeType || "application/octet-stream",
+  });
+
+  const siblings = children(mol).filter((a) => a.atomType !== "Output");
+  const maxX = siblings.reduce((m, a) => Math.max(m, Number(a.x) || 0), 0.1);
+  const obj = {
+    atomType: "Import",
+    parent: mol,
+    parentMolecule: mol,
+    uniqueID: GlobalVariables.generateUniqueID(),
+    x: x ?? Math.min(0.85, maxX + 0.08),
+    y: y ?? 0.2 + (siblings.length % 6) * 0.12,
+    type,
+  };
+  const placed = await mol.placeAtom(obj, false);
+  const atom =
+    (placed && placed.uniqueID === obj.uniqueID && placed) ||
+    children(mol).find((a) => a.uniqueID === obj.uniqueID);
+  if (!atom) {
+    throw new ToolError(
+      ERROR_CODES.INTERNAL_ERROR,
+      `Could not place an Import atom for ${name}.`,
+    );
+  }
+  GlobalVariables.pushUndoCommand(
+    new AddAtomCommand(atom.uniqueID, mol, `Import ${name}`),
+  );
+  let uploaded;
+  try {
+    uploaded = await GlobalVariables.uploadFile(file, atom);
+  } catch (err) {
+    throw new ToolError(
+      ERROR_CODES.INTERNAL_ERROR,
+      `Uploading ${name} to ${node.owner}/${node.repoName} failed: ${err?.message || err}`,
+    );
+  }
+  return {
+    ...atomRef(atom),
+    type: atom.atomType,
+    file: `${node.owner}/${node.repoName}/${uploaded.fileName}`,
+    file_type: type,
+    uploaded: true,
+  };
+}
 
 /** Run apply_edits' edits in order; the caller's undo group rolls back on failure. */
 async function runBatch(edits, ctx, results) {
@@ -2345,7 +3283,11 @@ function typeMatches(schema, value) {
 }
 
 /** Arguments the bridge adds on its own (never shown to the model). */
-const BRIDGE_ADDED_ARGS = new Set(["compiled_code"]);
+const BRIDGE_ADDED_ARGS = new Set([
+  "compiled_code",
+  "file_base64",
+  "file_name",
+]);
 
 export function validateArgs(tool, args, prefix = "") {
   const schema = tool.inputSchema || {};
@@ -2447,7 +3389,10 @@ function describeEdit(name, args) {
     case "add_github_molecule":
       return `import ${args.repo}`;
     case "import_file": {
-      const name = String(args.url).split(/[?#]/)[0].split("/").pop();
+      const name = String(args.file_name ?? args.path ?? args.url)
+        .split(/[?#]/)[0]
+        .split(/[\\/]/)
+        .pop();
       try {
         return `import ${decodeURIComponent(name)}`;
       } catch {

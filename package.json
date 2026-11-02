@@ -40,12 +40,12 @@
     "eslint-linter-browserify": "^9.17.0",
     "file-saver": "^2.0.5",
     "geometry-utils": "file:vendor/geometry-utils",
-    "wasm-nesting": "file:vendor/wasm-nesting",
     "js-sha256": "^0.11.1",
     "mathjs": "^12.4.3",
     "oauthio-web": "^0.6.2",
     "octokit": "^5.0.4",
     "pako": "^2.1.0",
+    "pdfjs-dist": "^6.4.299",
     "playwright": "^1.56.0",
     "polygon-packer": "file:vendor/polygon-packer",
     "puppeteer": "^24.3.0",
@@ -68,6 +68,7 @@
     "url": "^0.11.4",
     "uuid": "^9.0.1",
     "vitest-browser-react": "^1.0.1",
+    "wasm-nesting": "file:vendor/wasm-nesting",
     "workerpool": "^9.3.3"
   },
   "devDependencies": {

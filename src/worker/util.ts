@@ -9,6 +9,12 @@ import {
 } from "./geometryProvider";
 import { installOcctWorkarounds } from "./occtWorkarounds";
 import { reportWasmCrash } from "./progress";
+import {
+  ReferenceGeometryType,
+  isReferenceLeaf,
+  referenceBounds,
+  referenceTypeName,
+} from "./references";
 
 const defaultColor: string = "#aad7f2";
 let loaded: boolean = false;
@@ -155,7 +161,31 @@ const EMPTY_BOUNDS: AbundanceBounds = {
 
 type AbundanceObject = AbundanceLeaf | AbundanceBranch;
 
-type Dimension = "2D" | "3D" | "Wire" | "Point3D" | "Face";
+/**
+ * What a leaf's geometry id names. The first five are replicad shapes, loaded
+ * with geometryProvider.get. "Image", "PDF" and "Model" are reference files
+ * (see references.ts) that are shown and placed but never loaded as shapes.
+ * "Other" stands in for kinds of geometry not supported yet.
+ */
+type GeometryType =
+  | ReplicadGeometryType
+  | ReferenceGeometryType
+  | "Other";
+
+type ReplicadGeometryType = "2D" | "3D" | "Wire" | "Point3D" | "Face";
+
+const REPLICAD_GEOMETRY_TYPES: readonly ReplicadGeometryType[] = [
+  "2D",
+  "3D",
+  "Wire",
+  "Point3D",
+  "Face",
+];
+
+/** Whether a geometry type names a replicad shape. */
+function isReplicadType(type: unknown): type is ReplicadGeometryType {
+  return REPLICAD_GEOMETRY_TYPES.includes(type as ReplicadGeometryType);
+}
 
 interface AbundanceBranch {
   geometry: AbundanceObject[];
@@ -163,7 +193,7 @@ interface AbundanceBranch {
   color: string;
   tags: string[];
   bom: string[];
-  dimension?: Dimension;
+  geometryType?: GeometryType;
   nonReplicadSerialized?: any;
   boundingBox?: AbundanceBounds;
   metadata?: Record<string, any>;
@@ -171,7 +201,7 @@ interface AbundanceBranch {
 
 interface AbundanceLeaf {
   geometry: string;
-  dimension: Dimension;
+  geometryType: GeometryType;
   plane: SimplePlane;
   color: string;
   tags: string[];
@@ -196,13 +226,14 @@ const EMPTY_ASSEMBLY: AbundanceObject = {
   color: defaultColor,
   tags: [],
   bom: [],
-  dimension: "3D",
+  geometryType: "3D",
   nonReplicadSerialized: undefined,
   boundingBox: EMPTY_BOUNDS,
   metadata: {},
 };
 
-function dimensionLabel(geom: any): Dimension {
+/** The geometry type of a replicad object (or of the first of an array). */
+function dimensionLabel(geom: any): ReplicadGeometryType {
   if (geom instanceof replicad.Drawing) {
     return "2D";
   } else if (geom instanceof replicad.Wire) {
@@ -225,14 +256,14 @@ function dimensionLabel(geom: any): Dimension {
 
 function _checkFirstDimIs(
   part: AbundanceObject,
-  dimension: Dimension,
+  geometryType: GeometryType,
 ): boolean {
   if (isAssembly(part)) {
     return part.geometry.some((input: AbundanceObject) =>
-      _checkFirstDimIs(input, dimension),
+      _checkFirstDimIs(input, geometryType),
     );
   } else {
-    return part && part.dimension === dimension;
+    return part && part.geometryType === geometryType;
   }
 }
 
@@ -261,9 +292,9 @@ function validateMixOfTypes(
 ): "2D" | "3D" | "Face" | "Mixable" | undefined {
   const dimensions = geometries
     .map((geom) => {
-      const dims: Dimension[] = [];
+      const dims: GeometryType[] = [];
       actOnLeafsSync(geom, (leaf: AbundanceLeaf) => {
-        dims.push(leaf.dimension);
+        dims.push(leaf.geometryType);
         return leaf;
       });
       return dims;
@@ -276,13 +307,23 @@ function validateMixOfTypes(
     return dim;
   });
   const uniqConst = new Set(constraints);
+  if (constraints.some((c) => !isReplicadType(c) && c !== "Mixable")) {
+    throw new Error(
+      "Input geometries must be shapes. Found: " + dimensions.join(", "),
+    );
+  }
   if (!(uniqConst.size === 1)) {
     throw new Error(
       "Input geometries must be all 2D, all 3D, all Faces, or mix of wires/points. Found: " +
         dimensions.join(", "),
     );
   }
-  return uniqConst.values().next().value;
+  return uniqConst.values().next().value as
+    | "2D"
+    | "3D"
+    | "Face"
+    | "Mixable"
+    | undefined;
 }
 
 async function getBounds(
@@ -298,6 +339,17 @@ async function getBounds(
       maxZ = -Infinity;
 
     await actOnLeafs(geometry, async (leaf: AbundanceLeaf) => {
+      if (isReferenceLeaf(leaf)) {
+        // Known from the file's size and placement; nothing to load.
+        const box = referenceBounds(leaf);
+        minX = Math.min(minX, box.min[0]);
+        minY = Math.min(minY, box.min[1]);
+        minZ = Math.min(minZ, box.min[2]);
+        maxX = Math.max(maxX, box.max[0]);
+        maxY = Math.max(maxY, box.max[1]);
+        maxZ = Math.max(maxZ, box.max[2]);
+        return leaf;
+      }
       const replicadbox = (await geometryProvider!.get(leaf.geometry, context))
         .boundingBox;
       let bbox = undefined;
@@ -666,6 +718,49 @@ function filterAssembly(
 }
 
 /**
+ * Throws if any of `values` contains a reference (an image, PDF or 3D model;
+ * see references.ts), which `operation` can't use because it needs shapes.
+ */
+function rejectReferences(operation: string, values: unknown[]): void {
+  for (const value of values) {
+    const candidates = Array.isArray(value) ? value : [value];
+    for (const candidate of candidates) {
+      if (!isAbundanceObject(candidate)) continue;
+      const reference = flattenAssembly(candidate).find(isReferenceLeaf);
+      if (reference) {
+        const what = referenceTypeName(
+          reference.geometryType as ReferenceGeometryType,
+        );
+        const name = reference.metadata?.reference?.name;
+        throw new Error(
+          `${operation} needs shapes, but its input includes ${what}` +
+            (name ? ` (${name})` : "") +
+            ". References are only shown and placed. To combine one with shapes, use an Assembly with Make Disjoint turned off.",
+        );
+      }
+    }
+  }
+}
+
+/**
+ * `value` without its references, for outputs that only make sense for
+ * shapes (cut layout, G-code, export). A value that isn't geometry, or has no
+ * references, comes back unchanged. A value that is only references becomes
+ * an empty assembly.
+ */
+function withoutReferences<T>(value: T): T {
+  if (!isAbundanceObject(value)) return value;
+  if (!flattenAssembly(value).some(isReferenceLeaf)) return value;
+  const kept = filterAssembly(
+    value,
+    (node) => isLeaf(node) && !isReferenceLeaf(node),
+  );
+  // filterAssembly keeps a leaf passing the predicate; keep branches whole
+  // otherwise so their tags, plane and metadata survive.
+  return (kept ?? { ...EMPTY_ASSEMBLY, geometry: [], plane: value.plane }) as T;
+}
+
+/**
  * Recursively extracts geometry that does NOT have "keepout" tags from an assembly or single geometry.
  * @param {Object} inputGeometry - The geometry object to filter keepout tags from
  * @returns {Object|boolean} The geometry without keepout tags, or false if all geometry has keepout tags
@@ -805,7 +900,7 @@ function assemblyOf(subAssemblies: AbundanceObject[]): AbundanceObject {
     color: defaultColor,
     tags: [],
     bom: [],
-    dimension: subAssemblies[0].dimension,
+    geometryType: subAssemblies[0].geometryType,
     nonReplicadSerialized: subAssemblies
       .map((a) => a.nonReplicadSerialized || [])
       .flat(),
@@ -872,7 +967,12 @@ export {
   isAssembly,
   isLeaf,
   isPoint3D,
+  isReferenceLeaf,
+  isReplicadType,
   isWireGeometry,
+  GeometryType,
+  rejectReferences,
+  withoutReferences,
   leafCount,
   mergeBounds,
   replicad,

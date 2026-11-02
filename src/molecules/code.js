@@ -265,7 +265,7 @@ let sketchCir = circDraw.sketchOnPlane(newPlane)
 let cyl = sketchCir.extrude(height)
 let cylObj = {
   geometry: [cyl],
-  dimension: "3D",
+  geometryType: "3D",
   tags: ["createdCylinder"],
   color: "#A3CE5B",
   plane: null,

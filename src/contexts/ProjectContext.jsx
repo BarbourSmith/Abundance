@@ -1697,6 +1697,25 @@ export function ProjectProvider({ children, cad, loadProject }) {
           return;
         }
 
+        // A project opened from GitHub starts as an empty placeholder that its
+        // project file is loaded into. If that load never finished (it
+        // failed, or the page reloaded part way), saving would commit the
+        // empty placeholder over the project on GitHub.
+        const topMolecule = GlobalVariables.topLevelMolecule;
+        const openProjectKey = `${GlobalVariables.currentAWSnode?.owner}/${GlobalVariables.currentAWSnode?.repoName}`;
+        if (
+          !topMolecule?.topLevel &&
+          topMolecule?.loadedProjectKey !== openProjectKey
+        ) {
+          if (typeSave !== "Auto Save") {
+            setNotification(
+              "Save blocked: this project hasn't loaded. Reload the page to load it before saving.",
+              "error",
+            );
+          }
+          return;
+        }
+
         // Autosave waits while the model is computing: mid-compute, wired input
         // values are missing, so a save would commit a broken snapshot. An atom
         // that never finishes mustn't block saving forever, so it waits at most
