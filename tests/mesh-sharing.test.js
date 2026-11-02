@@ -134,6 +134,16 @@ describe("display meshes of moved copies", () => {
     );
   }, 60000);
 
+  it("gives corner points in the shape's own coordinates", async () => {
+    const moved = transformId("part", translation(500, 0, 0));
+    const [plain, placed] = await Promise.all([
+      pool.exec("generatePerVertexPoints", [leaf("part"), context]),
+      pool.exec("generatePerVertexPoints", [leaf(moved), context]),
+    ]);
+    expect(plain[0].length).toBeGreaterThan(0);
+    expect(placed[0]).toEqual(plain[0]);
+  }, 60000);
+
   it("sends sketches already in place", async () => {
     await putShape(
       context.project,

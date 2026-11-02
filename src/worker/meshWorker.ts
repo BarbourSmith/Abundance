@@ -756,7 +756,13 @@ async function generatePerVertexPoints(
     return part.geometry !== util.geometryProvider?.EMPTY_SHAPE_SENTINEL;
   });
   for (let leafIndex = 0; leafIndex < flattened.length; leafIndex++) {
-    const shape = await getShapeCached(flattened[leafIndex].geometry, context);
+    // In the base shape's coordinates, like the face and edge meshes: the 3D
+    // view draws them inside the part's transformed group. A moved copy
+    // shares its base shape's topology, so corner numbers are the same.
+    const { base } = util.geometryProvider!.splitTransform(
+      flattened[leafIndex].geometry,
+    );
+    const shape = await getShapeCached(base, context);
     if (
       !shape ||
       shape instanceof replicad.Vertex ||
