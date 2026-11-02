@@ -41,6 +41,7 @@ import {
   sideDataOf,
 } from "../src/js/sideData.js";
 import { __test__, resolveAtom, runTool } from "../src/agent/runtime.js";
+import { DETECT_TYPE, detectImportType } from "../src/molecules/import.js";
 import { agentBridge } from "../src/agent/bridgeClient.js";
 import { projectPoint } from "../src/agent/photoCamera.js";
 
@@ -316,6 +317,71 @@ describe("importing reference files", () => {
       min: [-0.5, -1.5, 0],
       max: [0.5, 1.5, 2],
     });
+  });
+});
+
+describe("detecting the file type", () => {
+  const file = (bytes, name) => new File([bytes], name);
+
+  it("goes by the extension", async () => {
+    expect(await detectImportType(file("x", "plan.JPEG"))).toBe("JPG");
+    expect(await detectImportType(file("x", "part.stp"))).toBe("STEP");
+    expect(await detectImportType(file("x", "scan.glb"))).toBe("GLB");
+  });
+
+  it("reads the file when the name doesn't say", async () => {
+    expect(await detectImportType(file(await pngBytes(4, 4), "photo"))).toBe(
+      "PNG",
+    );
+    expect(await detectImportType(file(pdfBytes(["A"]), "sheet.bin"))).toBe(
+      "PDF",
+    );
+    expect(await detectImportType(file(await glbBytes(), "scan"))).toBe("GLB");
+    expect(await detectImportType(file("ISO-10303-21;\nHEADER;", "part"))).toBe(
+      "STEP",
+    );
+    expect(
+      await detectImportType(file('<?xml version="1.0"?><svg x="1">', "logo")),
+    ).toBe("SVG");
+    expect(await detectImportType(file("solid part\nendsolid", "part"))).toBe(
+      "STL",
+    );
+    const binarySTL = new Uint8Array(84 + 50);
+    new DataView(binarySTL.buffer).setUint32(80, 1, true);
+    expect(await detectImportType(file(binarySTL, "part"))).toBe("STL");
+    expect(await detectImportType(file("hello", "notes.txt"))).toBeUndefined();
+  });
+
+  it("is the Import atom's default and loads what was uploaded", async () => {
+    const { id } = await runTool("add_atom", { type: "Import" }, EDIT);
+    const atom = resolveAtom(id);
+    expect(atom.importOptions[atom.importIndex]).toBe(DETECT_TYPE);
+
+    // The editor's file input, with an upload that hands the atom its file
+    const input = document.createElement("input");
+    input.id = "fileLoaderInput";
+    document.body.appendChild(input);
+    try {
+      atom.loadFile(DETECT_TYPE);
+      expect(input.accept).toContain(".pdf");
+      expect(input.accept).toContain(".step");
+      const upload = new File([await pngBytes(40, 20)], "photo");
+      input.onchange({ target: { files: [upload] }, timeStamp: 0 });
+      await atom.updateFile(upload, "sha-photo");
+      await settle();
+    } finally {
+      input.remove();
+    }
+    expect(atom.type).toBe("PNG");
+    expect(referencesOf(atom.value)[0]).toMatchObject({ kind: "image" });
+  });
+
+  it("explains a file it can't recognize", async () => {
+    const { id } = await runTool("add_atom", { type: "Import" }, EDIT);
+    const atom = resolveAtom(id);
+    await atom.updateFile(new File(["hello"], "notes.txt"), "sha-notes");
+    expect(atom.status).toBe(Status.ERROR);
+    expect(atom.alert.message).toMatch(/Couldn't tell what kind of file/);
   });
 });
 
