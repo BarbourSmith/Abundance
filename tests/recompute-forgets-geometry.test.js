@@ -22,7 +22,7 @@ import {
 
 const leaf = (id) => ({
   geometry: id,
-  geometryType: "3D",
+  geometryType: "replicad.Shape3D",
   plane: XYPlane,
   color: "#aad7f2",
   tags: [],

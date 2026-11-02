@@ -228,7 +228,8 @@ function convertCodeAtomResult(
   try {
     simpleReplicadGeomDim = util.dimensionLabel(value);
     const isFacelessType =
-      simpleReplicadGeomDim === "Point3D" || simpleReplicadGeomDim === "Wire";
+      simpleReplicadGeomDim === "replicad.Vertex" ||
+      simpleReplicadGeomDim === "replicad.Wire";
     return new Assembly({
       geometry: value,
       geometryType: simpleReplicadGeomDim,

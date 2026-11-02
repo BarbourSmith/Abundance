@@ -183,7 +183,7 @@ const Controls = React.memo(
         </mesh>
 
         {/* Add a visible ground plane under the origin */}
-        {plane && extraPlane && geometryType == "2D" ? (
+        {plane && extraPlane && geometryType == "replicad.Drawing" ? (
           <mesh ref={planeRef} name="workplane">
             <planeGeometry args={[100, 100]} />
             <meshStandardMaterial

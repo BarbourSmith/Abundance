@@ -141,7 +141,7 @@ async function loftShapes(
     }
     results.push({
       geometry: geometry,
-      geometryType: "3D",
+      geometryType: "replicad.Shape3D",
       tags: [],
       plane: util.XYPlane,
       color: util.defaultColor,
@@ -246,7 +246,7 @@ async function shrinkWrapSketches(
       50,
       context,
     ),
-    geometryType: "2D",
+    geometryType: "replicad.Drawing",
     tags: [],
     color: util.defaultColor,
     plane: util.XYPlane,
@@ -407,7 +407,7 @@ async function assembly(
   // Allowed inputs -> all 2d, all 3d, or just wires/points
   const geomType = util.validateMixOfTypes(geometries);
   // Fast return if all points or wires.
-  if (geomType === "Mixable" || geomType === "Face") {
+  if (geomType === "Mixable" || geomType === "replicad.Face") {
     return util.assemblyOf(geometries);
   }
 
@@ -695,8 +695,8 @@ async function recursiveCut(
   for (const cuttingPart of util.flattenAssembly(cuttingParts)) {
     // --- Coplanarity check for 2D shapes ---
     if (
-      partToCut.geometryType === "2D" &&
-      cuttingPart.geometryType === "2D" &&
+      partToCut.geometryType === "replicad.Drawing" &&
+      cuttingPart.geometryType === "replicad.Drawing" &&
       partToCut.plane &&
       cuttingPart.plane
     ) {

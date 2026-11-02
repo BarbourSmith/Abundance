@@ -34,7 +34,7 @@ async function extrude(
           height,
           context,
         ),
-        geometryType: "3D",
+        geometryType: "replicad.Shape3D",
       };
       // Delete boundingBox - extrude creates entirely new geometry with different bounds
       delete transformed.boundingBox;
@@ -49,7 +49,7 @@ async function extrude(
           height,
           context,
         ),
-        geometryType: "3D",
+        geometryType: "replicad.Shape3D",
       };
       // Delete boundingBox - extrude creates entirely new geometry with different bounds
       delete transformed.boundingBox;
@@ -156,7 +156,13 @@ async function moveReference(
 ): Promise<AbundanceLeaf> {
   const moved = {
     ...leaf,
-    geometry: await util.geometryProvider!.move(leaf.geometry, x, y, z, context),
+    geometry: await util.geometryProvider!.move(
+      leaf.geometry,
+      x,
+      y,
+      z,
+      context,
+    ),
   };
   delete moved.boundingBox;
   return moved;

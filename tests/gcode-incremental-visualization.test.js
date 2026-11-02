@@ -21,7 +21,7 @@ G1 X0 Y0 Z0
     
     expect(result).toBeDefined();
     expect(result.geometry).toBeDefined();
-    expect(result.geometryType).toBe("3D");
+    expect(result.geometryType).toBe("replicad.Shape3D");
   });
 
   test("should visualize multiple gcode parts with incremental method", async () => {
@@ -57,7 +57,7 @@ G1 X40 Y0 Z0
     
     expect(result).toBeDefined();
     expect(result.geometry).toBeDefined();
-    expect(result.geometryType).toBe("3D");
+    expect(result.geometryType).toBe("replicad.Shape3D");
   });
 
   test("should visualize multiple parts correctly", async () => {
@@ -86,7 +86,7 @@ G1 X20 Y0 Z0
     
     // Should produce valid result
     expect(result).toBeDefined();
-    expect(result.geometryType).toBe("3D");
+    expect(result.geometryType).toBe("replicad.Shape3D");
     expect(result.geometry).toBeDefined();
   });
 
@@ -150,6 +150,6 @@ G1 X20 Y20 Z2
     
     expect(result).toBeDefined();
     expect(result.geometry).toBeDefined();
-    expect(result.geometryType).toBe("3D");
+    expect(result.geometryType).toBe("replicad.Shape3D");
   });
 });

@@ -947,7 +947,8 @@ export default class Atom extends ObservableEntity {
           // keep a number typed into one rather than losing it on save.
           // (Strings aren't kept: they may be stale geometry IDs.)
           const value = ap.getValue();
-          const keepNumber = typeof value === "number" && Number.isFinite(value);
+          const keepNumber =
+            typeof value === "number" && Number.isFinite(value);
           ioValues.push({
             name: ap.name,
             ioValue: keepNumber ? value : "__GEOMETRY_INPUT__",
@@ -1661,7 +1662,11 @@ export default class Atom extends ObservableEntity {
     }
 
     // If it's a Point3D geometry object
-    if (value && typeof value === "object" && value.geometryType === "Point3D") {
+    if (
+      value &&
+      typeof value === "object" &&
+      value.geometryType === "replicad.Vertex"
+    ) {
       // If we have geometryProvider and context, use them for hash ID lookup
       try {
         const vertex = await GlobalVariables.cad.getAsPoint3D(

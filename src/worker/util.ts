@@ -167,20 +167,48 @@ type AbundanceObject = AbundanceLeaf | AbundanceBranch;
  * (see references.ts) that are shown and placed but never loaded as shapes.
  * "Other" stands in for kinds of geometry not supported yet.
  */
-type GeometryType =
-  | ReplicadGeometryType
-  | ReferenceGeometryType
-  | "Other";
+type GeometryType = ReplicadGeometryType | ReferenceGeometryType | "Other";
 
-type ReplicadGeometryType = "2D" | "3D" | "Wire" | "Point3D" | "Face";
+type ReplicadGeometryType =
+  | "replicad.Drawing"
+  | "replicad.Shape3D"
+  | "replicad.Wire"
+  | "replicad.Vertex"
+  | "replicad.Face";
 
 const REPLICAD_GEOMETRY_TYPES: readonly ReplicadGeometryType[] = [
-  "2D",
-  "3D",
-  "Wire",
-  "Point3D",
-  "Face",
+  "replicad.Drawing",
+  "replicad.Shape3D",
+  "replicad.Wire",
+  "replicad.Vertex",
+  "replicad.Face",
 ];
+
+/**
+ * Names geometry types had before they named their representation, and the
+ * `dimension` field they were stored in. Code atoms written against the old
+ * names still work: their results are mapped through this.
+ */
+const LEGACY_GEOMETRY_TYPES: Record<string, ReplicadGeometryType> = {
+  "2D": "replicad.Drawing",
+  "3D": "replicad.Shape3D",
+  Wire: "replicad.Wire",
+  Point3D: "replicad.Vertex",
+  Face: "replicad.Face",
+};
+
+/**
+ * A node's geometry type under its current name, reading the old
+ * `dimension` field and old names ("2D", "3D", ...) if that's what it has.
+ */
+function normalizeGeometryType(node: {
+  geometryType?: string;
+  dimension?: string;
+}): GeometryType | undefined {
+  const type = node.geometryType ?? node.dimension;
+  if (type === undefined) return undefined;
+  return (LEGACY_GEOMETRY_TYPES[type] ?? type) as GeometryType;
+}
 
 /** Whether a geometry type names a replicad shape. */
 function isReplicadType(type: unknown): type is ReplicadGeometryType {
@@ -226,7 +254,7 @@ const EMPTY_ASSEMBLY: AbundanceObject = {
   color: defaultColor,
   tags: [],
   bom: [],
-  geometryType: "3D",
+  geometryType: "replicad.Shape3D",
   nonReplicadSerialized: undefined,
   boundingBox: EMPTY_BOUNDS,
   metadata: {},
@@ -235,15 +263,15 @@ const EMPTY_ASSEMBLY: AbundanceObject = {
 /** The geometry type of a replicad object (or of the first of an array). */
 function dimensionLabel(geom: any): ReplicadGeometryType {
   if (geom instanceof replicad.Drawing) {
-    return "2D";
+    return "replicad.Drawing";
   } else if (geom instanceof replicad.Wire) {
-    return "Wire";
+    return "replicad.Wire";
   } else if (geom instanceof replicad.Vertex) {
-    return "Point3D";
+    return "replicad.Vertex";
   } else if (geom instanceof replicad.Face) {
-    return "Face";
+    return "replicad.Face";
   } else if (replicad.isShape3D(geom)) {
-    return "3D";
+    return "replicad.Shape3D";
   } else if (Array.isArray(geom)) {
     return dimensionLabel(geom[0]); // recurse down the first child of assembly.
   } else {
@@ -268,28 +296,33 @@ function _checkFirstDimIs(
 }
 
 function is2D(part: AbundanceObject): boolean {
-  return _checkFirstDimIs(part, "2D");
+  return _checkFirstDimIs(part, "replicad.Drawing");
 }
 
 function is3D(part: AbundanceObject): boolean {
-  return _checkFirstDimIs(part, "3D");
+  return _checkFirstDimIs(part, "replicad.Shape3D");
 }
 
 function isFace(part: AbundanceObject): boolean {
-  return _checkFirstDimIs(part, "Face");
+  return _checkFirstDimIs(part, "replicad.Face");
 }
 
 function isPoint3D(part: AbundanceObject): boolean {
-  return _checkFirstDimIs(part, "Point3D");
+  return _checkFirstDimIs(part, "replicad.Vertex");
 }
 
 function isWireGeometry(part: AbundanceObject): boolean {
-  return _checkFirstDimIs(part, "Wire");
+  return _checkFirstDimIs(part, "replicad.Wire");
 }
 
 function validateMixOfTypes(
   geometries: AbundanceObject[],
-): "2D" | "3D" | "Face" | "Mixable" | undefined {
+):
+  | "replicad.Drawing"
+  | "replicad.Shape3D"
+  | "replicad.Face"
+  | "Mixable"
+  | undefined {
   const dimensions = geometries
     .map((geom) => {
       const dims: GeometryType[] = [];
@@ -301,7 +334,7 @@ function validateMixOfTypes(
     })
     .flat();
   const constraints = dimensions.map((dim) => {
-    if (dim === "Wire" || dim === "Point3D") {
+    if (dim === "replicad.Wire" || dim === "replicad.Vertex") {
       return "Mixable";
     }
     return dim;
@@ -319,9 +352,9 @@ function validateMixOfTypes(
     );
   }
   return uniqConst.values().next().value as
-    | "2D"
-    | "3D"
-    | "Face"
+    | "replicad.Drawing"
+    | "replicad.Shape3D"
+    | "replicad.Face"
     | "Mixable"
     | undefined;
 }
@@ -969,6 +1002,7 @@ export {
   isPoint3D,
   isReferenceLeaf,
   isReplicadType,
+  normalizeGeometryType,
   isWireGeometry,
   GeometryType,
   rejectReferences,

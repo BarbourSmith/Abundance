@@ -233,7 +233,7 @@ function visExport(
           ...fusedGeometry,
           geometry: cachedGeom,
           color: "#fefffa",
-          geometryType: "2D",
+          geometryType: "replicad.Drawing",
         };
       }
     }
@@ -366,7 +366,7 @@ async function importingSTEP(
     tags: [],
     color: util.defaultColor,
     bom: [],
-    geometryType: "3D",
+    geometryType: "replicad.Shape3D",
     plane: util.XYPlane,
   };
 }
@@ -399,7 +399,7 @@ async function importingSTL(
     color: util.defaultColor,
     bom: [],
     plane: util.XYPlane,
-    geometryType: "3D",
+    geometryType: "replicad.Shape3D",
   };
 }
 
@@ -435,7 +435,7 @@ async function importingSVG(
       plane: util.XYPlane,
       color: util.defaultColor,
       bom: [],
-      geometryType: "2D",
+      geometryType: "replicad.Drawing",
     };
   } catch (error) {
     //add alert  ----> Try tweaking your file here https://iconly.io/tools/svg-convert-stroke-to-fill "
@@ -612,7 +612,7 @@ async function visualizeGcodeIncrementalInternal(
         plane: util.XYPlane,
         color: util.defaultColor,
         bom: [],
-        geometryType: "3D",
+        geometryType: "replicad.Shape3D",
       });
     } catch (err) {
       console.error(`  ❌ Failed to create wire for part ${i + 1}:`, err);
@@ -684,7 +684,7 @@ async function visualizeGcodeAsAssembly(
           plane: util.XYPlane,
           color: util.defaultColor,
           bom: [],
-          geometryType: "3D",
+          geometryType: "replicad.Shape3D",
         });
       } catch (err) {
         console.error(`  ❌ Failed to create wire for part ${i + 1}:`, err);
@@ -909,7 +909,9 @@ async function getReferenceFile(
     fileKey,
     context,
   );
-  return record ? { file: record.file, resources: record.resources } : undefined;
+  return record
+    ? { file: record.file, resources: record.resources }
+    : undefined;
 }
 
 /**

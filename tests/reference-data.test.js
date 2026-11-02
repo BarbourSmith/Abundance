@@ -404,7 +404,7 @@ describe("references in the graph", () => {
     const value = valueOf(assembly);
     expect(resolveAtom(assembly).status).toBe(Status.READY);
     expect(flattenAssembly(value).map((leaf) => leaf.geometryType)).toEqual([
-      "3D",
+      "replicad.Shape3D",
       "Image",
     ]);
     const bounds = await GlobalVariables.cad.getBoundingBox(

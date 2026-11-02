@@ -97,9 +97,7 @@ function parseBase(
  */
 function parseReferenceId(
   id: string,
-):
-  | { fileKey: string; scale: number; transform: RigidTransform }
-  | undefined {
+): { fileKey: string; scale: number; transform: RigidTransform } | undefined {
   const transformed = parseTransformedId(id);
   const base = parseBase(transformed ? transformed.base : id);
   if (!base) return undefined;
@@ -225,7 +223,11 @@ function referenceBounds(leaf: {
 
 /** The name operations use in errors for a reference geometry type. */
 function referenceTypeName(type: ReferenceGeometryType): string {
-  return type === "Image" ? "an image" : type === "PDF" ? "a PDF" : "a 3D model";
+  return type === "Image"
+    ? "an image"
+    : type === "PDF"
+      ? "a PDF"
+      : "a 3D model";
 }
 
 export {

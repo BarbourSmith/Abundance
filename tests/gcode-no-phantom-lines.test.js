@@ -37,7 +37,7 @@ G1 X20 Y0 Z0
     
     // Should produce valid result
     expect(result).toBeDefined();
-    expect(result.geometryType).toBe("3D");
+    expect(result.geometryType).toBe("replicad.Shape3D");
     
     console.log(`\n✅ No phantom lines created - position flows continuously between parts`);
   });
@@ -88,7 +88,7 @@ G1 X25 Y5 Z0
     const result = await visualizeGcodeIncremental(parts, context);
     
     // Should produce the correct structure
-    expect(result.geometryType).toBe("3D");
+    expect(result.geometryType).toBe("replicad.Shape3D");
     
     console.log(`\n✅ Incremental method produces correct visualization`);
   });

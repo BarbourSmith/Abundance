@@ -15,7 +15,7 @@ describe("cutlayout keepout exclusion", () => {
       tags: [],
       color: "#0000FF",
       bom: [],
-      geometryType: "3D",
+      geometryType: "replicad.Shape3D",
       plane: "XY", // needed for isAbundanceObject check
     };
 
@@ -26,7 +26,7 @@ describe("cutlayout keepout exclusion", () => {
       tags: ["keepout"],
       color: "#D9544D",
       bom: [],
-      geometryType: "3D",
+      geometryType: "replicad.Shape3D",
       plane: "XY", // needed for isAbundanceObject check
     };
 
@@ -37,7 +37,7 @@ describe("cutlayout keepout exclusion", () => {
       tags: [],
       color: null,
       bom: [],
-      geometryType: "3D",
+      geometryType: "replicad.Shape3D",
       plane: "XY", // needed for isAbundanceObject check
     };
   });
@@ -50,7 +50,7 @@ describe("cutlayout keepout exclusion", () => {
         tags: [],
         color: null,
         bom: [],
-        geometryType: "3D",
+        geometryType: "replicad.Shape3D",
         plane: "XY",
       };
 
@@ -74,7 +74,7 @@ describe("cutlayout keepout exclusion", () => {
         tags: [],
         color: null,
         bom: [],
-        geometryType: "3D",
+        geometryType: "replicad.Shape3D",
         plane: "XY",
       };
 
@@ -95,14 +95,14 @@ describe("cutlayout keepout exclusion", () => {
             tags: [],
             color: null,
             bom: [],
-            geometryType: "3D",
+            geometryType: "replicad.Shape3D",
             plane: "XY",
           }
         ],
         tags: [],
         color: null,
         bom: [],
-        geometryType: "3D",
+        geometryType: "replicad.Shape3D",
         plane: "XY",
       };
 
@@ -124,7 +124,7 @@ describe("cutlayout keepout exclusion", () => {
         tags: [],
         color: null,
         bom: [],
-        geometryType: "3D",
+        geometryType: "replicad.Shape3D",
         plane: "XY",
       };
 
@@ -142,7 +142,7 @@ describe("cutlayout keepout exclusion", () => {
         tags: [],
         color: null,
         bom: [],
-        geometryType: "3D",
+        geometryType: "replicad.Shape3D",
         plane: "XY",
       };
 

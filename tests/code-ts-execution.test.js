@@ -125,7 +125,7 @@ describe("Code atom TS-mode execution (executeCode, interpreterVersion=1)", () =
       const code = `function run() { return replicad.drawRectangle(5, 5); }`;
       const context = { project: "code-ts-dim-2d" };
       const result = await executeCode(code, {}, context, VERSION_TS, ATOM_ID);
-      expect(result.geometryType).toBe("2D");
+      expect(result.geometryType).toBe("replicad.Drawing");
       expect(is3D(result)).toBe(false);
     });
 
@@ -133,7 +133,7 @@ describe("Code atom TS-mode execution (executeCode, interpreterVersion=1)", () =
       // Regression: addAssemblyPartsToCache spread `...assembly` (an Assembly
       // class instance) which has no `dimension` field — only is2D()/is3D()
       // methods. This caused 3D code-atom outputs to have dimension=undefined,
-      // which util.is3D() treated as falsy → "2D", triggering the
+      // which util.is3D() treated as falsy → "replicad.Drawing", triggering the
       // "Fusion must be composed from only sketches OR only solids" error when
       // fusing a code-atom 3D result with an extruded shape.
       const code = `function run(r, h) {
@@ -148,7 +148,7 @@ describe("Code atom TS-mode execution (executeCode, interpreterVersion=1)", () =
         VERSION_TS,
         ATOM_ID,
       );
-      expect(result.geometryType).toBe("3D");
+      expect(result.geometryType).toBe("replicad.Shape3D");
       expect(is3D(result)).toBe(true);
     });
 

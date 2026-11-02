@@ -838,7 +838,12 @@ async function inspectParts(
     const leaf = parts[index];
     if (isReferenceLeaf(leaf)) {
       // A file, not a shape: nothing to check.
-      results.push({ index, tags: leaf.tags, kind: leaf.geometryType, problems: [] });
+      results.push({
+        index,
+        tags: leaf.tags,
+        kind: leaf.geometryType,
+        problems: [],
+      });
       continue;
     }
     try {

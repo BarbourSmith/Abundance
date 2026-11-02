@@ -1,8 +1,5 @@
 export type DataType =
-  | "ReplicadObject"
-  | "AbundanceObject"
-  | "PairCache"
-  | "Binary";
+  "ReplicadObject" | "AbundanceObject" | "PairCache" | "Binary";
 export type StoredGeometryRecord = {
   projectId: string;
   shapeKey: string;
@@ -140,12 +137,8 @@ export async function getBinary(
   shapeKey: string,
 ): Promise<StoredBinaryRecord | undefined> {
   const record = (await getShape(projectId, shapeKey)) as unknown as
-    | StoredBinaryRecord
-    | StoredGeometryRecord
-    | undefined;
-  return record?.type === "Binary"
-    ? (record as StoredBinaryRecord)
-    : undefined;
+    StoredBinaryRecord | StoredGeometryRecord | undefined;
+  return record?.type === "Binary" ? (record as StoredBinaryRecord) : undefined;
 }
 
 export async function getShape(

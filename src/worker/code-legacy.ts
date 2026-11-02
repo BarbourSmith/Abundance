@@ -54,7 +54,11 @@ export type RealizedAssembly = RealizedLeaf | RealizedBranch;
 export type RealizedBranch = {
   geometry: RealizedAssembly[];
   plane: replicad.Plane;
-  geometryType: "2D" | "3D" | "Wire" | "Point3D";
+  geometryType:
+    | "replicad.Drawing"
+    | "replicad.Shape3D"
+    | "replicad.Wire"
+    | "replicad.Vertex";
   color: string;
   tags: string[];
   bom: string[];
@@ -63,7 +67,11 @@ export type RealizedBranch = {
 export type RealizedLeaf = {
   geometry: ReplicadObject[]; // For backwards compatibility this is an array. But it always contains a single item.
   plane: replicad.Plane;
-  geometryType: "2D" | "3D" | "Wire" | "Point3D";
+  geometryType:
+    | "replicad.Drawing"
+    | "replicad.Shape3D"
+    | "replicad.Wire"
+    | "replicad.Vertex";
   color: string;
   tags: string[];
   bom: string[];
@@ -170,7 +178,7 @@ async function toGeometry(
   if (raw_type && raw_type instanceof String && raw_type.startsWith("TopoDS")) {
     // If it's a raw geometry object, we wrap it in an abundance object
     return {
-      geometryType: "3D",
+      geometryType: "replicad.Shape3D",
       plane: util.XYPlane,
       color: util.defaultColor,
       tags: [],
@@ -509,12 +517,18 @@ export async function ensureDimension(
 ): Promise<RealizedAssembly> {
   return Promise.resolve(assembly).then(async (resolvedAssembly) => {
     if (isRealizedLeaf(resolvedAssembly)) {
+      // Older code may set `dimension`, or the old names ("2D", "3D", ...)
+      const named = util.normalizeGeometryType(resolvedAssembly as any);
+      if (named) resolvedAssembly.geometryType = named as any;
+      delete (resolvedAssembly as any).dimension;
       if (
         !("geometryType" in resolvedAssembly) ||
         resolvedAssembly.geometryType === undefined
       ) {
         resolvedAssembly.geometryType =
-          "_wrapped" in resolvedAssembly.geometry[0] ? "3D" : "2D";
+          "_wrapped" in resolvedAssembly.geometry[0]
+            ? "replicad.Shape3D"
+            : "replicad.Drawing";
       }
     } else {
       resolvedAssembly.geometry = await Promise.all(
