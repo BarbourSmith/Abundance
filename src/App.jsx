@@ -21,6 +21,7 @@ import {
   savedCadTimeoutSeconds,
 } from "./worker/cadWorkerManager.js";
 import { DisplayScheduler, meshKey } from "./js/displayScheduler.js";
+import { hasGeometry, referencesOf, withoutSideData } from "./js/sideData.js";
 import LoginMode from "./components/main-routes/LoginMode.jsx";
 import RunMode from "./components/main-routes/RunMode.jsx";
 import PullMode from "./components/main-routes/PullMode.jsx";
@@ -262,6 +263,8 @@ function AppContent() {
     setGcodeParts,
     nonReplicadGeometry,
     setNonReplicadGeometry,
+    setReferenceItems,
+    setBackgroundReferenceItems,
     activeTags,
     setActiveTags,
     setComputingLabel,
@@ -584,6 +587,8 @@ function AppContent() {
       setMesh([]);
       setWireMesh([]);
       setNonReplicadGeometry(null);
+      setReferenceItems([]);
+      setBackgroundReferenceItems([]);
     };
     GlobalVariables.setSelectionModeAtom = setSelectionModeAtom;
     GlobalVariables.setOutdatedMesh = setOutdatedMesh;
@@ -601,6 +606,19 @@ function AppContent() {
       }
       if (!context) {
         context = GlobalVariables.topLevelMolecule?.getContext();
+      }
+
+      // References (images, PDF pages, 3D models) are drawn by
+      // ReferenceMeshes. Only geometry is meshed, so they don't change the
+      // mesh key, and a value that is only references has no mesh at all.
+      const references = referencesOf(moleculeValue);
+      const onlyReferences =
+        references.length > 0 && !hasGeometry(moleculeValue);
+      moleculeValue = withoutSideData(moleculeValue);
+      if (backgroundMolecule) {
+        setBackgroundReferenceItems(references);
+      } else {
+        setReferenceItems(references);
       }
 
       /* Handle non-Replicad geometry - if otherGeometry is provided*/
@@ -622,6 +640,15 @@ function AppContent() {
 
       if (backgroundMolecule) {
         backgroundKeyRef.current = key;
+        if (onlyReferences) {
+          displayScheduler.cancel("background");
+          setWireMesh([]);
+          if (!displayScheduler.isPending("foreground")) {
+            setOutdatedMesh(false);
+          }
+          setIsViewingOutputMesh(targetKeyRef.current === key);
+          return;
+        }
         displayScheduler.request("background", {
           args: [moleculeValue, context],
           key,
@@ -653,7 +680,7 @@ function AppContent() {
         new Set(GlobalVariables.topLevelMolecule?.projectAvailableTags || []),
       ); // Trigger re-application of tag filtering to ensure correct tags are applied for new geometry
 
-      if (nonReplicadGeometryFromAtom?.hideMainMesh) {
+      if (nonReplicadGeometryFromAtom?.hideMainMesh || onlyReferences) {
         // Drop any pending mesh render so it doesn't override the
         // non-replicad geometry (e.g. gcode visualization) after computing
         targetKeyRef.current = null;
@@ -712,6 +739,8 @@ function AppContent() {
     setMesh,
     setWireMesh,
     setOutdatedMesh,
+    setReferenceItems,
+    setBackgroundReferenceItems,
     setRenderProgress,
     setTopLevelWireMesh,
     setIsViewingOutputMesh,
@@ -738,7 +767,9 @@ function AppContent() {
     // Only filter if we're viewing the top-level molecule AND not in export/gcode preview mode
     if (activeAtom === GlobalVariables.topLevelMolecule && activeAtom?.value) {
       const context = activeAtom.getContext();
-      const filteredGeometry = filterGeometryByTags(activeAtom.value, activeTags);
+      const filteredGeometry = withoutSideData(
+        filterGeometryByTags(activeAtom.value, activeTags),
+      );
       // The foreground target this filter applies to. If the user displays
       // something else before the filtered mesh is ready, it is discarded.
       const baseKey = targetKeyRef.current;

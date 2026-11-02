@@ -123,6 +123,11 @@ export default class Export extends Atom {
     );
   }
 
+  /** Exported files hold geometry only, so the preview shows only that. */
+  outputSideData() {
+    return [];
+  }
+
   createInputParams(setInputChanged) {
     // Forward to super so it can register `setInputChanged` on this atom.
     // We discard its returned controls because Export builds a fully

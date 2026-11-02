@@ -4,6 +4,7 @@ import {
   CAD_BOOLEAN_INFLIGHT_TYPE,
   CAD_WASM_CRASHED_TYPE,
 } from "./progress";
+import { withoutSideData } from "../js/sideData.js";
 
 /**
  * How many worker crashes a call can be caught in before it is failed instead
@@ -497,7 +498,13 @@ export class CadWorkerManager {
     return new Promise((resolve, reject) => {
       const taskId = `cad-task-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       const queuedAt = Date.now();
-      const { callArgs, taskMeta } = this._stripTaskMeta(args);
+      const { callArgs: rawArgs, taskMeta } = this._stripTaskMeta(args);
+      // The worker only handles geometry. Labels, reference images and other
+      // side data stay on the main thread (see src/js/sideData.js), which
+      // also keeps them out of the worker's cache keys.
+      const callArgs = rawArgs.map((arg) =>
+        Array.isArray(arg) ? arg.map(withoutSideData) : withoutSideData(arg),
+      );
 
       const entry = {
         resolve,

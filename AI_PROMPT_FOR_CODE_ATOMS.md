@@ -253,6 +253,30 @@ function run(width: number = 90, height: number = 580, sweep: number = 20): Asse
 }
 ```
 
+### 5b. An Outline Traced from a Reference
+
+trace_reference returns a shape's outline from a photo or drawing as points in project units. Paste them into a code atom that draws a smooth closed curve through them (a Catmull-Rom spline, drawn as cubic Béziers), and extrude it with an Extrude atom:
+
+```typescript
+/** Body outline traced from the reference photo, in mm. */
+const POINTS: number[][] = [
+  [-0.9, -430.5], [8.7, -431.6], [18.2, -432.9], // ...every point trace_reference returned
+];
+
+function run(): Assembly {
+  const n = POINTS.length;
+  const p = (i: number) => POINTS[(i + n) % n];
+  let pen = replicad.draw(p(0));
+  for (let i = 0; i < n; i++) {
+    const [a, b, c, d] = [p(i - 1), p(i), p(i + 1), p(i + 2)];
+    const c1 = [b[0] + (c[0] - a[0]) / 6, b[1] + (c[1] - a[1]) / 6];
+    const c2 = [c[0] - (d[0] - b[0]) / 6, c[1] - (d[1] - b[1]) / 6];
+    pen = pen.cubicBezierCurveTo(c, c1, c2);
+  }
+  return new Assembly({ geometry: pen.close() });
+}
+```
+
 ### 6. Adding Fillets and Chamfers
 
 ```typescript

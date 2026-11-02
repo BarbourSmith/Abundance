@@ -164,6 +164,9 @@ interface AbundanceBranch {
   tags: string[];
   bom: string[];
   dimension?: Dimension;
+  // Side data (labels, reference images, PDFs, 3D models) at the root of a
+  // value on the main thread. Never set inside this worker; see
+  // src/js/sideData.js.
   nonReplicadSerialized?: any;
   boundingBox?: AbundanceBounds;
   metadata?: Record<string, any>;
@@ -176,7 +179,7 @@ interface AbundanceLeaf {
   color: string;
   tags: string[];
   bom: string[];
-  nonReplicadSerialized?: any;
+  nonReplicadSerialized?: any; // Side data, when the leaf is a whole value; see AbundanceBranch
   boundingBox?: AbundanceBounds;
   metadata?: Record<string, any>;
   selection?: {
@@ -197,7 +200,6 @@ const EMPTY_ASSEMBLY: AbundanceObject = {
   tags: [],
   bom: [],
   dimension: "3D",
-  nonReplicadSerialized: undefined,
   boundingBox: EMPTY_BOUNDS,
   metadata: {},
 };
@@ -524,7 +526,6 @@ function actOnLeafsSync(
     const newChildren = (assembly.geometry as AbundanceObject[])
       .map((child) => actOnLeafsSync(child, action))
       .filter((child) => child !== undefined);
-    // Preserve nonReplicadGeom if present
     return {
       ...assembly,
       geometry: newChildren,
@@ -538,14 +539,11 @@ async function actOnLeafs(
     leaf: AbundanceLeaf,
   ) => AbundanceLeaf | Promise<AbundanceLeaf | undefined>,
   plane?: SimplePlane,
-  nonReplicadSerialized?: any,
 ): Promise<AbundanceObject> {
   if (!isAbundanceObject(assembly)) {
     return assembly;
   }
   plane = plane || assembly.plane;
-  nonReplicadSerialized =
-    nonReplicadSerialized || assembly.nonReplicadSerialized || {};
 
   if (isLeaf(assembly)) {
     const result = await action(assembly);
@@ -557,7 +555,6 @@ async function actOnLeafs(
         ...assembly,
         plane: plane,
         geometry: [],
-        nonReplicadSerialized: nonReplicadSerialized,
       };
     }
   } else {
@@ -581,7 +578,6 @@ async function actOnLeafs(
       tags: assembly.tags,
       bom: assembly.bom,
       metadata: assembly.metadata,
-      nonReplicadSerialized: nonReplicadSerialized,
       // ← boundingBox intentionally NOT included
     };
 
@@ -806,9 +802,6 @@ function assemblyOf(subAssemblies: AbundanceObject[]): AbundanceObject {
     tags: [],
     bom: [],
     dimension: subAssemblies[0].dimension,
-    nonReplicadSerialized: subAssemblies
-      .map((a) => a.nonReplicadSerialized || [])
-      .flat(),
   };
   return computeAssemblyBounds(result);
 }

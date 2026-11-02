@@ -426,25 +426,12 @@ async function assembly(
     const batch: RequestContext | AbundanceObject =
       await util.geometryProvider!.startBatchOperation(context, batchId);
 
-    // Full assembly cache hit. No work to do, but update nonReplicadSerialized if needed.
+    // Full assembly cache hit. No work to do.
     if (util.isAbundanceObject(batch)) {
       const batchWithBounds = batch.boundingBox
         ? batch
         : await util.withAssemblyBoundingBoxes(batch, context);
-      // Gather all nonReplicadSerialized and bom from input geometries
-      const nonReplicadGeoms: any[] = [];
-      const bomAssembly: any[] = [];
-      for (const geometry of geometries) {
-        if (
-          Array.isArray(geometry.nonReplicadSerialized) &&
-          geometry.nonReplicadSerialized.length > 0
-        ) {
-          nonReplicadGeoms.push(...geometry.nonReplicadSerialized);
-        }
-      }
-      // Always update to reflect current state, even if empty
-      batchWithBounds.nonReplicadSerialized = nonReplicadGeoms;
-      batchWithBounds.bom = bomAssembly;
+      batchWithBounds.bom = [];
       return batchWithBounds;
     }
 

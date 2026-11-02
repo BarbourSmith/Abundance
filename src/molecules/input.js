@@ -5,6 +5,7 @@ import { ValueChangeCommand } from "../js/undoCommands.js";
 import { Octokit } from "octokit";
 import { hashAssembly } from "../worker/util.ts";
 import { unitAbbreviation } from "../js/units.js";
+import { scaleSideData, sideDataOf, withSideData } from "../js/sideData.js";
 
 // Default values for range type inputs
 const DEFAULT_RANGE_MIN = 0;
@@ -496,7 +497,9 @@ export default class Input extends Atom {
       .scale(value, factor, this.getContext())
       .then((scaled) => {
         if (request !== this.unitScaleRequest) return;
-        this.setReady(scaled);
+        this.setReady(
+          withSideData(scaled, scaleSideData(sideDataOf(value), factor)),
+        );
       })
       .catch((err) => {
         if (request !== this.unitScaleRequest) return;
@@ -1280,7 +1283,10 @@ export default class Input extends Atom {
             typeof setInputChanged === "function" ? setInputChanged : null;
 
           this.isLocalFile = false; // Mark as GitHub file
-          GlobalVariables.uploadFile(file, this, saveCallback);
+          // A failed upload is already shown to the user
+          GlobalVariables.uploadFile(file, this, saveCallback)?.catch?.(
+            () => {},
+          );
 
           // Call input changed callback after file name is set
           if (inputChangedCallback) {

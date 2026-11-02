@@ -24,6 +24,12 @@ export default defineConfig({
       "uuid",
       "pako",
       "replicad-shrink-wrap",
+      "replicad-decorate",
+      "pdfjs-dist/legacy/build/pdf.mjs",
+      "three/examples/jsm/loaders/GLTFLoader.js",
+      "three/examples/jsm/loaders/DRACOLoader.js",
+      "three/examples/jsm/libs/meshopt_decoder.module.js",
+      "three/examples/jsm/exporters/GLTFExporter.js",
     ],
   },
   test: {

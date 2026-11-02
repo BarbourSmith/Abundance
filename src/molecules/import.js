@@ -1,9 +1,76 @@
 import Atom from "../prototypes/atom.js";
 import GlobalVariables from "../js/globalvariables.js";
 import { Octokit } from "octokit";
+import {
+  DEFAULT_MODEL_UNITS,
+  MODEL_UNITS,
+  REFERENCE_TYPES,
+  addAsset,
+  describeReferenceFile,
+  gltfExternalFiles,
+  isReferenceType,
+} from "../js/referenceFiles.js";
+import { referencesOf, sideDataOf, withSideData } from "../js/sideData.js";
+import { unitAbbreviation, unitsContextOf } from "../js/units.js";
+import { EMPTY_ASSEMBLY } from "../worker/util";
+
+/** The name of a file from its path in a repository. */
+function baseName(path) {
+  return String(path).split("/").pop();
+}
+
+/** The file type option that picks the type from the file itself. */
+export const DETECT_TYPE = "Detect";
+
+/** File types by extension (lowercase, no dot). */
+const TYPES_BY_EXTENSION = {
+  svg: "SVG",
+  stl: "STL",
+  step: "STEP",
+  stp: "STEP",
+  ...Object.fromEntries(
+    Object.entries(REFERENCE_TYPES).flatMap(([type, { extensions }]) =>
+      extensions.map((extension) => [extension, type]),
+    ),
+  ),
+};
 
 /**
- * This class creates an atom which supports uploading a .svg file
+ * The file type of a file: from its extension, or failing that from how it
+ * starts. Returns undefined for a file Import atoms can't load.
+ * @param {File} file
+ * @returns {Promise<string|undefined>}
+ */
+export async function detectImportType(file) {
+  const name = String(file.name || "");
+  const extension = name.includes(".")
+    ? name.slice(name.lastIndexOf(".") + 1).toLowerCase()
+    : "";
+  if (TYPES_BY_EXTENSION[extension]) return TYPES_BY_EXTENSION[extension];
+
+  const head = new Uint8Array(await file.slice(0, 512).arrayBuffer());
+  const text = new TextDecoder("latin1").decode(head);
+  const starts = (...bytes) => bytes.every((b, i) => head[i] === b);
+  if (starts(0x89, 0x50, 0x4e, 0x47)) return "PNG";
+  if (starts(0xff, 0xd8, 0xff)) return "JPG";
+  if (text.startsWith("%PDF")) return "PDF";
+  if (text.startsWith("glTF")) return "GLB";
+  if (text.startsWith("ISO-10303-21")) return "STEP";
+  if (/<svg[\s>]/i.test(text)) return "SVG";
+  if (/^\s*\{[\s\S]*"asset"/.test(text)) return "GLTF";
+  if (/^\s*solid\b/.test(text)) return "STL";
+  // A binary STL: an 80 byte header, a triangle count, and 50 bytes per triangle
+  if (file.size >= 84) {
+    const count = new DataView(head.buffer).getUint32(80, true);
+    if (84 + count * 50 === file.size) return "STL";
+  }
+  return undefined;
+}
+
+/**
+ * This class creates an atom which imports a file: SVG, STL, and STEP files
+ * as geometry, and PNG, JPG, PDF, GLB, and glTF files as references to model
+ * against (see src/js/referenceFiles.js).
  */
 export default class Import extends Atom {
   /**
@@ -28,7 +95,7 @@ export default class Import extends Atom {
      * @type {string}
      */
     this.description =
-      "Import Atom, let's you choose a type of file to import and use in your design.";
+      "Imports a file into your design: SVG, STL, and STEP files as geometry, and PNG, JPG, PDF, GLB, and glTF files as references (images, documents, and 3D scans) to model against. References are shown and moved like geometry, but never cut it or get cut.";
 
     /**
      * The uploaded file
@@ -54,9 +121,40 @@ export default class Import extends Atom {
 
     this.SVGwidth = 10;
 
+    /**
+     * Width of an imported image or PDF page in project units, or null for
+     * the default (about 100 mm for an image, the printed size for a PDF).
+     * @type {number|null}
+     */
+    this.referenceWidth = null;
+
+    /**
+     * The PDF page to show, from 1.
+     * @type {number}
+     */
+    this.page = 1;
+
+    /**
+     * The units an imported 3D model is in, a key of MODEL_UNITS.
+     * @type {string}
+     */
+    this.modelUnits = DEFAULT_MODEL_UNITS;
+
+    /**
+     * How opaque an imported reference is, 0 to 1.
+     * @type {number}
+     */
+    this.opacity = 1;
+
     this.addIO("output", "geometry", undefined, "output");
 
-    this.importOptions = ["SVG", "STL", "STEP"];
+    this.importOptions = [
+      DETECT_TYPE,
+      "SVG",
+      "STL",
+      "STEP",
+      ...Object.keys(REFERENCE_TYPES),
+    ];
 
     this.importIndex = 0;
 
@@ -92,7 +190,17 @@ export default class Import extends Atom {
   }
 
   compute(inputs) {
+    // Nothing to load until a file is chosen
+    if (this.fileName == null) {
+      this.setWaiting();
+      return new Promise(() => {});
+    }
     return this.loadAndPropagate();
+  }
+
+  /** An imported reference is this atom's own side data. */
+  outputSideData(inputs, value) {
+    return sideDataOf(value);
   }
 
   /**
@@ -167,6 +275,9 @@ export default class Import extends Atom {
           }
 
           this.file = file;
+          if (isReferenceType(this.type)) {
+            return this.loadReference(file);
+          }
           let fileType = this.type;
 
           let funcToCall =
@@ -202,6 +313,118 @@ export default class Import extends Atom {
           });
         });
     }
+  }
+
+  /**
+   * Fetch another file from the repository this atom's file is in, as a Blob,
+   * the way loadAndPropagate fetches the file itself.
+   * @param {string} path - Path in the repository
+   */
+  async fetchRepoFile(path) {
+    const result = GlobalVariables.fetchFileContent
+      ? await GlobalVariables.fetchFileContent(
+          this.repoOwner,
+          this.repoName,
+          path,
+          this.gitRef || undefined,
+        )
+      : await new Octokit({
+          headers: { "X-GitHub-Api-Version": "2022-11-28" },
+        }).rest.repos.getContent({
+          owner: this.repoOwner,
+          repo: this.repoName,
+          path,
+          ...(this.gitRef ? { ref: this.gitRef } : {}),
+        });
+    if (result.data.content) return this.newBlobFromBase64(result);
+    return GlobalVariables.fetchRawFileContent
+      ? GlobalVariables.fetchRawFileContent(
+          this.repoOwner,
+          this.repoName,
+          result.data.sha,
+          this.type,
+        )
+      : this.fetchFromDownloadUrl(result.data);
+  }
+
+  /**
+   * Keep a reference file's bytes, with the other files a .gltf loads from
+   * beside it in the repository, and describe it as this atom's output.
+   * @param {Blob} file
+   */
+  async loadReference(file) {
+    // Files fetched from GitHub come back untyped
+    const blob = new Blob([file], {
+      type: REFERENCE_TYPES[this.type].mimeType,
+    });
+    this.asset = await addAsset(blob, {
+      name: baseName(this.fileName),
+      mimeType: REFERENCE_TYPES[this.type].mimeType,
+    });
+    this.resources = {};
+    if (this.type === "GLTF") {
+      const folder = new URL(this.fileName, "https://repo/");
+      for (const path of gltfExternalFiles(await blob.text())) {
+        const repoPath = decodeURI(new URL(path, folder).pathname.slice(1));
+        let resource;
+        try {
+          resource = await this.fetchRepoFile(repoPath);
+        } catch (err) {
+          throw new Error(
+            `This .gltf file loads ${path}, which couldn't be loaded from the repository (${err?.message || err}). Import the .glb version of the model instead, which holds everything in one file.`,
+          );
+        }
+        this.resources[path] = await addAsset(resource, {
+          name: baseName(path),
+        });
+      }
+    }
+    return this.referenceValue();
+  }
+
+  /** This atom's output for its loaded reference file, with its settings. */
+  async referenceValue() {
+    const item = await describeReferenceFile(this.asset, {
+      type: this.type,
+      name: baseName(this.fileName),
+      unitsKey: unitsContextOf(this),
+      width: this.referenceWidth,
+      page: this.page,
+      modelUnits: this.modelUnits,
+      opacity: this.opacity,
+      resources: this.resources,
+      ...(this.repoOwner && this.repoName
+        ? {
+            source: {
+              owner: this.repoOwner,
+              repo: this.repoName,
+              path: this.fileName,
+              ...(this.gitRef ? { ref: this.gitRef } : {}),
+            },
+          }
+        : {}),
+    });
+    return withSideData(structuredClone(EMPTY_ASSEMBLY), [item]);
+  }
+
+  /**
+   * Describe the loaded reference again after a setting changed, without
+   * fetching the file again.
+   */
+  refreshReference() {
+    if (!this.asset) {
+      return this.loadAndPropagate();
+    }
+    this.setProcessing();
+    return this.referenceValue()
+      .then((value) => {
+        this.setReady(value);
+        if (this.selected) {
+          this.sendToRender();
+        }
+        this.setInputChanged?.(Date.now());
+      })
+      .catch((err) => this.setError(err));
   }
 
   /**
@@ -281,6 +504,9 @@ export default class Import extends Atom {
           },
         };
       }
+      if (isReferenceType(this.type)) {
+        Object.assign(inputParams, this.referenceParams());
+      }
     }
     inputParams[this.uniqueID + "Loaded File"] = {
       type: "string",
@@ -295,19 +521,96 @@ export default class Import extends Atom {
     return inputParams;
   }
 
+  /** Panel fields for a reference file's settings. */
+  referenceParams() {
+    const params = {};
+    const id = this.uniqueID;
+    const kind = REFERENCE_TYPES[this.type].kind;
+    const [item] = referencesOf(this.value);
+    if (kind === "image" || kind === "pdf") {
+      const { min, max } = item?.contentBounds || { min: [0], max: [0] };
+      params[id + "referenceWidth"] = {
+        type: "number",
+        value: this.referenceWidth ?? Math.round((max[0] - min[0]) * 100) / 100,
+        label: `Width (${unitAbbreviation(unitsContextOf(this)) || "units"})`,
+        step: 1,
+        onChange: (value) => {
+          const width = Number(value);
+          this.referenceWidth = width > 0 ? width : null;
+          this.refreshReference();
+        },
+      };
+    }
+    if (kind === "pdf") {
+      params[id + "page"] = {
+        type: "number",
+        value: this.page,
+        label: item?.pageCount ? `Page (of ${item.pageCount})` : "Page",
+        min: 1,
+        step: 1,
+        onChange: (value) => {
+          const page = Math.round(Number(value));
+          if (page >= 1 && page !== this.page) {
+            this.page = page;
+            this.refreshReference();
+          }
+        },
+      };
+    }
+    if (kind === "model") {
+      params[id + "modelUnits"] = {
+        type: "select",
+        value: this.modelUnits,
+        options: Object.keys(MODEL_UNITS),
+        label: "File Units",
+        onChange: (value) => {
+          if (value && value !== this.modelUnits) {
+            this.modelUnits = value;
+            this.refreshReference();
+          }
+        },
+      };
+    }
+    params[id + "opacity"] = {
+      type: "range",
+      value: this.opacity,
+      label: "Opacity",
+      min: 0.05,
+      max: 1,
+      step: 0.05,
+      onChange: (value) => {
+        this.opacity = Number(value);
+        this.refreshReference();
+      },
+    };
+    return params;
+  }
+
   /**
    * Creates an input element to load a file and calls import function in CreateMode
    */
   loadFile(type, setInputChanged) {
     var f = document.getElementById("fileLoaderInput");
-    f.accept = "." + type.toLowerCase();
+    const extensions =
+      type === DETECT_TYPE
+        ? Object.keys(TYPES_BY_EXTENSION)
+        : REFERENCE_TYPES[type]?.extensions || [type.toLowerCase()];
+    f.accept = extensions.map((extension) => "." + extension).join(",");
     f.onchange = (event) => {
       const file = event.target.files[0];
       if (file) {
         // If a previous file exists, delete it
         this.deleteUploadedFile();
 
-        this.type = type;
+        // Detecting may read the file; the upload (CreateMode) waits for it
+        // in updateFile before processing the file
+        this.type = type === DETECT_TYPE ? null : type;
+        this.detectingType =
+          type === DETECT_TYPE
+            ? detectImportType(file).then((detected) => {
+                this.type = detected ?? null;
+              })
+            : null;
         this.fileName = file.name; // Set the new filename
 
         if (setInputChanged) {
@@ -364,9 +667,19 @@ export default class Import extends Atom {
   /**
    * Update the file, filename and sha of the atom
    */
-  updateFile(file, sha) {
+  async updateFile(file, sha) {
     this.fileName = file.name;
     this.sha = sha;
+    await this.detectingType;
+    if (!this.type && file instanceof File) {
+      this.type = (await detectImportType(file)) ?? null;
+    }
+    if (!this.type) {
+      this.setError(
+        `Couldn't tell what kind of file "${file.name}" is. Choose its File Type and load it again.`,
+      );
+      return;
+    }
     if (
       !GlobalVariables.currentAWSnode?.owner ||
       !GlobalVariables.currentAWSnode?.repoName
@@ -377,7 +690,21 @@ export default class Import extends Atom {
     this.repoOwner = GlobalVariables.currentAWSnode.owner;
     this.repoName = GlobalVariables.currentAWSnode.repoName;
 
-    if (file instanceof File) {
+    if (file instanceof File && isReferenceType(this.type)) {
+      this.setProcessing();
+      this.loadReference(file)
+        .then((result) => {
+          this.setReady(result);
+          if (this.selected) {
+            this.sendToRender();
+          }
+        })
+        .catch((err) => {
+          this.setError(
+            `Failed to load imported file "${this.fileName}". ${err?.message || err}`,
+          );
+        });
+    } else if (file instanceof File) {
       // File object was passed directly from a fresh upload — process it immediately
       // without re-fetching from GitHub (avoids CDN propagation-delay 404s)
       this.setProcessing();
@@ -430,6 +757,16 @@ export default class Import extends Atom {
     superSerialObject.repoName = this.repoName;
     if (this.gitRef) superSerialObject.gitRef = this.gitRef;
     superSerialObject.SVGwidth = this.SVGwidth;
+    if (isReferenceType(this.type)) {
+      if (this.referenceWidth) {
+        superSerialObject.referenceWidth = this.referenceWidth;
+      }
+      if (this.page !== 1) superSerialObject.page = this.page;
+      if (this.modelUnits !== DEFAULT_MODEL_UNITS) {
+        superSerialObject.modelUnits = this.modelUnits;
+      }
+      if (this.opacity !== 1) superSerialObject.opacity = this.opacity;
+    }
 
     return superSerialObject;
   }
