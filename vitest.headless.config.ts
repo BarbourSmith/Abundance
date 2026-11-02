@@ -31,6 +31,7 @@ export default defineConfig({
       "three/examples/jsm/loaders/DRACOLoader.js",
       "three/examples/jsm/libs/meshopt_decoder.module.js",
       "three/examples/jsm/exporters/GLTFExporter.js",
+      "workerpool",
     ],
   },
   test: {

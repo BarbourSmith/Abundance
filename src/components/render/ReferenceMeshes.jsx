@@ -9,19 +9,19 @@ const BACKGROUND_OPACITY = 0.35;
 /** What decides how a reference looks; equal keys look the same. */
 function itemKey(item) {
   return JSON.stringify([
+    item.id,
     item.asset,
     item.page,
     item.resources,
     item.contentBounds,
-    item.matrix,
     item.opacity,
   ]);
 }
 
 /**
- * Shows the references (images, PDF pages, 3D models) carried by the
- * displayed value, and, faded, those carried by the open molecule's output.
- * They are decoded on the main thread from the files Import atoms loaded (see
+ * Shows the references (images, PDF pages, 3D models) in the displayed value,
+ * and, faded, those in the open molecule's output. The mesh worker sends them
+ * with the meshes (see App.jsx); they are decoded on the main thread (see
  * src/js/referenceObjects.js).
  */
 export default function ReferenceMeshes() {

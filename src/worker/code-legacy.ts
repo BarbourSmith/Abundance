@@ -54,7 +54,7 @@ export type RealizedAssembly = RealizedLeaf | RealizedBranch;
 export type RealizedBranch = {
   geometry: RealizedAssembly[];
   plane: replicad.Plane;
-  dimension: "2D" | "3D" | "Wire" | "Point3D";
+  geometryType: "2D" | "3D" | "Wire" | "Point3D";
   color: string;
   tags: string[];
   bom: string[];
@@ -63,7 +63,7 @@ export type RealizedBranch = {
 export type RealizedLeaf = {
   geometry: ReplicadObject[]; // For backwards compatibility this is an array. But it always contains a single item.
   plane: replicad.Plane;
-  dimension: "2D" | "3D" | "Wire" | "Point3D";
+  geometryType: "2D" | "3D" | "Wire" | "Point3D";
   color: string;
   tags: string[];
   bom: string[];
@@ -170,7 +170,7 @@ async function toGeometry(
   if (raw_type && raw_type instanceof String && raw_type.startsWith("TopoDS")) {
     // If it's a raw geometry object, we wrap it in an abundance object
     return {
-      dimension: "3D",
+      geometryType: "3D",
       plane: util.XYPlane,
       color: util.defaultColor,
       tags: [],
@@ -510,17 +510,17 @@ export async function ensureDimension(
   return Promise.resolve(assembly).then(async (resolvedAssembly) => {
     if (isRealizedLeaf(resolvedAssembly)) {
       if (
-        !("dimension" in resolvedAssembly) ||
-        resolvedAssembly.dimension === undefined
+        !("geometryType" in resolvedAssembly) ||
+        resolvedAssembly.geometryType === undefined
       ) {
-        resolvedAssembly.dimension =
+        resolvedAssembly.geometryType =
           "_wrapped" in resolvedAssembly.geometry[0] ? "3D" : "2D";
       }
     } else {
       resolvedAssembly.geometry = await Promise.all(
         resolvedAssembly.geometry.map((child) => ensureDimension(child)),
       );
-      resolvedAssembly.dimension = resolvedAssembly.geometry[0].dimension;
+      resolvedAssembly.geometryType = resolvedAssembly.geometry[0].geometryType;
     }
     return resolvedAssembly;
   });
@@ -579,7 +579,7 @@ async function assemblyMap(
           color: node.color,
           plane: node.plane,
           bom: node.bom || [],
-          dimension: filteredGeometry[0].dimension,
+          geometryType: filteredGeometry[0].geometryType,
         };
       }
     }
@@ -655,7 +655,7 @@ export async function realizeAssembly(
       ...assembly,
       geometry: children,
       plane: util.asReplicadPlane(assembly.plane),
-      dimension: children[0].dimension,
+      geometryType: children[0].geometryType,
     };
   }
 }

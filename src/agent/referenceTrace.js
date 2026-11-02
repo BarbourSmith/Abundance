@@ -9,7 +9,7 @@
  * rectangle the image or page spans, top row at max Y, as the 3D view draws
  * it) and its matrix (where Move, Rotate, and unit conversion placed it).
  */
-import { IDENTITY, applyMatrix } from "../js/sideData.js";
+import { IDENTITY, applyMatrix } from "../js/referenceItems.js";
 import { getAsset, renderPdfPage } from "../js/referenceFiles.js";
 
 /** Longest side, in pixels, of the copy of a reference that gets traced. */
@@ -433,7 +433,7 @@ export function signedArea(points) {
 
 /**
  * Trace one shape in a reference image or PDF page.
- * @param {object} item - The reference (side data item)
+ * @param {object} item - The reference (a reference item; see referenceItems.js)
  * @param {object} options
  * @param {number[]} [options.point] - [x, y] in project units inside or near the shape
  * @param {string} [options.color] - Hex color of the shape; default: anything

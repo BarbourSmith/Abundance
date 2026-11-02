@@ -16,7 +16,7 @@ import {
   DeleteAtomsCommand,
   DeleteConnectorCommand,
 } from "../js/undoCommands.js";
-import { meshKey } from "../js/displayScheduler.js";
+import { meshKey, splitDisplayMesh } from "../js/displayScheduler.js";
 import {
   extractBase64FromDataURL,
   generateMeshPNG,
@@ -24,16 +24,18 @@ import {
 import AttachmentPoint from "../prototypes/attachmentpoint.js";
 import { ObservableEntity, Status } from "../prototypes/observableEntity.js";
 import { extractBomList, flattenAssembly } from "../worker/util";
+import { parseTransformedId } from "../worker/lazyTransform";
 import {
-  IDENTITY,
-  hasGeometry,
+  hasShapes,
+  isReferenceLeaf,
   referencesOf,
   summarizeReference,
-  withoutSideData,
-} from "../js/sideData.js";
+  withoutReferences,
+} from "../js/referenceItems.js";
 import {
   REFERENCE_TYPES,
   getAsset,
+  registerAsset,
   pdfText,
   renderPdfPage,
 } from "../js/referenceFiles.js";
@@ -70,6 +72,9 @@ import moleculeLibrary from "./moleculeLibrary.json";
 import { agentBridge } from "./bridgeClient.js";
 import { ERROR_CODES, ToolError } from "./protocol.js";
 import { BATCHABLE_TOOLS, TOOLS_BY_NAME, isToolAllowed } from "./tools.js";
+
+/** Whether a geometry id has been moved or rotated (see lazyTransform.ts). */
+const isTransformedId = (id) => !!id && !!parseTransformedId(id);
 
 /** Window event fired after every agent edit so UI can refresh. */
 export const AGENT_EDIT_EVENT = "abundance-agent-edit";
@@ -561,7 +566,7 @@ function isGeometryValue(value) {
     !!value &&
     typeof value === "object" &&
     "geometry" in value &&
-    ("dimension" in value || Array.isArray(value.geometry))
+    ("geometryType" in value || Array.isArray(value.geometry))
   );
 }
 
@@ -578,13 +583,13 @@ export function summarizeValue(value) {
   }
   if (isGeometryValue(value)) {
     const references = referencesOf(value);
-    if (references.length && !hasGeometry(value)) {
+    if (references.length && !hasShapes(value)) {
       return `<references: ${references.map((r) => r.name).join(", ")}>`;
     }
     const carried = references.length
       ? ` with ${references.length} reference file(s)`
       : "";
-    return `<${value.dimension || "assembly"} geometry${carried}>`;
+    return `<${value.geometryType || "assembly"} geometry${carried}>`;
   }
   if (Array.isArray(value)) {
     if (value.length <= 16 && value.every((v) => typeof v !== "object")) {
@@ -780,7 +785,7 @@ function coerceParamValue(param, value) {
 async function summarizeGeometry(atom) {
   const value = atom.value;
   const summary = {
-    dimension: value.dimension || "assembly",
+    geometryType: value.geometryType || "assembly",
   };
   const cad = GlobalVariables.cad;
   const context = atom.getContext();
@@ -803,7 +808,10 @@ async function summarizeGeometry(atom) {
     tasks.push(
       withTimeout(cad.extractParts(value), 20000).then((leaves) => {
         if (!Array.isArray(leaves)) return;
-        summary.part_count = leaves.length;
+        // References are listed on their own, not counted as parts
+        summary.part_count = leaves.filter(
+          (leaf) => !isReferenceLeaf(leaf),
+        ).length;
         const tags = new Set();
         const colors = new Set();
         leaves.forEach((leaf) => {
@@ -973,7 +981,7 @@ function requireGeometry(atom) {
  * view draws it; empty when the value has no geometry.
  */
 async function displayMeshOf(atom, value) {
-  if (!hasGeometry(value)) return [];
+  if (!hasShapes(value) && !referencesOf(value).length) return [];
   const context = atom.getContext();
   const meshTask = GlobalVariables.displayScheduler
     ? GlobalVariables.displayScheduler.run(
@@ -1206,7 +1214,7 @@ const handlers = {
       const references = isGeometryValue(atom.value)
         ? referencesOf(atom.value).map(summarizeReference)
         : [];
-      if (references.length && !hasGeometry(atom.value)) {
+      if (references.length && !hasShapes(atom.value)) {
         detail.output = { part_count: 0, references };
       } else if (isGeometryValue(atom.value)) {
         detail.output = await summarizeGeometry(atom);
@@ -1597,13 +1605,15 @@ const handlers = {
       ? resolveAtom(ref)
       : GlobalVariables.currentMolecule || topLevel();
     let value = requireGeometry(atom);
-    // Images, PDF pages and 3D models the output carries are drawn with it
-    const references =
-      showReferences && part === undefined ? referencesOf(value) : [];
-    value = withoutSideData(value);
     if (part !== undefined) value = partOf(atom, value, part);
-    const mesh = await displayMeshOf(atom, value);
-    const built = await createReferenceObjects(references);
+    // Images, PDF pages and 3D models in the output come with the meshes,
+    // with their files, and are drawn with them
+    const { meshes: mesh, references } = splitDisplayMesh(
+      await displayMeshOf(atom, value),
+    );
+    const built = await createReferenceObjects(
+      showReferences ? references : [],
+    );
     if (!mesh.length && !built.objects.length) {
       built.release();
       throw new ToolError(
@@ -1641,7 +1651,7 @@ const handlers = {
   },
 
   async get_reference({ atom: ref, index = 0, pages }) {
-    const { atom, item, asset, references } = requireReference(ref, index);
+    const { atom, item, asset, references } = await requireReference(ref, index);
     const result = {
       filename: item.name,
       base64: arrayBufferToBase64(await asset.blob.arrayBuffer()),
@@ -1689,7 +1699,7 @@ const handlers = {
     spacing,
     smoothing,
   }) {
-    const { atom, item } = requireFlatPicture(ref, index);
+    const { atom, item } = await requireFlatPicture(ref, index);
     let traced;
     try {
       traced = await traceReference(item, {
@@ -1725,7 +1735,7 @@ const handlers = {
     size = 1024,
     pixels = false,
   }) {
-    const { atom, item } = requireFlatPicture(ref, index);
+    const { atom, item } = await requireFlatPicture(ref, index);
     if (pixels) {
       const photo = requirePhoto(item);
       const view = {
@@ -1794,7 +1804,7 @@ const handlers = {
     geometry,
     size = 1024,
   }) {
-    const { atom, item } = requireReference(ref, index);
+    const { atom, item } = await requireReference(ref, index);
     const photo = requirePhoto(item);
     const [width, height] = photo.pixels;
     const away = photoDistance(distance);
@@ -1810,7 +1820,7 @@ const handlers = {
     // Draw a model through the camera to check it against the photo
     let segments = [];
     if (geometry) {
-      const shapes = withoutSideData(requireGeometry(resolveAtom(geometry)));
+      const shapes = withoutReferences(requireGeometry(resolveAtom(geometry)));
       segments = meshEdgeSegments(
         await displayMeshOf(resolveAtom(geometry), shapes),
       );
@@ -1868,13 +1878,13 @@ const handlers = {
   },
 
   async photo_point({ atom: ref, index = 0, pixels, axis, at, distance }) {
-    const { atom, item } = requireReference(ref, index);
+    const { atom, item } = await requireReference(ref, index);
     const photo = requirePhoto(item);
     const away = photoDistance(distance);
     const camera = placedPhotoCamera(photo, away);
-    // As imported, a photo lies flat at the origin and records no camera
-    const matrix = photo.matrix || IDENTITY;
-    if (matrix.every((v, i) => Math.abs(v - IDENTITY[i]) < 1e-9)) {
+    // As imported, a photo lies flat at the origin and records no camera:
+    // its geometry id has no Move or Rotate (lazy "xf|" transform) yet
+    if (!isTransformedId(photo.id)) {
       throw new ToolError(
         ERROR_CODES.CONFLICT,
         `${item.name} lies where Import put it, so it records no camera. Place it where it was taken with locate_photo first, and measure through the atom that places it.`,
@@ -1894,7 +1904,7 @@ const handlers = {
   },
 
   async measure_scan({ atom: ref, index = 0 }) {
-    const { atom, item } = requireReference(ref, index);
+    const { atom, item } = await requireReference(ref, index);
     if (item.kind !== "model") {
       throw new ToolError(
         ERROR_CODES.INVALID_PARAMS,
@@ -1986,12 +1996,7 @@ const handlers = {
       const models = referencesOf(value).filter((r) => r.kind === "model");
       let segments = 0;
       for (const item of models) {
-        if (!getAsset(item.asset)) {
-          throw new ToolError(
-            ERROR_CODES.CONFLICT,
-            `${item.name} isn't loaded in the page yet. Call wait_for_settle, then try again.`,
-          );
-        }
+        await loadReferenceFiles(atom, item);
         const cut = cutTriangles(await referenceTriangles(item), axis, at);
         segments += cut.length / 4;
         layers.push({
@@ -2003,8 +2008,8 @@ const handlers = {
       if (models.length) counts.reference_segments = segments;
     }
     if (showGeometry) {
-      const shapes = withoutSideData(value);
-      if (hasGeometry(shapes)) {
+      const shapes = withoutReferences(value);
+      if (hasShapes(shapes)) {
         let segments = 0;
         for (const tris of meshTriangles(await displayMeshOf(atom, shapes))) {
           const cut = cutTriangles(tris, axis, at);
@@ -2071,7 +2076,7 @@ const handlers = {
       ? resolveAtom(ref)
       : GlobalVariables.currentMolecule || topLevel();
     const value = requireGeometry(atom);
-    if (!hasGeometry(value)) {
+    if (!hasShapes(value)) {
       throw new ToolError(
         ERROR_CODES.CONFLICT,
         `${atomPath(atom)} has no geometry to export, only reference files; get_reference returns those.`,
@@ -2967,7 +2972,7 @@ const handlers = {
  * The reference file numbered `index` in an atom's output (default: the open
  * molecule's), loaded in the page.
  */
-function requireReference(ref, index) {
+async function requireReference(ref, index) {
   const atom = ref
     ? resolveAtom(ref)
     : GlobalVariables.currentMolecule || topLevel();
@@ -2986,6 +2991,33 @@ function requireReference(ref, index) {
       `${atomPath(atom)} carries ${references.length} reference file(s), numbered from 0; there is no ${index}.`,
     );
   }
+  const asset = await loadReferenceFiles(atom, item);
+  return { atom, item, asset, references };
+}
+
+/**
+ * A reference's file, read in the page or else from the project's geometry
+ * cache, where the CAD worker stored it. Keeps the files (and a .gltf's
+ * others) in the page's store for the tools that read it from there.
+ */
+async function loadReferenceFiles(atom, item) {
+  const missing =
+    !getAsset(item.asset) ||
+    Object.values(item.resources || {}).some((id) => !getAsset(id));
+  if (missing && item.fileKey && GlobalVariables.cad?.getReferenceFile) {
+    const stored = await GlobalVariables.cad
+      .getReferenceFile(item.fileKey, atom.getContext())
+      .catch(() => undefined);
+    if (stored) {
+      registerAsset(item.asset, stored.file, {
+        name: item.name,
+        mimeType: item.mimeType,
+      });
+      for (const [path, id] of Object.entries(item.resources || {})) {
+        registerAsset(id, stored.resources?.[path], { name: path });
+      }
+    }
+  }
   const asset = getAsset(item.asset);
   if (!asset) {
     throw new ToolError(
@@ -2993,12 +3025,12 @@ function requireReference(ref, index) {
       `${item.name} isn't loaded in the page yet. Call wait_for_settle, then try again.`,
     );
   }
-  return { atom, item, asset, references };
+  return asset;
 }
 
 /** requireReference, for an image or PDF page: something with pixels. */
-function requireFlatPicture(ref, index) {
-  const found = requireReference(ref, index);
+async function requireFlatPicture(ref, index) {
+  const found = await requireReference(ref, index);
   if (found.item.kind === "model") {
     throw new ToolError(
       ERROR_CODES.INVALID_PARAMS,

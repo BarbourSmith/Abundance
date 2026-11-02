@@ -125,7 +125,7 @@ describe("Code atom TS-mode execution (executeCode, interpreterVersion=1)", () =
       const code = `function run() { return replicad.drawRectangle(5, 5); }`;
       const context = { project: "code-ts-dim-2d" };
       const result = await executeCode(code, {}, context, VERSION_TS, ATOM_ID);
-      expect(result.dimension).toBe("2D");
+      expect(result.geometryType).toBe("2D");
       expect(is3D(result)).toBe(false);
     });
 
@@ -148,7 +148,7 @@ describe("Code atom TS-mode execution (executeCode, interpreterVersion=1)", () =
         VERSION_TS,
         ATOM_ID,
       );
-      expect(result.dimension).toBe("3D");
+      expect(result.geometryType).toBe("3D");
       expect(is3D(result)).toBe(true);
     });
 

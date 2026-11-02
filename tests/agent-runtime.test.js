@@ -196,7 +196,7 @@ describe("reading the project", () => {
 
   it("keeps summarized values small", () => {
     expect(summarizeValue("a".repeat(1000))).toMatch(/… \(1000 chars\)$/);
-    expect(summarizeValue({ geometry: "abc", dimension: "3D" })).toBe(
+    expect(summarizeValue({ geometry: "abc", geometryType: "3D" })).toBe(
       "<3D geometry>",
     );
     expect(summarizeValue([1, 2, 3])).toEqual([1, 2, 3]);

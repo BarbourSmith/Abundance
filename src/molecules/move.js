@@ -1,6 +1,5 @@
 import Atom from "../prototypes/atom";
 import GlobalVariables from "../js/globalvariables.js";
-import { sideDataOf, translateSideData } from "../js/sideData.js";
 
 /**
  * This class creates the move atom.
@@ -82,15 +81,5 @@ export default class Move extends Atom {
     const y = inputs.yDist;
     const z = inputs.zDist;
     return this.cad.move(inputID, x, y, z, this.getContext());
-  }
-
-  /** Labels and references move with the geometry. */
-  outputSideData(inputs) {
-    return translateSideData(
-      sideDataOf(inputs.geometry),
-      Number(inputs.xDist) || 0,
-      Number(inputs.yDist) || 0,
-      Number(inputs.zDist) || 0,
-    );
   }
 }

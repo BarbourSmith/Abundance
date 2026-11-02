@@ -5,8 +5,6 @@ import {
   initializeInputsFromSaved,
 } from "../js/alwaysOneFreeInput.js";
 import GlobalVariables from "../js/globalvariables.js";
-import { hasGeometry } from "../js/sideData.js";
-import { EMPTY_ASSEMBLY } from "../worker/util";
 
 /**
  * This class creates the Join atom instance.
@@ -122,15 +120,10 @@ export default class Join extends Atom {
     addOrDeletePorts(this); // clean up ports then check if we're in a ready state.
     // Preserve input order. This isn't strictly required for fusion but it is done 1)
     // for consistency with assembly and 2) to provide more stability for caching in the future.
-    // Inputs that are only references (images, PDFs, models) have nothing to
-    // fuse; they are carried along as side data.
     const nonnullInputIds = this.inputs
       .filter((io) => io.connectors.length > 0)
       .map((io) => inputs[io.name])
-      .filter(hasGeometry);
-    if (nonnullInputIds.length === 0) {
-      return Promise.resolve(structuredClone(EMPTY_ASSEMBLY));
-    }
+      .filter(Boolean);
     return this.cad.fusion(nonnullInputIds, this.getContext());
   }
 

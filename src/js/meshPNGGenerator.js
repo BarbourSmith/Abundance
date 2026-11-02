@@ -31,7 +31,10 @@ export async function generateMeshPNG(
 ) {
   const view = options.view || "iso";
   const objects = options.objects || [];
-  if (!Array.isArray(meshArray)) meshArray = [];
+  // References are drawn by the caller, as `objects`
+  meshArray = Array.isArray(meshArray)
+    ? meshArray.filter((m) => !m?.reference)
+    : [];
   if (meshArray.length === 0 && objects.length === 0) {
     console.warn("No mesh data provided for PNG generation");
     return null;

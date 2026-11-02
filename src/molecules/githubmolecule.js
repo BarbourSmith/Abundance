@@ -9,7 +9,6 @@ import {
   unitScaleFactor,
   unitsContextOf,
 } from "../js/units.js";
-import { scaleSideData, sideDataOf, withSideData } from "../js/sideData.js";
 
 /**
  * This class creates the GitHubMolecule atom.
@@ -116,9 +115,7 @@ export default class GitHubMolecule extends Molecule {
       .scale(value, factor, this.getContext())
       .then((scaled) => {
         if (request !== this.unitScaleRequest) return;
-        this.setOutputValue(
-          withSideData(scaled, scaleSideData(sideDataOf(value), factor)),
-        );
+        this.setOutputValue(scaled);
       })
       .catch((err) => {
         if (request !== this.unitScaleRequest) return;

@@ -10,9 +10,9 @@ import {
   gltfExternalFiles,
   isReferenceType,
 } from "../js/referenceFiles.js";
-import { referencesOf, sideDataOf, withSideData } from "../js/sideData.js";
+import { referencesOf } from "../js/referenceItems.js";
+import { getAsset } from "../js/referenceFiles.js";
 import { unitAbbreviation, unitsContextOf } from "../js/units.js";
-import { EMPTY_ASSEMBLY } from "../worker/util";
 
 /** The name of a file from its path in a repository. */
 function baseName(path) {
@@ -21,8 +21,9 @@ function baseName(path) {
 
 /**
  * This class creates an atom which imports a file: SVG, STL, and STEP files
- * as geometry, and PNG, JPG, PDF, GLB, and glTF files as references to model
- * against (see src/js/referenceFiles.js).
+ * as shapes, and PNG, JPG, PDF, GLB, and glTF files as references to model
+ * against: geometry of type Image, PDF or Model that is shown and placed but
+ * never cut (see src/worker/references.ts and src/js/referenceFiles.js).
  */
 export default class Import extends Atom {
   /**
@@ -47,7 +48,7 @@ export default class Import extends Atom {
      * @type {string}
      */
     this.description =
-      "Imports a file into your design: SVG, STL, and STEP files as geometry, and PNG, JPG, PDF, GLB, and glTF files as references (images, documents, and 3D scans) to model against. References are shown and moved like geometry, but never cut it or get cut.";
+      "Imports a file into your design: SVG, STL, and STEP files as geometry, and PNG, JPG, PDF, GLB, and glTF files as references (images, documents, and 3D scans) to model against. References are geometry you can place with Move and Rotate, but not shapes: operations that cut or combine shapes reject them, so show them with your parts in an Assembly with Make Disjoint turned off.";
 
     /**
      * The uploaded file
@@ -142,11 +143,6 @@ export default class Import extends Atom {
 
   compute(inputs) {
     return this.loadAndPropagate();
-  }
-
-  /** An imported reference is this atom's own side data. */
-  outputSideData(inputs, value) {
-    return sideDataOf(value);
   }
 
   /**
@@ -328,29 +324,49 @@ export default class Import extends Atom {
     return this.referenceValue();
   }
 
-  /** This atom's output for its loaded reference file, with its settings. */
+  /**
+   * This atom's output for its loaded reference file, with its settings: a
+   * reference leaf from the CAD worker, which stores the file in the
+   * project's geometry cache.
+   */
   async referenceValue() {
-    const item = await describeReferenceFile(this.asset, {
-      type: this.type,
-      name: baseName(this.fileName),
-      unitsKey: unitsContextOf(this),
-      width: this.referenceWidth,
-      page: this.page,
-      modelUnits: this.modelUnits,
-      opacity: this.opacity,
-      resources: this.resources,
-      ...(this.repoOwner && this.repoName
-        ? {
-            source: {
-              owner: this.repoOwner,
-              repo: this.repoName,
-              path: this.fileName,
-              ...(this.gitRef ? { ref: this.gitRef } : {}),
-            },
-          }
-        : {}),
-    });
-    return withSideData(structuredClone(EMPTY_ASSEMBLY), [item]);
+    const { geometryType, info, placement } = await describeReferenceFile(
+      this.asset,
+      {
+        type: this.type,
+        name: baseName(this.fileName),
+        unitsKey: unitsContextOf(this),
+        width: this.referenceWidth,
+        page: this.page,
+        modelUnits: this.modelUnits,
+        opacity: this.opacity,
+        resources: this.resources,
+        ...(this.repoOwner && this.repoName
+          ? {
+              source: {
+                owner: this.repoOwner,
+                repo: this.repoName,
+                path: this.fileName,
+                ...(this.gitRef ? { ref: this.gitRef } : {}),
+              },
+            }
+          : {}),
+      },
+    );
+    const resourceFiles = Object.fromEntries(
+      Object.entries(this.resources || {}).map(([path, assetId]) => [
+        path,
+        getAsset(assetId).blob,
+      ]),
+    );
+    return GlobalVariables.cad.importReference(
+      getAsset(this.asset).blob,
+      resourceFiles,
+      geometryType,
+      info,
+      placement,
+      this.getContext(),
+    );
   }
 
   /**
@@ -474,10 +490,14 @@ export default class Import extends Atom {
     const kind = REFERENCE_TYPES[this.type].kind;
     const [item] = referencesOf(this.value);
     if (kind === "image" || kind === "pdf") {
+      // The width as imported, before any Move or Rotate
       const { min, max } = item?.contentBounds || { min: [0], max: [0] };
+      const scale = item ? Math.hypot(...item.matrix.slice(0, 3)) : 0;
       params[id + "referenceWidth"] = {
         type: "number",
-        value: this.referenceWidth ?? Math.round((max[0] - min[0]) * 100) / 100,
+        value:
+          this.referenceWidth ??
+          Math.round((max[0] - min[0]) * scale * 100) / 100,
         label: `Width (${unitAbbreviation(unitsContextOf(this)) || "units"})`,
         step: 1,
         onChange: (value) => {

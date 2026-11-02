@@ -2,12 +2,6 @@ import Atom from "../prototypes/atom.js";
 import GlobalVariables from "../js/globalvariables.js";
 import { Status } from "../prototypes/observableEntity.js";
 import {
-  extractSideDataByTags,
-  sideDataOf,
-  sideDataTags,
-  withSideData,
-} from "../js/sideData.js";
-import {
   filterAssembly,
   walkAssembly,
   extractKeepOut,
@@ -255,20 +249,12 @@ export default class ExtractTag extends Atom {
 
       if (hasCriteria) {
         // At least one criterion has been selected and we're ready to go!
-        // Labels and references are picked by their own tags.
         this.setReady(
-          withSideData(
-            this.extractTags(
-              geomId,
-              this.selectedTags,
-              this.includeUntagged,
-              this.notKeepOut,
-            ),
-            extractSideDataByTags(
-              sideDataOf(geomId),
-              this.selectedTags,
-              this.includeUntagged,
-            ),
+          this.extractTags(
+            geomId,
+            this.selectedTags,
+            this.includeUntagged,
+            this.notKeepOut,
           ),
         );
       } else {
@@ -304,7 +290,6 @@ export default class ExtractTag extends Atom {
     walkAssembly(abundanceObject, (leaf) => {
       tags.push(...(leaf.tags || []));
     });
-    tags.push(...sideDataTags(sideDataOf(abundanceObject)));
 
     return ["Select Tag", ...new Set(tags)];
   }

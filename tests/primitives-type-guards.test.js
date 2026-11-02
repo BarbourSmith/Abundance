@@ -19,9 +19,9 @@ import {
  * The geometry string is a placeholder — these tests only need the
  * dimension discriminant field, not a real replicad object.
  */
-function makeLeaf(dimension) {
+function makeLeaf(geometryType) {
   return {
-    dimension,
+    geometryType,
     geometry: "mock-id",
     tags: [],
     color: defaultColor,

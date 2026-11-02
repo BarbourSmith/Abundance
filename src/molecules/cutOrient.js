@@ -194,11 +194,6 @@ export default class CutOrient extends Atom {
     }
   }
 
-  /** Parts laid flat for cutting leave labels and references behind. */
-  outputSideData() {
-    return [];
-  }
-
   createInputParams(setInputChanged) {
     let inputParams = super.createInputParams(setInputChanged);
 

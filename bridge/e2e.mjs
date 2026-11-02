@@ -407,6 +407,15 @@ try {
             arguments: { type: "Assembly", ref: "E2E_Assembly" },
           },
           {
+            // References can only join parts in an assembly that doesn't cut
+            tool: "set_param",
+            arguments: {
+              atom: "E2E_Assembly",
+              param: "makeDisjoint",
+              value: false,
+            },
+          },
+          {
             tool: "connect",
             arguments: {
               from: "E2E_Plan",

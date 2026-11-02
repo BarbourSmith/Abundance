@@ -8,11 +8,12 @@
  * it again.
  */
 import * as THREE from "three";
-import { IDENTITY } from "./sideData.js";
+import { IDENTITY } from "./referenceItems.js";
 import {
   disposeObject,
   getAsset,
   parseModel,
+  registerAsset,
   renderPdfPage,
 } from "./referenceFiles.js";
 
@@ -42,7 +43,23 @@ async function textureFrom(source) {
   return texture;
 }
 
+/**
+ * Keep the files the mesh worker sent with an item (from the geometry cache)
+ * when this page hasn't read them itself, as when a project opens from its
+ * cache.
+ */
+function registerItemFiles(item) {
+  registerAsset(item.asset, item.file, {
+    name: item.name,
+    mimeType: item.mimeType,
+  });
+  for (const [path, assetId] of Object.entries(item.resources || {})) {
+    registerAsset(assetId, item.resourceFiles?.[path], { name: path });
+  }
+}
+
 async function loadResource(item) {
+  registerItemFiles(item);
   if (item.kind === "model") {
     return { scene: await parseModel(item.asset, item.resources) };
   }

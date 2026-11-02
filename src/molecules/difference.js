@@ -1,6 +1,5 @@
 import Atom from "../prototypes/atom";
 import GlobalVariables from "../js/globalvariables.js";
-import { hasGeometry, sideDataOf } from "../js/sideData.js";
 
 /**
  * This class creates the Difference atom.
@@ -89,16 +88,6 @@ export default class Difference extends Atom {
   compute(inputs) {
     const input1 = inputs.retain;
     const input2 = inputs.remove;
-    // A reference (image, PDF, model) isn't geometry: it cuts nothing and
-    // isn't cut.
-    if (!hasGeometry(input1) || !hasGeometry(input2)) {
-      return Promise.resolve(input1);
-    }
     return this.cad.difference(input1, input2, this.getContext());
-  }
-
-  /** The result carries what the retained shape carried. */
-  outputSideData(inputs) {
-    return sideDataOf(inputs.retain);
   }
 }

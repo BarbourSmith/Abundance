@@ -5,8 +5,7 @@ import {
   initializeInputsFromSaved,
 } from "../js/alwaysOneFreeInput.js";
 import GlobalVariables from "../js/globalvariables.js";
-import { hasGeometry } from "../js/sideData.js";
-import { assemblyOf, EMPTY_ASSEMBLY } from "../worker/util";
+import { assemblyOf } from "../worker/util";
 
 /**
  * This class creates the Assembly atom instance.
@@ -123,15 +122,10 @@ export default class Assembly extends Atom {
     addOrDeletePorts(this); // clean up ports then check if we're in a ready state.
     // Preserve order from this.inputs since assembly behavior is highly order dependent and
     // the inputs dict may not traverse in the same order by default.
-    // Inputs that are only references (images, PDFs, models) have no shapes
-    // to assemble; they are carried along as side data, uncut.
     const nonnullInputIds = this.inputs
       .filter((io) => io.connectors.length > 0 && io.valueType == "geometry")
       .map((io) => inputs[io.name])
-      .filter(hasGeometry);
-    if (nonnullInputIds.length === 0) {
-      return Promise.resolve(structuredClone(EMPTY_ASSEMBLY));
-    }
+      .filter(Boolean);
 
     const makeDisjoint = inputs.makeDisjoint;
     if (makeDisjoint) {

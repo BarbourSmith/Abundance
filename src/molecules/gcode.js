@@ -1,4 +1,5 @@
 import Atom from "../prototypes/atom.js";
+import { isReferenceLeaf } from "../worker/references";
 import GlobalVariables from "../js/globalvariables.js";
 
 import { saveAs } from "file-saver";
@@ -317,7 +318,12 @@ export default class Gcode extends Atom {
    * @returns {Promise<Array>} Array of part IDs
    */
   async _extractPartsFromAssembly(assemblyID) {
-    return GlobalVariables.cad.extractParts(assemblyID, this.getContext());
+    // References (images, PDFs, models) aren't parts to cut
+    const parts = await GlobalVariables.cad.extractParts(
+      assemblyID,
+      this.getContext(),
+    );
+    return parts.filter((part) => !isReferenceLeaf(part));
   }
 
   /**

@@ -1,13 +1,14 @@
 /**
  * Reference files: images (PNG, JPG), PDF documents and 3D models (GLB, glTF)
  * that Import atoms bring into a project to model against, such as a floor
- * plan, a datasheet or a 3D scan. They show in the 3D view and are placed with
- * Move and Rotate like geometry, but never become geometry: they travel as
- * side data (see sideData.js), described by a small reference item.
+ * plan, a datasheet or a 3D scan. They become geometry leaves of type "Image",
+ * "PDF" or "Model" (see src/worker/references.ts): shown in the 3D view and
+ * placed with Move and Rotate like any geometry, but never cut or cutting.
  *
- * A file's bytes stay on the main thread, in a store keyed by their SHA-256,
- * and items only carry that key. Import atoms load their files whenever a
- * project opens, which fills the store again.
+ * The CAD worker stores each file in the project's geometry cache. The main
+ * thread keeps the files it has read in a store keyed by their SHA-256, to
+ * decode them for display, read PDF text and so on; files it hasn't read
+ * (a value shown from the cache) come from the mesh worker with the value.
  *
  * Placement when imported:
  * - Images and PDF pages lie flat on the XY plane, centered on the origin and
@@ -25,7 +26,6 @@ import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.j
 import dracoWrapperUrl from "three/examples/jsm/libs/draco/draco_wasm_wrapper.js?url";
 import dracoWasmUrl from "three/examples/jsm/libs/draco/draco_decoder.wasm?url";
 import { millimetersPerUnit } from "./units.js";
-import { IDENTITY, multiply, rotationXYZ, scaling } from "./sideData.js";
 
 /** Import atom file types that are references rather than geometry. */
 export const REFERENCE_TYPES = Object.freeze({
@@ -34,6 +34,13 @@ export const REFERENCE_TYPES = Object.freeze({
   PDF: { kind: "pdf", extensions: ["pdf"], mimeType: "application/pdf" },
   GLB: { kind: "model", extensions: ["glb"], mimeType: "model/gltf-binary" },
   GLTF: { kind: "model", extensions: ["gltf"], mimeType: "model/gltf+json" },
+});
+
+/** The geometryType of each kind of reference. */
+export const GEOMETRY_TYPE_OF_KIND = Object.freeze({
+  image: "Image",
+  pdf: "PDF",
+  model: "Model",
 });
 
 /** Units a model file can be in, with millimeters per unit. */
@@ -96,6 +103,19 @@ export async function addAsset(data, { name, mimeType } = {}) {
     });
   }
   return id;
+}
+
+/**
+ * Keep a file whose id is already known, such as one the mesh worker sent
+ * from the geometry cache, without hashing it again.
+ */
+export function registerAsset(id, blob, { name, mimeType } = {}) {
+  if (!id || !blob || assets.has(id)) return;
+  assets.set(id, {
+    blob,
+    name: name || "file",
+    mimeType: mimeType || blob.type || "application/octet-stream",
+  });
 }
 
 /** A stored file, { blob, name, mimeType }, or undefined if not loaded. */
@@ -323,7 +343,14 @@ function rectangleBounds(width, height) {
 }
 
 /**
- * Describe a stored file as a reference item for an Import atom's output.
+ * Describe a stored file as a reference: what the CAD worker's
+ * importReference needs to make its leaf.
+ *
+ * The file's content is described in its own units (an image in pixels, a
+ * PDF page in points, a model in its file units), and `placement` scales it
+ * to the project's units, and turns a glTF's Y-up to Z-up, so that Move,
+ * Rotate and unit conversion compose with it in the leaf's geometry id.
+ *
  * @param {string} assetId - From addAsset
  * @param {object} options
  * @param {string} options.type - A key of REFERENCE_TYPES
@@ -336,7 +363,7 @@ function rectangleBounds(width, height) {
  * @param {number} [options.opacity] - 0 to 1
  * @param {object} [options.resources] - A .gltf's other files, path -> asset id
  * @param {object} [options.source] - Where the file lives: { owner, repo, path, ref }
- * @returns {Promise<object>} The reference item
+ * @returns {Promise<{geometryType: string, info: object, placement: {scale: number, rotation?: number[]}}>}
  */
 export async function describeReferenceFile(assetId, options) {
   const { type, name, unitsKey, opacity = 1, source } = options;
@@ -344,15 +371,14 @@ export async function describeReferenceFile(assetId, options) {
   if (!fileType) throw new Error(`${type} files aren't reference files.`);
   const { blob, mimeType } = requireAsset(assetId);
   const projectMM = millimetersPerUnit(unitsKey) || 1;
-  const item = {
-    type: "Reference",
+  const geometryType = GEOMETRY_TYPE_OF_KIND[fileType.kind];
+  const info = {
     kind: fileType.kind,
     asset: assetId,
     name,
     mimeType: mimeType || fileType.mimeType,
     bytes: blob.size,
     opacity: Math.min(1, Math.max(0, Number(opacity) || 0)),
-    tags: [],
     ...(source ? { source } : {}),
   };
 
@@ -360,12 +386,14 @@ export async function describeReferenceFile(assetId, options) {
     const pixels = await imagePixels(blob);
     const width =
       options.width > 0 ? options.width : defaultImageWidth(unitsKey);
-    const height = (width * pixels[1]) / pixels[0];
     return {
-      ...item,
-      pixels,
-      contentBounds: rectangleBounds(width, height),
-      matrix: [...IDENTITY],
+      geometryType,
+      info: {
+        ...info,
+        pixels,
+        contentBounds: rectangleBounds(pixels[0], pixels[1]),
+      },
+      placement: { scale: width / pixels[0] },
     };
   }
 
@@ -375,13 +403,15 @@ export async function describeReferenceFile(assetId, options) {
     const viewport = pdfPageProxy.getViewport({ scale: 1 });
     const printedWidth = (viewport.width * MM_PER_POINT) / projectMM;
     const width = options.width > 0 ? options.width : printedWidth;
-    const height = (width * viewport.height) / viewport.width;
     return {
-      ...item,
-      page,
-      pageCount: doc.numPages,
-      contentBounds: rectangleBounds(width, height),
-      matrix: [...IDENTITY],
+      geometryType,
+      info: {
+        ...info,
+        page,
+        pageCount: doc.numPages,
+        contentBounds: rectangleBounds(viewport.width, viewport.height),
+      },
+      placement: { scale: width / viewport.width },
     };
   }
 
@@ -395,16 +425,19 @@ export async function describeReferenceFile(assetId, options) {
   disposeObject(scene);
   if (box.isEmpty()) throw new Error("The model has nothing in it to show.");
   return {
-    ...item,
-    modelUnits,
-    ...(Object.keys(resources).length ? { resources } : {}),
-    stats,
-    contentBounds: { min: box.min.toArray(), max: box.max.toArray() },
+    geometryType,
+    info: {
+      ...info,
+      modelUnits,
+      ...(Object.keys(resources).length ? { resources } : {}),
+      stats,
+      contentBounds: { min: box.min.toArray(), max: box.max.toArray() },
+    },
     // File units to project units, then glTF's Y-up to Z-up
-    matrix: multiply(
-      rotationXYZ(90, 0, 0),
-      scaling(MODEL_UNITS[modelUnits] / projectMM),
-    ),
+    placement: {
+      scale: MODEL_UNITS[modelUnits] / projectMM,
+      rotation: [90, 0, 0],
+    },
   };
 }
 

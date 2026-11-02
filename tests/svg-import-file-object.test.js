@@ -12,7 +12,7 @@ describe("importingSVG", () => {
   it("imports an SVG passed as a string", async () => {
     const result = await importingSVG(SVG_CONTENT, { project: "test" }, 100);
 
-    expect(result.dimension).toEqual("2D");
+    expect(result.geometryType).toEqual("2D");
     expect(result.geometry).toBeTruthy();
   });
 
@@ -25,7 +25,7 @@ describe("importingSVG", () => {
 
     const result = await importingSVG(file, { project: "test" }, 100);
 
-    expect(result.dimension).toEqual("2D");
+    expect(result.geometryType).toEqual("2D");
     expect(result.geometry).toBeTruthy();
   });
 });

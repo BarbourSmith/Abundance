@@ -19,7 +19,7 @@ import {
   IDENTITY,
   multiply,
   rotationXYZ,
-} from "../js/sideData.js";
+} from "../js/referenceItems.js";
 import { disposeObject, parseModel } from "../js/referenceFiles.js";
 import { gridLabel, niceSpacing } from "./referenceTrace.js";
 

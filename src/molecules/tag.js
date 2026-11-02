@@ -1,6 +1,5 @@
 import Atom from "../prototypes/atom";
 import GlobalVariables from "../js/globalvariables.js";
-import { sideDataOf, tagSideData } from "../js/sideData.js";
 
 /**
  * This class creates the tag atom.
@@ -140,14 +139,6 @@ export default class Tag extends Atom {
       ...inputs.geometry,
       tags: [...new Set([...initialTags, ...tags])],
     });
-  }
-
-  /** Labels and references get the tag too, so Extract Tag can find them. */
-  outputSideData(inputs) {
-    return tagSideData(
-      sideDataOf(inputs.geometry),
-      this.tags.filter((tag) => tag),
-    );
   }
 
   /**

@@ -141,7 +141,7 @@ async function loftShapes(
     }
     results.push({
       geometry: geometry,
-      dimension: "3D",
+      geometryType: "3D",
       tags: [],
       plane: util.XYPlane,
       color: util.defaultColor,
@@ -246,7 +246,7 @@ async function shrinkWrapSketches(
       50,
       context,
     ),
-    dimension: "2D",
+    geometryType: "2D",
     tags: [],
     color: util.defaultColor,
     plane: util.XYPlane,
@@ -311,7 +311,7 @@ async function intersect(
       plane: leaf.plane,
       bom: leaf.bom,
       metadata: leaf.metadata,
-      dimension: leaf.dimension,
+      geometryType: leaf.geometryType,
     };
   });
 }
@@ -381,7 +381,7 @@ async function fusion(
     bom: bomAssembly,
     plane: util.XYPlane,
     color: util.defaultColor,
-    dimension: fusedAssembly.dimension,
+    geometryType: fusedAssembly.geometryType,
   };
 }
 
@@ -426,12 +426,25 @@ async function assembly(
     const batch: RequestContext | AbundanceObject =
       await util.geometryProvider!.startBatchOperation(context, batchId);
 
-    // Full assembly cache hit. No work to do.
+    // Full assembly cache hit. No work to do, but update nonReplicadSerialized if needed.
     if (util.isAbundanceObject(batch)) {
       const batchWithBounds = batch.boundingBox
         ? batch
         : await util.withAssemblyBoundingBoxes(batch, context);
-      batchWithBounds.bom = [];
+      // Gather all nonReplicadSerialized and bom from input geometries
+      const nonReplicadGeoms: any[] = [];
+      const bomAssembly: any[] = [];
+      for (const geometry of geometries) {
+        if (
+          Array.isArray(geometry.nonReplicadSerialized) &&
+          geometry.nonReplicadSerialized.length > 0
+        ) {
+          nonReplicadGeoms.push(...geometry.nonReplicadSerialized);
+        }
+      }
+      // Always update to reflect current state, even if empty
+      batchWithBounds.nonReplicadSerialized = nonReplicadGeoms;
+      batchWithBounds.bom = bomAssembly;
       return batchWithBounds;
     }
 
@@ -566,7 +579,7 @@ async function fuseAssembly(
   return {
     ...assembly,
     geometry: await util.geometryProvider!.assemblyFuse(assembly, context),
-    dimension: flattened[0].dimension,
+    geometryType: flattened[0].geometryType,
   };
 }
 
@@ -682,8 +695,8 @@ async function recursiveCut(
   for (const cuttingPart of util.flattenAssembly(cuttingParts)) {
     // --- Coplanarity check for 2D shapes ---
     if (
-      partToCut.dimension === "2D" &&
-      cuttingPart.dimension === "2D" &&
+      partToCut.geometryType === "2D" &&
+      cuttingPart.geometryType === "2D" &&
       partToCut.plane &&
       cuttingPart.plane
     ) {
@@ -747,7 +760,7 @@ async function splitCompSolid(
       bom: part.bom,
       plane: part.plane,
       metadata: part.metadata,
-      dimension: part.dimension,
+      geometryType: part.geometryType,
     });
   }
   return {

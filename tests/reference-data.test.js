@@ -1,8 +1,10 @@
 /**
- * Reference files (images, PDFs, 3D models) imported with Import atoms ride
- * along with geometry as side data: placed by Move and Rotate, shown with the
- * parts they're assembled with, never cut, and never sent to the CAD worker.
- * The CAD worker's functions run in-thread here, so geometry is real.
+ * Reference files (images, PDFs, 3D models) imported with Import atoms are
+ * geometry leaves of type Image, PDF or Model: stored in the geometry cache,
+ * placed by Move and Rotate through their ids, shown alongside parts in a
+ * non-disjoint Assembly, rejected by operations that need shapes, and left
+ * out of cut layouts and exports. The CAD worker's functions run in-thread
+ * here and the mesh worker runs for real, so geometry is real.
  *
  * Run: npx vitest run --config=vitest.headless.config.ts tests/reference-data.test.js
  */
@@ -29,17 +31,17 @@ import Molecule from "../src/molecules/molecule.js";
 import GlobalVariables from "../src/js/globalvariables.js";
 import { Status } from "../src/prototypes/observableEntity.js";
 import { CadWorkerManager } from "../src/worker/cadWorkerManager.js";
+import * as workerpool from "workerpool";
+import MeshWorkerURL from "../src/worker/meshWorker.ts?url&worker";
 import * as interaction from "../src/worker/interaction.ts";
 import * as worker from "../src/worker/worker.ts";
 import { flattenAssembly } from "../src/worker/util.ts";
 import {
-  SIDE_DATA_KEY,
-  hasGeometry,
-  isLabel,
+  hasShapes,
   referenceBounds,
   referencesOf,
-  sideDataOf,
-} from "../src/js/sideData.js";
+} from "../src/js/referenceItems.js";
+import { splitDisplayMesh } from "../src/js/displayScheduler.js";
 import { __test__, resolveAtom, runTool } from "../src/agent/runtime.js";
 import { agentBridge } from "../src/agent/bridgeClient.js";
 import { projectPoint } from "../src/agent/photoCamera.js";
@@ -135,13 +137,16 @@ const toBase64 = (bytes) => btoa(String.fromCharCode(...bytes));
 // Project setup
 // ---------------------------------------------------------------------------
 
-/** Every value the CAD worker was sent, to check no side data reaches it. */
-let workerArgs;
 let files;
 let realCad;
 let realFetch;
+let realPool;
+let meshPool;
 
-/** A CadWorkerManager whose worker runs the real worker functions in-thread. */
+/**
+ * A CadWorkerManager whose worker runs the real worker functions in-thread,
+ * with the reference policy the worker applies to its exposed methods.
+ */
 function inThreadCad() {
   const api = { ...interaction, ...worker };
   return new CadWorkerManager(function () {
@@ -157,8 +162,8 @@ function inThreadCad() {
             (_target, method) =>
             async (...args) => {
               if (!api[method]) return undefined;
-              workerArgs.push(...args);
-              return api[method](...structuredClone(args));
+              const fn = worker.withReferencePolicy(method, api[method]);
+              return fn(...structuredClone(args));
             },
         },
       ),
@@ -168,11 +173,17 @@ function inThreadCad() {
 
 beforeAll(async () => {
   await worker.started;
+  meshPool = workerpool.pool(MeshWorkerURL, {
+    maxWorkers: 1,
+    workerOpts: { type: "module" },
+  });
+  return () => meshPool.terminate();
 });
 
 beforeEach(() => {
-  workerArgs = [];
   files = {};
+  realPool = GlobalVariables.pool;
+  GlobalVariables.pool = meshPool;
   realCad = GlobalVariables.cad;
   realFetch = __test__.fetchers.publicFile;
   const canvas = document.createElement("canvas");
@@ -206,6 +217,7 @@ beforeEach(() => {
 
 afterEach(() => {
   GlobalVariables.cad = realCad;
+  GlobalVariables.pool = realPool;
   GlobalVariables.fetchFileContent = undefined;
   GlobalVariables.uploadFile = undefined;
   agentBridge.saveHandler = null;
@@ -252,19 +264,35 @@ const round = (bounds) => ({
   max: bounds.max.map((v) => Math.round(v * 100) / 100 + 0),
 });
 
-/** No value sent to the CAD worker carried side data, at any depth. */
-function expectWorkerSawNoSideData() {
-  const seen = JSON.stringify(workerArgs);
-  expect(seen).not.toContain(SIDE_DATA_KEY);
+const projectContext = () => ({
+  project: GlobalVariables.topLevelMolecule.uniqueID,
+});
+
+/** What the mesh worker sends the 3D view for a value. */
+async function displayed(value) {
+  const { mesh } = await meshPool.exec("generateDisplayMesh", [
+    value,
+    projectContext(),
+  ]);
+  return splitDisplayMesh(mesh);
+}
+
+/** The atom's error message, which must mention `text`. */
+function expectError(id, text) {
+  const atom = resolveAtom(id);
+  expect(atom.status).toBe(Status.ERROR);
+  expect(String(atom.alert?.message ?? atom.alert)).toContain(text);
 }
 
 // ---------------------------------------------------------------------------
 
 describe("importing reference files", () => {
-  it("loads an image flat on the XY plane, centered, about 100 mm wide", async () => {
+  it("loads an image as an Image leaf, flat on XY, centered, about 100 mm wide", async () => {
     const id = await importFile("plan.png", await pngBytes(40, 20));
     const value = valueOf(id);
-    expect(hasGeometry(value)).toBe(false);
+    expect(value).toMatchObject({ geometryType: "Image" });
+    expect(value.geometry).toMatch(/^ref\|[\d.]+\|file-[0-9a-f]{64}$/);
+    expect(hasShapes(value)).toBe(false);
     const [image] = referencesOf(value);
     expect(image).toMatchObject({
       kind: "image",
@@ -284,11 +312,25 @@ describe("importing reference files", () => {
     });
   });
 
+  it("stores the file in the geometry cache once", async () => {
+    const bytes = await pngBytes(40, 20);
+    const first = await importFile("plan.png", bytes);
+    const second = await importFile("copy.png", bytes);
+    const key = (id) => referencesOf(valueOf(id))[0].fileKey;
+    expect(key(first)).toBe(key(second));
+    const stored = await GlobalVariables.cad.getReferenceFile(
+      key(first),
+      projectContext(),
+    );
+    expect(new Uint8Array(await stored.file.arrayBuffer())).toEqual(bytes);
+  });
+
   it("loads a PDF page at its printed size and switches pages", async () => {
     const id = await importFile(
       "datasheet.pdf",
       pdfBytes(["Bore diameter 12.5 mm", "Mounting holes M4"]),
     );
+    expect(valueOf(id).geometryType).toBe("PDF");
     const [page] = referencesOf(valueOf(id));
     expect(page).toMatchObject({ kind: "pdf", page: 1, pageCount: 2 });
     expect(round(referenceBounds(page))).toEqual({
@@ -303,6 +345,7 @@ describe("importing reference files", () => {
 
   it("loads a glTF model in meters, Y-up, into a millimeter Z-up project", async () => {
     const id = await importFile("scan.glb", await glbBytes());
+    expect(valueOf(id).geometryType).toBe("Model");
     const [model] = referencesOf(valueOf(id));
     expect(model).toMatchObject({ kind: "model", stats: { meshes: 1 } });
     expect(round(referenceBounds(model))).toEqual({
@@ -320,42 +363,63 @@ describe("importing reference files", () => {
 });
 
 describe("references in the graph", () => {
-  it("are placed by Move and Rotate and never sent to the CAD worker", async () => {
+  it("are placed by Move and Rotate with lazy transform ids", async () => {
     const image = await importFile("plan.png", await pngBytes(40, 20));
     const move = await add("Move");
     await connect(image, move, "geometry");
     await setParam(move, "xDist", 100);
+    await setParam(move, "zDist", 7);
     const rotate = await add("Rotate");
     await connect(move, rotate, "geometry");
     await setParam(rotate, "z-axis degrees", 90);
     await settle();
 
-    // Moved to x = 100, then turned a quarter about the origin
-    expect(round(referenceBounds(referencesOf(valueOf(rotate))[0]))).toEqual({
-      min: [-25, 50, 0],
-      max: [25, 150, 0],
+    const value = valueOf(rotate);
+    // The same stored file, wrapped in the placement
+    expect(value.geometry).toMatch(/^xf\|.*\|ref\|/);
+    expect(referencesOf(value)[0].fileKey).toBe(
+      referencesOf(valueOf(image))[0].fileKey,
+    );
+    // Moved to x = 100 and up 7, then turned a quarter about the origin
+    expect(round(referenceBounds(referencesOf(value)[0]))).toEqual({
+      min: [-25, 50, 7],
+      max: [25, 150, 7],
     });
-    expectWorkerSawNoSideData();
+    const bounds = await GlobalVariables.cad.getBoundingBox(
+      value,
+      projectContext(),
+    );
+    expect(round(bounds)).toEqual({ min: [-25, 50, 7], max: [25, 150, 7] });
   });
 
-  it("are shown with the parts they're assembled with, uncut", async () => {
+  it("are shown with parts in an Assembly with Make Disjoint off", async () => {
     const image = await importFile("plan.png", await pngBytes(40, 20));
     const part = await box();
     const assembly = await add("Assembly");
-    // A part in an earlier input is cut by later ones; the image cuts nothing
     await connect(part, assembly, "Shape1");
     await connect(image, assembly, "Shape2");
+    await setParam(assembly, "makeDisjoint", false);
     await settle();
 
     const value = valueOf(assembly);
     expect(resolveAtom(assembly).status).toBe(Status.READY);
-    expect(flattenAssembly(value)).toHaveLength(1);
-    expect(referencesOf(value)).toHaveLength(1);
-    const bounds = await GlobalVariables.cad.getBoundingBox(value, {
-      project: GlobalVariables.topLevelMolecule.uniqueID,
-    });
-    expect(round(bounds)).toEqual({ min: [-5, -5, 0], max: [5, 5, 10] });
-    expectWorkerSawNoSideData();
+    expect(flattenAssembly(value).map((leaf) => leaf.geometryType)).toEqual([
+      "3D",
+      "Image",
+    ]);
+    const bounds = await GlobalVariables.cad.getBoundingBox(
+      value,
+      projectContext(),
+    );
+    expect(round(bounds)).toEqual({ min: [-50, -25, 0], max: [50, 25, 10] });
+
+    // Meshes for the part, and the image drawn from its stored file
+    const { meshes, references } = await displayed(value);
+    expect(meshes.filter((m) => m.faces)).toHaveLength(1);
+    expect(references).toHaveLength(1);
+    expect(references[0]).toMatchObject({ kind: "image", name: "plan.png" });
+    expect(references[0].file).toBeInstanceOf(Blob);
+    expect(references[0].matrix).toHaveLength(16);
 
     const info = await runTool("get_atom", { atom: assembly }, READ);
     expect(info.output.part_count).toBe(1);
@@ -364,46 +428,40 @@ describe("references in the graph", () => {
     ]);
   });
 
-  it("assemble on their own, without geometry", async () => {
-    const plan = await importFile("plan.png", await pngBytes(40, 20));
-    const sheet = await importFile("sheet.pdf", pdfBytes(["A"]));
+  it("can't go into an Assembly with Make Disjoint on", async () => {
+    const image = await importFile("plan.png", await pngBytes(40, 20));
+    const part = await box();
     const assembly = await add("Assembly");
-    await connect(plan, assembly, "Shape1");
-    await connect(sheet, assembly, "Shape2");
+    await connect(part, assembly, "Shape1");
+    await connect(image, assembly, "Shape2");
     await settle();
-    expect(resolveAtom(assembly).status).toBe(Status.READY);
-    expect(referencesOf(valueOf(assembly)).map((r) => r.kind)).toEqual([
-      "image",
-      "pdf",
-    ]);
+    expectError(assembly, "Make Disjoint turned off");
   });
 
-  it("don't take part in a Difference", async () => {
+  it("are rejected by Difference, Intersection, Fusion and Extrude", async () => {
     const image = await importFile("plan.png", await pngBytes(40, 20));
     const part = await box();
-    const cutByImage = await add("Difference");
-    await connect(part, cutByImage, "retain");
-    await connect(image, cutByImage, "remove");
-    await settle();
-    expect(flattenAssembly(valueOf(cutByImage))).toEqual(
-      flattenAssembly(valueOf(part)),
-    );
-    // What was cut away isn't kept, references included
-    expect(referencesOf(valueOf(cutByImage))).toEqual([]);
-  });
 
-  it("have no geometry to intersect with", async () => {
-    const image = await importFile("plan.png", await pngBytes(40, 20));
-    const part = await box();
+    const difference = await add("Difference");
+    await connect(part, difference, "retain");
+    await connect(image, difference, "remove");
     const intersection = await add("Intersection");
     await connect(part, intersection, "geometry1");
     await connect(image, intersection, "geometry2");
+    const join = await add("Fusion");
+    await connect(part, join, "Shape1");
+    await connect(image, join, "Shape2");
+    const extrude = await add("Extrude");
+    await connect(image, extrude, "geometry");
     await settle();
-    expect(resolveAtom(intersection).status).toBe(Status.READY);
-    // The part meets nothing; the result carries the first input's side data
-    expect(flattenAssembly(valueOf(intersection))).toEqual([]);
-    expect(referencesOf(valueOf(intersection))).toEqual([]);
-    expectWorkerSawNoSideData();
+
+    expectError(difference, "Difference needs shapes");
+    expectError(intersection, "Intersection needs shapes");
+    expectError(join, "Fusion needs shapes");
+    expectError(extrude, "Extrude needs shapes");
+    expect(String(resolveAtom(difference).alert?.message ?? "")).toContain(
+      "plan.png",
+    );
   });
 
   it("are picked out by tag", async () => {
@@ -418,6 +476,7 @@ describe("references in the graph", () => {
     const assembly = await add("Assembly");
     await connect(tagImage, assembly, "Shape1");
     await connect(tagPart, assembly, "Shape2");
+    await setParam(assembly, "makeDisjoint", false);
     const extract = await add("ExtractTag");
     await connect(assembly, extract, "geometry");
     await settle();
@@ -429,7 +488,7 @@ describe("references in the graph", () => {
     atom.selectedTags = ["plan"];
     atom.onUpstreamChange();
     await settle();
-    expect(hasGeometry(atom.value)).toBe(false);
+    expect(hasShapes(atom.value)).toBe(false);
     expect(referencesOf(atom.value)).toHaveLength(1);
 
     atom.selectedTags = ["wood"];
@@ -439,29 +498,22 @@ describe("references in the graph", () => {
     expect(referencesOf(atom.value)).toEqual([]);
   });
 
-  it("travel with labels, which still move with their geometry", async () => {
+  it("are left out of exports and cut layouts", async () => {
     const image = await importFile("plan.png", await pngBytes(40, 20));
     const part = await box();
-    const label = await add("Label");
-    await connect(part, label, "geometry");
     const assembly = await add("Assembly");
-    await connect(label, assembly, "Shape1");
+    await connect(part, assembly, "Shape1");
     await connect(image, assembly, "Shape2");
-    const move = await add("Move");
-    await connect(assembly, move, "geometry");
-    await setParam(move, "zDist", 5);
+    await setParam(assembly, "makeDisjoint", false);
     await settle();
 
-    const items = sideDataOf(valueOf(move));
-    expect(items.map((i) => i.type).sort()).toEqual(["Label", "Reference"]);
-    const lab = items.find(isLabel);
-    expect(lab.line.start[2]).toBe(5);
-    expect(lab.line.end[2]).toBe(5);
-    // Only labels become three.js objects on the atom
-    expect(resolveAtom(move).nonReplicadGeom.geometry.length).toBeGreaterThan(
-      0,
-    );
-    expectWorkerSawNoSideData();
+    const stl = (value) =>
+      GlobalVariables.cad
+        .downExport(value, "STL", 96, "MM", projectContext())
+        .then((blob) => blob.text());
+    // The export is the part's alone
+    expect(await stl(valueOf(assembly))).toEqual(await stl(valueOf(part)));
+    expect(worker.REFERENCE_POLICY.layout).toEqual(["skip"]);
   });
 });
 
@@ -695,6 +747,7 @@ describe("agent tools", () => {
     const assembly = await add("Assembly");
     await connect(part, assembly, "Shape 1");
     await connect(aligned, assembly, "Shape2");
+    await setParam(assembly, "makeDisjoint", false);
     await settle();
 
     const plan = await runTool(
@@ -891,6 +944,7 @@ describe("agent tools", () => {
     const assembly = await add("Assembly");
     await connect(part, assembly, "Shape 1");
     await connect(image, assembly, "Shape2");
+    await setParam(assembly, "makeDisjoint", false);
     const top = resolveAtom(outer.id);
     const output = resolveAtom(outer.output.id);
     await connect(assembly, output.uniqueID, "number or geometry");
@@ -923,7 +977,7 @@ describe("agent tools", () => {
     ]);
     // The molecule outputs what the assembly did: the box and the image
     expect(room.status, room.alert?.message).toBe(Status.READY);
-    expect(hasGeometry(room.value)).toBe(true);
+    expect(hasShapes(room.value)).toBe(true);
     expect(round(referenceBounds(referencesOf(output.value)[0]))).toEqual(
       before,
     );
