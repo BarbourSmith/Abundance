@@ -59,23 +59,10 @@ async function readProject(octo, owner, repo, entry) {
 
 const sameEntry = (a, b) => a?.sha === b?.sha && a?.mode === b?.mode;
 
-/**
- * @param {object} octo - Authorized Octokit instance
- * @param {object} options
- * @param {string} options.baseOwner
- * @param {string} options.baseRepo
- * @param {string} options.headOwner
- * @param {string} options.headRepo
- * @param {string} [options.branch] - Branch name on both sides
- * @param {object} [options.resolutions] - Conflict id -> "main" | "head", from a previous "conflicts" result
- * @returns {Promise<{status: "up-to-date" | "synced" | "conflicts", headSha?: string, conflicts?: Array}>}
- *   headSha is the head branch's commit afterwards.
- *   "conflicts" means nothing was written: ask the user which value to keep
- *   for each conflict and call again with resolutions.
- */
-export async function syncHeadWithBase(
+/** Compares the head branch against the base branch, by their current commits. */
+async function compareBranches(
   octo,
-  { baseOwner, baseRepo, headOwner, headRepo, branch = "main", resolutions },
+  { baseOwner, baseRepo, headOwner, headRepo, branch },
 ) {
   // Compare exact commits: comparing branch names can return stale results
   // for a few seconds after a push
@@ -101,6 +88,34 @@ export async function syncHeadWithBase(
       basehead: `${baseSha}...${headOwner}:${headSha}`,
     },
   );
+  return { baseSha, headSha, compare };
+}
+
+/**
+ * @param {object} octo - Authorized Octokit instance
+ * @param {object} options
+ * @param {string} options.baseOwner
+ * @param {string} options.baseRepo
+ * @param {string} options.headOwner
+ * @param {string} options.headRepo
+ * @param {string} [options.branch] - Branch name on both sides
+ * @param {object} [options.resolutions] - Conflict id -> "main" | "head", from a previous "conflicts" result
+ * @returns {Promise<{status: "up-to-date" | "synced" | "conflicts", headSha?: string, conflicts?: Array}>}
+ *   headSha is the head branch's commit afterwards.
+ *   "conflicts" means nothing was written: ask the user which value to keep
+ *   for each conflict and call again with resolutions.
+ */
+export async function syncHeadWithBase(
+  octo,
+  { baseOwner, baseRepo, headOwner, headRepo, branch = "main", resolutions },
+) {
+  const { baseSha, headSha, compare } = await compareBranches(octo, {
+    baseOwner,
+    baseRepo,
+    headOwner,
+    headRepo,
+    branch,
+  });
   if (compare.behind_by === 0) return { status: "up-to-date", headSha };
 
   const updateHeadRef = (sha) =>
@@ -218,4 +233,86 @@ export async function syncHeadWithBase(
   );
   await updateHeadRef(mergeCommit.sha);
   return { status: "synced", headSha: mergeCommit.sha };
+}
+
+/** The body of a pull request from a fork, with before and after pictures. */
+export function pullRequestBody({
+  baseOwner,
+  baseRepo,
+  headOwner,
+  headRepo,
+  description,
+}) {
+  const svgPath = (owner, repo) =>
+    `https://raw.githubusercontent.com/${owner}/${repo}/master/project.svg?sanitize=true`;
+  return `This pull request compares changes from ${headOwner}/${headRepo} to ${baseOwner}/${baseRepo}.${description ? `\n\nDescription:\n${description}` : ""}
+
+## Comparison
+
+| Adding | Removing |
+|--------|----------|
+| ![Adding](${svgPath(headOwner, headRepo)}) | ![Removing](${svgPath(baseOwner, baseRepo)}) |
+`;
+}
+
+/**
+ * Opens a pull request from the head fork to its base, or finds the one
+ * already open. Unlike the Pull Request page, it doesn't merge the base's
+ * newer changes into the head: that commits to the head behind the open
+ * editor's back, and its next save would undo them.
+ *
+ * @param {object} octo - Authorized Octokit instance
+ * @param {object} options - baseOwner, baseRepo, headOwner, headRepo, and optionally title, description, branch
+ * @returns {Promise<{status: "created" | "existing" | "behind" | "no-changes", pr?: object, behindBy?: number}>}
+ *   "behind" means the base has changes the head doesn't; nothing was opened.
+ */
+export async function openPullRequest(
+  octo,
+  {
+    baseOwner,
+    baseRepo,
+    headOwner,
+    headRepo,
+    title,
+    description,
+    branch = "main",
+  },
+) {
+  const { data: open } = await octo.request("GET /repos/{owner}/{repo}/pulls", {
+    owner: baseOwner,
+    repo: baseRepo,
+    state: "open",
+    head: `${headOwner}:${branch}`,
+    base: branch,
+    headers: NO_CACHE,
+  });
+  if (open.length > 0) return { status: "existing", pr: open[0] };
+
+  const { compare } = await compareBranches(octo, {
+    baseOwner,
+    baseRepo,
+    headOwner,
+    headRepo,
+    branch,
+  });
+  if (compare.behind_by > 0) {
+    return { status: "behind", behindBy: compare.behind_by };
+  }
+  if (compare.ahead_by === 0) return { status: "no-changes" };
+
+  const { data: pr } = await octo.request("POST /repos/{owner}/{repo}/pulls", {
+    owner: baseOwner,
+    repo: baseRepo,
+    title: title || `Compare ${headRepo} changes`,
+    body: pullRequestBody({
+      baseOwner,
+      baseRepo,
+      headOwner,
+      headRepo,
+      description,
+    }),
+    head: `${headOwner}:${branch}`,
+    base: branch,
+  });
+  return { status: "created", pr };
 }

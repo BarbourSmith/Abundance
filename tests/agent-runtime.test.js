@@ -81,6 +81,7 @@ async function expectToolError(promise, code, messagePattern) {
 beforeEach(() => {
   freshProject();
   agentBridge.saveHandler = null;
+  agentBridge.pullRequestHandler = null;
 });
 
 afterEach(() => {
@@ -716,7 +717,7 @@ describe("saving", () => {
     );
   });
 
-  it("asks the editor's save handler, which asks the user", async () => {
+  it("saves through the editor's save handler", async () => {
     const reasons = [];
     agentBridge.saveHandler = async (reason) => {
       reasons.push(reason);
@@ -733,6 +734,42 @@ describe("saving", () => {
     });
     expect(reasons).toEqual(["Finished the bracket"]);
     expect((await runTool("get_project", {}, READ)).can_save).toBe(true);
+  });
+
+  it("refuses a pull request when the page can't save", async () => {
+    await expectToolError(
+      runTool("open_pull_request", {}, EDIT),
+      ERROR_CODES.CONFLICT,
+      /can't open a pull request/,
+    );
+  });
+
+  it("opens a pull request through the editor's handler", async () => {
+    const calls = [];
+    agentBridge.pullRequestHandler = async (args) => {
+      calls.push(args);
+      return { opened: true, url: "https://github.com/a/b/pull/1" };
+    };
+    const result = await runTool(
+      "open_pull_request",
+      { title: "Taller legs", description: "Legs are 50 mm taller." },
+      EDIT,
+    );
+    expect(result).toEqual({
+      opened: true,
+      url: "https://github.com/a/b/pull/1",
+    });
+    expect(calls).toEqual([
+      { title: "Taller legs", description: "Legs are 50 mm taller." },
+    ]);
+  });
+
+  it("needs edits allowed to open a pull request", async () => {
+    agentBridge.pullRequestHandler = async () => ({ opened: true });
+    await expectToolError(
+      runTool("open_pull_request", {}, READ),
+      ERROR_CODES.PERMISSION_DENIED,
+    );
   });
 });
 
@@ -1093,7 +1130,9 @@ describe("importing files from GitHub", () => {
       gitRef: "main",
     });
     await settle();
-    expect(fetched).toEqual([["MaslowCNC", "Maslow4", "Belt End.step", "main"]]);
+    expect(fetched).toEqual([
+      ["MaslowCNC", "Maslow4", "Belt End.step", "main"],
+    ]);
     expect(atom.serialize()).toMatchObject({
       fileName: "Belt End.step",
       repoOwner: "MaslowCNC",

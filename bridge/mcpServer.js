@@ -93,7 +93,8 @@ Edit:
 - Edits recompute asynchronously: afterwards call wait_for_settle, check its errors, and confirm the result with render_image or get_atom bounding boxes before reporting success.
 - Only Molecules, Inputs, and Constants have names you choose; every other atom keeps its standard name (Rectangle, Extrude, ...). Refer to atoms by the ID tools return, or by a ref you give add_atom inside apply_edits. Equation atoms rename themselves to their equation; results include renamed. When names collide, the error lists IDs to use instead.
 - undo reverses your most recent change and won't touch the user's own changes.
-- Autosave pauses while edits are allowed. Remind the user to save; only call save_project when they ask, and it asks them to confirm.
+- The page autosaves every few minutes. Call save_project after a finished set of changes, with a reason that says what changed; it commits to the user's GitHub repository right away.
+- For a project forked from someone else's, open_pull_request saves and proposes the changes to the original project, whose owner sees it. Open one when the user asks for it, with a title and description of what changed and why.
 
 Code atoms, only after checking the built-ins and the library, and only inside the molecule of the one part they help build:
 1. Call get_code_atom_guide for the code atom API (TypeScript run() functions, the Assembly class, Replicad, examples).
@@ -152,6 +153,7 @@ function timeoutFor(name, args) {
     case "wait_for_settle":
       return (args?.timeout_ms ?? 120_000) + 15_000;
     case "save_project":
+    case "open_pull_request":
       return 10 * 60_000;
     case "render_image":
     case "check_geometry":
