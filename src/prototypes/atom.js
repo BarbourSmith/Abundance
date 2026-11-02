@@ -720,10 +720,6 @@ export default class Atom extends ObservableEntity {
     //Deselect this if it wasn't clicked on, unless control is held
     else if (!GlobalVariables.ctrlDown) {
       this.selected = false;
-      // If this atom hosts the active partselect input, exit selection mode
-      if (GlobalVariables.selectionModeAtom?.parent === this) {
-        GlobalVariables.exitSelectionMode();
-      }
     }
     //Returns true if something was done with the click
     this.inputs.forEach((child) => {
@@ -1049,8 +1045,9 @@ export default class Atom extends ObservableEntity {
     });
     var object = {
       atomType: this.atomType,
-      x: Math.round((this.x + offset.x) * 10) / 10,
-      y: Math.round((this.y - offset.y) * 10) / 10,
+      // Fractions of the canvas: 4 decimals is under a pixel on a large screen
+      x: Math.round((this.x + offset.x) * 10000) / 10000,
+      y: Math.round((this.y - offset.y) * 10000) / 10000,
       uniqueID: this.uniqueID,
     };
 
