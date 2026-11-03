@@ -78,7 +78,12 @@ export function searchTerms(query) {
   const words = String(query || "")
     .toLowerCase()
     .split(/[^a-z0-9]+/)
-    .filter((w) => w.length >= 3 && !SEARCH_STOP_WORDS.has(w));
+    // Keep short sizes such as "m3" and "m8", which mix letters and digits.
+    .filter(
+      (w) =>
+        (w.length >= 3 || (/\d/.test(w) && /[a-z]/.test(w))) &&
+        !SEARCH_STOP_WORDS.has(w),
+    );
   const stems = words.map((word) => {
     let stem = word;
     for (let i = 0; i < 2; i++) {

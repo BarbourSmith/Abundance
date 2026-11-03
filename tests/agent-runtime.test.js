@@ -919,6 +919,36 @@ describe("built-in catalog and molecule library", () => {
     expect(result.copies_hidden).toBe(2);
   });
 
+  it("searches short hardware sizes such as M3", async () => {
+    const searched = [];
+    const bolt = {
+      owner: "BarbourSmith",
+      repoName: "M3-Bolt",
+      ranking: 3,
+      searchField:
+        "m3-bolt barboursmith m3 bolt for abundance designs hardware",
+    };
+    const woodScrew = {
+      owner: "someone",
+      repoName: "Wood-Screw",
+      ranking: 4,
+      searchField: "wood-screw someone a #6 wood screw",
+    };
+    __test__.fetchers.search = async (term) => {
+      searched.push(term);
+      return term === "m3" ? [bolt] : [woodScrew];
+    };
+    const result = await runTool(
+      "search_molecules",
+      { query: "M3 screw" },
+      READ,
+    );
+    expect(searched.sort()).toEqual(["m3", "screw"]);
+    expect(result.molecules.map((m) => m.repo)).toContain(
+      "BarbourSmith/M3-Bolt",
+    );
+  });
+
   it("imports a GitHub molecule as one undoable, read-only step", async () => {
     const requested = [];
     __test__.fetchers.search = async () => [];

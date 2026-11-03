@@ -457,7 +457,7 @@ export const TOOLS = [
     name: "add_atom",
     permission: "edit",
     description:
-      "Add a new built-in atom to a molecule. Returns its ID and path; a new Molecule also returns its Output atom. Positions are fractions of the canvas (0 to 1); omit them to place it to the right of the existing atoms. Each physical part (a board, panel, bracket) goes in a Molecule of its own, named for the part; keep molecules to about 8 atoms, adding a named Molecule for new work beyond that. Code atoms are a last resort: use built-in atoms and library molecules where they can do the job, and never have one Code atom build several parts.",
+      "Add a new built-in atom to a molecule. Returns its ID and path; a new Molecule also returns its Output atom. Positions are fractions of the canvas (0 to 1); omit them to place it to the right of the existing atoms. Each physical part (a board, panel, bracket) goes in a Molecule of its own, named for the part; keep molecules to about 8 atoms, adding a named Molecule for new work beyond that. Code atoms are a last resort: use built-in atoms and library molecules where they can do the job (search_molecules finds standard hardware such as bolts and nuts), and never have one Code atom build several parts or cut a part's holes and pockets.",
     inputSchema: {
       type: "object",
       properties: {
@@ -481,7 +481,7 @@ export const TOOLS = [
         reason: {
           type: "string",
           description:
-            "Required for Code atoms: which single part this helps build and why no built-in atom or library molecule does the job. Shown to the user in the undo history.",
+            "Required for Code atoms: which single part this helps build and why no built-in atom or library molecule does the job. Needing many built-in atoms is not a reason: split that work into feature molecules. Shown to the user in the undo history.",
         },
       },
       required: ["type"],
