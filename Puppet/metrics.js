@@ -1,33 +1,31 @@
 import puppeteer from "puppeteer";
+import fs from "fs";
 import projects_to_test from "./projects_to_test.js";
 
 /**
  * Abundance Performance Metrics Test
- * 
- * This script measures various performance metrics for Abundance projects:
- * 
- * 1. Load Time Metrics:
- *    - Cold load time: Time to fully render project on first load
- *    - Warm load time: Time to render project with cache available
- * 
- * 2. Cache Metrics:
- *    - IndexedDB cache size and entry count
- *    - Per-key cache sizes for detailed analysis
- * 
- * 3. Project File Metrics:
- *    - Serialized project file size
- *    - Project structure and content
- * 
- * 4. GCode Generation Metrics (NEW):
- *    - GCode generation time per atom
- *    - GCode output size (lines and commands)
- *    - Visualization performance
- *    - Support for both single parts and assemblies
- * 
+ *
+ * Loads each project in projects_to_test.js several times and records:
+ *   - Cold load time: navigation to the project finishing its computation,
+ *     in a fresh browser profile (empty geometry cache)
+ *   - Warm load time: the same, reloading with the geometry cache filled
+ *   - Geometry cache size and entry count, project file size
+ *   - GCode generation and visualization time, for projects with GCode atoms
+ *
+ * Two or more builds can be measured in one run ("targets", each served on
+ * its own port). Rounds alternate between targets so anything that slows the
+ * machine down during the run affects them equally. Compare the results with
+ * compareMetrics.js.
+ *
+ * To keep the timings about the code and not the network, each GitHub
+ * response is fetched once and replayed from memory for every later load.
+ * A load ends when nothing has computed for SETTLE_QUIET_MS; the time recorded
+ * is when the last computation finished, not when the quiet period ended.
+ *
  * Usage:
- *   node Puppet/metrics.js > metrics.json
- * 
- * The script outputs both human-readable summaries and JSON for automated comparisons.
+ *   node Puppet/metrics.js [--target name=url ...] [--runs N] [--out file.json]
+ *
+ * With no target, it measures http://localhost:4444 as "local".
  */
 
 const projectUser = "moatmaslow";
@@ -115,32 +113,6 @@ async function getIndexedDBSize(page, dbName) {
  * Clear IndexedDB cache for a fresh start
  * @param {Object} browser - Puppeteer browser instance
  */
-async function clearIndexedDBCache(browser) {
-  const page = await browser.newPage();
-  try {
-    await page.goto("http://localhost:4444", {
-      timeout: 30000,
-      waitUntil: "load",
-    });
-    await page.evaluate(() => {
-      return new Promise((resolve, reject) => {
-        const request = indexedDB.deleteDatabase("AbundanceProjectCaches");
-        request.onsuccess = () => {
-          console.log("got a success response from db deletion");
-          resolve();
-        };
-        request.onerror = () => reject(request.error);
-        request.onblocked = () => {
-          console.log("IndexedDB deletion blocked");
-          reject("Indexdb deletion was blocked");
-        };
-      });
-    });
-    console.log("✓ IndexedDB cache cleared");
-  } catch (error) {
-    console.log("⚠ Could not clear IndexedDB cache:", error.message);
-  }
-}
 /**
  * Gets size of the serialized top level molecule in the project
  * @param {} page
@@ -353,123 +325,6 @@ async function getGcodeMetrics(page) {
 }
 
 /**
- * Run metrics test for a single project
- * @param {Object} browser - Puppeteer browser instance
- * @param {string} projectName - Project name to test
- * @returns {Promise<Object>} Metrics object
- */
-async function runMetricsTest(browser, projectName) {
-  const page = await browser.newPage();
-  const metrics = {
-    projectName,
-    timestamp: new Date().toISOString(),
-    coldLoadTimeMs: null,
-    warmLoadTimeMs: null,
-    cacheSize: null,
-    cacheSizeFormatted: null,
-    cacheEntryCount: null,
-    projectFileSize: null,
-    projectFileSizeFormatted: null,
-    gcodeMetrics: null,
-    error: null,
-  };
-
-  try {
-    // Set viewport
-    await page.setViewport({ width: 1080, height: 1024 });
-
-    const navigationUrl = `http://localhost:4444/run/${projectUser}/${projectName}`;
-    console.log(`\nTesting metrics for: ${projectName}`);
-    console.log(`URL: ${navigationUrl}`);
-    const projectReadySelector = "#molecule-fully-render-puppeteer";
-    const canvasSelector = "#flow-canvas";
-
-    // Navigate to the project
-    await page.goto(navigationUrl, {
-      timeout: 120000,
-      waitUntil: "load",
-    });
-
-    await page.waitForSelector(canvasSelector, { timeout: 200000 });
-    // Wait for the project to fully render
-    const startTime = Date.now();
-    await page.waitForSelector(projectReadySelector, { timeout: 120000 });
-
-    // Calculate cold load time
-    const endTime = Date.now();
-    metrics.coldLoadTimeMs = endTime - startTime;
-
-    // Measure IndexedDB cache size
-    const cacheMetrics = await getIndexedDBSize(page, "AbundanceProjectCaches");
-    metrics.cacheSize = cacheMetrics.totalSize;
-    metrics.cacheSizeFormatted = formatBytes(cacheMetrics.totalSize);
-    metrics.cacheEntryCount = cacheMetrics.entryCount;
-    metrics.cacheKeyedSizes = cacheMetrics.keyedSizes;
-
-    // Warm load
-    await page.reload({ waitUntil: "load", timeout: 120000 });
-    await page.waitForSelector(canvasSelector, { timeout: 200000 });
-    const warmStartTime = Date.now();
-    await page.waitForSelector(projectReadySelector, { timeout: 120000 });
-    const warmEndTime = Date.now();
-    metrics.warmLoadTimeMs = warmEndTime - warmStartTime;
-
-    // Project save size
-    const projectFileMetrics = await getProjectFileSize(page);
-    if (projectFileMetrics.error) {
-      throw new Error(
-        `Error getting project file size: ${projectFileMetrics.error}`
-      );
-    }
-    metrics.projectFileSize = projectFileMetrics.size;
-    metrics.projectFileSizeFormatted = formatBytes(projectFileMetrics.size);
-    metrics.projectFileRawJson = projectFileMetrics.rawJson;
-
-    // GCode generation and visualization performance metrics
-    console.log("  Measuring GCode metrics...");
-    const gcodeMetrics = await getGcodeMetrics(page);
-    metrics.gcodeMetrics = gcodeMetrics;
-
-    // Log GCode metrics summary
-    if (gcodeMetrics.hasGcodeAtom) {
-      console.log(
-        `  Found ${gcodeMetrics.gcodeAtomCount} GCode atom(s) in project`
-      );
-      if (gcodeMetrics.atoms) {
-        gcodeMetrics.atoms.forEach((atom, idx) => {
-          console.log(`  GCode Atom ${idx + 1}:`);
-          if (atom.generationTimeMs) {
-            console.log(`    Generation Time: ${atom.generationTimeMs.toFixed(2)}ms`);
-          }
-          if (atom.visualizationTimeMs) {
-            console.log(`    Visualization Time: ${atom.visualizationTimeMs.toFixed(2)}ms`);
-          }
-          if (atom.gcodeLineCount) {
-            console.log(`    GCode Lines: ${atom.gcodeLineCount}`);
-            console.log(`    GCode Commands: ${atom.gcodeCommandCount}`);
-          }
-          if (atom.generationError) {
-            console.log(`    Generation Error: ${atom.generationError}`);
-          }
-          if (atom.visualizationError) {
-            console.log(`    Visualization Error: ${atom.visualizationError}`);
-          }
-        });
-      }
-    } else {
-      console.log("  No GCode atoms found in project");
-    }
-  } catch (error) {
-    metrics.error = error.message;
-    console.error(`✗ Error testing ${projectName}: ${error.message}`);
-  } finally {
-    await page.close();
-  }
-
-  return metrics;
-}
-
-/**
  * Format bytes to human readable format
  * @param {number} bytes - Number of bytes
  * @returns {string} Formatted string
@@ -485,91 +340,268 @@ function formatBytes(bytes) {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
 }
 
+const SETTLE_QUIET_MS = 1500;
+const SETTLE_POLL_MS = 20;
+const SETTLE_TIMEOUT_MS = 180000;
+
+/**
+ * Runs in the page before any of its scripts. Polls the project and records
+ * the last moment anything was loading or computing, the same test the agent
+ * bridge's wait_for_settle uses. Times are performance.now(), so they count
+ * from the start of navigation.
+ */
+function installSettleTracker(quietMs, pollMs) {
+  const state = { lastBusyAt: performance.now(), settled: false };
+  window.__abundancePerf = state;
+  const isProcessing = (molecule) =>
+    (molecule.nodesOnTheScreen || []).some(
+      (atom) => atom.status === "processing" || isProcessing(atom),
+    );
+  const timer = setInterval(() => {
+    const g = window.GlobalVarsForPuppeteer;
+    const top = g?.topLevelMolecule;
+    const now = performance.now();
+    const busy =
+      !top ||
+      g.projectIsLoading ||
+      (g.cad?._pendingCalls?.length ?? 0) > 0 ||
+      isProcessing(top);
+    if (busy) {
+      state.lastBusyAt = now;
+    } else if (now - state.lastBusyAt >= quietMs) {
+      const [ready, total] = top.getCompletionTuple?.() ?? [0, 0];
+      Object.assign(state, { settled: true, ready, total });
+      clearInterval(timer);
+    }
+  }, pollMs);
+}
+
+/** Wait for the tracker to settle; returns the load time in ms. */
+async function waitForSettledLoad(page) {
+  await page.waitForFunction(() => window.__abundancePerf?.settled, {
+    timeout: SETTLE_TIMEOUT_MS,
+    polling: 100,
+  });
+  const state = await page.evaluate(() => window.__abundancePerf);
+  if (state.total > 0 && state.ready < state.total) {
+    throw new Error(
+      `Project settled with only ${state.ready} of ${state.total} atoms ready`,
+    );
+  }
+  return Math.round(state.lastBusyAt);
+}
+
+/**
+ * Serve every remote GET (GitHub, fonts) from memory after its first fetch,
+ * so later loads and every target see identical data with no network time.
+ *
+ * This uses the DevTools Fetch domain limited to https:// URLs rather than
+ * Puppeteer's setRequestInterception, which pauses every request, including
+ * the CAD worker's, and leaves the worker's calls hanging.
+ */
+async function replayRemoteRequests(page, cache) {
+  const client = await page.createCDPSession();
+  client.on("Fetch.requestPaused", async (event) => {
+    const { requestId, request, responseStatusCode, responseHeaders } = event;
+    const key = request.url;
+    try {
+      if (responseStatusCode === undefined) {
+        // Request stage.
+        const cached = request.method === "GET" && cache.get(key);
+        if (cached) {
+          await client.send("Fetch.fulfillRequest", { requestId, ...cached });
+        } else {
+          await client.send("Fetch.continueRequest", {
+            requestId,
+            interceptResponse: request.method === "GET",
+          });
+        }
+        return;
+      }
+      // Response stage: remember successful responses for later loads.
+      if (responseStatusCode === 200 && !cache.has(key)) {
+        const { body, base64Encoded } = await client.send(
+          "Fetch.getResponseBody",
+          { requestId },
+        );
+        cache.set(key, {
+          responseCode: 200,
+          // The body comes back decoded, so its encoding and length change.
+          responseHeaders: responseHeaders.filter(
+            ({ name }) => !/^(content-encoding|content-length)$/i.test(name),
+          ),
+          body: base64Encoded ? body : Buffer.from(body).toString("base64"),
+        });
+      }
+      await client.send("Fetch.continueResponse", { requestId });
+    } catch {
+      // The page navigated or closed while this request was paused.
+    }
+  });
+  await client.send("Fetch.enable", {
+    patterns: [{ urlPattern: "https://*", requestStage: "Request" }],
+  });
+}
+
+/**
+ * Load a project cold in a fresh browser profile, then reload it warm, and
+ * collect one sample of every metric.
+ */
+async function measureProject(browser, baseUrl, projectName, replayCache) {
+  const sample = { error: null };
+  const context = await browser.createBrowserContext();
+  try {
+    const page = await context.newPage();
+    await page.setViewport({ width: 1080, height: 1024 });
+    await page.evaluateOnNewDocument(
+      installSettleTracker,
+      SETTLE_QUIET_MS,
+      SETTLE_POLL_MS,
+    );
+    await replayRemoteRequests(page, replayCache);
+
+    const url = `${baseUrl}/run/${projectUser}/${projectName}`;
+    await page.goto(url, { timeout: 120000, waitUntil: "load" });
+    sample.coldLoadTimeMs = await waitForSettledLoad(page);
+
+    const cacheMetrics = await getIndexedDBSize(page, "AbundanceProjectCaches");
+    sample.cacheSize = cacheMetrics.totalSize;
+    sample.cacheEntryCount = cacheMetrics.entryCount;
+
+    await page.reload({ timeout: 120000, waitUntil: "load" });
+    sample.warmLoadTimeMs = await waitForSettledLoad(page);
+
+    const projectFileMetrics = await getProjectFileSize(page);
+    if (projectFileMetrics.error) {
+      throw new Error(
+        `Error getting project file size: ${projectFileMetrics.error}`,
+      );
+    }
+    sample.projectFileSize = projectFileMetrics.size;
+    sample.projectFileRawJson = projectFileMetrics.rawJson;
+
+    const gcode = await getGcodeMetrics(page);
+    if (gcode.hasGcodeAtom) {
+      const sum = (key) =>
+        (gcode.atoms || []).reduce((total, atom) => total + (atom[key] || 0), 0);
+      sample.gcode = {
+        atomCount: gcode.gcodeAtomCount,
+        generationTimeMs: sum("generationTimeMs"),
+        visualizationTimeMs: sum("visualizationTimeMs"),
+        lineCount: sum("gcodeLineCount"),
+        commandCount: sum("gcodeCommandCount"),
+        errors: (gcode.atoms || [])
+          .flatMap((a) => [a.generationError, a.visualizationError])
+          .filter(Boolean),
+      };
+    }
+  } catch (error) {
+    sample.error = error.message;
+  } finally {
+    await context.close();
+  }
+  return sample;
+}
+
+function parseArgs(argv) {
+  const options = { targets: [], runs: 5, warmupRuns: 1, out: null };
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    const value = argv[i + 1];
+    if (arg === "--target") {
+      const [name, url] = value.split(/=(.*)/s);
+      options.targets.push({ name, url: url.replace(/\/$/, "") });
+      i++;
+    } else if (arg === "--runs") {
+      options.runs = Number(value);
+      i++;
+    } else if (arg === "--warmup-runs") {
+      options.warmupRuns = Number(value);
+      i++;
+    } else if (arg === "--out") {
+      options.out = value;
+      i++;
+    } else {
+      throw new Error(`Unknown argument ${arg}`);
+    }
+  }
+  if (options.targets.length === 0) {
+    options.targets.push({ name: "local", url: "http://localhost:4444" });
+  }
+  return options;
+}
+
+const formatSample = (s) =>
+  s.error
+    ? `FAILED: ${s.error}`
+    : `cold ${s.coldLoadTimeMs}ms, warm ${s.warmLoadTimeMs}ms, ` +
+      `cache ${formatBytes(s.cacheSize)} (${s.cacheEntryCount} entries)`;
+
 /**
  * Main execution
  */
 (async () => {
+  const options = parseArgs(process.argv.slice(2));
+  const results = {
+    meta: {
+      startedAt: new Date().toISOString(),
+      runs: options.runs,
+      warmupRuns: options.warmupRuns,
+      settleQuietMs: SETTLE_QUIET_MS,
+      targets: options.targets,
+    },
+    projects: {},
+  };
+  for (const projectName of projects_to_test) {
+    results.projects[projectName] = {};
+    for (const target of options.targets) {
+      results.projects[projectName][target.name] = { samples: [] };
+    }
+  }
+
   let browser;
-  let allMetrics = [];
   let hasErrors = false;
-
+  const replayCache = new Map();
   try {
-    console.log("=".repeat(60));
-    console.log("ABUNDANCE PERFORMANCE METRICS TEST");
-    console.log("=".repeat(60));
-
     browser = await puppeteer.launch({
       headless: true,
       args: ["--no-sandbox", "--disable-setuid-sandbox"],
     });
 
-    // Run metrics test for each project
-    for (const projectName of projects_to_test) {
-      // Clear IndexedDB cache before starting tests for cold load measurement
-      await clearIndexedDBCache(browser);
-
-      // Wait an additional 10 seconds to ensure cache is cleared
-      await new Promise((resolve) => setTimeout(resolve, 10000));
-
-      const metrics = await runMetricsTest(browser, projectName);
-      allMetrics.push(metrics);
-
-      if (metrics.error) {
-        hasErrors = true;
-      }
-    }
-
-    // Output results summary
-    console.log("\n" + "=".repeat(60));
-    console.log("METRICS SUMMARY");
-    console.log("=".repeat(60));
-
-    allMetrics.forEach((m) => {
-      if (m.error) {
-        console.log(`\n${m.projectName}: FAILED`);
-        console.log(`  Error: ${m.error}`);
-      } else {
-        console.log(`\n${m.projectName}:`);
-        console.log(`  Cold Load Time: ${m.coldLoadTimeMs}ms`);
-        console.log(
-          `  Cache Size: ${m.cacheSizeFormatted} (${m.cacheSize} bytes)`
-        );
-
-        // Display GCode metrics if available
-        if (m.gcodeMetrics && m.gcodeMetrics.hasGcodeAtom) {
-          console.log(
-            `  GCode Atoms: ${m.gcodeMetrics.gcodeAtomCount} found`
+    const totalRounds = options.warmupRuns + options.runs;
+    for (let round = 0; round < totalRounds; round++) {
+      const warmup = round < options.warmupRuns;
+      console.log(
+        `\nRound ${round + 1} of ${totalRounds}${warmup ? " (warm-up, not recorded)" : ""}`,
+      );
+      for (const projectName of projects_to_test) {
+        // Alternate which target goes first so neither always runs on a
+        // machine that the other just warmed up or slowed down.
+        const order =
+          round % 2 ? [...options.targets].reverse() : options.targets;
+        for (const target of order) {
+          const sample = await measureProject(
+            browser,
+            target.url,
+            projectName,
+            replayCache,
           );
-          if (m.gcodeMetrics.atoms) {
-            m.gcodeMetrics.atoms.forEach((atom, idx) => {
-              if (atom.generationTimeMs) {
-                console.log(
-                  `    Atom ${idx + 1} Generation: ${atom.generationTimeMs.toFixed(2)}ms`
-                );
-              }
-              if (atom.visualizationTimeMs) {
-                console.log(
-                  `    Atom ${idx + 1} Visualization: ${atom.visualizationTimeMs.toFixed(2)}ms`
-                );
-              }
-              if (atom.gcodeLineCount) {
-                console.log(
-                  `    Atom ${idx + 1} Lines: ${atom.gcodeLineCount} (${atom.gcodeCommandCount} commands)`
-                );
-              }
-            });
+          console.log(`  ${projectName} [${target.name}] ${formatSample(sample)}`);
+          if (warmup) continue;
+          const entry = results.projects[projectName][target.name];
+          // The project file is the same every run; keep one copy.
+          if (sample.projectFileRawJson !== undefined) {
+            entry.projectFileRawJson ??= sample.projectFileRawJson;
+            delete sample.projectFileRawJson;
           }
+          entry.samples.push(sample);
+          if (sample.error) hasErrors = true;
         }
       }
-    });
-
-    // Output JSON for machine consumption
-    console.log("\n" + "=".repeat(60));
-    console.log("JSON OUTPUT");
-    console.log("=".repeat(60));
-    console.log(JSON.stringify(allMetrics, null, 2));
+    }
   } catch (error) {
     console.error(`Fatal error: ${error.message}`);
+    results.meta.fatalError = error.message;
     hasErrors = true;
   } finally {
     if (browser) {
@@ -577,16 +609,28 @@ function formatBytes(bytes) {
     }
   }
 
-  console.log("\n" + "=".repeat(60));
+  results.meta.finishedAt = new Date().toISOString();
+  const json = JSON.stringify(results, null, 2);
+  if (options.out) {
+    fs.writeFileSync(options.out, json);
+    console.log(`\nWrote ${options.out}`);
+  } else {
+    console.log(json);
+  }
+
   console.log(
     hasErrors
-      ? "METRICS TEST COMPLETED WITH ERRORS"
-      : "METRICS TEST COMPLETED SUCCESSFULLY"
+      ? "\nMETRICS TEST COMPLETED WITH ERRORS"
+      : "\nMETRICS TEST COMPLETED SUCCESSFULLY",
   );
-  console.log("=".repeat(60));
-
-  // Exit with error code if there were failures
-  if (hasErrors) {
+  // Report failed samples but still exit 0 when every project has some
+  // results: the comparison shows which runs failed.
+  const anyEmpty = Object.values(results.projects).some((targets) =>
+    Object.values(targets).some(
+      (t) => t.samples.filter((s) => !s.error).length === 0,
+    ),
+  );
+  if (results.meta.fatalError || anyEmpty) {
     process.exit(1);
   }
 })();
