@@ -502,10 +502,8 @@ How to contribute to the Abundance project.
 2. **Install dependencies:**
 
    ```bash
-   npm install --legacy-peer-deps
+   npm install
    ```
-
-   ⚠️ **Important:** Always use the `--legacy-peer-deps` flag when installing dependencies.
 
 3. **Configure for local development:**
 
@@ -603,14 +601,14 @@ The live application is available at: [https://abundance.maslowcnc.com](https://
 
 **Problem:** Build fails with dependency errors
 ```bash
-npm install --legacy-peer-deps
+npm install
 ```
 
 **Problem:** `vitest: not found` or missing binaries
 ```bash
 # Clean install
 rm -rf node_modules package-lock.json
-npm install --legacy-peer-deps
+npm install
 ```
 
 ### Testing Issues
