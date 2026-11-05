@@ -365,6 +365,46 @@ async function importingSTEP(
 }
 
 /**
+ * Read an STL file into a BRep solid with replicad.
+ *
+ * replicad's importSTL expects OpenCascade's StlAPI_Reader to return the
+ * triangles sewn into one shell. The OpenCascade build replicad-opencascadejs
+ * 1.0 ships returns them as a compound of loose faces instead, so importSTL
+ * throws Standard_TypeMismatch on every file. This does the same steps with
+ * the sewing replicad's makeSolid does: read the triangles, sew them into a
+ * solid (or a shell when the mesh isn't closed), then merge coplanar
+ * triangles into single faces.
+ */
+async function readSTLAsSolid(file: Blob): Promise<AnyShape> {
+  const oc = replicad.getOC();
+  const [r, gc] = replicad.localGC();
+  const fileName = `stl-import-${crypto.randomUUID()}.stl`;
+  oc.FS.writeFile(`/${fileName}`, new Uint8Array(await file.arrayBuffer()));
+  try {
+    const reader = r(new oc.StlAPI_Reader());
+    const triangles = r(new oc.TopoDS_Shell());
+    if (!reader.Read(triangles, fileName)) {
+      throw new Error("Failed to load STL file");
+    }
+    const faces = replicad.cast(triangles).faces;
+    if (faces.length === 0) {
+      throw new Error("STL file contains no triangles");
+    }
+    let sewn: AnyShape;
+    try {
+      sewn = replicad.makeSolid(faces);
+    } catch {
+      // Not a closed mesh: keep it as an open shell.
+      sewn = replicad.weldShellsAndFaces(faces, true);
+    }
+    return sewn.simplify();
+  } finally {
+    oc.FS.unlink(`/${fileName}`);
+    gc();
+  }
+}
+
+/**
  * Imports an STL file and stores the resulting geometry in the library.
  * @param {File} file - The STL file to import
  */
@@ -373,7 +413,7 @@ async function importingSTL(
   context: RequestContext,
 ): Promise<AbundanceObject> {
   await started;
-  const STLresult = await util.replicad.importSTL(file);
+  const STLresult = await readSTLAsSolid(file);
   if (!util.geometryProvider!.isShape3D(STLresult)) {
     throw new Error(
       "Imported STL file describes a " +
@@ -1029,6 +1069,7 @@ export {
   getBoundingBox,
   importingSTEP,
   importingSTL,
+  readSTLAsSolid,
   importingSVG,
   intersect,
   isAssembly,
