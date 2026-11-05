@@ -124,10 +124,15 @@ export class AgentBridgeClient {
     this.editQueue = Promise.resolve();
     this.lastProject = null;
     /**
-     * Set by the editor route: (reason) => Promise<{ saved, message? }>. Must
-     * ask the user before saving. Null when the page can't save (run mode).
+     * Set by the editor route: (reason) => Promise<{ saved, message? }>. Null
+     * when the page can't save (run mode).
      */
     this.saveHandler = null;
+    /**
+     * Set by the editor route: ({ title, description }) =>
+     * Promise<{ opened, url?, message? }>. Null when the page can't save.
+     */
+    this.pullRequestHandler = null;
     /** True while a reconnect is scheduled (not after a fatal close). */
     this.waitingToRetry = false;
     this._onFocusChange = () => {

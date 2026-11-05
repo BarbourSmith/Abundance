@@ -92,5 +92,10 @@
   "browserslist": [
     ">0.2%",
     "not dead"
-  ]
+  ],
+  "overrides": {
+    "replicad-shrink-wrap": {
+      "replicad": "$replicad"
+    }
+  }
 }

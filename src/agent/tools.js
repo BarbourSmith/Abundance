@@ -457,7 +457,7 @@ export const TOOLS = [
     name: "add_atom",
     permission: "edit",
     description:
-      "Add a new built-in atom to a molecule. Returns its ID and path; a new Molecule also returns its Output atom. Positions are fractions of the canvas (0 to 1); omit them to place it to the right of the existing atoms. Each physical part (a board, panel, bracket) goes in a Molecule of its own, named for the part; keep molecules to about 8 atoms, adding a named Molecule for new work beyond that. Code atoms are a last resort: use built-in atoms and library molecules where they can do the job, and never have one Code atom build several parts.",
+      "Add a new built-in atom to a molecule. Returns its ID and path; a new Molecule also returns its Output atom. Positions are fractions of the canvas (0 to 1); omit them to place it to the right of the existing atoms. Each physical part (a board, panel, bracket) goes in a Molecule of its own, named for the part; keep molecules to about 8 atoms, adding a named Molecule for new work beyond that. Code atoms are a last resort: use built-in atoms and library molecules where they can do the job (search_molecules finds standard hardware such as bolts and nuts), and never have one Code atom build several parts or cut a part's holes and pockets.",
     inputSchema: {
       type: "object",
       properties: {
@@ -481,7 +481,7 @@ export const TOOLS = [
         reason: {
           type: "string",
           description:
-            "Required for Code atoms: which single part this helps build and why no built-in atom or library molecule does the job. Shown to the user in the undo history.",
+            "Required for Code atoms: which single part this helps build and why no built-in atom or library molecule does the job. Needing many built-in atoms is not a reason: split that work into feature molecules. Shown to the user in the undo history.",
         },
       },
       required: ["type"],
@@ -583,13 +583,34 @@ export const TOOLS = [
     name: "save_project",
     permission: "edit",
     description:
-      "Ask the user to save the project to GitHub. The user must confirm in the page; returns whether it was saved.",
+      "Save the project to GitHub now, as a commit to the user's repository. Returns whether it was saved.",
     inputSchema: {
       type: "object",
       properties: {
         reason: {
           type: "string",
-          description: "Shown to the user in the confirmation prompt.",
+          description:
+            "What changed, in a few words. Becomes the commit message.",
+        },
+      },
+    },
+  },
+  {
+    name: "open_pull_request",
+    permission: "edit",
+    description:
+      "Save the project, then open a pull request proposing its changes to the project it was forked from. The other project's owner sees it on GitHub. Returns the pull request's URL, or why none was opened: the project isn't a fork, a pull request is already open (the save updated it), or the original has newer changes the user must merge in first from the Pull Request menu.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        title: {
+          type: "string",
+          description: "The pull request's title.",
+        },
+        description: {
+          type: "string",
+          description:
+            "What changed and why, for the owner of the original project.",
         },
       },
     },

@@ -18,7 +18,11 @@ import {
   useFileImport,
 } from "../../contexts/index.js";
 import { useProgressBar } from "../secondary/ProgressBarManager.jsx";
-import { syncHeadWithBase, NO_CACHE } from "../../js/pullRequestSync.js";
+import {
+  syncHeadWithBase,
+  pullRequestBody,
+  NO_CACHE,
+} from "../../js/pullRequestSync.js";
 import { describeConflictValue, mergeProjects } from "../../js/projectMerge.js";
 
 function useWindowSize() {
@@ -716,18 +720,6 @@ function PullMode({ setProcessing }) {
 
     setIsCreatingPR(true);
 
-    const baseSvgPath =
-      "https://raw.githubusercontent.com/" +
-      baseOwner +
-      "/" +
-      baseRepo +
-      "/master/project.svg?sanitize=true";
-    const headSvgPath =
-      "https://raw.githubusercontent.com/" +
-      headOwner +
-      "/" +
-      headRepo +
-      "/master/project.svg?sanitize=true";
     try {
       // Bring in the base's latest changes first so the PR opens without conflicts
       if (!(await syncWithBase())) return;
@@ -738,14 +730,13 @@ function PullMode({ setProcessing }) {
           owner: baseOwner,
           repo: baseRepo,
           title: `Compare ${headRepo} changes`,
-          body: `This pull request compares changes from ${headOwner}/${headRepo} to ${baseOwner}/${baseRepo}.${description ? `\n\nDescription:\n${description}` : ""}
-
-## Comparison
-
-| Adding | Removing |
-|--------|----------|
-| ![Adding](${headSvgPath}) | ![Removing](${baseSvgPath}) |
-`,
+          body: pullRequestBody({
+            baseOwner,
+            baseRepo,
+            headOwner,
+            headRepo,
+            description,
+          }),
           head: `${headOwner}:main`,
           base: "main",
         },

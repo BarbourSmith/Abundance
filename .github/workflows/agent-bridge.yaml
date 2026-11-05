@@ -24,7 +24,7 @@ permissions:
 
 jobs:
   bridge:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4.2.2
@@ -33,7 +33,7 @@ jobs:
           node-version: 20
           cache: "npm"
       - name: Install dependencies
-        run: npm ci --legacy-peer-deps
+        run: npm ci
       - name: Bridge unit tests (Node)
         run: npm run test:bridge
       - name: Install Playwright Chromium
