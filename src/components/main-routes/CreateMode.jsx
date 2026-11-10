@@ -101,6 +101,9 @@ function CreateMode() {
     GlobalVariables.meshRef = meshRef;
     GlobalVariables.uploadFile = uploadFile;
     GlobalVariables.deleteFile = deleteFile;
+    // Import inputs commit the files picked here to the project's repository
+    // so everyone who opens the project loads them.
+    GlobalVariables.importUploadsEnabled = true;
     GlobalVariables.fetchFileContent = fetchFileContent;
     GlobalVariables.fetchRawFileContent = fetchRawFileContent;
 
@@ -108,6 +111,7 @@ function CreateMode() {
       GlobalVariables.meshRef = null;
       GlobalVariables.uploadFile = null;
       GlobalVariables.deleteFile = null;
+      GlobalVariables.importUploadsEnabled = false;
       GlobalVariables.fetchFileContent = null;
       GlobalVariables.fetchRawFileContent = null;
     };
