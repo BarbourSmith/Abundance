@@ -202,6 +202,12 @@ try {
     assert.ok(data.bytes > 84, `STL is ${data.bytes} bytes`);
   });
 
+  await check("refuses to add atoms before the modeling guide", async () => {
+    await expectError("add_atom", { type: "Constant" }, "CONFLICT");
+    const { data: guide } = await call("get_modeling_guide");
+    assert.match(guide, /built-in/);
+  });
+
   await check("refuses edits until the user allows them", async () => {
     await expectError("add_atom", { type: "Constant" }, "PERMISSION_DENIED");
   });
