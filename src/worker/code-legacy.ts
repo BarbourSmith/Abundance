@@ -48,17 +48,21 @@ type UserGeometryObj = string | RealizedAssembly | ReplicadObject;
  * Provide a non-cached version of assemblies for user code execution.
  * This ensures that user code doesn't have to deal with cacheIDs
  * and can easily use replicad functions directly.
+ *
+ * Legacy code sees geometry types as they were when it was written: in a
+ * `dimension` field, named "2D", "3D", "Wire", "Point3D" or "Face". Values
+ * are converted to and from `geometryType` ("replicad.Drawing", ...) where
+ * they enter and leave user code: realizeAssembly on the way in,
+ * addAssemblyPartsToCache on the way out.
  */
 export type RealizedAssembly = RealizedLeaf | RealizedBranch;
+
+type LegacyDimension = "2D" | "3D" | "Wire" | "Point3D" | "Face";
 
 export type RealizedBranch = {
   geometry: RealizedAssembly[];
   plane: replicad.Plane;
-  geometryType:
-    | "replicad.Drawing"
-    | "replicad.Shape3D"
-    | "replicad.Wire"
-    | "replicad.Vertex";
+  dimension: LegacyDimension;
   color: string;
   tags: string[];
   bom: string[];
@@ -67,15 +71,18 @@ export type RealizedBranch = {
 export type RealizedLeaf = {
   geometry: ReplicadObject[]; // For backwards compatibility this is an array. But it always contains a single item.
   plane: replicad.Plane;
-  geometryType:
-    | "replicad.Drawing"
-    | "replicad.Shape3D"
-    | "replicad.Wire"
-    | "replicad.Vertex";
+  dimension: LegacyDimension;
   color: string;
   tags: string[];
   bom: string[];
 };
+
+/** A node's type under its legacy name, from either field. */
+function legacyDimensionOf(node: any): LegacyDimension | undefined {
+  return util.legacyGeometryTypeName(
+    util.normalizeGeometryType(node),
+  ) as LegacyDimension | undefined;
+}
 
 /**
  * A best-effort check for exploits in user provided code. Checks for a series of known bad patterns.
@@ -516,25 +523,17 @@ export async function ensureDimension(
   assembly: RealizedAssembly | Promise<RealizedAssembly>,
 ): Promise<RealizedAssembly> {
   return Promise.resolve(assembly).then(async (resolvedAssembly) => {
+    // User code may set `dimension`, or (since the rename) `geometryType`
+    const named = legacyDimensionOf(resolvedAssembly);
+    delete (resolvedAssembly as any).geometryType;
     if (isRealizedLeaf(resolvedAssembly)) {
-      // Older code may set `dimension`, or the old names ("2D", "3D", ...)
-      const named = util.normalizeGeometryType(resolvedAssembly as any);
-      if (named) resolvedAssembly.geometryType = named as any;
-      delete (resolvedAssembly as any).dimension;
-      if (
-        !("geometryType" in resolvedAssembly) ||
-        resolvedAssembly.geometryType === undefined
-      ) {
-        resolvedAssembly.geometryType =
-          "_wrapped" in resolvedAssembly.geometry[0]
-            ? "replicad.Shape3D"
-            : "replicad.Drawing";
-      }
+      resolvedAssembly.dimension =
+        named ?? ("_wrapped" in resolvedAssembly.geometry[0] ? "3D" : "2D");
     } else {
       resolvedAssembly.geometry = await Promise.all(
         resolvedAssembly.geometry.map((child) => ensureDimension(child)),
       );
-      resolvedAssembly.geometryType = resolvedAssembly.geometry[0].geometryType;
+      resolvedAssembly.dimension = resolvedAssembly.geometry[0].dimension;
     }
     return resolvedAssembly;
   });
@@ -593,7 +592,7 @@ async function assemblyMap(
           color: node.color,
           plane: node.plane,
           bom: node.bom || [],
-          geometryType: filteredGeometry[0].geometryType,
+          dimension: filteredGeometry[0].dimension,
         };
       }
     }
@@ -654,10 +653,12 @@ export async function realizeAssembly(
       context,
     );
     tickProgress(context, "loading part");
+    const { geometryType, ...rest } = assembly;
     return {
-      ...assembly,
+      ...rest,
       geometry: [geometry],
       plane: util.asReplicadPlane(assembly.plane),
+      dimension: legacyDimensionOf({ geometryType })!,
     };
   } else {
     const children = await Promise.all(
@@ -665,12 +666,14 @@ export async function realizeAssembly(
         return await realizeAssembly(child, context);
       }),
     );
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { geometryType, ...rest } = assembly;
     return {
-      ...assembly,
+      ...rest,
       geometry: children,
       plane: util.asReplicadPlane(assembly.plane),
-      geometryType: children[0].geometryType,
-    };
+      dimension: children[0].dimension,
+    } as RealizedBranch;
   }
 }
 
@@ -701,13 +704,19 @@ export async function addAssemblyPartsToCache(
         [context.nextId++], // Cache under the code atom's id + an offset within the result structure
       );
       tickProgress(context, "caching part");
+      // Back to current names: the type of the shape actually returned
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { dimension: _dimension, ...rest } = assembly as any;
       return {
-        ...assembly,
+        ...rest,
         bom: Array.isArray(assembly.bom) ? assembly.bom : [],
         geometry,
         plane: assembly.plane
           ? util.asSimplePlane(assembly.plane)
           : util.XYPlane,
+        geometryType:
+          util.normalizeGeometryType(assembly as any) ??
+          util.dimensionLabel(assembly.geometry[0]),
       };
     } else {
       const children = await Promise.all(
@@ -715,13 +724,16 @@ export async function addAssemblyPartsToCache(
           return await helperFunc(child);
         }),
       );
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { dimension: _dimension, ...rest } = assembly as any;
       return {
-        ...assembly,
+        ...rest,
         bom: Array.isArray(assembly.bom) ? assembly.bom : [],
         geometry: children,
         plane: assembly.plane
           ? util.asSimplePlane(assembly.plane)
           : util.XYPlane,
+        geometryType: children[0]?.geometryType,
       };
     }
   };

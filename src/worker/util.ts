@@ -210,6 +210,19 @@ function normalizeGeometryType(node: {
   return (LEGACY_GEOMETRY_TYPES[type] ?? type) as GeometryType;
 }
 
+/**
+ * A geometry type under its old name, for legacy (JavaScript) code atoms,
+ * which see types as `dimension: "2D" | "3D" | "Wire" | "Point3D" | "Face"`.
+ * Types without an old name (references) come back unchanged.
+ */
+function legacyGeometryTypeName(type: string | undefined): string | undefined {
+  if (type === undefined) return undefined;
+  const old = Object.entries(LEGACY_GEOMETRY_TYPES).find(
+    ([, current]) => current === type,
+  );
+  return old ? old[0] : type;
+}
+
 /** Whether a geometry type names a replicad shape. */
 function isReplicadType(type: unknown): type is ReplicadGeometryType {
   return REPLICAD_GEOMETRY_TYPES.includes(type as ReplicadGeometryType);
@@ -1003,6 +1016,7 @@ export {
   isReferenceLeaf,
   isReplicadType,
   normalizeGeometryType,
+  legacyGeometryTypeName,
   isWireGeometry,
   GeometryType,
   rejectReferences,
