@@ -249,7 +249,7 @@ describe("lazy move and rotate in GeometryProvider", () => {
     expect(await shapeExists(context.project, madeId)).toBe(false);
 
     await gp.endBatchOperation(batch, {
-      geometry: [{ geometry: movedId, dimension: "3D", tags: [] }],
+      geometry: [{ geometry: movedId, geometryType: "replicad.Shape3D", tags: [] }],
       tags: [],
     });
 

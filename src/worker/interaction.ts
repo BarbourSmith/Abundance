@@ -141,7 +141,7 @@ async function loftShapes(
     }
     results.push({
       geometry: geometry,
-      dimension: "3D",
+      geometryType: "replicad.Shape3D",
       tags: [],
       plane: util.XYPlane,
       color: util.defaultColor,
@@ -246,7 +246,7 @@ async function shrinkWrapSketches(
       50,
       context,
     ),
-    dimension: "2D",
+    geometryType: "replicad.Drawing",
     tags: [],
     color: util.defaultColor,
     plane: util.XYPlane,
@@ -311,7 +311,7 @@ async function intersect(
       plane: leaf.plane,
       bom: leaf.bom,
       metadata: leaf.metadata,
-      dimension: leaf.dimension,
+      geometryType: leaf.geometryType,
     };
   });
 }
@@ -381,7 +381,7 @@ async function fusion(
     bom: bomAssembly,
     plane: util.XYPlane,
     color: util.defaultColor,
-    dimension: fusedAssembly.dimension,
+    geometryType: fusedAssembly.geometryType,
   };
 }
 
@@ -407,7 +407,7 @@ async function assembly(
   // Allowed inputs -> all 2d, all 3d, or just wires/points
   const geomType = util.validateMixOfTypes(geometries);
   // Fast return if all points or wires.
-  if (geomType === "Mixable" || geomType === "Face") {
+  if (geomType === "Mixable" || geomType === "replicad.Face") {
     return util.assemblyOf(geometries);
   }
 
@@ -579,7 +579,7 @@ async function fuseAssembly(
   return {
     ...assembly,
     geometry: await util.geometryProvider!.assemblyFuse(assembly, context),
-    dimension: flattened[0].dimension,
+    geometryType: flattened[0].geometryType,
   };
 }
 
@@ -695,8 +695,8 @@ async function recursiveCut(
   for (const cuttingPart of util.flattenAssembly(cuttingParts)) {
     // --- Coplanarity check for 2D shapes ---
     if (
-      partToCut.dimension === "2D" &&
-      cuttingPart.dimension === "2D" &&
+      partToCut.geometryType === "replicad.Drawing" &&
+      cuttingPart.geometryType === "replicad.Drawing" &&
       partToCut.plane &&
       cuttingPart.plane
     ) {
@@ -760,7 +760,7 @@ async function splitCompSolid(
       bom: part.bom,
       plane: part.plane,
       metadata: part.metadata,
-      dimension: part.dimension,
+      geometryType: part.geometryType,
     });
   }
   return {

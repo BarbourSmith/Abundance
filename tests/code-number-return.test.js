@@ -88,7 +88,7 @@ describe("Code atom primitive return value handling", () => {
         color: "#A3CE5B",
         tags: [],
         bom: [],
-        dimension: "3D"
+        geometryType: "replicad.Shape3D"
       };
       expect(isPrimitive(geometryResult)).toBe(false);
     });

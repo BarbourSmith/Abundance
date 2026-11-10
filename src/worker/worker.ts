@@ -34,6 +34,13 @@ import {
 import { circle, rectangle, regularPolygon, text, vertex } from "./shapes";
 import { AbundanceObject, AbundanceLeaf } from "./util";
 import * as util from "./util";
+import {
+  ReferenceGeometryType,
+  ReferenceInfo,
+  isReferenceType,
+  referenceBaseId,
+} from "./references";
+import { rotationXYZ, transformId } from "./lazyTransform";
 
 // --- Type Definitions ---
 const started: Promise<boolean> = util.init();
@@ -226,7 +233,7 @@ function visExport(
           ...fusedGeometry,
           geometry: cachedGeom,
           color: "#fefffa",
-          dimension: "2D",
+          geometryType: "replicad.Drawing",
         };
       }
     }
@@ -359,7 +366,7 @@ async function importingSTEP(
     tags: [],
     color: util.defaultColor,
     bom: [],
-    dimension: "3D",
+    geometryType: "replicad.Shape3D",
     plane: util.XYPlane,
   };
 }
@@ -432,7 +439,7 @@ async function importingSTL(
     color: util.defaultColor,
     bom: [],
     plane: util.XYPlane,
-    dimension: "3D",
+    geometryType: "replicad.Shape3D",
   };
 }
 
@@ -468,7 +475,7 @@ async function importingSVG(
       plane: util.XYPlane,
       color: util.defaultColor,
       bom: [],
-      dimension: "2D",
+      geometryType: "replicad.Drawing",
     };
   } catch (error) {
     //add alert  ----> Try tweaking your file here https://iconly.io/tools/svg-convert-stroke-to-fill "
@@ -645,7 +652,7 @@ async function visualizeGcodeIncrementalInternal(
         plane: util.XYPlane,
         color: util.defaultColor,
         bom: [],
-        dimension: "3D",
+        geometryType: "replicad.Shape3D",
       });
     } catch (err) {
       console.error(`  ❌ Failed to create wire for part ${i + 1}:`, err);
@@ -717,7 +724,7 @@ async function visualizeGcodeAsAssembly(
           plane: util.XYPlane,
           color: util.defaultColor,
           bom: [],
-          dimension: "3D",
+          geometryType: "replicad.Shape3D",
         });
       } catch (err) {
         console.error(`  ❌ Failed to create wire for part ${i + 1}:`, err);
@@ -861,6 +868,145 @@ async function sweepCache(
   return util.geometryProvider!.sweepCache(idsToRetainSet, context);
 }
 
+/**
+ * Brings a reference file (an image, PDF or 3D model; see references.ts) into
+ * the geometry cache and returns the leaf naming it. The main thread reads the
+ * file to describe it (`info`); this stores its bytes under their hash.
+ *
+ * @param file - The file
+ * @param resources - A .gltf's other files, by their path in the .gltf
+ * @param geometryType - "image", "pdf" or "gltf"
+ * @param info - How it is drawn; contentBounds are in the file's own units
+ * @param placement - Scale from the file's units to the project's, then
+ *   rotation in degrees about X, Y and Z (a glTF's Y-up to Z-up)
+ */
+async function importReference(
+  file: Blob,
+  resources: Record<string, Blob> | undefined,
+  geometryType: ReferenceGeometryType,
+  info: ReferenceInfo,
+  placement: { scale?: number; rotation?: [number, number, number] },
+  context: RequestContext,
+): Promise<AbundanceLeaf> {
+  await started;
+  if (!isReferenceType(geometryType)) {
+    throw new Error("Not a reference geometry type: " + geometryType);
+  }
+  const fileKey = await referenceFileKey(file, resources);
+  await util.geometryProvider!.storeReferenceFile(
+    fileKey,
+    file,
+    resources,
+    context,
+  );
+  const [rx, ry, rz] = placement.rotation ?? [0, 0, 0];
+  const geometry = transformId(
+    referenceBaseId(fileKey, placement.scale ?? 1),
+    rotationXYZ(rx, ry, rz),
+  );
+  return {
+    geometry,
+    geometryType,
+    plane: util.XYPlane,
+    color: util.defaultColor,
+    tags: [],
+    bom: [],
+    metadata: { reference: info },
+  };
+}
+
+/** The cache key of a reference file: a hash of it and any files it loads. */
+async function referenceFileKey(
+  file: Blob,
+  resources: Record<string, Blob> | undefined,
+): Promise<string> {
+  const hex = async (data: BufferSource) =>
+    Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", data)))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+  let key = await hex(await file.arrayBuffer());
+  const paths = Object.keys(resources ?? {}).sort();
+  if (paths.length) {
+    const parts = [key];
+    for (const path of paths) {
+      parts.push(path, await hex(await resources![path].arrayBuffer()));
+    }
+    key = await hex(new TextEncoder().encode(parts.join("\n")));
+  }
+  return "file-" + key;
+}
+
+/**
+ * The stored file of a reference, by its file key, or undefined if it isn't
+ * in the cache.
+ */
+async function getReferenceFile(
+  fileKey: string,
+  context: RequestContext,
+): Promise<{ file: Blob; resources?: Record<string, Blob> } | undefined> {
+  await started;
+  const record = await util.geometryProvider!.getReferenceFile(
+    fileKey,
+    context,
+  );
+  return record
+    ? { file: record.file, resources: record.resources }
+    : undefined;
+}
+
+/**
+ * How each worker method treats references (images, PDFs, models), which
+ * aren't shapes:
+ * - "reject": the method needs shapes, so a reference in any input is an
+ *   error naming the operation.
+ * - "skip": the method makes something only shapes have (a cut layout,
+ *   G-code, an export), so references are left out of its inputs.
+ * Methods not listed handle references themselves (move, rotate, scale,
+ * bounds, tags) or never see them.
+ */
+const REFERENCE_POLICY: Record<string, ["reject", string] | ["skip"]> = {
+  assembly: ["reject", "An Assembly with Make Disjoint turned on"],
+  chamfer: ["reject", "Chamfer"],
+  difference: ["reject", "Difference"],
+  extrude: ["reject", "Extrude"],
+  fillet: ["reject", "Fillet"],
+  fusion: ["reject", "Fusion"],
+  intersect: ["reject", "Intersection"],
+  loftShapes: ["reject", "Loft"],
+  shrinkWrapSketches: ["reject", "Shrink Wrap"],
+  createAndDisplayDefaultLayout: ["skip"],
+  displayLayout: ["skip"],
+  displayOrientation: ["skip"],
+  downExport: ["skip"],
+  findFlatFaces: ["skip"],
+  generateThumbnail: ["skip"],
+  layout: ["skip"],
+  orient: ["skip"],
+  visExport: ["skip"],
+};
+
+/** `fn`, named `name`, with REFERENCE_POLICY applied to its arguments. */
+function withReferencePolicy<F extends (...args: any[]) => any>(
+  name: string,
+  fn: F,
+): F {
+  const policy = REFERENCE_POLICY[name];
+  if (!policy) return fn;
+  return ((...args: unknown[]) => {
+    if (policy[0] === "reject") {
+      util.rejectReferences(policy[1], args);
+      return fn(...args);
+    }
+    return fn(
+      ...args.map((arg) =>
+        Array.isArray(arg)
+          ? arg.map((item) => util.withoutReferences(item))
+          : util.withoutReferences(arg),
+      ),
+    );
+  }) as F;
+}
+
 // Expose a function to get a point as a tuple of [x, y, z] coordinates
 async function getAsPoint3D(
   geometry: string,
@@ -949,6 +1095,8 @@ if (
   });
 
   const handlers = {
+    importReference,
+    getReferenceFile,
     importingSTEP,
     importingSTL,
     importingSVG,
@@ -1015,12 +1163,16 @@ if (
   // The same choke point converts thrown OpenCascade exceptions, which Comlink
   // can't send to the main thread, into readable Errors.
   const guardedHandlers = Object.fromEntries(
-    Object.entries(handlers).map(([name, fn]) => [
+    Object.entries(handlers).map(([name, handler]) => [
       name,
       (...args: unknown[]) => {
+        const fn = withReferencePolicy(
+          name,
+          handler as (...a: unknown[]) => unknown,
+        );
         const guarded = () =>
           started
-            .then(() => (fn as (...a: unknown[]) => unknown)(...args))
+            .then(() => fn(...args))
             .catch((error) => {
               throw util.toCloneableError(error);
             });
@@ -1050,6 +1202,10 @@ if (
 
 // Export functions for testing and ES module environments
 export {
+  REFERENCE_POLICY,
+  withReferencePolicy,
+  importReference,
+  getReferenceFile,
   assembly,
   chamfer,
   circle,

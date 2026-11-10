@@ -25,6 +25,11 @@ export function equationUnitFactor(word, toUnits) {
   return to ? EQUATION_UNITS_MM[word] / to : null;
 }
 
+/** Millimeters in one of a project's units, or null for Unitless/unknown. */
+export function millimetersPerUnit(unitsKey) {
+  return MM_PER_UNIT[unitsKey] ?? null;
+}
+
 /** Short label for showing a unit next to a value. */
 export function unitAbbreviation(unitsKey) {
   if (unitsKey === "MM") return "mm";

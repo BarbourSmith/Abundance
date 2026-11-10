@@ -23,7 +23,7 @@ describe("text as assembly", () => {
 
     // Each leaf should be 2D
     leaves.forEach((leaf) => {
-      expect(leaf.dimension).toBe("2D");
+      expect(leaf.geometryType).toBe("replicad.Drawing");
     });
   });
 

@@ -44,6 +44,7 @@
     "oauthio-web": "^0.6.2",
     "octokit": "^5.0.4",
     "pako": "^2.1.0",
+    "pdfjs-dist": "^6.4.299",
     "playwright": "^1.56.0",
     "polygon-packer": "file:vendor/polygon-packer",
     "puppeteer": "^24.3.0",

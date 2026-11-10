@@ -20,7 +20,11 @@ import {
   CadWorkerManager,
   savedCadTimeoutSeconds,
 } from "./worker/cadWorkerManager.js";
-import { DisplayScheduler, meshKey } from "./js/displayScheduler.js";
+import {
+  DisplayScheduler,
+  meshKey,
+  splitDisplayMesh,
+} from "./js/displayScheduler.js";
 import LoginMode from "./components/main-routes/LoginMode.jsx";
 import RunMode from "./components/main-routes/RunMode.jsx";
 import PullMode from "./components/main-routes/PullMode.jsx";
@@ -262,6 +266,8 @@ function AppContent() {
     setGcodeParts,
     nonReplicadGeometry,
     setNonReplicadGeometry,
+    setReferenceItems,
+    setBackgroundReferenceItems,
     activeTags,
     setActiveTags,
     setComputingLabel,
@@ -543,7 +549,7 @@ function AppContent() {
       key,
       onResult: (m) => {
         if (topLevelKeyRef.current === key) {
-          setTopLevelWireMesh(m.mesh);
+          setTopLevelWireMesh(splitDisplayMesh(m.mesh).meshes);
         }
       },
       onError: (e) => {
@@ -584,6 +590,8 @@ function AppContent() {
       displayScheduler.cancel("background");
       setMesh([]);
       setWireMesh([]);
+      setReferenceItems([]);
+      setBackgroundReferenceItems([]);
       setNonReplicadGeometry(null);
     };
     GlobalVariables.setSelectionModeAtom = setSelectionModeAtom;
@@ -629,9 +637,11 @@ function AppContent() {
           onResult: (m) => {
             // A newer background request superseded this one.
             if (backgroundKeyRef.current !== key) return;
-            setWireMesh(m.mesh);
+            const { meshes, references } = splitDisplayMesh(m.mesh);
+            setWireMesh(meshes);
+            setBackgroundReferenceItems(references);
             if (key === currentTopLevelKey()) {
-              setTopLevelWireMesh(m.mesh);
+              setTopLevelWireMesh(meshes);
               topLevelKeyRef.current = key;
             }
             // Only clear the "outdated" tint when no foreground mesh is still
@@ -660,6 +670,7 @@ function AppContent() {
         targetKeyRef.current = null;
         displayScheduler.cancel("foreground");
         setMesh([]);
+        setReferenceItems([]);
         setOutdatedMesh(false);
         setIsViewingOutputMesh(false);
         return;
@@ -676,17 +687,19 @@ function AppContent() {
         onResult: (m) => {
           // Superseded by a newer foreground request (or a reset).
           if (targetKeyRef.current !== key) return;
-          setMesh(m.mesh);
+          const { meshes, references } = splitDisplayMesh(m.mesh);
+          setMesh(meshes);
+          setReferenceItems(references);
           setOutdatedMesh(false);
           setProcessing(false);
           // Also update top-level wireframe if this is the top-level molecule's mesh
           if (key === currentTopLevelKey()) {
-            setTopLevelWireMesh(m.mesh);
+            setTopLevelWireMesh(meshes);
             topLevelKeyRef.current = key;
           }
           /*Set plane and geometry type for ThreeContext*/
           setPlane(displayedValue?.plane);
-          setGeometryType(displayedValue?.dimension);
+          setGeometryType(displayedValue?.geometryType);
           createPuppeteerDiv();
         },
         onError: (e) => {
@@ -713,6 +726,8 @@ function AppContent() {
     setMesh,
     setWireMesh,
     setOutdatedMesh,
+    setReferenceItems,
+    setBackgroundReferenceItems,
     setRenderProgress,
     setTopLevelWireMesh,
     setIsViewingOutputMesh,
@@ -748,11 +763,13 @@ function AppContent() {
         key: meshKey(filteredGeometry, context),
         onResult: (m) => {
           if (targetKeyRef.current !== baseKey) return;
-          setMesh(m.mesh);
+          const { meshes, references } = splitDisplayMesh(m.mesh);
+          setMesh(meshes);
+          setReferenceItems(references);
           setOutdatedMesh(false);
           setProcessing(false);
           setPlane(filteredGeometry?.plane);
-          setGeometryType(filteredGeometry?.dimension);
+          setGeometryType(filteredGeometry?.geometryType);
           // This request supersedes the unfiltered one, so it is responsible
           // for signalling that the display settled.
           createPuppeteerDiv();

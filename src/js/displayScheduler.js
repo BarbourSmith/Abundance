@@ -183,6 +183,23 @@ export class MeshLruCache {
 }
 
 /**
+ * A display mesh from the mesh worker split into what is meshed and the
+ * references (images, PDF pages, 3D models) drawn from their files instead
+ * (see ReferenceMeshes.jsx).
+ * @param {object[]} mesh
+ * @returns {{meshes: object[], references: object[]}}
+ */
+export function splitDisplayMesh(mesh) {
+  const meshes = [];
+  const references = [];
+  for (const entry of Array.isArray(mesh) ? mesh : []) {
+    if (entry?.reference) references.push(entry.reference);
+    else meshes.push(entry);
+  }
+  return { meshes, references };
+}
+
+/**
  * @typedef {object} DisplayRequest
  * @property {string} [method] Worker method, defaults to generateDisplayMesh.
  * @property {unknown[]} args Arguments for the worker method.

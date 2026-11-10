@@ -7,6 +7,14 @@ import { text } from "./shapes";
 import type { AbundanceLeaf, AbundanceObject } from "./util";
 import * as util from "./util";
 import {
+  ReferenceInfo,
+  isReferenceId,
+  isReferenceLeaf,
+  parseReferenceId,
+  referenceBounds,
+  referenceMatrix,
+} from "./references";
+import {
   Bounds,
   boundsOverlap,
   diagnoseShape,
@@ -32,6 +40,23 @@ type DisplayMesh = {
   // when an atom supplies a pre-baked metadata.meshOverride. Plain array
   // so it survives JSON serialization through the assembly cache.
   vertexColors?: number[];
+  // A reference (image, PDF page, 3D model) the main thread draws from its
+  // file instead of a mesh. See references.ts and ReferenceMeshes.jsx.
+  reference?: DisplayReference;
+};
+
+type DisplayReference = ReferenceInfo & {
+  geometryType: string;
+  /** The geometry id; equal ids are drawn the same. */
+  id: string;
+  /** The stored file's cache key. */
+  fileKey: string;
+  /** Places contentBounds in the world, column-major 4x4. */
+  matrix: number[];
+  tags: string[];
+  /** The file, from the cache, if it is there. */
+  file?: Blob;
+  resourceFiles?: Record<string, Blob>;
 };
 
 const textCache: Map<string, DisplayMesh[]> = new Map();
@@ -55,10 +80,17 @@ void started.then(() => util.startHeapMonitor("meshWorker"));
 const SHAPE_CACHE_MAX_ENTRIES = 256;
 const shapeCache = new Map<string, ReplicadObject>();
 
+/**
+ * A leaf's shape. References (images, PDFs, models) have none and come back
+ * undefined, so per-part loops skip them while keeping part numbers.
+ */
 async function getShapeCached(
   id: string,
   context: RequestContext,
 ): Promise<ReplicadObject> {
+  if (isReferenceId(id)) {
+    return undefined as unknown as ReplicadObject;
+  }
   const key = `${context?.project ?? ""}|${id}`;
   const hit = shapeCache.get(key);
   if (hit) {
@@ -378,9 +410,19 @@ async function generateDisplayMesh(
       metadata?: Record<string, any>;
       plane: typeof geom.plane;
     }[] = [];
+    // References aren't meshed; the main thread draws their files.
+    const references: DisplayReference[] = [];
 
     for (let i = 0; i < flattened.length; i++) {
       const displayObject = flattened[i];
+      if (isReferenceLeaf(displayObject)) {
+        try {
+          references.push(await displayReference(displayObject, context));
+        } catch (e) {
+          console.error("Can't display reference:", e);
+        }
+        continue;
+      }
       const geom = await getShapeCached(displayObject.geometry, context);
       meshArray.push({
         sourceId: displayObject.geometry,
@@ -398,6 +440,17 @@ async function generateDisplayMesh(
       const cameraGeoms = meshArray
         .map((m) => m.geometry)
         .filter((g) => !(g instanceof replicad.Vertex));
+      // References are framed by their boxes, in the shape the zoom reads.
+      for (const leaf of flattened.filter(isReferenceLeaf)) {
+        try {
+          const { min, max } = referenceBounds(leaf);
+          cameraGeoms.push({
+            boundingBox: { bounds: [min, max] },
+          } as unknown as ReplicadObject);
+        } catch {
+          // Shown without framing
+        }
+      }
       cameraZoom =
         cameraGeoms.length > 0 ? generateCameraPosition(cameraGeoms) : 1;
     } catch (e) {
@@ -475,6 +528,13 @@ async function generateDisplayMesh(
         // Skip this part and continue so other parts still display
       }
     }
+    for (const reference of references) {
+      finalMeshes.push({
+        cameraZoom: cameraZoom,
+        color: "",
+        reference,
+      });
+    }
     if (finalMeshes.length === 0 && meshArray.length > 0) {
       console.error(
         "All geometry parts failed to mesh — falling back to default mesh",
@@ -488,6 +548,35 @@ async function generateDisplayMesh(
     // Fall back to default mesh while preserving the original id so callers can update UI state
     return { id, mesh: await generateDefaultMesh() };
   }
+}
+
+/**
+ * What the main thread needs to draw a reference leaf: how it looks, where
+ * it is, and its file from the cache. Blobs cross to the main thread without
+ * copying their bytes, and the main thread decodes each file once.
+ */
+async function displayReference(
+  leaf: AbundanceLeaf,
+  context: RequestContext,
+): Promise<DisplayReference> {
+  const info = leaf.metadata?.reference as ReferenceInfo;
+  const { fileKey } = parseReferenceId(leaf.geometry)!;
+  let stored;
+  try {
+    stored = await util.geometryProvider!.getReferenceFile(fileKey, context);
+  } catch (e) {
+    console.warn("Couldn't read reference file " + fileKey, e);
+  }
+  return {
+    ...info,
+    geometryType: leaf.geometryType,
+    id: leaf.geometry,
+    fileKey,
+    matrix: referenceMatrix(leaf.geometry),
+    tags: leaf.tags ?? [],
+    ...(stored ? { file: stored.file } : {}),
+    ...(stored?.resources ? { resourceFiles: stored.resources } : {}),
+  };
 }
 
 /**
@@ -747,6 +836,16 @@ async function inspectParts(
   for (const index of indices) {
     if (performance.now() - start > opts.budgetMs) break;
     const leaf = parts[index];
+    if (isReferenceLeaf(leaf)) {
+      // A file, not a shape: nothing to check.
+      results.push({
+        index,
+        tags: leaf.tags,
+        kind: leaf.geometryType,
+        problems: [],
+      });
+      continue;
+    }
     try {
       const shape = await getShapeCached(leaf.geometry, context);
       results.push({

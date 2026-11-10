@@ -1,13 +1,24 @@
-export type DataType = "ReplicadObject" | "AbundanceObject" | "PairCache";
+export type DataType =
+  "ReplicadObject" | "AbundanceObject" | "PairCache" | "Binary";
 export type StoredGeometryRecord = {
   projectId: string;
   shapeKey: string;
   type: DataType;
   serialized: string; // Your serialized data
 };
+/** A stored file, such as an imported reference image (see references.ts). */
+export type StoredBinaryRecord = {
+  projectId: string;
+  shapeKey: string;
+  type: "Binary";
+  file: Blob;
+  resources?: Record<string, Blob>;
+};
 
 const DB_NAME = "AbundanceProjectCaches";
-const DB_VERSION = 3;
+// 4: leaves name their kind in `geometryType` (was `dimension`), and files
+// are stored as "Binary" records.
+const DB_VERSION = 4;
 const STORE_NAME = "shapes";
 
 function openDB(): Promise<IDBDatabase> {
@@ -85,6 +96,49 @@ export async function putShape(
       reject(tx.error);
     };
   });
+}
+
+/**
+ * Stores a file (a Blob, with any files it loads) under `shapeKey`. Blobs are
+ * stored as they are, without encoding.
+ */
+export async function putBinary(
+  projectId: string,
+  shapeKey: string,
+  file: Blob,
+  resources?: Record<string, Blob>,
+): Promise<void> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    const store = tx.objectStore(STORE_NAME);
+    const record: StoredBinaryRecord = {
+      projectId,
+      shapeKey,
+      type: "Binary",
+      file,
+      ...(resources && Object.keys(resources).length ? { resources } : {}),
+    };
+    store.put(record);
+    tx.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+    tx.onerror = () => {
+      db.close();
+      reject(tx.error);
+    };
+  });
+}
+
+/** A file stored with putBinary, or undefined. */
+export async function getBinary(
+  projectId: string,
+  shapeKey: string,
+): Promise<StoredBinaryRecord | undefined> {
+  const record = (await getShape(projectId, shapeKey)) as unknown as
+    StoredBinaryRecord | StoredGeometryRecord | undefined;
+  return record?.type === "Binary" ? (record as StoredBinaryRecord) : undefined;
 }
 
 export async function getShape(
@@ -297,5 +351,6 @@ export async function deleteProjectCache(projectId: string): Promise<void> {
   await filter(projectId, "ReplicadObject", () => false, false);
   await filter(projectId, "AbundanceObject", () => false, false);
   await filter(projectId, "PairCache", () => false, false);
+  await filter(projectId, "Binary", () => false, false);
   return;
 }

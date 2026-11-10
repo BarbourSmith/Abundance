@@ -253,6 +253,54 @@ function run(width: number = 90, height: number = 580, sweep: number = 20): Asse
 }
 ```
 
+### 5b. An Outline Traced from a Reference
+
+trace_reference returns a shape's outline from a photo or drawing as points in project units. Paste them into a code atom that draws a smooth closed curve through them (a Catmull-Rom spline, drawn as cubic Béziers), and extrude it with an Extrude atom:
+
+```typescript
+/** Body outline traced from the reference photo, in mm. */
+const POINTS: number[][] = [
+  [-0.9, -430.5], [8.7, -431.6], [18.2, -432.9], // ...every point trace_reference returned
+];
+
+function run(): Assembly {
+  const n = POINTS.length;
+  const p = (i: number) => POINTS[(i + n) % n];
+  let pen = replicad.draw(p(0));
+  for (let i = 0; i < n; i++) {
+    const [a, b, c, d] = [p(i - 1), p(i), p(i + 1), p(i + 2)];
+    const c1 = [b[0] + (c[0] - a[0]) / 6, b[1] + (c[1] - a[1]) / 6];
+    const c2 = [c[0] - (d[0] - b[0]) / 6, c[1] - (d[1] - b[1]) / 6];
+    pen = pen.cubicBezierCurveTo(c, c1, c2);
+  }
+  return new Assembly({ geometry: pen.close() });
+}
+```
+
+### 5c. Reading a Reference Image's Pixels
+
+Images, PDFs, and glTF models from Import atoms reach code atoms as reference parts: `part.isReference()` is true and `part.geometryType` is `"image"`, `"pdf"`, or `"gltf"` (it's undefined for replicad shapes). `part.metadata.reference` describes the file (name, mimeType, pixel size, page). `await part.file()` returns the file as a Blob, and for images `await part.pixels()` returns `{ width, height, data }` with RGBA bytes, row by row from the top. `part.placement` is a 4x4 column-major matrix from the file's own coordinates to the project's: an image is a rectangle one unit per pixel, centered on its origin, +Y up. A reference can't be cut, moved, or changed in code; return it as it is to keep it in the output. This builds a block per pixel from a heightmap, with red as height:
+
+```typescript
+async function run(map: Assembly, maxHeight: number = 10): Promise<Assembly> {
+  const { width, height, data } = await map.pixels();
+  const m = map.placement; // m[0] and m[5] are mm per pixel when not rotated
+  const blocks: Assembly[] = [];
+  for (let row = 0; row < height; row++) {
+    for (let col = 0; col < width; col++) {
+      const z = (data[(row * width + col) * 4] / 255) * maxHeight;
+      if (z <= 0) continue;
+      const x = (col + 0.5 - width / 2) * m[0] + m[12];
+      const y = (height / 2 - row - 0.5) * m[5] + m[13];
+      blocks.push(new Assembly({
+        geometry: replicad.makeBaseBox(m[0], m[5], z).translate([x, y, 0]),
+      }));
+    }
+  }
+  return new Assembly({ geometry: blocks });
+}
+```
+
 ### 6. Adding Fillets and Chamfers
 
 ```typescript

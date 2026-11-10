@@ -17,14 +17,17 @@ import {
   getAllProjectIds,
   StoredGeometryRecord,
   filter,
+  getBinary,
+  putBinary,
+  StoredBinaryRecord,
 } from "./indexeddbUtils";
+import { isReferenceId, scaleReferenceId, storedKey } from "./references";
 import { reportBooleanInflight, reportCadProgress } from "./progress";
 import { BooleanOpCache } from "./booleanOpCache";
 import {
   RigidTransform,
   parseTransformedId,
   rotationXYZ,
-  storedId,
   transformId,
   translation,
 } from "./lazyTransform";
@@ -433,6 +436,14 @@ class GeometryProvider {
       console.warn("Attempting to retrieve empty sentinel from the cache");
       return replicad.makeCompound([]) as replicad.Shape3D;
     }
+    // References (images, PDFs, models) are files, not shapes. Operations
+    // that need shapes reject them before getting here (see worker.ts), so
+    // this only catches one that was missed.
+    if (isReferenceId(id)) {
+      throw new Error(
+        "This operation can't use reference images, PDFs or 3D models; they are only shown and placed.",
+      );
+    }
     // Moves and rotations aren't stored; apply them to the stored base shape.
     const transformed = parseTransformedId(id);
     if (transformed) {
@@ -499,7 +510,9 @@ class GeometryProvider {
       // moves and tilts the plane itself, so as before a z offset doesn't
       // move a sketch.
       if (x !== 0 || y !== 0) {
-        throw new Error("Internal error. Nonzero x or y rotation found on 2D sketch, these rotations should have been applied to the hosting plane instead.");
+        throw new Error(
+          "Internal error. Nonzero x or y rotation found on 2D sketch, these rotations should have been applied to the hosting plane instead.",
+        );
       }
       const angle = (2 * Math.atan2(z, w) * 180) / Math.PI;
       const rotated = angle !== 0 ? shape.rotate(angle, [0, 0]) : shape;
@@ -562,9 +575,10 @@ class GeometryProvider {
     // Step 1: filter geometries based on key since that's a much faster approach
     // and we don't need access to the geom values. A moved or rotated shape
     // isn't stored, so keep the base shape it's computed from.
+    // Likewise a reference keeps its stored file.
     const storedIds = new Set<string>();
     for (const id of idsToRetain) {
-      storedIds.add(storedId(id));
+      storedIds.add(storedKey(id));
     }
     phase("scanning ReplicadObject keys");
     const deletedGeoms = await filter(
@@ -612,7 +626,17 @@ class GeometryProvider {
     );
     phase(`AbundanceObject done: deleted ${deletedAssemblies}`);
 
-    // Step 3: drop disjoint/occlusion pairs that reference swept geometry.
+    // Step 3: files of references no longer used.
+    phase("scanning Binary keys");
+    const deletedFiles = await filter(
+      context.project,
+      "Binary",
+      (shapeKey: string) => storedIds.has(shapeKey),
+      false,
+    );
+    phase(`Binary done: deleted ${deletedFiles}`);
+
+    // Step 4: drop disjoint/occlusion pairs that reference swept geometry.
     const prunedPairs = await this.booleanOpCache.sweep(
       idsToRetain,
       context.project,
@@ -622,7 +646,34 @@ class GeometryProvider {
       `done: deleted ${deletedGeoms} geometries, ${deletedAssemblies} assemblies, pruned ${prunedPairs} pairs`,
     );
 
-    return deletedGeoms + deletedAssemblies;
+    return deletedGeoms + deletedAssemblies + deletedFiles;
+  }
+
+  /**
+   * Stores a reference file (see references.ts) under `fileKey` unless it is
+   * already stored. The key is the file's content hash, so a stored file
+   * never changes.
+   */
+  async storeReferenceFile(
+    fileKey: string,
+    file: Blob,
+    resources: Record<string, Blob> | undefined,
+    context: RequestContext,
+  ): Promise<void> {
+    if (await shapeExists(context.project, fileKey)) {
+      this.cacheHit("file");
+      return;
+    }
+    this.cacheMiss("file");
+    await putBinary(context.project, fileKey, file, resources);
+  }
+
+  /** A stored reference file, or undefined if it isn't in the cache. */
+  async getReferenceFile(
+    fileKey: string,
+    context: RequestContext,
+  ): Promise<StoredBinaryRecord | undefined> {
+    return getBinary(context.project, fileKey);
   }
 
   /**
@@ -823,6 +874,10 @@ class GeometryProvider {
   ): Promise<string> {
     if (id === this.EMPTY_SHAPE_SENTINEL) {
       return this.EMPTY_SHAPE_SENTINEL;
+    }
+    // A reference is scaled by its id alone, like a move.
+    if (isReferenceId(id)) {
+      return scaleReferenceId(id, scaleFactor);
     }
     const scaleId = this._makeId("scale", id, scaleFactor);
     await this.createIfAbsent(scaleId, context, async () => {
@@ -1239,8 +1294,9 @@ class GeometryProvider {
           if (leaf.geometry === this.EMPTY_SHAPE_SENTINEL) {
             continue; // Empty shapes don't exist in the cache
           }
-          // A moved or rotated part isn't stored itself; its base shape is.
-          const id = storedId(leaf.geometry);
+          // A moved or rotated part isn't stored itself; its base shape (or
+          // a reference's file) is.
+          const id = storedKey(leaf.geometry);
           // Shapes the batch read from the serialized cache are already
           // there. Saving them again could only replace them with a copy the
           // batch changed.

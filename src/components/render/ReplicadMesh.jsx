@@ -272,7 +272,8 @@ export default React.memo(
 
     useImperativeHandle(ref, () => ({
       buildThumbnail: async (m) => {
-        const meshArray = makeMeshes(m);
+        // References aren't meshes; thumbnails show shapes only.
+        const meshArray = makeMeshes((m || []).filter((e) => !e?.reference));
         try {
           return await meshArrayToSVG2(meshArray);
         } finally {

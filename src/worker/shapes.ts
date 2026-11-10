@@ -25,7 +25,7 @@ async function vertex(
   await util.init();
   return {
     geometry: await util.geometryProvider!.drawVertex(x, y, z, context),
-    dimension: "Point3D",
+    geometryType: "replicad.Vertex",
     tags: [],
     plane: util.XYPlane,
     color: util.defaultColor,
@@ -45,7 +45,7 @@ async function circle(
   await util.init();
   return {
     geometry: await util.geometryProvider!.drawCircle(diameter / 2, context),
-    dimension: "2D",
+    geometryType: "replicad.Drawing",
     tags: [],
     plane: util.XYPlane,
     color: util.defaultColor,
@@ -67,7 +67,7 @@ async function rectangle(
   await util.init();
   return {
     geometry: await util.geometryProvider!.drawRectangle(x, y, context),
-    dimension: "2D",
+    geometryType: "replicad.Drawing",
     plane: util.XYPlane,
     color: util.defaultColor,
     tags: [],
@@ -99,7 +99,7 @@ async function regularPolygon(
       numberOfSides,
       context,
     ),
-    dimension: "2D",
+    geometryType: "replicad.Drawing",
     tags: [],
     plane: util.XYPlane,
     color: util.defaultColor,
@@ -217,7 +217,7 @@ async function textGeom(
 
     letterGeometries.push({
       geometry: movedGeomId,
-      dimension: "2D",
+      geometryType: "replicad.Drawing",
       tags: [],
       plane: util.XYPlane,
       color: util.defaultColor,

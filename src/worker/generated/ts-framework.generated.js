@@ -31,6 +31,13 @@ export function makeAbundanceFramework(replicad) {
        * assemblies that have not passed through a selection input.
        */
       __publicField(this, "selection");
+      /**
+       * @internal
+       * Set on parts that are references (an imported image, PDF or glTF model)
+       * rather than replicad shapes. Read it through `geometryType`, `file()`,
+       * `pixels()` and `placement`.
+       */
+      __publicField(this, "__reference");
       if (other) {
         this.color = other.color ?? this.color;
         this.tags = other.tags?.slice() ?? this.tags;
@@ -38,6 +45,11 @@ export function makeAbundanceFramework(replicad) {
         this.plane = other.plane?.clone() ?? this.plane;
         if (other.metadata !== void 0) this.metadata = other.metadata;
         if (other.selection !== void 0) this.selection = other.selection;
+        if (other.__reference) {
+          this.__reference = other.__reference;
+          this.geometry = other.geometry;
+          return;
+        }
         if (other && other.isLeaf && other.isLeaf()) {
           this.geometry = other.geometry.clone();
         } else if (other && Array.isArray(other.geometry)) {
@@ -67,6 +79,56 @@ export function makeAbundanceFramework(replicad) {
       }
       this.metadata.claimsDisjoint = true;
       return this;
+    }
+    /**
+     * For a reference part (an imported image, PDF or glTF model): its type,
+     * "image", "pdf" or "gltf". Undefined for replicad shapes; use `is2D()`,
+     * `is3D()`, `isWire()` and `isPoint()` for those. A reference's
+     * `metadata.reference` describes the file (name, mimeType, pixel size,
+     * page, contentBounds, ...).
+     */
+    get geometryType() {
+      return this.__reference?.type;
+    }
+    /** True when this part is a reference (image, PDF or glTF model). */
+    isReference() {
+      return !!this.__reference;
+    }
+    /**
+     * Where a reference sits in the project: a 4x4 matrix, column-major
+     * (three.js Matrix4.elements order), that takes `metadata.reference
+     * .contentBounds` coordinates to project coordinates. Images and PDF pages
+     * are flat rectangles centered on their origin, one unit per pixel (or PDF
+     * point), with +Y up, so the center of pixel (col, row) is at
+     * (col + 0.5 - width / 2, height / 2 - row - 0.5, 0) before placement.
+     */
+    get placement() {
+      return this.requireReference("placement").matrix.slice();
+    }
+    /** The reference's file, as imported. For a .gltf, its main file. */
+    file() {
+      return this.requireReference("file()").file();
+    }
+    /**
+     * An image reference's pixels, decoded: `data` holds RGBA bytes, row by
+     * row from the top, 4 per pixel. PNG and JPG decode the same way.
+     */
+    pixels() {
+      const reference = this.requireReference("pixels()");
+      if (reference.type !== "image") {
+        throw new Error(
+          `pixels() works on image references; this part is a ${reference.type}.`
+        );
+      }
+      return reference.pixels();
+    }
+    requireReference(what) {
+      if (!this.__reference) {
+        throw new Error(
+          `${what} works on reference parts (imported images, PDFs and glTF models); this part is a shape.`
+        );
+      }
+      return this.__reference;
     }
     /**
      * User-defined type guard. Lets callers narrow an `Assembly` to a leaf
@@ -195,6 +257,7 @@ export function makeAbundanceFramework(replicad) {
       if (Array.isArray(this.geometry)) {
         return this.geometry.length > 0 && this.geometry[0].is2D();
       }
+      if (this.__reference) return false;
       const g = this.geometry;
       return !!g && !("_wrapped" in g);
     }
@@ -203,12 +266,14 @@ export function makeAbundanceFramework(replicad) {
       if (Array.isArray(this.geometry)) {
         return this.geometry.length > 0 && this.geometry[0].isWire();
       }
+      if (this.__reference) return false;
       return this.geometry instanceof replicad.Wire;
     }
     isPoint() {
       if (Array.isArray(this.geometry)) {
         return this.geometry.length > 0 && this.geometry[0].isPoint();
       }
+      if (this.__reference) return false;
       return this.geometry instanceof replicad.Vertex;
     }
     /** True when this assembly's first leaf is a 3D replicad solid (not a Wire or Point3D). */
@@ -216,6 +281,7 @@ export function makeAbundanceFramework(replicad) {
       if (Array.isArray(this.geometry)) {
         return this.geometry.length > 0 && this.geometry[0].is3D();
       }
+      if (this.__reference) return false;
       return replicad.isShape3D(this.geometry);
     }
     toJSON() {

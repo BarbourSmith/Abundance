@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from "react";
 import ThreeContext from "../render/ThreeContext.jsx";
 import ReplicadMesh from "../render/ReplicadMesh.jsx";
 import NonReplicadMesh from "../render/NonReplicadMesh.jsx";
+import ReferenceMeshes from "../render/ReferenceMeshes.jsx";
 
 import WireframeMesh from "../render/WireframeMesh.jsx";
 import GlobalVariables from "../../js/globalvariables.js";
@@ -490,6 +491,7 @@ function runMode({ processing, setProcessing }) {
               >
                 {wireParam ? <WireframeMesh mesh={wireMesh} /> : null}
                 <NonReplicadMesh />
+                <ReferenceMeshes />
                 <ReplicadMesh
                   {...{
                     mesh,

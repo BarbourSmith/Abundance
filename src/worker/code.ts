@@ -28,6 +28,11 @@ import * as replicad from "replicad";
 import * as util from "./util";
 import { AbundanceObject } from "./util";
 import { RequestContext } from "./geometryProvider";
+import {
+  isReferenceLeaf,
+  parseReferenceId,
+  referenceMatrix,
+} from "./references";
 import { executeCode as executeLegacy, validateUserCode } from "./code-legacy";
 import { assembly } from "./interaction";
 import { createProgressReporter } from "./progress";
@@ -228,10 +233,11 @@ function convertCodeAtomResult(
   try {
     simpleReplicadGeomDim = util.dimensionLabel(value);
     const isFacelessType =
-      simpleReplicadGeomDim === "Point3D" || simpleReplicadGeomDim === "Wire";
+      simpleReplicadGeomDim === "replicad.Vertex" ||
+      simpleReplicadGeomDim === "replicad.Wire";
     return new Assembly({
       geometry: value,
-      dimension: simpleReplicadGeomDim,
+      geometryType: simpleReplicadGeomDim,
       color: isFacelessType ? "#3c5a6e" : util.defaultColor,
       ...defaultProps(),
     });
@@ -239,6 +245,49 @@ function convertCodeAtomResult(
     console.error(e);
     throw new Error("Unsupported return type: " + value.constructor.name);
   }
+}
+
+/**
+ * What user code gets to read a reference input (an image, PDF or glTF
+ * model): its type, placement, and its file from the geometry cache, plus an
+ * image's decoded pixels. Files are read when first asked for.
+ */
+function referenceHandle(leaf: util.AbundanceLeaf, context: RequestContext) {
+  const { fileKey } = parseReferenceId(leaf.geometry)!;
+  let filePromise: Promise<Blob> | undefined;
+  const file = () =>
+    (filePromise ??= util
+      .geometryProvider!.getReferenceFile(fileKey, context)
+      .then((stored) => {
+        if (!stored) {
+          throw new Error(
+            `${leaf.metadata?.reference?.name ?? "This reference"}'s file isn't in the cache. Recompute its Import atom, then try again.`,
+          );
+        }
+        return stored.file;
+      }));
+  return {
+    type: leaf.geometryType as "image" | "pdf" | "gltf",
+    matrix: referenceMatrix(leaf.geometry),
+    file,
+    async pixels() {
+      const bitmap = await createImageBitmap(await file());
+      try {
+        const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+        const context2d = canvas.getContext("2d")!;
+        context2d.drawImage(bitmap, 0, 0);
+        const { data } = context2d.getImageData(
+          0,
+          0,
+          bitmap.width,
+          bitmap.height,
+        );
+        return { width: bitmap.width, height: bitmap.height, data };
+      } finally {
+        bitmap.close();
+      }
+    },
+  };
 }
 
 /**
@@ -254,6 +303,21 @@ async function addAssemblyPartsToCache(
   const helperFunc = async (
     assembly: Assembly<AnyGeom>,
   ): Promise<AbundanceObject> => {
+    if (assembly.isLeaf() && (assembly as any).__reference) {
+      // A reference passed through: its file is already stored.
+      const reference = (assembly as any).__reference;
+      return {
+        geometry: assembly.geometry as unknown as string,
+        geometryType: reference.type,
+        plane: assembly.plane
+          ? util.asSimplePlane(assembly.plane)
+          : util.XYPlane,
+        color: assembly.color,
+        tags: assembly.tags,
+        bom: Array.isArray(assembly.bom) ? assembly.bom : [],
+        ...(assembly.metadata ? { metadata: { ...assembly.metadata } } : {}),
+      };
+    }
     if (assembly.isLeaf()) {
       let dimensionLabel;
       try {
@@ -286,7 +350,7 @@ async function addAssemblyPartsToCache(
         plane: assembly.plane
           ? util.asSimplePlane(assembly.plane)
           : util.XYPlane,
-        dimension: dimensionLabel,
+        geometryType: dimensionLabel,
       };
     } else {
       const children = await Promise.all(
@@ -432,6 +496,7 @@ async function executeTsCode(
 
     const passThroughKeys = [
       "geometry",
+      "geometryType", // tells references (images, PDFs, glTF) apart
       "plane",
       "tags",
       "bom",
@@ -513,6 +578,18 @@ async function executeTsCode(
       context: RequestContext,
     ): Promise<any> => {
       if (util.isLeaf(assembly)) {
+        if (isReferenceLeaf(assembly)) {
+          report(
+            `loading input part ${++inputPartsLoaded}/${inputPartsTotal}`,
+            false,
+          );
+          return {
+            ...assembly,
+            plane: util.asReplicadPlane(assembly.plane),
+            __reference: referenceHandle(assembly, context),
+            __isRawAbundanceObj: true,
+          };
+        }
         const geometry = await util.geometryProvider!.get(
           assembly.geometry,
           context,
@@ -537,7 +614,7 @@ async function executeTsCode(
           ...assembly,
           geometry: children,
           plane: util.asReplicadPlane(assembly.plane),
-          dimension: children[0].dimension,
+          geometryType: children[0].geometryType,
           __isRawAbundanceObj: true,
         };
       }
@@ -686,7 +763,9 @@ async function executeTsCode(
     // Ensure not a mix of 2d and 3d parts.
     const leafDims: string[] = [];
     rawResult.onLeafs((leaf: Assembly<LeafGeom>) => {
-      leafDims.push(leaf.dimension);
+      // References sit alongside shapes of any kind
+      if (!(leaf as any).__reference) leafDims.push(leaf.geometryType);
+      return leaf;
     });
     if (new Set(leafDims).size > 1) {
       throw new Error(
@@ -714,7 +793,25 @@ async function executeTsCode(
       !abundanceObj.metadata?.claimsDisjoint == true
     ) {
       report("enforcing disjointness");
-      const disjointAssembly = await assembly(abundanceObj.geometry, context);
+      // Only shapes are cut; references are kept alongside them, uncut.
+      const references = util.flattenAssembly(abundanceObj).filter(
+        isReferenceLeaf,
+      );
+      let disjointAssembly: AbundanceObject;
+      if (!references.length) {
+        disjointAssembly = await assembly(abundanceObj.geometry, context);
+      } else {
+        const shapes = util.withoutReferences(abundanceObj);
+        // An assembly of one part is that part, a leaf
+        const cut = shapes.geometry.length
+          ? await assembly(shapes.geometry as AbundanceObject[], context)
+          : undefined;
+        const cutParts = !cut ? [] : util.isLeaf(cut) ? [cut] : cut.geometry;
+        disjointAssembly = {
+          ...(cut && !util.isLeaf(cut) ? cut : shapes),
+          geometry: [...(cutParts as AbundanceObject[]), ...references],
+        };
+      }
 
       // Copy all properties from abundanceObj except geometry
       Object.keys(abundanceObj).forEach((key) => {

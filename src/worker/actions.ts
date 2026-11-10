@@ -34,7 +34,7 @@ async function extrude(
           height,
           context,
         ),
-        dimension: "3D",
+        geometryType: "replicad.Shape3D",
       };
       // Delete boundingBox - extrude creates entirely new geometry with different bounds
       delete transformed.boundingBox;
@@ -49,14 +49,14 @@ async function extrude(
           height,
           context,
         ),
-        dimension: "3D",
+        geometryType: "replicad.Shape3D",
       };
       // Delete boundingBox - extrude creates entirely new geometry with different bounds
       delete transformed.boundingBox;
       return transformed;
     });
   } else {
-    throw new Error("Unknown Geometry Type: " + toExtrude.dimension);
+    throw new Error("Unknown Geometry Type: " + toExtrude.geometryType);
   }
 }
 
@@ -144,6 +144,53 @@ function handleNonReplicadMove(
 }
 
 /**
+ * References (images, PDFs, models) are moved by their id alone, in all three
+ * axes, whatever else they are assembled with. See references.ts.
+ */
+async function moveReference(
+  leaf: AbundanceLeaf,
+  x: number,
+  y: number,
+  z: number,
+  context: RequestContext,
+): Promise<AbundanceLeaf> {
+  const moved = {
+    ...leaf,
+    geometry: await util.geometryProvider!.move(
+      leaf.geometry,
+      x,
+      y,
+      z,
+      context,
+    ),
+  };
+  delete moved.boundingBox;
+  return moved;
+}
+
+/** Rotates a reference about the origin like a 3D shape; see moveReference. */
+async function rotateReference(
+  leaf: AbundanceLeaf,
+  x: number,
+  y: number,
+  z: number,
+  context: RequestContext,
+): Promise<AbundanceLeaf> {
+  const rotated = {
+    ...leaf,
+    geometry: await util.geometryProvider!.rotate(
+      leaf.geometry,
+      x,
+      y,
+      z,
+      context,
+    ),
+  };
+  delete rotated.boundingBox;
+  return rotated;
+}
+
+/**
  * Moves a geometry by the specified x, y, and z distances. If the geometry is 2D, then its plane
  * will be translated by the specified z distance.
  */
@@ -205,6 +252,9 @@ async function move(
     return util.actOnLeafs(
       toMove,
       async (leaf: AbundanceLeaf) => {
+        if (util.isReferenceLeaf(leaf)) {
+          return moveReference(leaf, x, y, z, context);
+        }
         return {
           ...leaf,
           geometry: await util.geometryProvider!.move(
@@ -379,6 +429,9 @@ async function rotate(
     );
   } else {
     return util.actOnLeafs(toRotate, async (leaf: AbundanceLeaf) => {
+      if (util.isReferenceLeaf(leaf)) {
+        return rotateReference(leaf, x, y, z, context);
+      }
       const transformed = {
         ...leaf,
         geometry: await util.geometryProvider!.rotate(

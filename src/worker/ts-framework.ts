@@ -95,6 +95,14 @@ export class Assembly<G = any> {
     faces?: number[]; // selected face indexes (0-based position in faceGroups)
   };
 
+  /**
+   * @internal
+   * Set on parts that are references (an imported image, PDF or glTF model)
+   * rather than replicad shapes. Read it through `geometryType`, `file()`,
+   * `pixels()` and `placement`.
+   */
+  __reference?: ReferenceHandle;
+
   constructor(other?: Partial<Assembly>) {
     if (other) {
       this.color = other.color ?? this.color;
@@ -103,6 +111,12 @@ export class Assembly<G = any> {
       this.plane = other.plane?.clone() ?? this.plane;
       if (other.metadata !== undefined) this.metadata = other.metadata;
       if (other.selection !== undefined) this.selection = other.selection;
+      // A reference's geometry is the id of its stored file: kept as it is.
+      if (other.__reference) {
+        this.__reference = other.__reference;
+        this.geometry = other.geometry;
+        return;
+      }
       // Deep clone
       if (other && other.isLeaf && other.isLeaf()) {
         this.geometry = other.geometry.clone();
@@ -137,6 +151,62 @@ export class Assembly<G = any> {
     }
     this.metadata.claimsDisjoint = true;
     return this;
+  }
+
+  /**
+   * For a reference part (an imported image, PDF or glTF model): its type,
+   * "image", "pdf" or "gltf". Undefined for replicad shapes; use `is2D()`,
+   * `is3D()`, `isWire()` and `isPoint()` for those. A reference's
+   * `metadata.reference` describes the file (name, mimeType, pixel size,
+   * page, contentBounds, ...).
+   */
+  get geometryType(): "image" | "pdf" | "gltf" | undefined {
+    return this.__reference?.type;
+  }
+
+  /** True when this part is a reference (image, PDF or glTF model). */
+  isReference(): boolean {
+    return !!this.__reference;
+  }
+
+  /**
+   * Where a reference sits in the project: a 4x4 matrix, column-major
+   * (three.js Matrix4.elements order), that takes `metadata.reference
+   * .contentBounds` coordinates to project coordinates. Images and PDF pages
+   * are flat rectangles centered on their origin, one unit per pixel (or PDF
+   * point), with +Y up, so the center of pixel (col, row) is at
+   * (col + 0.5 - width / 2, height / 2 - row - 0.5, 0) before placement.
+   */
+  get placement(): number[] {
+    return this.requireReference("placement").matrix.slice();
+  }
+
+  /** The reference's file, as imported. For a .gltf, its main file. */
+  file(): Promise<Blob> {
+    return this.requireReference("file()").file();
+  }
+
+  /**
+   * An image reference's pixels, decoded: `data` holds RGBA bytes, row by
+   * row from the top, 4 per pixel. PNG and JPG decode the same way.
+   */
+  pixels(): Promise<{ width: number; height: number; data: Uint8ClampedArray }> {
+    const reference = this.requireReference("pixels()");
+    if (reference.type !== "image") {
+      throw new Error(
+        `pixels() works on image references; this part is a ${reference.type}.`,
+      );
+    }
+    return reference.pixels();
+  }
+
+  private requireReference(what: string): ReferenceHandle {
+    if (!this.__reference) {
+      throw new Error(
+        `${what} works on reference parts (imported images, PDFs and glTF models); this part is a shape.`,
+      );
+    }
+    return this.__reference;
   }
 
   /**
@@ -281,6 +351,7 @@ export class Assembly<G = any> {
     if (Array.isArray(this.geometry)) {
       return this.geometry.length > 0 && this.geometry[0].is2D();
     }
+    if (this.__reference) return false;
     const g = this.geometry as any;
     return !!g && !("_wrapped" in g);
   }
@@ -290,6 +361,7 @@ export class Assembly<G = any> {
     if (Array.isArray(this.geometry)) {
       return this.geometry.length > 0 && this.geometry[0].isWire();
     }
+    if (this.__reference) return false;
     return this.geometry instanceof replicad.Wire;
   }
 
@@ -297,6 +369,7 @@ export class Assembly<G = any> {
     if (Array.isArray(this.geometry)) {
       return this.geometry.length > 0 && this.geometry[0].isPoint();
     }
+    if (this.__reference) return false;
     return this.geometry instanceof replicad.Vertex;
   }
 
@@ -305,6 +378,7 @@ export class Assembly<G = any> {
     if (Array.isArray(this.geometry)) {
       return this.geometry.length > 0 && this.geometry[0].is3D();
     }
+    if (this.__reference) return false;
     return replicad.isShape3D(this.geometry);
   }
 
@@ -321,6 +395,18 @@ export class Assembly<G = any> {
     const planeString = this.plane ? "replicad.plane" : "null";
     return `{__isRawAbundanceObj: true, color: ${this.color}, tags: ${JSON.stringify(this.tags)}, bom: ${JSON.stringify(this.bom)}, plane: ${planeString}, selection: ${JSON.stringify(this.selection)}, geometry: ${geomString}}`;
   }
+}
+
+/**
+ * @internal
+ * How a reference part reaches its file: set by the worker when it hands an
+ * input to user code (see executeTsCode in code.ts).
+ */
+interface ReferenceHandle {
+  type: "image" | "pdf" | "gltf";
+  matrix: number[];
+  file(): Promise<Blob>;
+  pixels(): Promise<{ width: number; height: number; data: Uint8ClampedArray }>;
 }
 
 // Structural marker (set as non-enumerable on the prototype) used by the
