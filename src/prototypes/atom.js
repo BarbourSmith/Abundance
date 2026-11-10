@@ -1715,16 +1715,28 @@ export default class Atom extends ObservableEntity {
         if (input.options?.importType) {
           const inputAtom = input.options.inputAtom;
           if (!hasConnector && inputAtom) {
+            inputAtom._panelSetInputChanged = setInputChanged;
+            const importOptions = input.options.importOptions || [
+              "SVG",
+              "STL",
+              "STEP",
+            ];
+            if (inputAtom.needsFile?.()) {
+              const fileType = importOptions[inputAtom.importIndex || 0];
+              inputParams[this.uniqueID + input.name + "_needs_file"] = {
+                type: "label",
+                label: input.name,
+                value: inputAtom.fileName
+                  ? `Couldn't load ${inputAtom.fileName}. Choose a ${fileType} file.`
+                  : `Choose a ${fileType} file to run this project.`,
+              };
+            }
             inputParams[this.uniqueID + input.name + "_load"] = {
               type: "button",
               label: "Import " + input.name,
               onClick: () => {
                 if (inputAtom) {
-                  const fileType = (input.options.importOptions || [
-                    "SVG",
-                    "STL",
-                    "STEP",
-                  ])[inputAtom.importIndex || 0];
+                  const fileType = importOptions[inputAtom.importIndex || 0];
                   inputAtom.loadFile(fileType, () => {
                     // Trigger update after file is loaded
                     if (typeof inputAtom.setInputChanged === "function") {

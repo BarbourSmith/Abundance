@@ -289,6 +289,7 @@ function AppContent() {
   const {
     activeAtom,
     setActiveAtom,
+    markProjectLoaded,
     shortCutsOn,
     setRedirectType,
     errorNotification,
@@ -921,6 +922,7 @@ function AppContent() {
         GlobalVariables.currentMolecule = targetMolecule;
         GlobalVariables.currentMolecule.selected = true;
         setActiveAtom(GlobalVariables.currentMolecule);
+        markProjectLoaded();
       })
       .catch(async (e) => {
         // If error is about bad credentials, trigger re-authentication
