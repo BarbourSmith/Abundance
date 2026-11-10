@@ -99,6 +99,13 @@ declare global {
           edges?: number[];
           faces?: number[];
       };
+      /**
+       * @internal
+       * Set on parts that are references (an imported image, PDF or glTF model)
+       * rather than replicad shapes. Read it through `geometryType`, `file()`,
+       * `pixels()` and `placement`.
+       */
+      __reference?: ReferenceHandle;
       constructor(other?: Partial<Assembly>);
       /**
        * Skip the disjoint-ness enforcement on this assembly.
@@ -113,6 +120,37 @@ declare global {
        * method at your own risk.
        */
       skipDisjointPostprocess(): this;
+      /**
+       * For a reference part (an imported image, PDF or glTF model): its type,
+       * "image", "pdf" or "gltf". Undefined for replicad shapes; use `is2D()`,
+       * `is3D()`, `isWire()` and `isPoint()` for those. A reference's
+       * `metadata.reference` describes the file (name, mimeType, pixel size,
+       * page, contentBounds, ...).
+       */
+      get geometryType(): "image" | "pdf" | "gltf" | undefined;
+      /** True when this part is a reference (image, PDF or glTF model). */
+      isReference(): boolean;
+      /**
+       * Where a reference sits in the project: a 4x4 matrix, column-major
+       * (three.js Matrix4.elements order), that takes `metadata.reference
+       * .contentBounds` coordinates to project coordinates. Images and PDF pages
+       * are flat rectangles centered on their origin, one unit per pixel (or PDF
+       * point), with +Y up, so the center of pixel (col, row) is at
+       * (col + 0.5 - width / 2, height / 2 - row - 0.5, 0) before placement.
+       */
+      get placement(): number[];
+      /** The reference's file, as imported. For a .gltf, its main file. */
+      file(): Promise<Blob>;
+      /**
+       * An image reference's pixels, decoded: `data` holds RGBA bytes, row by
+       * row from the top, 4 per pixel. PNG and JPG decode the same way.
+       */
+      pixels(): Promise<{
+          width: number;
+          height: number;
+          data: Uint8ClampedArray;
+      }>;
+      private requireReference;
       /**
        * User-defined type guard. Lets callers narrow an `Assembly` to a leaf
        * (where `geometry` is a single replicad shape/drawing rather than an
@@ -159,6 +197,21 @@ declare global {
       /** True when this assembly's first leaf is a 3D replicad solid (not a Wire or Point3D). */
       is3D(): this is Assembly<_replicad.AnyShape>;
       toJSON(): string;
+  }
+  /**
+   * @internal
+   * How a reference part reaches its file: set by the worker when it hands an
+   * input to user code (see executeTsCode in code.ts).
+   */
+  interface ReferenceHandle {
+      type: "image" | "pdf" | "gltf";
+      matrix: number[];
+      file(): Promise<Blob>;
+      pixels(): Promise<{
+          width: number;
+          height: number;
+          data: Uint8ClampedArray;
+      }>;
   }
   /**
    * @internal

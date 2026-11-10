@@ -1,8 +1,8 @@
 /**
  * Reference files: images (PNG, JPG), PDF documents and 3D models (GLB, glTF)
  * that Import atoms bring into a project to model against, such as a floor
- * plan, a datasheet or a 3D scan. They become geometry leaves of type "Image",
- * "PDF" or "Model" (see src/worker/references.ts): shown in the 3D view and
+ * plan, a datasheet or a 3D scan. They become geometry leaves of type "image",
+ * "pdf" or "gltf" (see src/worker/references.ts): shown in the 3D view and
  * placed with Move and Rotate like any geometry, but never cut or cutting.
  *
  * The CAD worker stores each file in the project's geometry cache. The main
@@ -38,9 +38,9 @@ export const REFERENCE_TYPES = Object.freeze({
 
 /** The geometryType of each kind of reference. */
 export const GEOMETRY_TYPE_OF_KIND = Object.freeze({
-  image: "Image",
-  pdf: "PDF",
-  model: "Model",
+  image: "image",
+  pdf: "pdf",
+  model: "gltf",
 });
 
 /** Units a model file can be in, with millimeters per unit. */

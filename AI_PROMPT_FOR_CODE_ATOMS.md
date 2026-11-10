@@ -277,6 +277,30 @@ function run(): Assembly {
 }
 ```
 
+### 5c. Reading a Reference Image's Pixels
+
+Images, PDFs, and glTF models from Import atoms reach code atoms as reference parts: `part.isReference()` is true and `part.geometryType` is `"image"`, `"pdf"`, or `"gltf"` (it's undefined for replicad shapes). `part.metadata.reference` describes the file (name, mimeType, pixel size, page). `await part.file()` returns the file as a Blob, and for images `await part.pixels()` returns `{ width, height, data }` with RGBA bytes, row by row from the top. `part.placement` is a 4x4 column-major matrix from the file's own coordinates to the project's: an image is a rectangle one unit per pixel, centered on its origin, +Y up. A reference can't be cut, moved, or changed in code; return it as it is to keep it in the output. This builds a block per pixel from a heightmap, with red as height:
+
+```typescript
+async function run(map: Assembly, maxHeight: number = 10): Promise<Assembly> {
+  const { width, height, data } = await map.pixels();
+  const m = map.placement; // m[0] and m[5] are mm per pixel when not rotated
+  const blocks: Assembly[] = [];
+  for (let row = 0; row < height; row++) {
+    for (let col = 0; col < width; col++) {
+      const z = (data[(row * width + col) * 4] / 255) * maxHeight;
+      if (z <= 0) continue;
+      const x = (col + 0.5 - width / 2) * m[0] + m[12];
+      const y = (height / 2 - row - 0.5) * m[5] + m[13];
+      blocks.push(new Assembly({
+        geometry: replicad.makeBaseBox(m[0], m[5], z).translate([x, y, 0]),
+      }));
+    }
+  }
+  return new Assembly({ geometry: blocks });
+}
+```
+
 ### 6. Adding Fillets and Chamfers
 
 ```typescript

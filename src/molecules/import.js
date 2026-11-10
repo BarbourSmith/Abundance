@@ -22,7 +22,7 @@ function baseName(path) {
 /**
  * This class creates an atom which imports a file: SVG, STL, and STEP files
  * as shapes, and PNG, JPG, PDF, GLB, and glTF files as references to model
- * against: geometry of type Image, PDF or Model that is shown and placed but
+ * against: geometry of type "image", "pdf" or "gltf" that is shown and placed but
  * never cut (see src/worker/references.ts and src/js/referenceFiles.js).
  */
 export default class Import extends Atom {

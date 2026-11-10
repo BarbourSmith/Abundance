@@ -42,6 +42,7 @@ import {
   referencesOf,
 } from "../src/js/referenceItems.js";
 import { splitDisplayMesh } from "../src/js/displayScheduler.js";
+import { executeCode } from "../src/worker/code.ts";
 import { __test__, resolveAtom, runTool } from "../src/agent/runtime.js";
 import { agentBridge } from "../src/agent/bridgeClient.js";
 import { projectPoint } from "../src/agent/photoCamera.js";
@@ -58,6 +59,23 @@ async function pngBytes(width, height) {
   const context = canvas.getContext("2d");
   context.fillStyle = "#ff0000";
   context.fillRect(0, 0, width, height);
+  const blob = await canvas.convertToBlob({ type: "image/png" });
+  return new Uint8Array(await blob.arrayBuffer());
+}
+
+/**
+ * A PNG of `rows` (arrays of red values, 0-255), one pixel per value, for
+ * reading heights from. Fully opaque, so the values decode exactly.
+ */
+async function heightmapBytes(rows) {
+  const canvas = new OffscreenCanvas(rows[0].length, rows.length);
+  const context = canvas.getContext("2d");
+  rows.forEach((row, y) =>
+    row.forEach((red, x) => {
+      context.fillStyle = `rgb(${red}, 0, 0)`;
+      context.fillRect(x, y, 1, 1);
+    }),
+  );
   const blob = await canvas.convertToBlob({ type: "image/png" });
   return new Uint8Array(await blob.arrayBuffer());
 }
@@ -290,7 +308,7 @@ describe("importing reference files", () => {
   it("loads an image as an Image leaf, flat on XY, centered, about 100 mm wide", async () => {
     const id = await importFile("plan.png", await pngBytes(40, 20));
     const value = valueOf(id);
-    expect(value).toMatchObject({ geometryType: "Image" });
+    expect(value).toMatchObject({ geometryType: "image" });
     expect(value.geometry).toMatch(/^ref\|[\d.]+\|file-[0-9a-f]{64}$/);
     expect(hasShapes(value)).toBe(false);
     const [image] = referencesOf(value);
@@ -330,7 +348,7 @@ describe("importing reference files", () => {
       "datasheet.pdf",
       pdfBytes(["Bore diameter 12.5 mm", "Mounting holes M4"]),
     );
-    expect(valueOf(id).geometryType).toBe("PDF");
+    expect(valueOf(id).geometryType).toBe("pdf");
     const [page] = referencesOf(valueOf(id));
     expect(page).toMatchObject({ kind: "pdf", page: 1, pageCount: 2 });
     expect(round(referenceBounds(page))).toEqual({
@@ -345,7 +363,7 @@ describe("importing reference files", () => {
 
   it("loads a glTF model in meters, Y-up, into a millimeter Z-up project", async () => {
     const id = await importFile("scan.glb", await glbBytes());
-    expect(valueOf(id).geometryType).toBe("Model");
+    expect(valueOf(id).geometryType).toBe("gltf");
     const [model] = referencesOf(valueOf(id));
     expect(model).toMatchObject({ kind: "model", stats: { meshes: 1 } });
     expect(round(referenceBounds(model))).toEqual({
@@ -405,7 +423,7 @@ describe("references in the graph", () => {
     expect(resolveAtom(assembly).status).toBe(Status.READY);
     expect(flattenAssembly(value).map((leaf) => leaf.geometryType)).toEqual([
       "replicad.Shape3D",
-      "Image",
+      "image",
     ]);
     const bounds = await GlobalVariables.cad.getBoundingBox(
       value,
@@ -514,6 +532,108 @@ describe("references in the graph", () => {
     // The export is the part's alone
     expect(await stl(valueOf(assembly))).toEqual(await stl(valueOf(part)));
     expect(worker.REFERENCE_POLICY.layout).toEqual(["skip"]);
+  });
+});
+
+describe("references in code atoms", () => {
+  // Run a TypeScript code atom's transpiled body on `args`.
+  const runCode = (code, args) =>
+    executeCode(code, args, projectContext(), 1, "MM", "reference-code");
+
+  it("read an image's pixels and placement to build a heightmap", async () => {
+    // Red is height: 255 is 10 mm, 0 is no block
+    const id = await importFile(
+      "height.png",
+      await heightmapBytes([
+        [255, 0, 51],
+        [102, 255, 0],
+      ]),
+    );
+    const code = `
+      async function run(plan) {
+        const { width, height, data } = await plan.pixels();
+        const m = plan.placement;
+        const parts = [];
+        for (let row = 0; row < height; row++) {
+          for (let col = 0; col < width; col++) {
+            const z = (data[(row * width + col) * 4] / 255) * 10;
+            if (z <= 0) continue;
+            const x = (col + 0.5 - width / 2) * m[0] + m[12];
+            const y = (height / 2 - row - 0.5) * m[5] + m[13];
+            parts.push(new Assembly({
+              geometry: replicad.makeBaseBox(m[0] * 0.9, m[5] * 0.9, z).translate([x, y, 0]),
+            }));
+          }
+        }
+        console.log(plan.geometryType, plan.metadata.reference.name, (await plan.file()).size);
+        return new Assembly({ geometry: [...parts, plan] }).skipDisjointPostprocess();
+      }`;
+    const logs = [];
+    const result = await executeCode(
+      code,
+      { plan: valueOf(id) },
+      projectContext(),
+      1,
+      "MM",
+      "reference-code",
+      (level, message) => logs.push(message),
+    );
+
+    const leaves = flattenAssembly(result);
+    expect(leaves.map((leaf) => leaf.geometryType)).toEqual([
+      "replicad.Shape3D",
+      "replicad.Shape3D",
+      "replicad.Shape3D",
+      "replicad.Shape3D",
+      "image",
+    ]);
+    // The image comes back as it went in: same stored file and placement
+    expect(leaves[4].geometry).toBe(valueOf(id).geometry);
+    expect(logs[0]).toMatch(/^image height\.png \d+$/);
+    // 3 x 2 pixels across the default 100 mm width; the tallest block is 10
+    const bounds = await GlobalVariables.cad.getBoundingBox(
+      result,
+      projectContext(),
+    );
+    expect(round(bounds)).toEqual({
+      min: [-50, -33.33, 0],
+      max: [50, 33.33, 10],
+    });
+  });
+
+  it("pass references through, uncut, alongside shapes", async () => {
+    const image = await importFile("plan.png", await pngBytes(40, 20));
+    const part = await box();
+    const assembly = await add("Assembly");
+    await connect(part, assembly, "Shape1");
+    await connect(image, assembly, "Shape2");
+    await setParam(assembly, "makeDisjoint", false);
+    await settle();
+
+    // Returning the input unchanged still makes the shapes disjoint
+    const result = await runCode(`function run(input) { return input; }`, {
+      input: valueOf(assembly),
+    });
+    expect(flattenAssembly(result).map((leaf) => leaf.geometryType)).toEqual([
+      "replicad.Shape3D",
+      "image",
+    ]);
+    expect(referencesOf(result)[0].fileKey).toBe(
+      referencesOf(valueOf(image))[0].fileKey,
+    );
+
+    // Shape methods don't trip over references, and reference methods say
+    // what they need
+    const checks = await runCode(
+      `async function run(input) {
+        const [shape, plan] = input.filterLeafs(() => true);
+        let message = "";
+        try { await shape.pixels(); } catch (e) { message = e.message; }
+        return [plan.is2D(), plan.is3D(), plan.isReference(), shape.isReference(), message].join("|");
+      }`,
+      { input: valueOf(assembly) },
+    );
+    expect(checks).toMatch(/^false\|false\|true\|false\|pixels\(\) works on reference parts/);
   });
 });
 

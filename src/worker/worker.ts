@@ -875,7 +875,7 @@ async function sweepCache(
  *
  * @param file - The file
  * @param resources - A .gltf's other files, by their path in the .gltf
- * @param geometryType - "Image", "PDF" or "Model"
+ * @param geometryType - "image", "pdf" or "gltf"
  * @param info - How it is drawn; contentBounds are in the file's own units
  * @param placement - Scale from the file's units to the project's, then
  *   rotation in degrees about X, Y and Z (a glTF's Y-up to Z-up)

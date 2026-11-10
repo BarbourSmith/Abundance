@@ -1,7 +1,7 @@
 /**
  * References on the main thread: images, PDF pages and 3D models that Import
  * atoms bring in to model against. In a value they are geometry leaves with a
- * geometryType of "Image", "PDF" or "Model" (see src/worker/references.ts);
+ * geometryType of "image", "pdf" or "gltf" (see src/worker/references.ts);
  * here each is described as a reference item, the form the 3D view
  * (referenceObjects.js) and the agent tools draw and measure:
  *

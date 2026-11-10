@@ -163,7 +163,7 @@ type AbundanceObject = AbundanceLeaf | AbundanceBranch;
 
 /**
  * What a leaf's geometry id names. The first five are replicad shapes, loaded
- * with geometryProvider.get. "Image", "PDF" and "Model" are reference files
+ * with geometryProvider.get. "image", "pdf" and "gltf" are reference files
  * (see references.ts) that are shown and placed but never loaded as shapes.
  * "Other" stands in for kinds of geometry not supported yet.
  */

@@ -1,7 +1,7 @@
 /**
  * References: images, PDF pages and 3D models (glTF/GLB) brought in by Import
  * atoms to model against. They are geometry leaves like any other, with a
- * geometryType of "Image", "PDF" or "Model", so they travel through the graph,
+ * geometryType of "image", "pdf" or "gltf", so they travel through the graph,
  * get tagged, and are placed by Move, Rotate and unit conversion. They aren't
  * replicad shapes, so operations that need one (booleans, extrude, a disjoint
  * Assembly) reject them, and outputs that only make sense for shapes (cut
@@ -30,7 +30,7 @@ import {
   transformId,
 } from "./lazyTransform";
 
-const REFERENCE_GEOMETRY_TYPES = ["Image", "PDF", "Model"] as const;
+const REFERENCE_GEOMETRY_TYPES = ["image", "pdf", "gltf"] as const;
 type ReferenceGeometryType = (typeof REFERENCE_GEOMETRY_TYPES)[number];
 
 const PREFIX = "ref|";
@@ -223,9 +223,9 @@ function referenceBounds(leaf: {
 
 /** The name operations use in errors for a reference geometry type. */
 function referenceTypeName(type: ReferenceGeometryType): string {
-  return type === "Image"
+  return type === "image"
     ? "an image"
-    : type === "PDF"
+    : type === "pdf"
       ? "a PDF"
       : "a 3D model";
 }
