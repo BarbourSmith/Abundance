@@ -365,7 +365,15 @@ const InitialLog = ({ setNoUserBrowsing }) => {
               to={`/user-guide#${clip.section}`}
               className="landing-clip"
             >
-              <img src={clip.src} alt={clip.alt} loading="lazy" />
+              <video
+                src={clip.src}
+                aria-label={clip.alt}
+                autoPlay
+                muted
+                loop
+                playsInline
+                preload="metadata"
+              />
               <span>{clip.title}</span>
             </Link>
           ))}

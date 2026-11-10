@@ -372,7 +372,8 @@
   text-decoration: none;
 }
 
-.landing-clip img {
+.landing-clip img,
+.landing-clip video {
   width: 100%;
   aspect-ratio: 4 / 3;
   object-fit: cover;
