@@ -1,0 +1,11 @@
+{
+  "name": "polygon-packer",
+  "version": "0.1.0",
+  "files": [
+    "polygon-packer_bg.wasm",
+    "polygon-packer.js",
+    "polygon-packer.d.ts"
+  ],
+  "browser": "polygon-packer.js",
+  "types": "polygon-packer.d.ts"
+}

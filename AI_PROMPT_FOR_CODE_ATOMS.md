@@ -6,7 +6,7 @@ You are assisting with writing code for an Abundance Code Atom. Abundance is a w
 
 A code atom helps build **one physical part**, inside that part's own molecule. Every board, panel, or bracket in a design gets its own molecule; left and right copies are one molecule placed twice with Move or Rotate. Never generate several parts from one code atom.
 
-Inside the part's molecule, use built-in atoms (Rectangle, Circle, Difference, Extrude, Rotate, Move, Tag, Add-BOM-Tag) and library molecules for everything they can do. Keep the code atom to the piece they can't, such as an unusual 2D outline, and return it so built-in atoms extrude, place, and tag it. Don't model slots or holes for mating parts: position the parts overlapping and let an Assembly cut them.
+Inside the part's molecule, use built-in atoms (Rectangle, Circle, Difference, Extrude, Rotate, Move, Tag, Add-BOM-Tag) and library molecules for everything they can do. Keep the code atom to the piece they can't, such as an unusual 2D outline, and return it so built-in atoms extrude, place, and tag it. Don't model slots or holes for mating parts: position the parts overlapping and let an Assembly cut them. The same goes for clearance around hardware already in the design, such as pockets over bolt heads: keepout shapes around the hardware, assembled after the part, cut them. Standard hardware such as bolts and nuts comes from shared molecules (search_molecules), not code. A code atom is never a way to fit many features in one place because built-ins would take many atoms; give each feature a molecule of its own.
 
 ## Code Structure Requirements
 

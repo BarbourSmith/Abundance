@@ -10,7 +10,7 @@ Bootstrap, build, and test the repository:
 
 ```bash
 # 1. Install dependencies (15 seconds, NEVER CANCEL)
-npm install --legacy-peer-deps
+npm install
 
 # 2. Build application (17 seconds, NEVER CANCEL - set timeout to 60+ seconds)
 npm run build
@@ -30,7 +30,6 @@ npm test
 - **NEVER CANCEL BUILD OR TEST COMMANDS** - They may take longer than expected
 - Set minimum 60-second timeout for `npm run build`
 - Set minimum 120-second timeout for `npm test` (Puppeteer tests)
-- Always use `--legacy-peer-deps` flag with npm install
 
 ## Development Environment Setup
 
@@ -173,7 +172,7 @@ package.json            # Dependencies and scripts
 ### Deployment Process
 
 1. Pushes to `main` branch trigger automatic deployment
-2. Build process: `npm ci --legacy-peer-deps && npm run build`
+2. Build process: `npm ci && npm run build`
 3. Deploys to GitHub Pages at abundance.maslowcnc.com
 
 ## Key Dependencies & Technologies
@@ -210,9 +209,8 @@ package.json            # Dependencies and scripts
 ### Debugging Build Issues
 
 1. Check for replicad compatibility issues
-2. Verify `--legacy-peer-deps` is used
-3. Run `npm run unit` to catch geometry calculation errors
-4. Use `npm start` for development debugging with hot reload
+2. Run `npm run unit` to catch geometry calculation errors
+3. Use `npm start` for development debugging with hot reload
 
 ## Validation Checklist
 
@@ -229,7 +227,6 @@ Before committing changes, ALWAYS:
 
 ### Dependencies
 
-- **ALWAYS use `--legacy-peer-deps`** flag with npm install
 - Some deprecation warnings are expected (rimraf, react-three-fiber)
 - 4 npm audit vulnerabilities present but do not affect functionality
 

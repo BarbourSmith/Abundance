@@ -33,7 +33,7 @@ jobs:
           node-version: 20
           cache: "npm"
       - name: Install dependencies
-        run: npm ci --legacy-peer-deps
+        run: npm ci
       - name: Bridge unit tests (Node)
         run: npm run test:bridge
       - name: Install Playwright Chromium

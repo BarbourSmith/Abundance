@@ -34,6 +34,7 @@ import {
 } from "../../contexts/index.js";
 import { useDevSettings } from "../../contexts/DevSettingsContext.jsx";
 import { agentBridge } from "../../agent/bridgeClient.js";
+import { openPullRequest } from "../../js/pullRequestSync.js";
 /**
  * Create mode component appears displays flow canvas, renderer and sidebar when
  * a user has been authorized access to a project.
@@ -298,22 +299,84 @@ function CreateMode() {
     }
   }, [activeAtom]);
 
-  /* LET A LOCAL AI AGENT ASK TO SAVE (the user always confirms) */
+  /* LET A LOCAL AI AGENT SAVE AND OPEN PULL REQUESTS */
   const saveProjectRef = useRef(saveProject);
   saveProjectRef.current = saveProject;
+  const octoRef = useRef(authorizedUserOcto);
+  octoRef.current = authorizedUserOcto;
   useEffect(() => {
+    // Resolves to whether the project on GitHub now matches the page
+    const agentSave = async (reason) => {
+      const result = await saveProjectRef.current(
+        setSaveState,
+        `AI Save: ${reason}`,
+        true,
+        () => setSavePopUp(true),
+      );
+      return !!result;
+    };
     agentBridge.saveHandler = async (reason) => {
-      const ok = window.confirm(
-        `The AI agent wants to save this project to GitHub.\n\n${reason}\n\nSave now?`,
-      );
-      if (!ok) return { saved: false, message: "The user declined to save." };
-      await saveProjectRef.current(setSaveState, "User Save", true, () =>
-        setSavePopUp(true),
-      );
-      return { saved: true };
+      if (await agentSave(reason)) return { saved: true };
+      return {
+        saved: false,
+        message:
+          "The project wasn't saved. The page shows why (another save in progress, still loading, or a GitHub error).",
+      };
+    };
+    agentBridge.pullRequestHandler = async ({ title, description }) => {
+      const repo = GlobalVariables.currentRepo;
+      if (!repo?.parent) {
+        return {
+          opened: false,
+          message:
+            "This project isn't a fork, so there's no project to open a pull request to. Its changes are saved directly.",
+        };
+      }
+      if (!(await agentSave(title || "Before opening a pull request"))) {
+        return {
+          opened: false,
+          message:
+            "The project couldn't be saved, so no pull request was opened.",
+        };
+      }
+      const [baseOwner, baseRepo] = repo.parent.full_name.split("/");
+      const result = await openPullRequest(octoRef.current, {
+        baseOwner,
+        baseRepo,
+        headOwner: repo.owner.login,
+        headRepo: repo.name,
+        title,
+        description,
+      });
+      switch (result.status) {
+        case "created":
+          setNotification(
+            `Pull request opened: ${result.pr.html_url}`,
+            "notice",
+          );
+          return { opened: true, url: result.pr.html_url };
+        case "existing":
+          return {
+            opened: false,
+            url: result.pr.html_url,
+            message:
+              "A pull request from this project is already open, and now includes the saved changes.",
+          };
+        case "no-changes":
+          return {
+            opened: false,
+            message: `This project has no changes that ${repo.parent.full_name} doesn't already have.`,
+          };
+        default:
+          return {
+            opened: false,
+            message: `${repo.parent.full_name} has ${result.behindBy} newer commit(s) this project doesn't. Ask the user to choose Pull Request from the menu, which merges them in and asks about any conflicts.`,
+          };
+      }
     };
     return () => {
       agentBridge.saveHandler = null;
+      agentBridge.pullRequestHandler = null;
     };
   }, []);
 
@@ -325,10 +388,6 @@ function CreateMode() {
       const isAutoSaveDisabled =
         localStorage.getItem("autoSaveDisabled") === "true";
       if (isAutoSaveDisabled) return;
-
-      // Don't auto-commit while a local AI agent may be editing: the user
-      // decides when the agent's changes are saved.
-      if (agentBridge.isEditMode()) return;
 
       // Skip auto-save when any popup is visible to avoid committing
       // unintended changes while the user is navigating away
