@@ -4,7 +4,9 @@
 
 If the `abundance` MCP tools are available (from `.mcp.json`), they act on the project open in the user's browser. Follow the instructions the MCP server sends. Setup and the safety model are in `bridge/README.md`.
 
-All guidance for agents using the project goes in the MCP server (`SERVER_INSTRUCTIONS` in `bridge/mcpServer.js`, tool descriptions in `src/agent/tools.js`), not in Claude skills or other repo files. Users install the server from npm without this repository, and testing here should match what they get.
+All guidance for agents using the project goes in the MCP server (`MODELING_GUIDE` in `bridge/modelingGuide.js`, `SERVER_INSTRUCTIONS` in `bridge/mcpServer.js`, tool descriptions in `src/agent/tools.js`), not in Claude skills or other repo files. Users install the server from npm without this repository, and testing here should match what they get.
+
+Claude Code keeps only the first 4,096 characters of `SERVER_INSTRUCTIONS`, so that text holds just the rules every session needs and a test keeps it under 3,800. Put new workflows in `MODELING_GUIDE` or the description of the tool they apply to.
 
 ## Tests
 

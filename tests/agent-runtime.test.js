@@ -16,6 +16,8 @@ import {
   AGENT_EDIT_EVENT,
   AGENT_SELECT_EVENT,
   __test__,
+  codeAtomAdvice,
+  countAtomKinds,
   parseGitHubFileUrl,
   resolveAtom,
   runTool,
@@ -193,6 +195,37 @@ describe("reading the project", () => {
       "Current Equation",
     ]);
     expect(atom.output).toEqual({ value: 2 });
+  });
+
+  it("counts Code atoms against built-in atoms and advises when code dominates", async () => {
+    await buildWidthAndDouble();
+    expect((await runTool("get_project", {}, READ)).atoms).toEqual({
+      code: 0,
+      built_in: 2,
+      molecules: 0,
+      github_molecules: 0,
+    });
+    expect((await runTool("get_project", {}, READ)).advice).toBeUndefined();
+
+    const mol = (atomType, kids = []) => ({ atomType, nodesOnTheScreen: kids });
+    const part = mol("Molecule", [
+      { atomType: "Code" },
+      { atomType: "Output" },
+      { atomType: "Input" },
+    ]);
+    const imported = mol("GitHubMolecule", [{ atomType: "Code" }]);
+    const counts = countAtomKinds(
+      mol("Molecule", [part, part, imported, { atomType: "Assembly" }]),
+    );
+    expect(counts).toEqual({
+      code: 2,
+      built_in: 1,
+      molecules: 2,
+      github_molecules: 1,
+    });
+    expect(codeAtomAdvice(counts)).toMatch(/^2 Code atoms against 1 built-in/);
+    expect(codeAtomAdvice({ code: 2, built_in: 8 })).toBeNull();
+    expect(codeAtomAdvice({ code: 1, built_in: 0 })).toBeNull();
   });
 
   it("keeps summarized values small", () => {
@@ -411,6 +444,52 @@ describe("editing", () => {
       (i) => i.name.startsWith("Shape") && !i.connectors.length,
     );
     expect(free.map((i) => i.name)).toEqual(["Shape4"]);
+  });
+
+  it("sets params and wires inputs in the add_atom call, as one undo step", async () => {
+    await runTool("add_atom", { type: "Constant", name: "Width" }, EDIT);
+    await runTool(
+      "set_param",
+      { atom: "Width", param: "Width", value: 3 },
+      EDIT,
+    );
+    GlobalVariables.undoCommandStack = [];
+    const result = await runTool(
+      "add_atom",
+      {
+        type: "Equation",
+        params: { "Current Equation": "x * 10" },
+        inputs: { x: "Width" },
+      },
+      EDIT,
+    );
+    expect(result.params).toEqual([
+      { param: "Current Equation", value: "x * 10" },
+    ]);
+    expect(result.connected).toEqual([
+      { input: "x", from: expect.objectContaining({ path: "Proj/Width" }) },
+    ]);
+    expect(await valueOf(result.id)).toBe(30);
+    const history = await runTool("get_undo_history", {}, READ);
+    expect(history.steps).toHaveLength(1);
+  });
+
+  it("removes the new atom when one of its params or inputs fails", async () => {
+    const before = top.nodesOnTheScreen.length;
+    await expectToolError(
+      runTool(
+        "add_atom",
+        { type: "Equation", params: { "No such param": 1 } },
+        EDIT,
+      ),
+      ERROR_CODES.NOT_FOUND,
+      /No such param/,
+    );
+    await expectToolError(
+      runTool("add_atom", { type: "Equation", inputs: { x: "Missing" } }, EDIT),
+      ERROR_CODES.NOT_FOUND,
+    );
+    expect(top.nodesOnTheScreen.length).toBe(before);
   });
 
   it("rolls back every edit in a batch when one fails", async () => {

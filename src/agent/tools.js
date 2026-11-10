@@ -65,7 +65,7 @@ export const TOOLS = [
     name: "get_project",
     permission: "read",
     description:
-      "Summarize the open Abundance project: owner/repo, units, top-level status and progress, the molecule open in the editor, the selected atom, error count, and whether edits are enabled." +
+      "Summarize the open Abundance project: owner/repo, units, top-level status and progress, the molecule open in the editor, the selected atom, error count, how many Code atoms and built-in atoms it has (with advice when code has taken the place of built-ins), and whether edits are enabled." +
       UNTRUSTED_NOTE,
     inputSchema: { type: "object", properties: {} },
   },
@@ -775,7 +775,7 @@ export const TOOLS = [
     name: "import_file",
     permission: "edit",
     description:
-      "Add an Import atom that loads a file, like the editor's Load File button. STEP, STL, and SVG files become geometry. PNG, JPG, PDF, GLB, and glTF files become references to model against: an image or PDF page lies flat on the XY plane, centered on the origin; a 3D model (such as a scan) keeps its position in the file, converted from meters (glTF's unit; set File Units if it's in others). References show and move with geometry but never cut or get cut. Give a url to link a file in a public GitHub repository (nothing is uploaded), or the path of a file on this computer to upload it into the project's repository, so it opens with the project from then on. Imported geometry keeps the position and orientation it has in the file: place it with Move and Rotate atoms. Returns the atom's ID and path; call wait_for_settle, then get_atom or render_image to see what loaded.",
+      "Add an Import atom that loads a file, like the editor's Load File button. STEP, STL, and SVG files become geometry. PNG, JPG, PDF, GLB, and glTF files become references to model against: an image or PDF page lies flat on the XY plane, centered on the origin; a 3D model (such as a scan) keeps its position in the file, converted from meters (glTF's unit; set File Units if it's in others). References show and move with geometry, but they aren't shapes: operations that need shapes, such as Difference or an Assembly with Make Disjoint on, reject them. Give a url to link a file in a public GitHub repository (nothing is uploaded), or the path of a file on this computer to upload it into the project's repository, so it opens with the project from then on. Imported geometry keeps the position and orientation it has in the file: place it with Move and Rotate atoms. Returns the atom's ID and path; call wait_for_settle, then get_atom or render_image to see what loaded.",
     inputSchema: {
       type: "object",
       properties: {
@@ -804,7 +804,7 @@ export const TOOLS = [
     name: "add_atom",
     permission: "edit",
     description:
-      "Add a new built-in atom to a molecule. Returns its ID and path; a new Molecule also returns its Output atom. Positions are fractions of the canvas (0 to 1); omit them to place it to the right of the existing atoms. Each physical part (a board, panel, bracket) goes in a Molecule of its own, named for the part; keep molecules to about 8 atoms, adding a named Molecule for new work beyond that. Code atoms are a last resort: use built-in atoms and library molecules where they can do the job (search_molecules finds standard hardware such as bolts and nuts), and never have one Code atom build several parts or cut a part's holes and pockets.",
+      "Add a new built-in atom to a molecule, optionally setting its params and wiring its inputs in the same call. Returns its ID and path; a new Molecule also returns its Output atom. Positions are fractions of the canvas (0 to 1); omit them to place it to the right of the existing atoms. Each physical part (a board, panel, bracket) goes in a Molecule of its own, named for the part; keep molecules to about 8 atoms, adding a named Molecule for new work beyond that. Build parts from built-in atoms: a box is Rectangle → Extrude → Move, a cylinder along any axis is Circle → Extrude → Rotate → Move, and holes are cut with Difference. Code atoms are a last resort: use built-in atoms and library molecules where they can do the job (search_molecules finds standard hardware such as bolts and nuts), and never have one Code atom build several parts or cut a part's holes and pockets. The bridge refuses add_atom until get_modeling_guide has been read, and a Code atom until list_atom_types and list_library_molecules have been checked.",
     inputSchema: {
       type: "object",
       properties: {
@@ -825,10 +825,20 @@ export const TOOLS = [
         },
         x: { type: "number", minimum: 0, maximum: 1 },
         y: { type: "number", minimum: 0, maximum: 1 },
+        params: {
+          type: "object",
+          description:
+            'Values to set right after adding it, keyed by the param label set_param takes (the input names list_atom_types shows), e.g. {"x length": 40, "y length": 20} for a Rectangle or {"y-axis degrees": 90} for a Rotate.',
+        },
+        inputs: {
+          type: "object",
+          description:
+            'Connections to make right after adding it, keyed by this atom\'s input name, each the atom that feeds it (an ID, path, or ref in the same molecule), e.g. {"geometry": "rect"} for an Extrude fed by the atom with ref "rect".',
+        },
         reason: {
           type: "string",
           description:
-            "Required for Code atoms: which single part this helps build and why no built-in atom or library molecule does the job. Needing many built-in atoms is not a reason: split that work into feature molecules. Shown to the user in the undo history.",
+            "Required for Code atoms: which single part this helps build and why no built-in atom or library molecule does the job. Needing many built-in atoms is not a reason, and neither is placing a cylinder along X or Y, leaning a solid, or repeating a feature: built-ins do those. Shown to the user in the undo history.",
         },
       },
       required: ["type"],
