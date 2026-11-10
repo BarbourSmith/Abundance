@@ -328,6 +328,34 @@ function children(molecule) {
   return isMolecule(molecule) ? molecule.nodesOnTheScreen : [];
 }
 
+/**
+ * How the project is built: Code atoms against built-in atoms, counted in the
+ * project's own molecules (imported GitHub molecules count once and aren't
+ * opened). Molecules, Inputs, and Outputs are structure, not counted as either.
+ */
+export function countAtomKinds(root) {
+  const counts = { code: 0, built_in: 0, molecules: 0, github_molecules: 0 };
+  const stack = [...children(root)];
+  while (stack.length) {
+    const atom = stack.pop();
+    if (atom.atomType === "GitHubMolecule") counts.github_molecules += 1;
+    else if (atom.atomType === "Molecule") {
+      counts.molecules += 1;
+      stack.push(...children(atom));
+    } else if (atom.atomType === "Code") counts.code += 1;
+    else if (atom.atomType !== "Output" && atom.atomType !== "Input") {
+      counts.built_in += 1;
+    }
+  }
+  return counts;
+}
+
+/** A nudge when Code atoms have taken the place of built-ins. */
+export function codeAtomAdvice({ code, built_in }) {
+  if (code < 2 || code * 4 <= built_in) return null;
+  return `${code} Code atoms against ${built_in} built-in atoms. Most parts should be built from built-in atoms (get_modeling_guide has a recipe for each common feature); rebuild Code atoms that only make boxes, cylinders, holes, patterns, or moves.`;
+}
+
 /** Depth-first walk of every atom below (and including) `root`. */
 function walk(root, visit) {
   const stack = [root];
@@ -1049,6 +1077,7 @@ const handlers = {
       .filter((a) => a.selected)
       .map(atomRef);
     const { errors } = collectErrors();
+    const atoms = countAtomKinds(top);
     return {
       project: projectInfo(),
       description: GlobalVariables.currentAWSnode?.description || "",
@@ -1063,6 +1092,8 @@ const handlers = {
       open_molecule: atomRef(current),
       selected,
       error_count: errors.length,
+      atoms,
+      ...(codeAtomAdvice(atoms) ? { advice: codeAtomAdvice(atoms) } : {}),
       edits_enabled: ctx.mode === "edit",
       can_save: canSave(),
       page: typeof window !== "undefined" ? window.location.pathname : null,
@@ -2017,7 +2048,7 @@ const handlers = {
     };
   },
 
-  async add_atom({ type, molecule, name, x, y, reason, ref }) {
+  async add_atom({ type, molecule, name, x, y, reason, ref, params, inputs }) {
     const mol = resolveMolecule(molecule);
     assertEditableContainer(mol);
     const wanted = String(type).toLowerCase();
@@ -2083,6 +2114,21 @@ const handlers = {
       new AddAtomCommand(atom.uniqueID, mol, `Add ${atom.atomType}`),
     );
     atom.enable?.();
+
+    // Params before inputs: a connected input locks its param. Every edit
+    // tool runs in an undo group, so a failure here removes the new atom too.
+    const id = String(atom.uniqueID);
+    const set = [];
+    for (const [param, value] of Object.entries(params || {})) {
+      const r = await handlers.set_param({ atom: id, param, value });
+      set.push({ param: r.param, value: r.value });
+    }
+    const connected = [];
+    for (const [input, from] of Object.entries(inputs || {})) {
+      const r = await handlers.connect({ from, to: id, input });
+      connected.push({ input: r.input, from: r.from });
+    }
+
     const output = isMolecule(atom) ? atom.getOutputAtom?.() : null;
     return {
       ...atomRef(atom),
@@ -2091,6 +2137,8 @@ const handlers = {
         name: ap.name,
         type: ap.valueType,
       })),
+      ...(set.length ? { params: set } : {}),
+      ...(connected.length ? { connected } : {}),
       ...(output ? { output: atomRef(output) } : {}),
     };
   },

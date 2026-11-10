@@ -61,12 +61,20 @@ Exports, renders, and G-code go to `abundance-output/` in the directory the brid
 
 ## Built-ins and library molecules first
 
-The server instructions tell the agent to build with built-in atoms first, then shared GitHub molecules, and to write a Code atom only for what neither can do. The tools back that up:
+The server instructions tell the agent to build with built-in atoms first, then shared GitHub molecules, and to write a Code atom only for what neither can do.
 
+MCP clients cut server instructions short: Claude Code keeps about the first 4,000 characters. So `SERVER_INSTRUCTIONS` in `bridge/mcpServer.js` holds only the rules every session needs, and a test keeps it under 3,800 characters. The full workflow is `MODELING_GUIDE` in `bridge/modelingGuide.js`, which the agent reads with `get_modeling_guide`. Put new guidance there, or in the tool description where it applies.
+
+The tools back the rules up, because agents otherwise reach for a Code atom when it's fewer tool calls than a chain of built-ins:
+
+- `add_atom` is refused until the agent has called `get_modeling_guide` in that chat.
+- A Code atom is refused until the agent has called `list_atom_types` and `list_library_molecules` (or `search_molecules`), and it needs a `reason`, which appears in the user's undo history.
+- `set_code` is refused when the code only uses what built-in atoms do (boxes, cylinders, regular polygons, `translate`, `rotate`, `fuse`, `cut`, `intersect`). The error names the built-in atom for each call. Code that draws custom curves, lofts, revolves, or fillets passes, with advice when it also piles up primitive features. The check is in `bridge/codeAtomLint.js`.
+- `add_atom` takes `params` and `inputs`, so one call adds, sets up, and wires an atom, and built-ins cost no more tool calls than code.
+- `get_project` reports how many Code atoms and built-in atoms the project has, with advice when code has taken the place of built-ins.
 - `list_atom_types` describes every built-in atom with its inputs and defaults, read from the running app.
 - `list_library_molecules` returns the curated library in `src/agent/moleculeLibrary.json`: the 20 most-used public molecules, with their inputs.
 - `search_molecules` searches every public project, most used first, and `add_github_molecule` imports one as a read-only GitHub molecule.
-- `add_atom` refuses a Code atom without a `reason`, which appears in the user's undo history.
 
 Regenerate the library as usage changes, and add hand-written guidance for any molecule in `src/agent/moleculeLibrary.notes.json`:
 

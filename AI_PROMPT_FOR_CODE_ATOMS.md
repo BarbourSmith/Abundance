@@ -8,6 +8,8 @@ A code atom helps build **one physical part**, inside that part's own molecule. 
 
 Inside the part's molecule, use built-in atoms (Rectangle, Circle, Difference, Extrude, Rotate, Move, Tag, Add-BOM-Tag) and library molecules for everything they can do. Keep the code atom to the piece they can't, such as an unusual 2D outline, and return it so built-in atoms extrude, place, and tag it. Don't model slots or holes for mating parts: position the parts overlapping and let an Assembly cut them. The same goes for clearance around hardware already in the design, such as pockets over bolt heads: keepout shapes around the hardware, assembled after the part, cut them. Standard hardware such as bolts and nuts comes from shared molecules (search_molecules), not code. A code atom is never a way to fit many features in one place because built-ins would take many atoms; give each feature a molecule of its own.
 
+Code made only of boxes, cylinders, regular polygons, `translate`, `rotate`, `fuse`, `cut`, and `intersect` is refused by the agent bridge, because built-in atoms do all of it: Rectangle or Circle → Extrude for the solid, Rotate to point a cylinder along X or Y or lean a part, Move to place it, Difference or an Assembly for holes, and a pattern library molecule for repeated features. A code atom earns its place by drawing what those can't: a custom outline (`draw().lineTo()`, arcs, splines), a loft, revolve, or sweep, fillets, or a layout computed from inputs.
+
 ## Code Structure Requirements
 
 ### Default: TypeScript with `run()` Function
@@ -121,102 +123,71 @@ The Replicad library is available as the global `replicad`. Here are commonly us
 
 ## Common Patterns
 
-### 1. Basic Geometry Creation with Default Parameters
+Every example below draws something built-in atoms can't. Boxes, cylinders, polygons, holes, moves, rotations, and plain booleans are built-in atoms (Rectangle, Circle, RegularPolygon, Extrude, Move, Rotate, Difference, Fusion, Assembly), so they never get a code atom of their own.
+
+### 1. An Outline Computed from Inputs
+
+```typescript
+/** Teardrop outline: a round end of the given radius tapering to a point. */
+function run(radius: number = 15, length: number = 50): Assembly {
+  const angle = Math.asin(radius / length); // where the straight sides meet the circle
+  const tx = radius * Math.sin(angle);
+  const ty = radius * Math.cos(angle);
+  const outline = replicad
+    .draw([length, 0])
+    .lineTo([tx, ty])
+    .threePointArcTo([tx, -ty], [-radius, 0])
+    .close();
+  // Return the 2D outline; an Extrude atom beside this one gives it thickness.
+  return new Assembly({ geometry: outline, tags: ["teardrop"] });
+}
+```
+
+### 2. Revolving a Profile
+
+```typescript
+/** A turned knob: a profile drawn in XZ and revolved about Z. */
+function run(diameter: number = 30, height: number = 20): Assembly {
+  const r = diameter / 2;
+  const profile = replicad
+    .draw([0, 0])
+    .lineTo([r, 0])
+    .lineTo([r, height * 0.6])
+    .sagittaArcTo([0, height], r * 0.3)
+    .close();
+  const knob = profile.sketchOnPlane("XZ").revolve();
+  return new Assembly({ geometry: knob, color: "#333333", tags: ["knob"] });
+}
+```
+
+### 3. A Curved Slot
+
+An arc-shaped slot with round ends, such as an adjustment slot for a pivot. The code returns only the slot's outline; an Extrude atom makes it a cutter and a Difference atom cuts it from the part.
 
 ```typescript
 function run(
-  width: number = 40,
-  depth: number = 30,
-  height: number = 20,
-  color: string = "#5B9BD5",
+  radius: number = 40, // radius of the slot's centerline
+  width: number = 8, // slot width
+  sweepDeg: number = 60, // angle the slot covers
 ): Assembly {
-  // Create a box with one corner at origin
-  const box = replicad.makeBaseBox(width, depth, height);
-
-  // Center it by translating
-  const centered = box.translate(-width / 2, -depth / 2, 0);
-
-  // Wrap in Assembly with metadata
-  return new Assembly({
-    geometry: centered,
-    color: color,
-    tags: ["box"],
-    bom: [`Box ${width}×${depth}×${height} mm`],
-  });
-}
-```
-
-### 2. Creating and Extruding Sketches
-
-```typescript
-function run(radius: number = 10, height: number = 20): Assembly {
-  const cylinder = replicad.drawCircle(radius).sketchOnPlane().extrude(height);
-
-  return new Assembly({
-    geometry: cylinder,
-    color: "#FF6B6B",
-    tags: ["cylinder"],
-  });
-}
-```
-
-### 2b. Building Custom Sketches with Path Methods
-
-```typescript
-function run(width: number = 30, height: number = 20): Assembly {
-  // Build a custom shape using drawing chain
-  const customShape = replicad
-    .drawRectangle(width, height)
-    .moveTo(0, 0)
-    .lineTo(width / 2, height / 2) // draw diagonal line
+  const a = (sweepDeg * Math.PI) / 180;
+  const ro = radius + width / 2,
+    ri = radius - width / 2;
+  const pt = (r: number, t: number) => [r * Math.cos(t), r * Math.sin(t)];
+  // Each round end bulges out along the slot's direction at that end.
+  const endCapMid = [
+    radius * Math.cos(a) - (width / 2) * Math.sin(a),
+    radius * Math.sin(a) + (width / 2) * Math.cos(a),
+  ];
+  const startCapMid = [radius, -width / 2];
+  const outline = replicad
+    .draw(pt(ro, 0))
+    .threePointArcTo(pt(ro, a), pt(ro, a / 2)) // outer edge
+    .threePointArcTo(pt(ri, a), endCapMid) // far round end
+    .threePointArcTo(pt(ri, 0), pt(ri, a / 2)) // inner edge
+    .threePointArcTo(pt(ro, 0), startCapMid) // near round end
     .close();
-
-  const extruded = customShape.sketchOnPlane().extrude(10);
-
-  return new Assembly({
-    geometry: extruded,
-    tags: ["custom"],
-  });
-}
-```
-
-### 2c. Drawing with Curves
-
-```typescript
-function run(): Assembly {
-  const curved = replicad
-    .drawRectangle(20, 20)
-    .moveTo(10, 0)
-    .bezierCurveTo(15, 5, 15, 15, 10, 20) // cubic Bezier curve
-    .close();
-
-  return new Assembly({
-    geometry: curved.sketchOnPlane().extrude(5),
-  });
-}
-```
-
-### 3. Boolean Operations (Union & Cut)
-
-```typescript
-function run(baseSize: number = 40, holeRadius: number = 6): Assembly {
-  // Create base plate
-  const plate = replicad.makeBaseBox(baseSize, baseSize, 5);
-
-  // Create hole cutter
-  const holeCutter = replicad
-    .drawCircle(holeRadius)
-    .sketchOnPlane()
-    .extrude(7)
-    .translate(0, 0, -1); // Start below surface to ensure clean cut
-
-  // Cut the hole
-  const result = plate.cut(holeCutter);
-
-  return new Assembly({
-    geometry: result,
-    tags: ["plate-with-hole"],
-  });
+  return new Assembly({ geometry: outline, tags: ["slot"] });
 }
 ```
 
@@ -241,7 +212,11 @@ function run(
 When only a part's outline needs code, return the sketch and let Extrude, Rotate, Move, and Tag atoms in the molecule do the rest:
 
 ```typescript
-function run(width: number = 90, height: number = 580, sweep: number = 20): Assembly {
+function run(
+  width: number = 90,
+  height: number = 580,
+  sweep: number = 20,
+): Assembly {
   const offset = height * Math.tan((sweep * Math.PI) / 180);
   const outline = replicad
     .draw([0, 0])
@@ -306,53 +281,45 @@ function run(input: Assembly | undefined): Assembly {
 7. ❌ Using old JavaScript `Inputs` array syntax in new code
 8. ❌ Building several parts in one code atom instead of one molecule per part
 9. ❌ Cutting slots, tabs' mating holes, or dogbones for other parts by hand instead of letting an Assembly cut them
+10. ❌ Using a code atom for what built-in atoms do: boxes, cylinders (along any axis), hex heads, holes, moves, rotations, repeated features, and booleans of those. The agent bridge refuses such code.
 
 ## Example: Complete TypeScript Code Atom
 
 ```typescript
 /**
- * Mounting plate with optional countersunk holes.
+ * Disc cam outline from its motion: the follower rises by `lift` over
+ * `riseDeg` with a smooth (cycloidal) motion, dwells, then falls back over
+ * the same angle. Returns the 2D outline; in the cam's molecule an Extrude atom
+ * gives it thickness and a Circle with a Difference atom cuts the shaft bore.
  */
 function run(
-  width: number = 50,
-  depth: number = 40,
-  thickness: number = 5,
-  holeRadius: number = 4,
-  holeCount: number = 2,
-  color: string = "#4A90E2",
+  baseRadius: number = 25, // follower distance at its lowest
+  lift: number = 10, // how far the follower rises
+  riseDeg: number = 120, // cam rotation over which it rises (and falls)
+  steps: number = 180, // points around the outline
 ): Assembly {
-  console.log(
-    `Creating plate: ${width}×${depth}×${thickness} with ${holeCount} holes`,
-  );
-
-  // Create base plate, centered
-  let plate = replicad
-    .makeBaseBox(width, depth, thickness)
-    .translate(-width / 2, -depth / 2, 0);
-
-  // Create holes
-  for (let i = 0; i < holeCount; i++) {
-    const x = (i - (holeCount - 1) / 2) * (width / (holeCount + 1));
-    const holeCutter = replicad
-      .drawCircle(holeRadius)
-      .sketchOnPlane()
-      .extrude(thickness + 2)
-      .translate(x, 0, -1);
-
-    plate = plate.cut(holeCutter);
+  const rise = (riseDeg * Math.PI) / 180;
+  const radiusAt = (t: number) => {
+    if (t <= rise)
+      return (
+        baseRadius +
+        lift * (t / rise - Math.sin((2 * Math.PI * t) / rise) / (2 * Math.PI))
+      );
+    const fallStart = 2 * Math.PI - rise;
+    if (t >= fallStart) return radiusAt(2 * Math.PI - t);
+    return baseRadius + lift;
+  };
+  const points = [];
+  for (let i = 0; i < steps; i++) {
+    const t = (i / steps) * 2 * Math.PI;
+    const r = radiusAt(t);
+    points.push([r * Math.cos(t), r * Math.sin(t)]);
   }
-
-  // Soften top edges
-  plate = plate.fillet(0.5, (e) => e.inPlane("XY", thickness));
-
-  return new Assembly({
-    geometry: plate,
-    color: color,
-    tags: ["mounting-plate", "drilled"],
-    bom: [
-      `Mounting plate ${width}×${depth}×${thickness}mm with ${holeCount} holes`,
-    ],
-  });
+  let pen = replicad.draw(points[0]);
+  for (const p of points.slice(1)) pen = pen.lineTo(p);
+  const outline = pen.close();
+  console.log(`Cam: ${baseRadius} to ${baseRadius + lift} mm`);
+  return new Assembly({ geometry: outline, color: "#4A90E2", tags: ["cam"] });
 }
 ```
 
