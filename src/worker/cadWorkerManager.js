@@ -2,7 +2,15 @@ import { wrap } from "comlink";
 import {
   CAD_PROGRESS_MESSAGE_TYPE,
   CAD_BOOLEAN_INFLIGHT_TYPE,
+  CAD_WASM_CRASHED_TYPE,
 } from "./progress";
+
+/**
+ * How many worker crashes a call can be caught in before it is failed instead
+ * of replayed. A call that crashes every fresh worker would otherwise restart
+ * it forever.
+ */
+const MAX_CRASH_REPLAYS = 2;
 
 /**
  * Worker methods whose calls from the same atom supersede one another. A Code
@@ -11,6 +19,21 @@ import {
  * waiting to be sent when a newer one arrives for the same atom is dropped.
  */
 const SUPERSEDABLE_METHODS = new Set(["code"]);
+
+/** localStorage key for the user's stall timeout in seconds (Settings > Advanced). */
+export const CAD_TIMEOUT_STORAGE_KEY = "cadWorkerTimeoutSeconds";
+export const DEFAULT_CAD_TIMEOUT_SECONDS = 90;
+
+/** The user's stall timeout in seconds, or the default if unset or invalid. */
+export function savedCadTimeoutSeconds() {
+  try {
+    const seconds = Number(localStorage.getItem(CAD_TIMEOUT_STORAGE_KEY));
+    if (Number.isFinite(seconds) && seconds > 0) return seconds;
+  } catch {
+    // Storage can be unavailable (private mode, tests); use the default.
+  }
+  return DEFAULT_CAD_TIMEOUT_SECONDS;
+}
 
 /**
  * Wraps a comlink-based Web Worker with a per-call timeout watchdog.
@@ -246,6 +269,13 @@ export class CadWorkerManager {
         : null;
       return;
     }
+    // OpenCascade crashed in the worker (a WebAssembly trap or out of memory),
+    // so its memory may be corrupt and every later call in it can fail.
+    // Replace it and replay the pending calls, including the one that crashed.
+    if (data.type === CAD_WASM_CRASHED_TYPE) {
+      this._restartWorker("crash", String(data.message ?? ""));
+      return;
+    }
     if (data.type !== CAD_PROGRESS_MESSAGE_TYPE) {
       return;
     }
@@ -368,11 +398,12 @@ export class CadWorkerManager {
    * previously-scheduled timeout is cleared first, so calling this on each
    * progress report effectively keeps a making-progress operation alive.
    */
-  _armTimeout(entry) {
+  _armTimeout(entry, delayMs = this._timeoutMs) {
     if (entry.timeoutId) {
       clearTimeout(entry.timeoutId);
     }
-    entry.lastActivityAt = Date.now();
+    // A shorter delay means the entry has already been silent for the rest.
+    entry.lastActivityAt = Date.now() - (this._timeoutMs - delayMs);
     entry.timeoutId = setTimeout(() => {
       clearInterval(entry.progressIntervalId);
       entry.progressIntervalId = null;
@@ -438,7 +469,7 @@ export class CadWorkerManager {
       });
       entry.reject(new Error(message));
       this._restartWorker();
-    }, this._timeoutMs);
+    }, delayMs);
   }
 
   /**
@@ -685,6 +716,20 @@ export class CadWorkerManager {
   }
 
   /**
+   * Change the stall timeout (Settings > Advanced). Running calls keep the time
+   * they have already been silent, so lowering it can time one out at once.
+   * @param {number} timeoutMs
+   */
+  setTimeoutMs(timeoutMs) {
+    this._timeoutMs = timeoutMs;
+    for (const entry of this._pendingCalls) {
+      if (!entry.timeoutId) continue;
+      const silentMs = Date.now() - entry.lastActivityAt;
+      this._armTimeout(entry, Math.max(0, timeoutMs - silentMs));
+    }
+  }
+
+  /**
    * Snapshot of the current worker queue for diagnostics (System State Report).
    * The entry with a `startTime` is the queue head, whose watchdog is armed.
    * The worker runs calls concurrently, though, so a call further back may be
@@ -784,20 +829,30 @@ export class CadWorkerManager {
   }
 
   /**
-   * Terminate the hung worker and create a fresh one so the app can continue
-   * without a page reload.
+   * Terminate the hung or crashed worker and create a fresh one so the app can
+   * continue without a page reload.
    *
-   * The hung call has already been removed from `_pendingCalls` and rejected by
-   * the inactivity watchdog (`_armTimeout`) before this runs. The remaining
-   * entries are therefore innocent queued/in-flight calls: rather than rejecting
-   * them (which errored valid atoms as collateral damage), they are re-dispatched
-   * to the fresh worker so the rest of the queue resumes automatically. The
-   * exception is a call that a newer call from the same atom supersedes: it is
-   * dropped and only the newer call runs.
+   * After a timeout, the hung call has already been removed from
+   * `_pendingCalls` and rejected by the inactivity watchdog (`_armTimeout`)
+   * before this runs. The remaining entries are therefore innocent
+   * queued/in-flight calls: rather than rejecting them (which errored valid
+   * atoms as collateral damage), they are re-dispatched to the fresh worker so
+   * the rest of the queue resumes automatically. The exception is a call that
+   * a newer call from the same atom supersedes: it is dropped and only the
+   * newer call runs.
+   *
+   * After a crash, no call has been rejected: the crash usually means the
+   * worker ran out of memory, which any call could have tipped over, so all of
+   * them are replayed. A call caught in more than `MAX_CRASH_REPLAYS` crashes
+   * is failed instead.
+   * @param {"timeout" | "crash"} [reason]
+   * @param {string} [crashMessage] - What the crash reported, for "crash".
    */
-  _restartWorker() {
+  _restartWorker(reason = "timeout", crashMessage = "") {
     console.warn(
-      "[CadWorkerManager] CAD worker appears hung — terminating and restarting.",
+      reason === "crash"
+        ? `[CadWorkerManager] CAD worker crashed (${crashMessage}) — terminating and restarting.`
+        : "[CadWorkerManager] CAD worker appears hung — terminating and restarting.",
     );
 
     try {
@@ -811,7 +866,7 @@ export class CadWorkerManager {
     // already removed) and clear their stale timers. Their old comlink promises
     // belong to the now-terminated worker and will never settle; even if one
     // somehow did, the epoch stamp applied below makes `_dispatch` ignore it.
-    const survivors = [...this._pendingCalls];
+    let survivors = [...this._pendingCalls];
     survivors.forEach((entry) => {
       clearInterval(entry.progressIntervalId);
       entry.progressIntervalId = null;
@@ -821,6 +876,15 @@ export class CadWorkerManager {
       entry.announcedAt = null;
       entry.lastProgressAt = null;
     });
+
+    if (reason === "crash") {
+      survivors = survivors.filter((entry) => {
+        entry.crashReplays = (entry.crashReplays || 0) + 1;
+        if (entry.crashReplays <= MAX_CRASH_REPLAYS) return true;
+        this._failCrashedCall(entry, crashMessage);
+        return false;
+      });
+    }
 
     // Spawn the fresh worker (bumps `_workerEpoch`).
     this._createWorker();
@@ -867,13 +931,43 @@ export class CadWorkerManager {
 
     this._emitCadWorkerEvent("cad-worker-restarted", {
       restartedAt: Date.now(),
-      reason: "timeout",
+      reason,
     });
 
     if (this.onRestartCallback) {
       this.onRestartCallback(
-        "The geometry worker timed out. The offending operation was dropped and the remaining work resumed automatically.",
+        reason === "crash"
+          ? "The geometry worker crashed, probably by running out of memory. It was restarted and the unfinished work resumed automatically."
+          : "The geometry worker timed out. The offending operation was dropped and the remaining work resumed automatically.",
       );
     }
+  }
+
+  /**
+   * Fail a call that has been caught in too many worker crashes, instead of
+   * replaying it on yet another worker.
+   * @param {object} entry
+   * @param {string} crashMessage
+   */
+  _failCrashedCall(entry, crashMessage) {
+    this._pendingCalls = this._pendingCalls.filter((c) => c !== entry);
+    const failedAt = Date.now();
+    const message = `The CAD worker crashed ${entry.crashReplays} times while running this operation: ${crashMessage}`;
+    this._emitCadWorkerEvent("cad-worker-task-error", {
+      taskId: entry.taskId,
+      method: String(entry.method),
+      queuedAt: entry.queuedAt,
+      startedAt: entry.startTime,
+      failedAt,
+      durationMs: null,
+      queueWaitMs: null,
+      queueDepth: this._pendingCalls.length,
+      atomId: entry.taskMeta?.atomId || null,
+      atomType: entry.taskMeta?.atomType || null,
+      moleculeName: entry.taskMeta?.moleculeName || null,
+      displayLabel: this._formatTaskLabel(entry.method, entry.taskMeta),
+      error: message,
+    });
+    entry.reject(new Error(message));
   }
 }

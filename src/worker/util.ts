@@ -8,6 +8,7 @@ import {
   RequestContext,
 } from "./geometryProvider";
 import { installOcctWorkarounds } from "./occtWorkarounds";
+import { reportWasmCrash } from "./progress";
 
 const defaultColor: string = "#aad7f2";
 let loaded: boolean = false;
@@ -31,6 +32,16 @@ const init = async (logMetrics: boolean = true): Promise<boolean> => {
 };
 
 /**
+ * Size in bytes of the OpenCascade WASM linear memory, or 0 before init.
+ * Emscripten only grows this memory, so it is the high-water mark of what
+ * OpenCascade has needed so far, not what it is using now. This build exports
+ * `wasmMemory` but not the `HEAPU8`/`HEAP8` views.
+ */
+function wasmHeapBytes(): number {
+  return ocModule?.wasmMemory?.buffer?.byteLength ?? 0;
+}
+
+/**
  * Periodically logs the size of the OpenCascade WASM linear-memory heap.
  *
  * Intended as a leak diagnostic: if the heap byte length climbs monotonically
@@ -52,9 +63,8 @@ function startHeapMonitor(
   let lastBytes: number | undefined = undefined;
   let peakBytes: number = 0;
   return setInterval(() => {
-    const heap = ocModule?.HEAPU8;
-    if (!heap) return; // OC not yet initialized
-    const bytes = heap.byteLength;
+    const bytes = wasmHeapBytes();
+    if (!bytes) return; // OC not yet initialized
     if (bytes > peakBytes) peakBytes = bytes;
     const delta = lastBytes === undefined ? 0 : bytes - lastBytes;
     lastBytes = bytes;
@@ -77,16 +87,27 @@ function startHeapMonitor(
  * never learned which operation failed or why. They become an Error naming the
  * OpenCascade exception, e.g. "OpenCascade failed: StdFail_NotDone (BRep_API:
  * command not done)".
+ *
+ * Errors that mean OpenCascade itself has crashed are reported to the main
+ * thread so it can restart the worker (see `noteWasmCrash`).
  */
 function toCloneableError(error: unknown): unknown {
+  if (error instanceof WebAssembly.RuntimeError) {
+    noteWasmCrash(error.message);
+  }
   if (error instanceof Error) return error;
   if (error instanceof WebAssembly.Exception) {
     let detail = "";
+    let type = "";
     try {
-      const [type, message] = ocModule.getExceptionMessage(error);
+      const [exceptionType, message] = ocModule.getExceptionMessage(error);
+      type = exceptionType;
       detail = message ? `: ${type} (${message})` : `: ${type}`;
     } catch {
       // Not a C++ exception from this OpenCascade module.
+    }
+    if (type === "Standard_OutOfMemory") {
+      noteWasmCrash(`OpenCascade ran out of memory${detail}`);
     }
     return new Error(`OpenCascade failed${detail}`);
   }
@@ -99,6 +120,21 @@ function toCloneableError(error: unknown): unknown {
   } catch {
     return new Error(String(error));
   }
+}
+
+let wasmCrashed = false;
+
+/**
+ * Records that OpenCascade has crashed, from a WebAssembly trap (such as
+ * "index out of bounds" when its memory is exhausted) or an out-of-memory
+ * exception. Its memory may now be corrupt, so every later operation in this
+ * worker can fail. The main thread is told once, and restarts the worker.
+ */
+function noteWasmCrash(message: string): void {
+  if (wasmCrashed) return;
+  wasmCrashed = true;
+  console.error(`[wasm-crash] OpenCascade crashed: ${message}`);
+  reportWasmCrash(message);
 }
 
 interface SimplePlane {
@@ -844,6 +880,7 @@ export {
   withAssemblyBoundingBoxes,
   XYPlane,
   startHeapMonitor,
+  wasmHeapBytes,
   toCloneableError,
   EMPTY_ASSEMBLY,
 };

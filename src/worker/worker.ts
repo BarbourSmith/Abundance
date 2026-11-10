@@ -8,7 +8,6 @@ import {
 import { expose } from "comlink";
 import type { AnyShape, Edge, Shape3D } from "replicad";
 import * as replicad from "replicad";
-import { getOC } from "replicad";
 import { drawSVG } from "replicad-decorate";
 import { chamfer, extrude, fillet, move, rotate, scale } from "./actions";
 import { executeCode as code } from "./code";
@@ -22,6 +21,7 @@ import {
 } from "./cutlayout";
 import { RequestContext } from "./geometryProvider";
 import { reportCadProgress } from "./progress";
+import { outlineProjection } from "./projectionOutline";
 import {
   assembly,
   difference,
@@ -55,15 +55,11 @@ interface TaskSnapshot {
 
 function _takeSnapshot(): TaskSnapshot {
   const counts = getReplicadLiveCounts();
-  let wasmHeapBytes = 0;
-  try {
-    wasmHeapBytes =
-      (getOC() as unknown as { HEAP8?: { buffer?: { byteLength?: number } } })
-        .HEAP8?.buffer?.byteLength ?? 0;
-  } catch {
-    // getOC() throws before init; ignore
-  }
-  return { live: counts.live, registered: counts.registered, wasmHeapBytes };
+  return {
+    live: counts.live,
+    registered: counts.registered,
+    wasmHeapBytes: util.wasmHeapBytes(),
+  };
 }
 
 function _logTaskMetrics(
@@ -214,12 +210,16 @@ function visExport(
           context,
         )) as AnyShape;
 
-        const drawing = util.replicad.drawProjection(shape3d, "bottom").visible;
+        const drawing = outlineProjection(
+          util.replicad.drawProjection(shape3d, "bottom").visible,
+          shape3d,
+        );
 
         const cachedGeom = await util.geometryProvider!.addSingularToCache(
           drawing,
           context,
-          "export",
+          // Named apart from the fragmented projections stored before
+          "exportOutline",
           [fileType, input],
         );
         finalGeometry = {
@@ -297,10 +297,10 @@ async function downExport(
         fusedGeometry.geometry,
         context,
       )) as AnyShape;
-      const drawingResult = util.replicad.drawProjection(
+      const drawingResult = outlineProjection(
+        util.replicad.drawProjection(shape3d, "bottom").visible,
         shape3d,
-        "bottom",
-      ).visible;
+      );
 
       if ("toSVG" in drawingResult == false) {
         throw new Error("SVG export requires 2D geometry");
@@ -365,6 +365,46 @@ async function importingSTEP(
 }
 
 /**
+ * Read an STL file into a BRep solid with replicad.
+ *
+ * replicad's importSTL expects OpenCascade's StlAPI_Reader to return the
+ * triangles sewn into one shell. The OpenCascade build replicad-opencascadejs
+ * 1.0 ships returns them as a compound of loose faces instead, so importSTL
+ * throws Standard_TypeMismatch on every file. This does the same steps with
+ * the sewing replicad's makeSolid does: read the triangles, sew them into a
+ * solid (or a shell when the mesh isn't closed), then merge coplanar
+ * triangles into single faces.
+ */
+async function readSTLAsSolid(file: Blob): Promise<AnyShape> {
+  const oc = replicad.getOC();
+  const [r, gc] = replicad.localGC();
+  const fileName = `stl-import-${crypto.randomUUID()}.stl`;
+  oc.FS.writeFile(`/${fileName}`, new Uint8Array(await file.arrayBuffer()));
+  try {
+    const reader = r(new oc.StlAPI_Reader());
+    const triangles = r(new oc.TopoDS_Shell());
+    if (!reader.Read(triangles, fileName)) {
+      throw new Error("Failed to load STL file");
+    }
+    const faces = replicad.cast(triangles).faces;
+    if (faces.length === 0) {
+      throw new Error("STL file contains no triangles");
+    }
+    let sewn: AnyShape;
+    try {
+      sewn = replicad.makeSolid(faces);
+    } catch {
+      // Not a closed mesh: keep it as an open shell.
+      sewn = replicad.weldShellsAndFaces(faces, true);
+    }
+    return sewn.simplify();
+  } finally {
+    oc.FS.unlink(`/${fileName}`);
+    gc();
+  }
+}
+
+/**
  * Imports an STL file and stores the resulting geometry in the library.
  * @param {File} file - The STL file to import
  */
@@ -373,7 +413,7 @@ async function importingSTL(
   context: RequestContext,
 ): Promise<AbundanceObject> {
   await started;
-  const STLresult = await util.replicad.importSTL(file);
+  const STLresult = await readSTLAsSolid(file);
   if (!util.geometryProvider!.isShape3D(STLresult)) {
     throw new Error(
       "Imported STL file describes a " +
@@ -895,16 +935,17 @@ if (
     forwardWorkerLog("warn", args);
     originalWarn(...args);
   };
+  // Converting the error also reports an OpenCascade crash to the main thread.
   self.addEventListener("error", (event) => {
+    util.toCloneableError(event.error);
     forwardWorkerLog("error", [
       event.message || event.error || "uncaught worker error",
     ]);
   });
   self.addEventListener("unhandledrejection", (event) => {
-    forwardWorkerLog("error", [
-      "unhandledrejection:",
-      (event as PromiseRejectionEvent).reason,
-    ]);
+    const reason = (event as PromiseRejectionEvent).reason;
+    util.toCloneableError(reason);
+    forwardWorkerLog("error", ["unhandledrejection:", reason]);
   });
 
   const handlers = {
@@ -1028,6 +1069,7 @@ export {
   getBoundingBox,
   importingSTEP,
   importingSTL,
+  readSTLAsSolid,
   importingSVG,
   intersect,
   isAssembly,

@@ -10,6 +10,7 @@ import {
   featuredModelUrl,
 } from "../../js/featuredModels.js";
 import "../../styles/landing.css";
+import { GUIDE_CLIPS } from "../../js/guideClips.js";
 
 /** How long each featured model is shown before moving to the next. */
 const FEATURED_ROTATION_MS = 12000;
@@ -131,28 +132,6 @@ const FEATURES = [
         <path d="M18 16l.8 2.2L21 19l-2.2.8L18 22l-.8-2.2L15 19l2.2-.8z" />
       </g>
     ),
-  },
-];
-
-/** The user guide's feature recordings, with the guide section each explains. */
-const GUIDE_CLIPS = [
-  {
-    src: "/videos/runmode_small.mp4",
-    alt: "Changing a seat's height and width in run mode",
-    title: "Share a project anyone can resize",
-    section: "run-mode",
-  },
-  {
-    src: "/videos/ai_small.mp4",
-    alt: "Turning a sketch into a design with an AI agent",
-    title: "Go from a sketch to a model with AI",
-    section: "working-with-an-ai-agent",
-  },
-  {
-    src: "/videos/gcode_small.mp4",
-    alt: "Generating CNC toolpaths",
-    title: "Send it to your CNC with built-in CAM",
-    section: "gcode",
   },
 ];
 

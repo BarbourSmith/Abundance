@@ -8,6 +8,7 @@ import React, {
 import GlobalVariables from "../js/globalvariables.js";
 import { meshKey } from "../js/displayScheduler.js";
 import { fetchGitHubFileContent } from "../js/githubFileUtils.js";
+import { hasUserSetThumbnail } from "../js/userThumbnail.js";
 import { encodeProjectContentForGitHub } from "../js/projectContentCodec.js";
 import {
   hasProjectChanges,
@@ -1578,6 +1579,9 @@ export function ProjectProvider({ children, cad, loadProject }) {
           const pngUrl = `https://raw.githubusercontent.com/${owner}/${repo}/main/project.png`;
           attributeUpdates.pngURL = pngUrl;
           attributeUpdates.userSetAsThumbnail = false; // Reset userSetAsThumbnail to false since we're updating the thumbnail
+        } else if (GlobalVariables.currentAWSnode.userSetAsThumbnail) {
+          // Record it for thumbnails found only in GitHub's history
+          attributeUpdates.userSetAsThumbnail = true;
         }
 
         const updateResponse = await fetch(apiUpdateUrl, {
@@ -1768,8 +1772,15 @@ export function ProjectProvider({ children, cad, loadProject }) {
         updateSaveProgress(5); //Set the state to 5% to show the progress bar
 
         let finalPNG = null;
-        // Generate PNG thumbnail for all saves (except auto saves on first time)
-        if (typeSave !== "Auto Save") {
+        // Generate a PNG thumbnail for user saves, unless the user set their own
+        if (
+          typeSave !== "Auto Save" &&
+          !(await hasUserSetThumbnail(
+            octokitRef.current,
+            GlobalVariables.currentUser,
+            GlobalVariables.currentAWSnode.repoName,
+          ))
+        ) {
           finalPNG = await generateProjectThumbnail().catch((error) => {
             console.error(
               "Error generating final project thumbnail PNG: ",

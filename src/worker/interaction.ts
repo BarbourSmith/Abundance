@@ -49,6 +49,7 @@ class FailedCutError extends Error {
 async function loftShapes(
   sketches: AbundanceObject[],
   context: RequestContext,
+  smooth = false,
 ): Promise<AbundanceObject> {
   await util.init();
   const loftArgsDeep = await Promise.all(
@@ -125,6 +126,7 @@ async function loftShapes(
         targets.map((t) => t.geometry),
         startPoint ? startPoint.geometry : undefined,
         endpoint ? endpoint.geometry : undefined,
+        smooth,
         context,
       );
     } else {
@@ -133,6 +135,7 @@ async function loftShapes(
         targets.map((t) => t.plane),
         startPoint ? startPoint.geometry : undefined,
         endpoint ? endpoint.geometry : undefined,
+        smooth,
         context,
       );
     }

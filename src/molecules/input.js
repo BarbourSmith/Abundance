@@ -15,6 +15,25 @@ function isGeometry(value) {
 }
 
 /**
+ * The default values of an array Input. When every entry is a number, they
+ * come back as numbers: the editor saves what's typed as text, so older
+ * projects have ["1", "2.5"].
+ */
+export function arrayDefaults(options) {
+  if (!Array.isArray(options)) return [];
+  const numeric =
+    options.length > 0 &&
+    options.every(
+      (entry) =>
+        (typeof entry === "number" && Number.isFinite(entry)) ||
+        (typeof entry === "string" &&
+          entry.trim() !== "" &&
+          Number.isFinite(Number(entry))),
+    );
+  return numeric ? options.map(Number) : [...options];
+}
+
+/**
  * This class creates the input atom.
  */
 export default class Input extends Atom {
@@ -134,6 +153,12 @@ export default class Input extends Atom {
       (this.value === 10 || this.value === null || this.value === undefined)
     ) {
       this.value = this.options[0];
+    }
+
+    // An array Input outputs its default values, not the number default.
+    if (this.type === "array") {
+      this.options = arrayDefaults(this.options);
+      if (!Array.isArray(this.value)) this.value = [...this.options];
     }
 
     if (this.fileType && this.importOptions.includes(this.fileType)) {
@@ -352,6 +377,10 @@ export default class Input extends Atom {
           this.setWaiting();
           return true;
         }
+        if (this.replaceStaleArrayValue()) {
+          this.setStatus(Status.READY, this.parentAP.getValue());
+          return true;
+        }
         if (apState.value !== null && apState.value !== undefined) {
           this.setStatus(Status.READY, apState.value);
           return true;
@@ -450,6 +479,8 @@ export default class Input extends Atom {
         this.scaleIncoming(parentState.value, factor, scaleRequest);
         return;
       }
+
+      if (this.replaceStaleArrayValue()) return; // re-entered with the array
 
       this.setStatus(parentState.status, parentState.value);
 
@@ -1093,6 +1124,8 @@ export default class Input extends Atom {
         } else {
           this.alertingErrorHandler()(err);
         }
+        this.refreshImportPanel();
+        window.dispatchEvent(new CustomEvent("import-file-needed"));
       });
   }
 
@@ -1222,11 +1255,13 @@ export default class Input extends Atom {
 
       // Update parent AP options with file metadata
       this.updateParentAPOptions();
+      this.refreshImportPanel();
 
       return result;
     } catch (error) {
       console.error("Error processing local file content:", error);
       this.alertingErrorHandler()(error);
+      this.refreshImportPanel();
       throw error;
     }
   }
@@ -1234,7 +1269,7 @@ export default class Input extends Atom {
   /**
    * Trigger file upload using FileImportContext
    */
-  loadFile(type, setInputChanged, onSave) {
+  loadFile(type, setInputChanged) {
     // Use the new FileImportContext approach
     const input = document.createElement("input");
     input.type = "file";
@@ -1244,8 +1279,16 @@ export default class Input extends Atom {
     input.onchange = async (event) => {
       const file = event.target.files[0];
       if (file) {
+        // Only create mode commits files to the project's repository. Run
+        // mode and other views read the file in the browser, so a visitor
+        // trying their own file never touches the creator's repository.
+        const uploadToRepo = Boolean(
+          GlobalVariables.importUploadsEnabled && GlobalVariables.uploadFile,
+        );
+
         // Delete previous file if exists (only if it was uploaded to GitHub)
         if (
+          uploadToRepo &&
           this.fileName &&
           this.fileSha &&
           GlobalVariables.deleteFile &&
@@ -1256,13 +1299,7 @@ export default class Input extends Atom {
 
         this.fileType = type;
 
-        // Check if we should process locally (unauthenticated or no upload function)
-        // Use GlobalVariables.saveProject if onSave is not provided
-        const saveCallback = onSave || GlobalVariables.saveProject;
-        const shouldProcessLocally =
-          !GlobalVariables.uploadFile || !saveCallback;
-
-        if (shouldProcessLocally) {
+        if (!uploadToRepo) {
           // Process file locally without GitHub upload
           try {
             await this.processFileLocally(file, type);
@@ -1280,7 +1317,7 @@ export default class Input extends Atom {
             typeof setInputChanged === "function" ? setInputChanged : null;
 
           this.isLocalFile = false; // Mark as GitHub file
-          GlobalVariables.uploadFile(file, this, saveCallback);
+          GlobalVariables.uploadFile(file, this);
 
           // Call input changed callback after file name is set
           if (inputChangedCallback) {
@@ -1294,6 +1331,26 @@ export default class Input extends Atom {
 
     document.body.appendChild(input);
     input.click();
+  }
+
+  /**
+   * Whether this is an import input still waiting for someone to pick a
+   * file: none was saved with the project, or the saved one failed to load.
+   */
+  needsFile() {
+    return (
+      this.type === "import" && (!this.fileName || this.status === Status.ERROR)
+    );
+  }
+
+  /**
+   * Ask the panel listing this input on its molecule to rebuild, so its
+   * import button and file note match the file's current state.
+   */
+  refreshImportPanel() {
+    if (typeof this._panelSetInputChanged === "function") {
+      this._panelSetInputChanged(String(Date.now()));
+    }
   }
 
   /**
@@ -1419,6 +1476,48 @@ export default class Input extends Atom {
         dropdownOptions: Array.isArray(this.options) ? [...this.options] : [],
         inputAtom: this,
       };
+    }
+  }
+
+  /**
+   * Projects saved before array Inputs had a real default hold 10 for them.
+   * Replace a value that isn't an array with the defaults, unless something
+   * is wired in. Returns true if it replaced one.
+   */
+  replaceStaleArrayValue() {
+    const ap = this.parentAP;
+    if (
+      this.type !== "array" ||
+      !ap ||
+      ap.status !== Status.READY ||
+      Array.isArray(ap.value) ||
+      ap.connectors.length > 0
+    ) {
+      return false;
+    }
+    ap.defaultValue = [...this.options];
+    ap.setValue([...this.options]);
+    return true;
+  }
+
+  /**
+   * Set an array Input's default values and send them downstream. A value
+   * set from outside (wired in, or changed in the parent's panel) is kept.
+   */
+  setArrayDefaults(values) {
+    const previous = Array.isArray(this.options)
+      ? arrayDefaults(this.options)
+      : [];
+    this.options = arrayDefaults(values);
+    if (!this.parentAP) return;
+    this.parentAP.options = this.options;
+    this.parentAP.defaultValue = [...this.options];
+    const current = this.parentAP.getValue();
+    const followsDefaults =
+      !Array.isArray(current) ||
+      JSON.stringify(arrayDefaults(current)) === JSON.stringify(previous);
+    if (this.parentAP.connectors.length === 0 && followsDefaults) {
+      this.parentAP.setValue([...this.options]);
     }
   }
 
@@ -1565,6 +1664,10 @@ export default class Input extends Atom {
               this.updateParentAPEdgeSelectOptions();
             } else if (newType === "faceselect") {
               this.updateParentAPFaceSelectOptions();
+            } else if (newType === "array") {
+              this.setArrayDefaults(
+                Array.isArray(this.options) ? this.options : [],
+              );
             } else if (
               this.parentAP.options?.importType ||
               this.parentAP.options?.dropdownType ||
@@ -1607,8 +1710,7 @@ export default class Input extends Atom {
                 "arrayOptions",
                 oldOptions,
                 (atom, oldVal) => {
-                  atom.options = oldVal;
-                  if (atom.parentAP) atom.parentAP.options = oldVal;
+                  atom.setArrayDefaults(oldVal);
                   if (typeof atom.setInputChanged === "function")
                     atom.setInputChanged(oldVal);
                 },
@@ -1616,10 +1718,7 @@ export default class Input extends Atom {
               ),
             );
           }
-          this.options = newArr;
-          if (this.parentAP) {
-            this.parentAP.options = this.options;
-          }
+          this.setArrayDefaults(newArr);
           this.setInputChanged(newArr);
         },
       };

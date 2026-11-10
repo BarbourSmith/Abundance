@@ -5,6 +5,11 @@ import CreatableSelect from "react-select/creatable";
 import topics from "../../js/maslowTopics.js";
 import Switch from "@mui/material/Switch";
 import { DevSettingsPanel } from "./DevSettingsModal.jsx";
+import {
+  CAD_TIMEOUT_STORAGE_KEY,
+  DEFAULT_CAD_TIMEOUT_SECONDS,
+  savedCadTimeoutSeconds,
+} from "../../worker/cadWorkerManager.js";
 
 export const DEVELOPER_TAB_INDEX = 4;
 
@@ -91,6 +96,7 @@ const SettingsPopUp = ({
     atomSize: Globalvariables.atomSize * 1000,
     projectDescription: Globalvariables.currentAWSnode.description,
     autoSaveDisabled: localStorage.getItem("autoSaveDisabled") === "true",
+    cadTimeoutSeconds: String(savedCadTimeoutSeconds()),
   });
 
   const handleValueChange = (event) => {
@@ -488,6 +494,41 @@ const SettingsPopUp = ({
               >
                 Applies immediately to all projects in this browser. Save your
                 changes manually while auto-save is disabled.
+              </p>
+            </div>
+            <div className="dev-setting-item">
+              <div className="dev-setting-checkbox">
+                <label htmlFor="cadTimeoutSeconds">CAD Timeout</label>
+                <input
+                  type="number"
+                  id="cadTimeoutSeconds"
+                  min={10}
+                  step={10}
+                  value={state.cadTimeoutSeconds}
+                  onChange={(event) => {
+                    setState({
+                      ...state,
+                      cadTimeoutSeconds: event.target.value,
+                    });
+                    const seconds = Number(event.target.value);
+                    if (!Number.isFinite(seconds) || seconds <= 0) return;
+                    localStorage.setItem(CAD_TIMEOUT_STORAGE_KEY, seconds);
+                    Globalvariables.cad?.setTimeoutMs(seconds * 1000);
+                  }}
+                  aria-describedby="cadTimeoutSeconds-description"
+                  style={{ width: 80 }}
+                />
+                <span>seconds</span>
+              </div>
+              <p
+                id="cadTimeoutSeconds-description"
+                className="dev-setting-description"
+              >
+                How long a CAD operation can go without reporting progress
+                before it's stopped and the CAD worker restarts. Raise it if a
+                slow boolean (a long Intersection or Cut) keeps timing out.
+                Default {DEFAULT_CAD_TIMEOUT_SECONDS}. Applies immediately in
+                this browser.
               </p>
             </div>
             <DevSettingsPanel />

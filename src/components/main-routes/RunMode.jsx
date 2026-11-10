@@ -25,7 +25,6 @@ import {
   useAppState,
   useRendering,
   useProject,
-  useFileImport,
 } from "../../contexts/index.js";
 import { useTutorial } from "../../tutorial/TutorialManager";
 import { TutorialOverlay } from "../../tutorial/TutorialOverlay";
@@ -134,6 +133,7 @@ function runMode({ processing, setProcessing }) {
     setRedirectType,
     setActiveAtom,
     setErrorNotification,
+    projectLoadCount,
   } = useAppState();
   const {
     mesh,
@@ -154,19 +154,12 @@ function runMode({ processing, setProcessing }) {
     computingLabel,
   } = useRendering();
   const { loadProject, loadProjectManager } = useProject();
-  const { uploadFile, deleteFile } = useFileImport();
 
   const navigate = useNavigate();
 
-  // Make file import functions available globally for atoms
-  useEffect(() => {
-    GlobalVariables.uploadFile = uploadFile;
-    GlobalVariables.deleteFile = deleteFile;
-    return () => {
-      GlobalVariables.uploadFile = null;
-      GlobalVariables.deleteFile = null;
-    };
-  }, [uploadFile, deleteFile]);
+  // Run mode doesn't expose uploadFile/deleteFile: a file picked for an
+  // import input here is read in the browser and never committed to (or
+  // deleted from) the project's repository.
 
   // Register render progress bar
   useProgressBar(
@@ -251,6 +244,22 @@ function runMode({ processing, setProcessing }) {
   const [expandedMenu, setExpandedMenu] = useState(
     GlobalVariables.isMobile() ? "none" : "params",
   );
+
+  // Open the controls when the project can't run until the visitor picks a
+  // file: an import input with no file saved, or one whose file failed to load.
+  useEffect(() => {
+    const openIfFileNeeded = () => {
+      const molecule = GlobalVariables.topLevelMolecule;
+      const needsFile = molecule?.nodesOnTheScreen?.some(
+        (atom) => atom.atomType === "Input" && atom.needsFile?.(),
+      );
+      if (needsFile) setExpandedMenu("params");
+    };
+    openIfFileNeeded();
+    window.addEventListener("import-file-needed", openIfFileNeeded);
+    return () =>
+      window.removeEventListener("import-file-needed", openIfFileNeeded);
+  }, [projectLoadCount]);
 
   useEffect(() => {
     console.log("Initializing canvas and context in RunMode.jsx");

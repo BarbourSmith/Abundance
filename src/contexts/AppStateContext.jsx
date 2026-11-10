@@ -1,4 +1,11 @@
-import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 const AppStateContext = createContext();
 
@@ -15,6 +22,15 @@ export function AppStateProvider({ children }) {
   const [redirectType, setRedirectType] = useState(null);
   const [errorNotification, setErrorNotificationRaw] = useState(null);
   const [notificationType, setNotificationType] = useState("error");
+  // Goes up each time a project finishes loading its atoms. The active atom
+  // is often set to the top-level molecule before its atoms arrive, and
+  // setting it again to the same object doesn't re-render, so panels that
+  // list the molecule's contents watch this instead.
+  const [projectLoadCount, setProjectLoadCount] = useState(0);
+  const markProjectLoaded = useCallback(
+    () => setProjectLoadCount((count) => count + 1),
+    [],
+  );
 
   const notificationTimeout = useRef(null);
 
@@ -60,6 +76,8 @@ export function AppStateProvider({ children }) {
     setErrorNotification,
     notificationType,
     setNotification,
+    projectLoadCount,
+    markProjectLoaded,
   };
 
   return (

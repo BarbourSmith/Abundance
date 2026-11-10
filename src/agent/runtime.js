@@ -78,7 +78,12 @@ export function searchTerms(query) {
   const words = String(query || "")
     .toLowerCase()
     .split(/[^a-z0-9]+/)
-    .filter((w) => w.length >= 3 && !SEARCH_STOP_WORDS.has(w));
+    // Keep short sizes such as "m3" and "m8", which mix letters and digits.
+    .filter(
+      (w) =>
+        (w.length >= 3 || (/\d/.test(w) && /[a-z]/.test(w))) &&
+        !SEARCH_STOP_WORDS.has(w),
+    );
   const stems = words.map((word) => {
     let stem = word;
     for (let i = 0; i < 2; i++) {
@@ -995,6 +1000,10 @@ function requestActiveAtom(atom) {
 
 function canSave() {
   return typeof agentBridge.saveHandler === "function";
+}
+
+function canOpenPullRequest() {
+  return typeof agentBridge.pullRequestHandler === "function";
 }
 
 // ---------------------------------------------------------------------------
@@ -2266,9 +2275,17 @@ const handlers = {
         "This tab can't save: saving is only available in the editor for a project the user can write to.",
       );
     }
-    return agentBridge.saveHandler(
-      reason || "The AI agent asked to save the project.",
-    );
+    return agentBridge.saveHandler(reason || "Saved by the AI agent");
+  },
+
+  async open_pull_request({ title, description }) {
+    if (!canOpenPullRequest()) {
+      throw new ToolError(
+        ERROR_CODES.CONFLICT,
+        "This tab can't open a pull request: that's only available in the editor for a project the user can write to.",
+      );
+    }
+    return agentBridge.pullRequestHandler({ title, description });
   },
 };
 
@@ -2496,7 +2513,8 @@ export async function runTool(name, args = {}, ctx = { mode: "read" }) {
   if (
     tool.permission !== "edit" ||
     name === "undo" ||
-    name === "save_project"
+    name === "save_project" ||
+    name === "open_pull_request"
   ) {
     const result = await impl(args, ctx);
     if (name === "undo") notifyEdit({ tool: name });

@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState } from "react";
 import ThumbnailDialog from "../components/dialogs/ThumbnailDialog.jsx";
 import GlobalVariables from "../js/globalvariables.js";
 import { useAuth } from "./AuthContext.jsx";
+import { USER_THUMBNAIL_COMMIT } from "../js/userThumbnail.js";
 
 const ThumbnailDialogContext = createContext();
 
@@ -60,7 +61,7 @@ export function ThumbnailDialogProvider({ children }) {
         owner,
         repo,
         path: "project.png",
-        message: "Update project thumbnail",
+        message: USER_THUMBNAIL_COMMIT,
         content: base64Data,
       };
 

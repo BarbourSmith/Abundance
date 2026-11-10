@@ -23,11 +23,19 @@ import {
   convertToDisplayName,
   convertToGithubName,
 } from "../../js/projectNameUtils.js";
-import DropdownSectionDisplay from "./DropdownSectionDisplay.jsx";
+import GettingStartedShowcase from "./GettingStartedShowcase.jsx";
+import {
+  HELP_THUMBNAILS,
+  TUTORIAL_THUMBNAILS,
+} from "../../js/gettingStartedThumbnails.js";
 import FAQDisplay from "./FAQDisplay.jsx";
 import PRNotificationIcon from "../secondary/PRNotificationIcon.jsx";
 import InitialLog from "./InitialLog.jsx";
-import { useRotatingFeaturedImage } from "../../hooks/useRotatingFeaturedImage.js";
+import FeaturedShowcase, {
+  LikeScore,
+  ProjectThumbnail,
+} from "./FeaturedShowcase.jsx";
+import { displayName } from "../../js/featuredShelves.js";
 import {
   getThumbnailUrl,
   markImageFailed,
@@ -118,6 +126,17 @@ const AddProject = ({
     });
   }
 
+  // Featured: a spotlight and themed shelves instead of the sortable list
+  if (projectToShow === "featured") {
+    return (
+      <div className="projects-and-filters-container">
+        <div className="project-items-wrapper">
+          <FeaturedShowcase featured={nodes} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
       <div
@@ -191,19 +210,12 @@ const AddProject = ({
           <PRNotificationIcon allProjects={nodes} />
         )}
       </div>
-      <div
-        className="projects-and-filters-container"
-        style={
-          projectToShow == "featured" ? { flexDirection: "row" } : undefined
-        }
-      >
-        {projectToShow == "featured" ? <FeaturedCarousel /> : null}
+      <div className="projects-and-filters-container">
         <div
           className="project-items-wrapper"
           style={{
             display: "flex",
             flexDirection: "column",
-            maxHeight: "100%",
             ...(projectToShow == "featured" ? { width: "50%" } : null),
           }}
         >
@@ -255,105 +267,6 @@ const AddProject = ({
         </div>
       </div>
     </>
-  );
-};
-
-const FeaturedCarousel = () => {
-  const { imageUrl, loading, project } = useRotatingFeaturedImage(5000);
-  const navigate = useNavigate();
-
-  const handleCarouselClick = () => {
-    if (project) {
-      navigate(`/run/${project.owner}/${project.repoName}`);
-    }
-  };
-
-  return (
-    <div
-      id="featured-carousel"
-      style={{
-        width: "48%",
-        margin: "2%",
-        padding: "0px",
-        display: "flex",
-        maxHeight: "60vh",
-
-        justifyContent: "center",
-      }}
-    >
-      <div
-        onClick={handleCarouselClick}
-        style={{
-          width: "90%",
-          backgroundColor: "var(--abundance-color-hightlightOffWhite)",
-          padding: "20px",
-          borderRadius: "8px",
-          border: "1px solid #ccc",
-          boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
-          cursor: project ? "pointer" : "default",
-        }}
-      >
-        {loading ? (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              height: "30vh",
-              maxHeight: "30vh",
-              color: "#999",
-            }}
-          >
-            Loading...
-          </div>
-        ) : imageUrl ? (
-          <img
-            src={imageUrl}
-            alt={
-              project
-                ? `${project.owner}/${project.repoName}`
-                : "featured project"
-            }
-            style={{
-              width: "100%",
-              height: "auto",
-              maxHeight: "50vh",
-              borderRadius: "8px",
-              objectFit: "contain",
-            }}
-            onError={(e) => {
-              e.currentTarget.src =
-                import.meta.env.VITE_APP_PATH_FOR_PICS +
-                "/imgs/rotate_feature.png";
-            }}
-          />
-        ) : (
-          <img
-            src={
-              import.meta.env.VITE_APP_PATH_FOR_PICS +
-              "/imgs/rotate_feature.png"
-            }
-            alt="rotate feature"
-            style={{ width: "100%", maxHeight: "50vh", borderRadius: "8px" }}
-          />
-        )}
-        <p
-          style={{
-            fontSize: "13px",
-            marginTop: "10px",
-            textAlign: "center",
-            color: "#999",
-          }}
-        >
-          <a
-            href={`https://abundance.maslowcnc.com/run/${project ? `${project.owner}/${project.repoName}` : ""}`}
-            style={{ color: "#999", textDecoration: "none" }}
-          >
-            {project ? `${project.owner} / ${project.repoName}` : "unknown"}
-          </a>
-        </p>
-      </div>
-    </div>
   );
 };
 
@@ -511,6 +424,8 @@ export const ProjectDiv = ({
   };
 
   const ThumbItem = React.memo(({ node, svgCacheBuster }) => {
+    // Liked projects use the Featured tab's card style
+    const cardStyle = projectToShow === "liked";
     const [showQuickView, setShowQuickView] = useState(false);
     const [panelPosition, setPanelPosition] = useState({ top: 0, left: 0 });
     const hoverTimerRef = useRef(null);
@@ -565,9 +480,9 @@ export const ProjectDiv = ({
     return (
       <div
         ref={projectRef}
-        className={`project ${node.notFound ? "project-not-found" : ""}`}
+        className={`project ${cardStyle ? "liked-card" : ""} ${node.notFound ? "project-not-found" : ""}`}
         style={
-          node.owner != GlobalVariables.currentUser
+          node.owner != GlobalVariables.currentUser && !cardStyle
             ? {
                 backgroundColor: "rgb(233 221 242 / 58%)",
                 position: "relative",
@@ -587,123 +502,142 @@ export const ProjectDiv = ({
         onMouseEnter={handleProjectMouseEnter}
         onMouseLeave={handleProjectMouseLeave}
       >
-        <p className="project_name">{convertToDisplayName(node.repoName)}</p>
+        {cardStyle ? (
+          <>
+            <ProjectThumbnail
+              className="liked-card-image"
+              item={{ owner: node.owner, repoName: node.repoName, node }}
+              fallback={defaultThumbnail}
+            />
+            <span className="featured-card-name">
+              {displayName(node.repoName)}
+            </span>
+            <span className="featured-card-owner">{node.owner}</span>
+            <LikeScore node={node} />
+          </>
+        ) : (
+          <>
+            <p className="project_name">
+              {convertToDisplayName(node.repoName)}
+            </p>
 
-        <div style={{ position: "relative" }}>
-          <img
-            className="project_image"
-            src={getImageSrc(node)}
-            onError={({ currentTarget }) => {
-              currentTarget.onerror = null; // prevents looping
-              currentTarget.src = defaultThumbnail;
-              handleImageError(getThumbnailUrl(node));
-            }}
-            alt={node.repoName}
-          />
-          <div className="symbol-div">
-            {/* Ranking */}
-            <div className="ranking-icon">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                title={getRankingTooltip(node.ranking)}
+            <div style={{ position: "relative" }}>
+              <img
+                className="project_image"
+                src={getImageSrc(node)}
+                onError={({ currentTarget }) => {
+                  currentTarget.onerror = null; // prevents looping
+                  currentTarget.src = defaultThumbnail;
+                  handleImageError(getThumbnailUrl(node));
+                }}
+                alt={node.repoName}
+              />
+              <div className="symbol-div">
+                {/* Ranking */}
+                <div className="ranking-icon">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    title={getRankingTooltip(node.ranking)}
+                    style={{
+                      transform: "scale(.7)",
+                      fill: getRankingColor(node.ranking),
+                      alignSelf: "center",
+                      pointerEvents: "auto",
+                      cursor: "pointer",
+                    }}
+                    width="16"
+                    height="16"
+                  >
+                    <path d="M8 .2l4.9 15.2L0 6h16L3.1 15.4z" />
+                  </svg>
+                  <p
+                    style={{
+                      fontFamily: "Roboto, sans-serif",
+                      fontSize: ".7em",
+                      display: "inline",
+                      alignSelf: "center",
+                    }}
+                  >
+                    {node.ranking}
+                  </p>
+                </div>
+                {/* User Ranking (Likes) */}
+                <div className="ranking-icon">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    style={{
+                      transform: "scale(.7)",
+                      fill: "#d64545",
+                      alignSelf: "center",
+                    }}
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                  >
+                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                  </svg>
+                  <p
+                    style={{
+                      fontFamily: "Roboto, sans-serif",
+                      fontSize: ".7em",
+                      display: "inline",
+                      alignSelf: "center",
+                    }}
+                  >
+                    {typeof node.userRanking === "number"
+                      ? node.userRanking.toFixed(0)
+                      : node.userRanking || "0"}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Fork icon as bottom-left corner tab */}
+            {node.parentRepo ? (
+              <div
                 style={{
-                  transform: "scale(.7)",
-                  fill: getRankingColor(node.ranking),
-                  alignSelf: "center",
-                  pointerEvents: "auto",
+                  position: "absolute",
+                  bottom: "0",
+                  left: "0",
+                  backgroundColor: "var(--loginPopup-bg, #ffffff)",
+                  border: "1px solid #f3d2ff",
+                  borderRadius: "0 12px 0 12px",
+                  width: "22px",
+                  height: "22px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
                   cursor: "pointer",
-                }}
-                width="16"
-                height="16"
-              >
-                <path d="M8 .2l4.9 15.2L0 6h16L3.1 15.4z" />
-              </svg>
-              <p
-                style={{
-                  fontFamily: "Roboto, sans-serif",
-                  fontSize: ".7em",
-                  display: "inline",
-                  alignSelf: "center",
+                  transition: "all 0.2s ease",
                 }}
               >
-                {node.ranking}
-              </p>
-            </div>
-            {/* User Ranking (Likes) */}
-            <div className="ranking-icon">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                style={{
-                  transform: "scale(.7)",
-                  fill: "#d64545",
-                  alignSelf: "center",
-                }}
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-              >
-                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
-              </svg>
-              <p
-                style={{
-                  fontFamily: "Roboto, sans-serif",
-                  fontSize: ".7em",
-                  display: "inline",
-                  alignSelf: "center",
-                }}
-              >
-                {typeof node.userRanking === "number"
-                  ? node.userRanking.toFixed(0)
-                  : node.userRanking || "0"}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Fork icon as bottom-left corner tab */}
-        {node.parentRepo ? (
-          <div
-            style={{
-              position: "absolute",
-              bottom: "0",
-              left: "0",
-              backgroundColor: "var(--loginPopup-bg, #ffffff)",
-              border: "1px solid #f3d2ff",
-              borderRadius: "0 12px 0 12px",
-              width: "22px",
-              height: "22px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              cursor: "pointer",
-              transition: "all 0.2s ease",
-            }}
-          >
-            <svg
-              fill="#99659e"
-              fillOpacity={0.8}
-              width="14"
-              height="14"
-              viewBox="0 0 33.627 33.628"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <g>
-                <path
-                  d="M27.131,8.383c0-2.092-1.701-3.794-3.794-3.794s-3.793,1.702-3.793,3.794c0,0.99,0.39,1.885,1.013,2.561
-      c-0.474,2.004-1.639,2.393-4.167,3.029c-1.279,0.322-2.753,0.7-4.099,1.501V7.003c1.072-0.671,1.793-1.854,1.793-3.209
-      C14.084,1.702,12.382,0,10.292,0C8.199,0,6.497,1.702,6.497,3.794c0,1.356,0.722,2.539,1.795,3.21v19.62
-      c-1.073,0.671-1.795,1.854-1.795,3.21c0,2.092,1.702,3.794,3.795,3.794c2.092,0,3.793-1.702,3.793-3.794
-      c0-1.355-0.722-2.539-1.793-3.209v-3.846c0.496-3.768,2.321-4.232,5.075-4.926c2.527-0.637,5.955-1.513,7.048-5.852
-      C25.981,11.535,27.131,10.099,27.131,8.383z M10.292,2.002c0.988,0,1.793,0.805,1.793,1.794c0,0.989-0.806,1.793-1.793,1.793
-      c-0.989,0-1.795-0.805-1.795-1.793C8.498,2.806,9.302,2.002,10.292,2.002z M10.292,31.627c-0.989,0-1.795-0.807-1.795-1.794
-      c0-0.989,0.806-1.793,1.795-1.793c0.988,0,1.793,0.806,1.793,1.793C12.085,30.824,11.28,31.627,10.292,31.627z M23.337,10.177
-      c-0.989,0-1.793-0.805-1.793-1.793c0-0.989,0.806-1.794,1.793-1.794c0.988,0,1.794,0.805,1.794,1.794
-      C25.131,9.373,24.327,10.177,23.337,10.177z"
-                />
-              </g>
-            </svg>
-          </div>
-        ) : null}
+                <svg
+                  fill="#99659e"
+                  fillOpacity={0.8}
+                  width="14"
+                  height="14"
+                  viewBox="0 0 33.627 33.628"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <g>
+                    <path
+                      d="M27.131,8.383c0-2.092-1.701-3.794-3.794-3.794s-3.793,1.702-3.793,3.794c0,0.99,0.39,1.885,1.013,2.561
+          c-0.474,2.004-1.639,2.393-4.167,3.029c-1.279,0.322-2.753,0.7-4.099,1.501V7.003c1.072-0.671,1.793-1.854,1.793-3.209
+          C14.084,1.702,12.382,0,10.292,0C8.199,0,6.497,1.702,6.497,3.794c0,1.356,0.722,2.539,1.795,3.21v19.62
+          c-1.073,0.671-1.795,1.854-1.795,3.21c0,2.092,1.702,3.794,3.795,3.794c2.092,0,3.793-1.702,3.793-3.794
+          c0-1.355-0.722-2.539-1.793-3.209v-3.846c0.496-3.768,2.321-4.232,5.075-4.926c2.527-0.637,5.955-1.513,7.048-5.852
+          C25.981,11.535,27.131,10.099,27.131,8.383z M10.292,2.002c0.988,0,1.793,0.805,1.793,1.794c0,0.989-0.806,1.793-1.793,1.793
+          c-0.989,0-1.795-0.805-1.795-1.793C8.498,2.806,9.302,2.002,10.292,2.002z M10.292,31.627c-0.989,0-1.795-0.807-1.795-1.794
+          c0-0.989,0.806-1.793,1.795-1.793c0.988,0,1.793,0.806,1.793,1.793C12.085,30.824,11.28,31.627,10.292,31.627z M23.337,10.177
+          c-0.989,0-1.793-0.805-1.793-1.793c0-0.989,0.806-1.794,1.793-1.794c0.988,0,1.794,0.805,1.794,1.794
+          C25.131,9.373,24.327,10.177,23.337,10.177z"
+                    />
+                  </g>
+                </svg>
+              </div>
+            ) : null}
+          </>
+        )}
 
         {/* Quick view panel, portaled to body so it isn't clipped by scrollable ancestors */}
         {showQuickView &&
@@ -1100,6 +1034,8 @@ const getYouTubeThumbnail = (youtubeUrl) => {
     videoId = youtubeUrl.split("/embed/")[1];
   } else if (youtubeUrl.includes("watch?v=")) {
     videoId = youtubeUrl.split("watch?v=")[1];
+  } else if (youtubeUrl.includes("youtu.be/")) {
+    videoId = youtubeUrl.split("youtu.be/")[1].split("?")[0];
   }
   // Return high quality thumbnail, falls back to default if not available
   return videoId ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg` : "";
@@ -1449,7 +1385,8 @@ const ShowProjects = ({
                   setPageNumber(pageNumber - 1);
                 }
               }}
-              className="page_back_button"
+              className="page_back_button login-button login-button-outline"
+              aria-label="Previous page"
             >
               {"\u2190"}
             </button>
@@ -1457,7 +1394,8 @@ const ShowProjects = ({
 
           {lastKey ? (
             <button
-              className="page_forward_button"
+              className="page_forward_button login-button login-button-outline"
+              aria-label="Next page"
               onClick={() => {
                 if (lastKey != "") {
                   setPageNumber(pageNumber + 1);
@@ -1507,47 +1445,14 @@ const ShowProjects = ({
       label: "Getting Started",
       sections: [
         {
-          label: "User Resources",
-          value: [
-            {
-              label: "User Guide",
-              value: "userGuide",
-              thumbnail:
-                "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='bookGradient' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%23be3fe5;stop-opacity:1' /%3E%3Cstop offset='100%25' style='stop-color:%23c4a3d5;stop-opacity:1' /%3E%3C/linearGradient%3E%3ClinearGradient id='bookShine' x1='0%25' y1='0%25' x2='100%25' y2='0%25'%3E%3Cstop offset='0%25' style='stop-color:%23ffffff;stop-opacity:0.4' /%3E%3Cstop offset='100%25' style='stop-color:%23ffffff;stop-opacity:0' /%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='100' height='100' fill='%23f8f3fb'/%3E%3Cpath d='M 25 18 Q 22 18 22 21 L 22 79 Q 22 82 25 82 L 50 82 Q 52 82 52 80 L 52 20 Q 52 18 50 18 Z' fill='url(%23bookGradient)'/%3E%3Cpath d='M 50 20 Q 48 18 50 18 L 75 18 Q 78 18 78 21 L 78 79 Q 78 82 75 82 L 50 82 Q 52 82 52 80 L 52 20 Z' fill='url(%23bookGradient)' opacity='0.85'/%3E%3Cline x1='50' y1='18' x2='50' y2='82' stroke='%23fff' stroke-width='2' opacity='0.5'/%3E%3Cline x1='30' y1='35' x2='45' y2='35' stroke='%23fff' stroke-width='1.5' opacity='0.7'/%3E%3Cline x1='30' y1='46' x2='45' y2='46' stroke='%23fff' stroke-width='1.5' opacity='0.7'/%3E%3Cline x1='30' y1='57' x2='42' y2='57' stroke='%23fff' stroke-width='1.5' opacity='0.7'/%3E%3Cline x1='55' y1='35' x2='70' y2='35' stroke='%23fff' stroke-width='1.5' opacity='0.7'/%3E%3Cline x1='55' y1='46' x2='70' y2='46' stroke='%23fff' stroke-width='1.5' opacity='0.7'/%3E%3Cline x1='55' y1='57' x2='68' y2='57' stroke='%23fff' stroke-width='1.5' opacity='0.7'/%3E%3Crect x='25' y='18' width='25' height='64' fill='url(%23bookShine)' rx='2'/%3E%3C/svg%3E",
-              onClick: () => {
-                window.open("/user-guide", "_blank");
-              },
-            },
-            {
-              label: "FAQ",
-              value: "faq",
-              thumbnail:
-                "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Cdefs%3E%3CradialGradient id='qGradient' cx='40%25' cy='40%25' r='60%25'%3E%3Cstop offset='0%25' style='stop-color:%23be3fe5;stop-opacity:1' /%3E%3Cstop offset='100%25' style='stop-color:%23a855b8;stop-opacity:1' /%3E%3C/radialGradient%3E%3CradialGradient id='qShine' cx='35%25' cy='35%25' r='50%25'%3E%3Cstop offset='0%25' style='stop-color:%23ffffff;stop-opacity:0.6' /%3E%3Cstop offset='100%25' style='stop-color:%23ffffff;stop-opacity:0' /%3E%3C/radialGradient%3E%3C/defs%3E%3Crect width='100' height='100' fill='%23f8f3fb'/%3E%3Ccircle cx='50' cy='50' r='38' fill='url(%23qGradient)'/%3E%3Ccircle cx='50' cy='50' r='36' fill='none' stroke='%23c4a3d5' stroke-width='2.5' opacity='0.6'/%3E%3Ccircle cx='50' cy='50' r='30' fill='url(%23qShine)' opacity='0.5'/%3E%3Ctext x='50' y='58' font-size='48' font-weight='bold' fill='%23fff' text-anchor='middle' dominant-baseline='central' font-family='Arial'%3E?%3C/text%3E%3C/svg%3E",
-              onClick: () => {
-                setProjectsToShow("faq");
-              },
-            },
-            {
-              label: "Maslow Forums",
-              thumbnail:
-                "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='chatGradient1' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%23c4a3d5;stop-opacity:1' /%3E%3Cstop offset='100%25' style='stop-color:%23be3fe5;stop-opacity:1' /%3E%3C/linearGradient%3E%3ClinearGradient id='chatGradient2' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%23be3fe5;stop-opacity:0.9' /%3E%3Cstop offset='100%25' style='stop-color:%23a855b8;stop-opacity:1' /%3E%3C/linearGradient%3E%3CfilterEffect id='shadow' x='-50%25' y='-50%25' width='200%25' height='200%25'%3E%3CfeDropShadow dx='1' dy='1' stdDeviation='2' flood-opacity='0.3'/%3E%3C/filterEffect%3E%3C/defs%3E%3Crect width='100' height='100' fill='%23f8f3fb'/%3E%3Cpath d='M 15 28 Q 15 20 23 20 L 50 20 Q 58 20 58 28 L 58 48 Q 58 56 50 56 L 32 56 L 26 66 L 32 56 L 25 56 Q 15 56 15 48 Z' fill='url(%23chatGradient1)' filter='url(%23shadow)'/%3E%3Cpath d='M 48 62 Q 48 55 55 55 L 78 55 Q 85 55 85 62 L 85 70 Q 85 77 78 77 L 68 77 L 63 85 L 68 77 L 60 77 Q 52 77 52 70' fill='url(%23chatGradient2)' filter='url(%23shadow)'/%3E%3Ccircle cx='28' cy='36' r='2.5' fill='%23fff' opacity='0.8'/%3E%3Ccircle cx='38' cy='36' r='2.5' fill='%23fff' opacity='0.8'/%3E%3Ccircle cx='48' cy='36' r='2.5' fill='%23fff' opacity='0.8'/%3E%3C/svg%3E",
-              onClick: () => {
-                window.open(
-                  "https://forums.maslowcnc.com/c/software-issues/abundance/41",
-                  "_blank",
-                );
-              },
-            },
-          ],
-        },
-        {
           label: "Tutorials",
+          // They run in the editor, which needs a larger screen
+          desktopOnly: true,
           value: [
             {
               label: "Canvas Basics",
               value: "canvasBasics",
-              thumbnail:
-                "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Cdefs%3E%3CradialGradient id='singleAtomGrad' cx='35%25' cy='35%25' r='50%25'%3E%3Cstop offset='0%25' style='stop-color:%23be3fe5;stop-opacity:1' /%3E%3Cstop offset='100%25' style='stop-color:%23a855b8;stop-opacity:1' /%3E%3C/radialGradient%3E%3C/defs%3E%3Crect width='100' height='100' fill='%23f8f3fb'/%3E%3Ccircle cx='50' cy='50' r='20' fill='url(%23singleAtomGrad)' opacity='0.95'/%3E%3Ccircle cx='50' cy='50' r='18' fill='none' stroke='%23ffffff' stroke-width='2' opacity='0.4'/%3E%3Ccircle cx='50' cy='50' r='5' fill='%23ffffff' opacity='0.6'/%3E%3C/svg%3E",
+              thumbnail: TUTORIAL_THUMBNAILS.canvasBasics,
               onClick: () => {
                 fetchFirstOrCreateAndStartTutorial({
                   name: "Canvas Basics",
@@ -1558,8 +1463,7 @@ const ShowProjects = ({
             {
               label: "Abundance Basics",
               value: "gettingStarted",
-              thumbnail:
-                "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Cdefs%3E%3CradialGradient id='abGrad1' cx='35%25' cy='35%25' r='50%25'%3E%3Cstop offset='0%25' style='stop-color:%23be3fe5;stop-opacity:1' /%3E%3Cstop offset='100%25' style='stop-color:%23a855b8;stop-opacity:1' /%3E%3C/radialGradient%3E%3CradialGradient id='abGrad2' cx='35%25' cy='35%25' r='50%25'%3E%3Cstop offset='0%25' style='stop-color:%23c4a3d5;stop-opacity:1' /%3E%3Cstop offset='100%25' style='stop-color:%239d40b0;stop-opacity:1' /%3E%3C/radialGradient%3E%3C/defs%3E%3Crect width='100' height='100' fill='%23f8f3fb'/%3E%3Cline x1='28' y1='35' x2='52' y2='35' stroke='%23be3fe5' stroke-width='2' opacity='0.5' stroke-dasharray='2,2'/%3E%3Cline x1='48' y1='35' x2='72' y2='55' stroke='%23be3fe5' stroke-width='2' opacity='0.5' stroke-dasharray='2,2'/%3E%3Cline x1='72' y1='65' x2='50' y2='75' stroke='%23be3fe5' stroke-width='2' opacity='0.5' stroke-dasharray='2,2'/%3E%3Ccircle cx='20' cy='35' r='9' fill='url(%23abGrad1)' opacity='0.95'/%3E%3Ccircle cx='60' cy='35' r='9' fill='url(%23abGrad2)' opacity='0.9'/%3E%3Ccircle cx='80' cy='55' r='9' fill='url(%23abGrad1)' opacity='0.85'/%3E%3Ccircle cx='50' cy='75' r='9' fill='url(%23abGrad2)' opacity='0.8'/%3E%3Ccircle cx='20' cy='35' r='6' fill='none' stroke='%23ffffff' stroke-width='1.2' opacity='0.5'/%3E%3Ccircle cx='60' cy='35' r='6' fill='none' stroke='%23ffffff' stroke-width='1.2' opacity='0.5'/%3E%3Ccircle cx='80' cy='55' r='6' fill='none' stroke='%23ffffff' stroke-width='1.2' opacity='0.4'/%3E%3Ccircle cx='50' cy='75' r='6' fill='none' stroke='%23ffffff' stroke-width='1.2' opacity='0.4'/%3E%3Ccircle cx='20' cy='35' r='2.5' fill='%23ffffff' opacity='0.6'/%3E%3Ccircle cx='60' cy='35' r='2.5' fill='%23ffffff' opacity='0.6'/%3E%3Ccircle cx='80' cy='55' r='2.5' fill='%23ffffff' opacity='0.5'/%3E%3Ccircle cx='50' cy='75' r='2.5' fill='%23ffffff' opacity='0.5'/%3E%3C/svg%3E",
+              thumbnail: TUTORIAL_THUMBNAILS.gettingStarted,
               onClick: () => {
                 fetchFirstOrCreateAndStartTutorial({
                   name: "Abundance Basics",
@@ -1570,8 +1474,7 @@ const ShowProjects = ({
             {
               label: "Input Atoms",
               value: "inputsSteps",
-              thumbnail:
-                "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='inputStackGrad' x1='0%25' y1='0%25' x2='0%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%23be3fe5;stop-opacity:1' /%3E%3Cstop offset='100%25' style='stop-color:%23c4a3d5;stop-opacity:1' /%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='100' height='100' fill='%23f8f3fb'/%3E%3Cpolygon points='10,18 45,18 55,25 45,32 10,32' fill='url(%23inputStackGrad)' opacity='0.9' stroke='%23ffffff' stroke-width='1.2'/%3E%3Cpolygon points='10,45 45,45 55,52 45,59 10,59' fill='url(%23inputStackGrad)' opacity='0.7' stroke='%23ffffff' stroke-width='1.2'/%3E%3Cpolygon points='10,72 45,72 55,79 45,86 10,86' fill='url(%23inputStackGrad)' opacity='0.5' stroke='%23ffffff' stroke-width='1.2'/%3E%3C/svg%3E",
+              thumbnail: TUTORIAL_THUMBNAILS.inputsSteps,
               onClick: () => {
                 fetchFirstOrCreateAndStartTutorial({
                   name: "Input Atoms",
@@ -1582,8 +1485,7 @@ const ShowProjects = ({
             {
               label: "Assemblies",
               value: "assemblySteps",
-              thumbnail:
-                "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Cdefs%3E%3CradialGradient id='atomGrad1' cx='35%25' cy='35%25' r='50%25'%3E%3Cstop offset='0%25' style='stop-color:%23be3fe5;stop-opacity:1' /%3E%3Cstop offset='100%25' style='stop-color:%23a855b8;stop-opacity:1' /%3E%3C/radialGradient%3E%3CradialGradient id='atomGrad2' cx='35%25' cy='35%25' r='50%25'%3E%3Cstop offset='0%25' style='stop-color:%23c4a3d5;stop-opacity:1' /%3E%3Cstop offset='100%25' style='stop-color:%239d40b0;stop-opacity:1' /%3E%3C/radialGradient%3E%3C/defs%3E%3Crect width='100' height='100' fill='%23f8f3fb'/%3E%3Ccircle cx='35' cy='50' r='18' fill='url(%23atomGrad1)' opacity='0.95'/%3E%3Ccircle cx='65' cy='50' r='18' fill='url(%23atomGrad2)' opacity='0.95'/%3E%3Cpath d='M 53 48 L 47 52' stroke='%23be3fe5' stroke-width='3' opacity='0.7'/%3E%3Cpath d='M 53 50 L 47 50' stroke='%23be3fe5' stroke-width='3' opacity='0.7'/%3E%3Cpath d='M 53 52 L 47 48' stroke='%23be3fe5' stroke-width='3' opacity='0.7'/%3E%3Ccircle cx='35' cy='50' r='15' fill='none' stroke='%23ffffff' stroke-width='2' opacity='0.4'/%3E%3Ccircle cx='65' cy='50' r='15' fill='none' stroke='%23ffffff' stroke-width='2' opacity='0.4'/%3E%3Ccircle cx='35' cy='50' r='4' fill='%23ffffff' opacity='0.6'/%3E%3Ccircle cx='65' cy='50' r='4' fill='%23ffffff' opacity='0.6'/%3E%3C/svg%3E",
+              thumbnail: TUTORIAL_THUMBNAILS.assemblySteps,
               onClick: () => {
                 fetchFirstOrCreateAndStartTutorial({
                   name: "Assemblies",
@@ -1594,8 +1496,7 @@ const ShowProjects = ({
             {
               label: "Molecules",
               value: "Molecules",
-              thumbnail:
-                "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Cdefs%3E%3CradialGradient id='molAtomCenter' cx='35%25' cy='35%25' r='50%25'%3E%3Cstop offset='0%25' style='stop-color:%23be3fe5;stop-opacity:1' /%3E%3Cstop offset='100%25' style='stop-color:%238b2db5;stop-opacity:1' /%3E%3C/radialGradient%3E%3CradialGradient id='molAtomOuter' cx='35%25' cy='35%25' r='50%25'%3E%3Cstop offset='0%25' style='stop-color:%23c4a3d5;stop-opacity:1' /%3E%3Cstop offset='100%25' style='stop-color:%239d40b0;stop-opacity:1' /%3E%3C/radialGradient%3E%3C/defs%3E%3Crect width='100' height='100' fill='%23f8f3fb'/%3E%3Cline x1='50' y1='50' x2='30' y2='30' stroke='%23be3fe5' stroke-width='2.5' opacity='0.6'/%3E%3Cline x1='50' y1='50' x2='70' y2='30' stroke='%23be3fe5' stroke-width='2.5' opacity='0.6'/%3E%3Cline x1='50' y1='50' x2='70' y2='70' stroke='%23be3fe5' stroke-width='2.5' opacity='0.6'/%3E%3Cline x1='50' y1='50' x2='30' y2='70' stroke='%23be3fe5' stroke-width='2.5' opacity='0.6'/%3E%3Ccircle cx='50' cy='50' r='16' fill='url(%23molAtomCenter)' opacity='0.95'/%3E%3Ccircle cx='30' cy='30' r='10' fill='url(%23molAtomOuter)' opacity='0.85'/%3E%3Ccircle cx='70' cy='30' r='10' fill='url(%23molAtomOuter)' opacity='0.85'/%3E%3Ccircle cx='70' cy='70' r='10' fill='url(%23molAtomOuter)' opacity='0.85'/%3E%3Ccircle cx='30' cy='70' r='10' fill='url(%23molAtomOuter)' opacity='0.85'/%3E%3Ccircle cx='50' cy='50' r='13' fill='none' stroke='%23ffffff' stroke-width='1.5' opacity='0.3'/%3E%3Ccircle cx='30' cy='30' r='8' fill='none' stroke='%23ffffff' stroke-width='1.5' opacity='0.3'/%3E%3Ccircle cx='70' cy='30' r='8' fill='none' stroke='%23ffffff' stroke-width='1.5' opacity='0.3'/%3E%3Ccircle cx='70' cy='70' r='8' fill='none' stroke='%23ffffff' stroke-width='1.5' opacity='0.3'/%3E%3Ccircle cx='30' cy='70' r='8' fill='none' stroke='%23ffffff' stroke-width='1.5' opacity='0.3'/%3E%3C/svg%3E",
+              thumbnail: TUTORIAL_THUMBNAILS.Molecules,
               onClick: () => {
                 fetchFirstOrCreateAndStartTutorial({
                   name: "Molecules",
@@ -1604,10 +1505,9 @@ const ShowProjects = ({
               },
             },
             {
-              label: "Github Molecules",
+              label: "GitHub Molecules",
               value: "GitHubMolecule",
-              thumbnail:
-                "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Cdefs%3E%3CradialGradient id='molAtomCenter' cx='35%25' cy='35%25' r='50%25'%3E%3Cstop offset='0%25' style='stop-color:%23be3fe5;stop-opacity:1' /%3E%3Cstop offset='100%25' style='stop-color:%238b2db5;stop-opacity:1' /%3E%3C/radialGradient%3E%3CradialGradient id='molAtomOuter' cx='35%25' cy='35%25' r='50%25'%3E%3Cstop offset='0%25' style='stop-color:%23c4a3d5;stop-opacity:1' /%3E%3Cstop offset='100%25' style='stop-color:%239d40b0;stop-opacity:1' /%3E%3C/radialGradient%3E%3C/defs%3E%3Crect width='100' height='100' fill='%23f8f3fb'/%3E%3Cline x1='50' y1='50' x2='30' y2='30' stroke='%23be3fe5' stroke-width='2.5' opacity='0.6'/%3E%3Cline x1='50' y1='50' x2='70' y2='30' stroke='%23be3fe5' stroke-width='2.5' opacity='0.6'/%3E%3Cline x1='50' y1='50' x2='70' y2='70' stroke='%23be3fe5' stroke-width='2.5' opacity='0.6'/%3E%3Cline x1='50' y1='50' x2='30' y2='70' stroke='%23be3fe5' stroke-width='2.5' opacity='0.6'/%3E%3Ccircle cx='50' cy='50' r='16' fill='url(%23molAtomCenter)' opacity='0.95'/%3E%3Ccircle cx='30' cy='30' r='10' fill='url(%23molAtomOuter)' opacity='0.85'/%3E%3Ccircle cx='70' cy='30' r='10' fill='url(%23molAtomOuter)' opacity='0.85'/%3E%3Ccircle cx='70' cy='70' r='10' fill='url(%23molAtomOuter)' opacity='0.85'/%3E%3Ccircle cx='30' cy='70' r='10' fill='url(%23molAtomOuter)' opacity='0.85'/%3E%3Ccircle cx='50' cy='50' r='13' fill='none' stroke='%23ffffff' stroke-width='1.5' opacity='0.3'/%3E%3Ccircle cx='30' cy='30' r='8' fill='none' stroke='%23ffffff' stroke-width='1.5' opacity='0.3'/%3E%3Ccircle cx='70' cy='30' r='8' fill='none' stroke='%23ffffff' stroke-width='1.5' opacity='0.3'/%3E%3Ccircle cx='70' cy='70' r='8' fill='none' stroke='%23ffffff' stroke-width='1.5' opacity='0.3'/%3E%3Ccircle cx='30' cy='70' r='8' fill='none' stroke='%23ffffff' stroke-width='1.5' opacity='0.3'/%3E%3Cg transform='translate(50,50) scale(0.85)'%3E%3Cpath d='M -6 -4 C -8 -4 -9 -3 -9 -1 L -9 4 C -9 5 -8 6 -6 6 L -3 6 L -3 2 C -3 1 -2 0 -1 0 L 1 0 C 2 0 3 1 3 2 L 3 6 L 6 6 C 8 6 9 5 9 4 L 9 -1 C 9 -3 8 -4 6 -4 Z' fill='%23ffffff' opacity='0.9'/%3E%3Ccircle cx='-3' cy='-1' r='1' fill='%23ffffff' opacity='0.9'/%3E%3Ccircle cx='3' cy='-1' r='1' fill='%23ffffff' opacity='0.9'/%3E%3Cpath d='M -1 5 L 0 7 L 1 5' fill='%23ffffff' opacity='0.8'/%3E%3C/g%3E%3C/svg%3E",
+              thumbnail: TUTORIAL_THUMBNAILS.GitHubMolecule,
               onClick: () => {
                 fetchFirstOrCreateAndStartTutorial({
                   name: "GitHubMolecule",
@@ -1630,44 +1530,75 @@ const ShowProjects = ({
               ),
             },
             {
-              label: "Abundance - TAGS/EXTRACT TAG",
+              label: "Tags and Extract Tag",
               url: "https://www.youtube.com/watch?v=AwGbaCevFKc",
               thumbnail: getYouTubeThumbnail(
                 "https://www.youtube.com/watch?v=AwGbaCevFKc",
               ),
             },
             {
-              label: "Abundance- ASSEMBLIES AND FUSIONS",
+              label: "Assemblies and fusions",
               url: "https://www.youtube.com/watch?v=WU1Ou8ps9Bs",
               thumbnail: getYouTubeThumbnail(
                 "https://www.youtube.com/watch?v=WU1Ou8ps9Bs",
               ),
             },
             {
-              label: "Abundance - Github Molecules",
+              label: "GitHub molecules",
               url: "https://www.youtube.com/watch?v=HSGGM8ijP5I",
               thumbnail: getYouTubeThumbnail(
                 "https://www.youtube.com/watch?v=HSGGM8ijP5I",
               ),
             },
             {
-              label: "Abundance - Inputs",
+              label: "Inputs",
               url: "https://youtu.be/exlEQ5dIfHI",
               thumbnail: getYouTubeThumbnail("https://youtu.be/exlEQ5dIfHI"),
             },
             {
-              label: "Extruded Ellipse with the Code atom",
+              label: "An extruded ellipse with the Code atom",
               url: "https://www.youtube.com/watch?v=z9ti5OeI9TM",
               thumbnail: getYouTubeThumbnail(
                 "https://www.youtube.com/watch?v=z9ti5OeI9TM",
               ),
             },
             {
-              label: "Abundance - Make a custom sign with an svg",
+              label: "Make a custom sign from an SVG",
               url: "https://www.youtube.com/watch?v=9R-l8GRrO2c",
               thumbnail: getYouTubeThumbnail(
                 "https://www.youtube.com/watch?v=9R-l8GRrO2c",
               ),
+            },
+          ],
+        },
+        {
+          label: "Help and community",
+          value: [
+            {
+              label: "User Guide",
+              value: "userGuide",
+              thumbnail: HELP_THUMBNAILS.userGuide,
+              onClick: () => {
+                window.open("/user-guide", "_blank");
+              },
+            },
+            {
+              label: "FAQ",
+              value: "faq",
+              thumbnail: HELP_THUMBNAILS.faq,
+              onClick: () => {
+                setProjectsToShow("faq");
+              },
+            },
+            {
+              label: "Maslow Forums",
+              thumbnail: HELP_THUMBNAILS.forums,
+              onClick: () => {
+                window.open(
+                  "https://forums.maslowcnc.com/c/software-issues/abundance/41",
+                  "_blank",
+                );
+              },
             },
           ],
         },
@@ -1690,7 +1621,8 @@ const ShowProjects = ({
             <hr width="100%" color="#D3D3D3" />
           </div>
 
-          {projectToShow !== "featured" ? (
+          {projectToShow !== "featured" &&
+          projectToShow !== "getting_started" ? (
             <div className="search-bar-div">
               {PageComponent}
               <input
@@ -1729,13 +1661,13 @@ const ShowProjects = ({
           ) : null}
           {showDict[projectToShow]["sections"] ? (
             <>
-              <DropdownSectionDisplay
-                fetchFirstOrCreateAndStartTutorial={
-                  fetchFirstOrCreateAndStartTutorial
-                }
-                authorizedUserOcto={authorizedUserOcto}
-                sections={showDict[projectToShow]["sections"]}
-              />
+              <div className="projects-and-filters-container">
+                <div className="project-items-wrapper">
+                  <GettingStartedShowcase
+                    sections={showDict[projectToShow]["sections"]}
+                  />
+                </div>
+              </div>
             </>
           ) : null}
           {showDict[projectToShow]["faq"] ? (
@@ -1896,24 +1828,23 @@ function LoginMode() {
             to={`/${GlobalVariables.currentAWSnode.owner}/${GlobalVariables.currentAWSnode.repoName}`}
           >
             <button
-              className="longButton"
+              className="longButton login-button login-button-primary"
               onClick={() => {
                 setExportPopUp(false);
               }}
             >
-              <img></img>
-              <span> Return to project</span>
+              Return to project
             </button>
           </Link>
         ) : null}
         {isAuthorized ? (
           <button
-            className="longButton"
+            className="longButton login-button login-button-dark"
             onClick={() => {
               logoutHandler();
             }}
           >
-            <span> Log out </span>
+            Log out
           </button>
         ) : null}
       </div>
@@ -1957,6 +1888,20 @@ function LoginMode() {
                 }}
               >
                 <p>New project</p>
+              </div>
+              <div
+                className={
+                  "login-nav-item" +
+                  (projectToShow == "getting_started"
+                    ? " login-nav-item-clicked"
+                    : "")
+                }
+                onClick={() => {
+                  setProjectsToShow("getting_started");
+                  document.getElementById("menu-toggle").checked = false;
+                }}
+              >
+                <p>Getting started</p>
               </div>
               <div
                 className={

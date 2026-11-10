@@ -45,7 +45,7 @@ export default function RunParams({
       />
     </svg>
   );
-  const { activeAtom } = useAppState();
+  const { activeAtom, projectLoadCount } = useAppState();
 
   const [inputChanged, setInputChanged] = useState("");
 
@@ -109,7 +109,11 @@ export default function RunParams({
     values,
     setControlValue,
     { controls, registerControl, removeControl },
-  ] = useControls(inputParamsConfig, [activeAtom, inputChanged]);
+  ] = useControls(inputParamsConfig, [
+    activeAtom,
+    inputChanged,
+    projectLoadCount,
+  ]);
 
   const screenHeight = window.innerHeight;
 

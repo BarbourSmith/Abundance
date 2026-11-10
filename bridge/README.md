@@ -18,7 +18,7 @@ The browser tab connects out to the bridge. The website never accepts connection
    npm run bridge:token
    ```
 
-4. Open Abundance in Chrome or Firefox and open **Connect an AI agent**. In run mode it's the sparkle button in the column on the right. In the editor it's **AI Agent** in the menu. You can also add `#agent` to the end of any Abundance address. The same settings are in Developer Settings (Ctrl+Shift+D, or Cmd+Shift+D on a Mac).
+4. Open Abundance in Chrome or Firefox and open **Connect an AI agent**. In run mode it's the sparkle button in the column on the right. In the editor it's the sparkle button under the Run Mode button, or **AI Agent** in the menu. You can also add `#agent` to the end of any Abundance address. The same settings are in Developer Settings (Ctrl+Shift+D, or Cmd+Shift+D on a Mac).
 5. Paste the token, check the port, and turn on **Connect local AI agent**.
 
 A chip at the top of the window shows the connection. The agent starts read-only. Tick **Allow edits** in the chip to let it change the project. Edit permission resets to read-only whenever the page reloads.
@@ -49,7 +49,7 @@ npm publish
 | Always | `bridge_status`, `take_over_bridge`, `list_sessions`, `use_session` |
 | Read | `get_project`, `list_atoms`, `get_atom`, `list_atom_types`, `list_library_molecules`, `search_molecules`, `get_errors`, `wait_for_settle`, `get_state_report`, `get_worker_logs`, `get_bom`, `get_readme`, `check_geometry`, `check_interference`, `render_image`, `export_geometry`, `get_gcode`, `get_undo_history` |
 | View | `select_atom`, `open_molecule` |
-| Edit | `set_param`, `set_code`, `add_atom`, `add_github_molecule`, `import_file`, `connect`, `disconnect`, `delete_atoms`, `apply_edits`, `undo`, `save_project` |
+| Edit | `set_param`, `set_code`, `add_atom`, `add_github_molecule`, `import_file`, `connect`, `disconnect`, `delete_atoms`, `apply_edits`, `undo`, `save_project`, `open_pull_request` |
 
 The tool list and schemas live in `src/agent/tools.js`, shared by the page and the bridge. The page-side implementations are in `src/agent/runtime.js`.
 
@@ -81,7 +81,7 @@ npm run agent:library
 - **Pairing token.** A tab must present the token stored in `~/.abundance-bridge/token`. Regenerate it with `node bridge/index.js --new-token`.
 - **Read-only by default.** Edits need the user to tick Allow edits, which resets on reload.
 - **One undo step per agent change.** Every edit, and every batch from `apply_edits`, is a single entry labeled `AI:` in the user's undo history. A failed batch is rolled back. The agent's `undo` refuses to undo the user's own changes.
-- **No silent commits.** Autosave pauses while edits are allowed. `save_project` shows a confirmation, and only the user's click saves to GitHub.
+- **Saves go to the user's own repository.** Autosave keeps running while the agent edits, and `save_project` commits without asking, since every change is in the repository's history. `open_pull_request` only proposes changes to the original project; merging stays with its owner.
 - **No arbitrary code in the page.** There is no tool that runs JavaScript in the tab. Code atoms run in the CAD worker as they do for users.
 - **The GitHub token never leaves the page.**
 - **Imported GitHub molecules are read-only** to the agent, since they belong to another repository.

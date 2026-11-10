@@ -44,8 +44,9 @@ void started.then(() => util.startHeapMonitor("meshWorker"));
  * Display requests carry no operation id, so geometryProvider.get() reads
  * every leaf from IndexedDB and re-parses its BREP on every request. Clicking
  * back to something shown a moment ago paid that full cost again. Geometry ids
- * are content addressed, so a cached shape can never be stale; entries are
- * only evicted to bound memory.
+ * are content addressed, so a cached shape only goes stale when Recompute
+ * Project rebuilds the stored shapes, which calls forgetProject. Otherwise
+ * entries are only evicted to bound memory.
  *
  * workerpool runs one task at a time per worker, and eviction only happens
  * between tasks (see withShapeCache), so a shape is never deleted while a task
@@ -71,16 +72,30 @@ async function getShapeCached(
   return shape;
 }
 
+function evictShape(key: string): void {
+  const shape = shapeCache.get(key);
+  shapeCache.delete(key);
+  try {
+    (shape as { delete?: () => void } | undefined)?.delete?.();
+  } catch {
+    // Already freed; nothing to do.
+  }
+}
+
 function trimShapeCache(): void {
   while (shapeCache.size > SHAPE_CACHE_MAX_ENTRIES) {
-    const oldest = shapeCache.keys().next().value as string;
-    const shape = shapeCache.get(oldest);
-    shapeCache.delete(oldest);
-    try {
-      (shape as { delete?: () => void } | undefined)?.delete?.();
-    } catch {
-      // Already freed; nothing to do.
-    }
+    evictShape(shapeCache.keys().next().value as string);
+  }
+}
+
+/**
+ * Drops a project's cached shapes. Recompute Project rebuilds the stored
+ * shapes, and one stored broken can come back different under the same id.
+ */
+function forgetProject(project: string): void {
+  const prefix = `${project ?? ""}|`;
+  for (const key of [...shapeCache.keys()]) {
+    if (key.startsWith(prefix)) evictShape(key);
   }
 }
 
@@ -263,6 +278,70 @@ async function textMesh(text: string): Promise<DisplayMesh[]> {
   ];
 }
 
+const DRAWING_MESH_OPTIONS = { tolerance: 0.1, angularTolerance: 0.5 };
+
+/** A flat solid shown in place of a drawing, which has no faces of its own. */
+function meshFilled(
+  drawing: { sketchOnPlane(plane: replicad.Plane): any },
+  plane: replicad.Plane,
+  cameraZoom: number,
+  color: string,
+): DisplayMesh {
+  const threeDShape = drawing.sketchOnPlane(plane).extrude(0.0001);
+  return {
+    cameraZoom,
+    faces: threeDShape.mesh(DRAWING_MESH_OPTIONS),
+    edges: threeDShape.meshEdges(DRAWING_MESH_OPTIONS),
+    color,
+  };
+}
+
+/** The outlines in a drawing, through any nesting of blueprints. */
+function drawingOutlines(shape: any, outlines: any[] = []): any[] {
+  if (shape.curves) outlines.push(shape);
+  else
+    (shape.blueprints ?? []).forEach((b: any) => drawingOutlines(b, outlines));
+  return outlines;
+}
+
+/**
+ * Display meshes for a drawing. A drawing that can't be filled as a whole,
+ * such as an SVG export's projection, which can come back as open fragments,
+ * is shown piece by piece: closed outlines filled, open ones as lines.
+ */
+function drawingMeshes(
+  drawing: replicad.Drawing,
+  plane: replicad.Plane,
+  cameraZoom: number,
+  color: string,
+): DisplayMesh[] {
+  try {
+    return [meshFilled(drawing, plane, cameraZoom, color)];
+  } catch (e) {
+    if (e instanceof WebAssembly.RuntimeError) throw e;
+  }
+  const meshes: DisplayMesh[] = [];
+  //@ts-expect-error - ignore access of private innerShape field
+  for (const outline of drawingOutlines(drawing.innerShape)) {
+    try {
+      if (outline.isClosed()) {
+        meshes.push(meshFilled(outline, plane, cameraZoom, color));
+      } else {
+        const wire = outline.sketchOnPlane(plane).wire;
+        meshes.push({
+          cameraZoom,
+          edges: wire.meshEdges(DRAWING_MESH_OPTIONS),
+          color,
+        });
+      }
+    } catch (e) {
+      if (e instanceof WebAssembly.RuntimeError) throw e;
+      console.warn("Skipping a drawing outline that couldn't be meshed", e);
+    }
+  }
+  return meshes;
+}
+
 async function generateDisplayMesh(
   id: AbundanceObject,
   context: RequestContext,
@@ -364,24 +443,14 @@ async function generateDisplayMesh(
             color: meshObj.color,
           });
         } else if (meshObj.geometry instanceof replicad.Drawing) {
-          const sketchPlane = util.asReplicadPlane(meshObj.plane);
-          const threeDShape = meshObj.geometry
-            .sketchOnPlane(sketchPlane)
-            .extrude(0.0001);
-          const faces = threeDShape.mesh({
-            tolerance: 0.1,
-            angularTolerance: 0.5,
-          });
-          const edges = threeDShape.meshEdges({
-            tolerance: 0.1,
-            angularTolerance: 0.5,
-          });
-          finalMeshes.push({
-            cameraZoom: cameraZoom,
-            faces,
-            edges,
-            color: meshObj.color,
-          });
+          finalMeshes.push(
+            ...drawingMeshes(
+              meshObj.geometry,
+              util.asReplicadPlane(meshObj.plane),
+              cameraZoom,
+              meshObj.color,
+            ),
+          );
         } else {
           // Shape3D — mesh normally
           finalMeshes.push({
@@ -516,12 +585,144 @@ async function generatePerEdgeMeshes(
   return result;
 }
 
+/**
+ * A shape's corners: the distinct ends of its edges, in edge order, so the
+ * same shape always numbers them the same way.
+ */
+function cornersOf(shape: replicad.Shape<any>): number[][] {
+  const corners: number[][] = [];
+  const seen = new Set<string>();
+  for (const edge of shape?.edges ?? []) {
+    for (const v of [edge.startPoint, edge.endPoint]) {
+      const key = [v.x, v.y, v.z].map((n) => n.toFixed(6)).join(",");
+      if (seen.has(key)) continue;
+      seen.add(key);
+      corners.push([v.x, v.y, v.z]);
+    }
+  }
+  return corners;
+}
+
+/**
+ * The corners of each leaf shape, keyed by leaf index, numbered as cornersOf
+ * does. Used by vertexselect mode.
+ *
+ * Returns `{ [leafIndex]: Array<{ index: number; point: number[] }> }`.
+ */
+async function generatePerVertexPoints(
+  id: AbundanceObject,
+  context: RequestContext,
+): Promise<Record<number, { index: number; point: number[] }[]>> {
+  await started;
+  const result: Record<number, { index: number; point: number[] }[]> = {};
+  if (!util.isAbundanceObject(id) || id.geometry.length === 0) {
+    return result;
+  }
+  const flattened = util.flattenAssembly(id).filter((part) => {
+    return part.geometry !== util.geometryProvider?.EMPTY_SHAPE_SENTINEL;
+  });
+  for (let leafIndex = 0; leafIndex < flattened.length; leafIndex++) {
+    const shape = await getShapeCached(flattened[leafIndex].geometry, context);
+    if (
+      !shape ||
+      shape instanceof replicad.Vertex ||
+      shape instanceof replicad.Drawing
+    ) {
+      result[leafIndex] = [];
+      continue;
+    }
+    result[leafIndex] = cornersOf(shape as replicad.Shape<any>).map(
+      (point, index) => ({ index, point }),
+    );
+  }
+  return result;
+}
+
 /** The parts of a value in display order, the order agent tools number them. */
 function partsOf(value: AbundanceObject): AbundanceLeaf[] {
   if (!util.isAbundanceObject(value)) return [];
   return util.flattenAssembly(value).filter((part) => {
     return part.geometry !== util.geometryProvider?.EMPTY_SHAPE_SENTINEL;
   });
+}
+
+/** A pick on a part, as the 3D view's selection mode reports it. */
+type SelectionRef =
+  | { kind: "edge" | "face" | "vertex"; leaf: number; index: number }
+  | { kind: "bounds" };
+
+/**
+ * Coordinates for picked edges and faces, for the Label atom: an edge's start
+ * and end points, a face's center. Parts are numbered as in
+ * generatePerEdgeMeshes / generatePerFaceMeshes (non-empty leaves in order),
+ * so picks made in selection mode resolve to the same element. A reference
+ * that no longer exists (the model changed) resolves to null.
+ */
+async function resolveSelectionPoints(
+  value: AbundanceObject,
+  refs: SelectionRef[],
+  context: RequestContext,
+) {
+  await started;
+  const parts = util.isAbundanceObject(value)
+    ? util
+        .flattenAssembly(value)
+        .filter(
+          (part) =>
+            part.geometry !== util.geometryProvider?.EMPTY_SHAPE_SENTINEL,
+        )
+    : [];
+  const xyz = (v: replicad.Vector) => [v.x, v.y, v.z];
+  const results = [];
+  for (const ref of refs) {
+    try {
+      // The bounding box of all the parts
+      if (ref.kind === "bounds") {
+        const min = [Infinity, Infinity, Infinity];
+        const max = [-Infinity, -Infinity, -Infinity];
+        for (const part of parts) {
+          const shape = (await getShapeCached(
+            part.geometry,
+            context,
+          )) as replicad.Shape<any>;
+          const bounds = shape?.boundingBox?.bounds;
+          if (!bounds) continue;
+          for (let i = 0; i < 3; i++) {
+            min[i] = Math.min(min[i], bounds[0][i]);
+            max[i] = Math.max(max[i], bounds[1][i]);
+          }
+        }
+        results.push(Number.isFinite(min[0]) ? { min, max } : null);
+        continue;
+      }
+      const part = parts[ref.leaf];
+      if (!part) {
+        results.push(null);
+        continue;
+      }
+      const shape = (await getShapeCached(
+        part.geometry,
+        context,
+      )) as replicad.Shape<any>;
+      if (ref.kind === "edge") {
+        const edge = shape?.edges?.[ref.index];
+        results.push(
+          edge
+            ? { start: xyz(edge.startPoint), end: xyz(edge.endPoint) }
+            : null,
+        );
+      } else if (ref.kind === "vertex") {
+        const corner = cornersOf(shape)[ref.index];
+        results.push(corner ? { point: corner } : null);
+      } else {
+        const face = shape?.faces?.[ref.index];
+        results.push(face ? { center: xyz(face.center) } : null);
+      }
+    } catch {
+      results.push(null);
+    }
+  }
+  return results;
 }
 
 /**
@@ -690,16 +891,27 @@ workerpool.worker({
     withShapeCache(() => generatePerFaceMeshes(id, context)),
   generatePerEdgeMeshes: (id: AbundanceObject, context: RequestContext) =>
     withShapeCache(() => generatePerEdgeMeshes(id, context)),
+  generatePerVertexPoints: (id: AbundanceObject, context: RequestContext) =>
+    withShapeCache(() => generatePerVertexPoints(id, context)),
+  resolveSelectionPoints: (
+    value: AbundanceObject,
+    refs: SelectionRef[],
+    context: RequestContext,
+  ) => withShapeCache(() => resolveSelectionPoints(value, refs, context)),
   inspectParts: (
     value: AbundanceObject,
     context: RequestContext,
     opts: { part?: number; minFeature: number; budgetMs: number },
   ) => withShapeCache(() => inspectParts(value, context, opts)),
-  findInvalidParts: (ids: string[], context: RequestContext, budgetMs: number) =>
-    withShapeCache(() => findInvalidParts(ids, context, budgetMs)),
+  findInvalidParts: (
+    ids: string[],
+    context: RequestContext,
+    budgetMs: number,
+  ) => withShapeCache(() => findInvalidParts(ids, context, budgetMs)),
   checkInterference: (
     groups: { label: string; value: AbundanceObject }[],
     context: RequestContext,
     opts: { minVolume: number; budgetMs: number },
   ) => withShapeCache(() => checkInterference(groups, context, opts)),
+  forgetProject,
 });

@@ -6,6 +6,7 @@
  * CAD pipeline, so they add nothing to normal recompute time.
  */
 import * as replicad from "replicad";
+import { checkShapeValid } from "./occtWorkarounds";
 
 export type Bounds = { min: number[]; max: number[] };
 
@@ -64,13 +65,7 @@ function roundBounds(b: Bounds): Bounds {
 }
 
 export function isValidShape(shape: replicad.Shape3D): boolean {
-  const oc = replicad.getOC();
-  const analyzer = new oc.BRepCheck_Analyzer(shape.wrapped, true, false, false);
-  try {
-    return analyzer.IsValid();
-  } finally {
-    analyzer.delete();
-  }
+  return checkShapeValid(shape);
 }
 
 /**
