@@ -1,6 +1,9 @@
-import { BufferGeometry, Group, Mesh, MeshStandardMaterial } from "three";
+import { Group, Mesh, MeshStandardMaterial } from "three";
 import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js";
-import { syncFaces } from "replicad-threejs-helper";
+import {
+  applyTransform,
+  buildDisplayGeometries,
+} from "./displayMeshGeometry.js";
 
 /** Keep-out regions are clearance volumes, not parts, so they're left out. */
 const KEEP_OUT_COLOR = "#D9544D";
@@ -25,26 +28,31 @@ export async function displayMeshesToGLB(displayMeshes) {
   root.name = "model";
   root.rotation.x = -Math.PI / 2;
 
-  (displayMeshes || []).forEach((part, index) => {
-    if (part.color === KEEP_OUT_COLOR) return;
-    if (part.faces) {
-      const body = new BufferGeometry();
-      syncFaces(body, part.faces);
+  // Moved copies of a shape share one geometry, which the exporter writes
+  // once; each copy is a node with its own transform.
+  const { parts } = buildDisplayGeometries(
+    (displayMeshes || []).filter((part) => part.color !== KEEP_OUT_COLOR),
+  );
+  const exported = new Set();
+  parts.forEach((part, index) => {
+    if (!part.body) return;
+    if (!exported.has(part.body)) {
+      exported.add(part.body);
       // Face groups only drive selection in the editor; drop them so the
       // exporter writes one primitive per part.
-      body.clearGroups();
-      body.deleteAttribute("normal");
-      const mesh = new Mesh(
-        body,
-        new MeshStandardMaterial({
-          color: part.color,
-          roughness: 0.8,
-          metalness: 0,
-        }),
-      );
-      mesh.name = `part-${index}`;
-      root.add(mesh);
+      part.body.clearGroups();
+      part.body.deleteAttribute("normal");
     }
+    const mesh = new Mesh(
+      part.body,
+      new MeshStandardMaterial({
+        color: part.color,
+        roughness: 0.8,
+        metalness: 0,
+      }),
+    );
+    mesh.name = `part-${index}`;
+    root.add(applyTransform(mesh, part.transform));
   });
 
   if (root.children.length === 0) {

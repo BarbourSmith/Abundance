@@ -437,7 +437,7 @@ class GeometryProvider {
     const transformed = parseTransformedId(id);
     if (transformed) {
       const base = await this.get(transformed.base, context);
-      return this.applyTransform(base, transformed.transform);
+      return this.transformShape(base, transformed.transform);
     }
 
     const warmCached = this.getFromWarmCache(id, context);
@@ -480,14 +480,28 @@ class GeometryProvider {
   }
 
   /**
-   * Applies a lazy move/rotate to a shape loaded from the cache. `shape` is
-   * left alone: within a batch it is the warm cache's own copy.
+   * Splits an id into the stored shape it names and the move/rotation that
+   * get() applies to it (see lazyTransform.ts). `transform` is undefined when
+   * the id names a stored shape directly.
+   *
+   * Lets a caller work on the base shape once and apply each copy's transform
+   * to the result: the mesh worker meshes a shape once and has three.js place
+   * every moved copy of it.
+   */
+  splitTransform(id: string): { base: string; transform?: RigidTransform } {
+    const transformed = parseTransformedId(id);
+    return transformed ?? { base: id };
+  }
+
+  /**
+   * Applies a move/rotate from splitTransform to a shape, as get() does.
+   * `shape` is left alone: within a batch it is the warm cache's own copy.
    *
    * 3D shapes are given an OpenCascade location rather than copied, so this
    * is cheap whatever the size of the shape. The result shares its geometry
    * with `shape`, as the copy=false transforms OpenCascade uses do.
    */
-  private applyTransform(
+  transformShape(
     shape: ReplicadObject,
     transform: RigidTransform,
   ): ReplicadObject {
