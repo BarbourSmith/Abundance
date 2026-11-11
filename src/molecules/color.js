@@ -104,14 +104,18 @@ export default class Color extends Atom {
 
     return Promise.resolve(
       actOnLeafsSync(inputs.geometry, (leaf) => {
-        // keep out color add tag
+        // The keep out color adds a tag. The leaf is the upstream atom's own
+        // value, so build a new list rather than adding to it: a change there
+        // would reach every other atom that reads it, and change the ids
+        // their results are cached under depending on which ran first.
+        const tags = [...(leaf.tags || [])];
         if (color == "#D9544D") {
-          leaf.tags.push("keepout");
+          tags.push("keepout");
         }
         return {
           ...leaf,
           color: color,
-          tags: [...new Set(leaf.tags)],
+          tags: [...new Set(tags)],
         };
       }),
     );
