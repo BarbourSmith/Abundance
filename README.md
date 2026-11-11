@@ -1,5 +1,5 @@
 <!-- readme-only -->
-# Abundance
+# Abundance®
 
 [![Deploy to GitHub Pages](https://github.com/BarbourSmith/Abundance/actions/workflows/Actions.yaml/badge.svg)](https://github.com/BarbourSmith/Abundance/actions/workflows/Actions.yaml)
 [![Puppeteer Tests](https://github.com/BarbourSmith/Abundance/actions/workflows/test.yaml/badge.svg)](https://github.com/BarbourSmith/Abundance/actions/workflows/test.yaml)
@@ -18,7 +18,7 @@
 </table>
 -->
 
-<div align="center">Abundance is a free-to-use free-to-share CAD tool where you own your projects.</div>
+<div align="center">Abundance® is a free-to-use free-to-share CAD tool where you own your projects.</div>
 <br />
 <!-- readme-only -->
 

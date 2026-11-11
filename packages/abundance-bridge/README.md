@@ -1,6 +1,6 @@
-# Abundance AI agent bridge
+# Abundance® AI agent bridge
 
-Lets an AI agent on your computer, such as Claude, inspect and edit the [Abundance](https://abundance.maslowcnc.com) CAD project open in your browser. It's an MCP server: your AI app starts it, and your Abundance tab connects to it over a local, token-protected connection.
+Lets an AI agent on your computer, such as Claude, inspect and edit the [Abundance®](https://abundance.maslowcnc.com) CAD project open in your browser. It's an MCP server: your AI app starts it, and your Abundance tab connects to it over a local, token-protected connection.
 
 It works with any AI app that can run commands on your computer and use MCP servers, such as Claude Code, Codex, GitHub Copilot in agent mode, and Cursor.
 

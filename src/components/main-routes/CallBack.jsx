@@ -2,6 +2,7 @@ import React, { useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Octokit } from "octokit";
 import GlobalVariables from "../../js/globalvariables.js";
+import RegisteredMark from "../secondary/RegisteredMark.jsx";
 
 import { useAuth } from "../../contexts/AuthContext";
 
@@ -181,6 +182,7 @@ const Callback = ({ setRedirectType }) => {
               alt="logo"
               className="login-logo"
             />
+            <RegisteredMark />
           </div>
           {isAuthorized ? (
             <p>Welcome. Redirecting you to your projects...</p>

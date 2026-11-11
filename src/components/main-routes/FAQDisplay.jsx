@@ -45,7 +45,7 @@ import React from "react";
 
 const FAQ_LIST = [
   {
-    question: "What is Abundance?",
+    question: "What is Abundance®?",
     answer:
       'Abundance is a modern, browser-based 3D CAD application built with React and the replicad CAD library. It provides a node-based visual programming interface where designs are composed of interconnected "Atoms" (basic operations) and "Molecules" (reusable components). Projects are automatically version-controlled through GitHub, making collaboration natural and integrated.',
   },

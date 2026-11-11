@@ -73,11 +73,11 @@ function updateProjectMetaTags(project) {
   };
 
   const title = project.repoName
-    ? `${project.repoName} by ${project.owner} - Abundance`
-    : "Abundance - BETA";
+    ? `${project.repoName} by ${project.owner} - Abundance®`
+    : "Abundance® - BETA";
   const description =
     project.description ||
-    `View ${project.repoName} in Abundance, a web-based CAD platform.`;
+    `View ${project.repoName} in Abundance®, a web-based CAD platform.`;
   const imageUrl =
     project.pngURL || project.svgURL || "/public/imgs/abundance_logo.png";
   const pageUrl = window.location.href;
@@ -101,8 +101,8 @@ function resetMetaTags() {
     if (el) el.setAttribute("content", content);
   };
 
-  document.title = "Abundance - BETA";
-  setMeta("property", "og:title", "Abundance - BETA");
+  document.title = "Abundance® - BETA";
+  setMeta("property", "og:title", "Abundance® - BETA");
   setMeta(
     "property",
     "og:description",
@@ -110,7 +110,7 @@ function resetMetaTags() {
   );
   setMeta("property", "og:image", "/public/imgs/abundance_logo.png");
   setMeta("property", "og:url", "https://abundance.maslowcnc.com/");
-  setMeta("name", "twitter:title", "Abundance - BETA");
+  setMeta("name", "twitter:title", "Abundance® - BETA");
   setMeta(
     "name",
     "twitter:description",
