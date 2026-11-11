@@ -48,8 +48,11 @@ interface ReferenceInfo {
   /** The file's content before placement, as a box: { min, max }. */
   contentBounds: { min: number[]; max: number[] };
   opacity: number;
+  /** The PDF page shown, from 1, or 0 for all pages in a row. */
   page?: number;
   pageCount?: number;
+  /** Width of the PDF page shown (page 1 when all are), in points. */
+  pageWidth?: number;
   pixels?: [number, number];
   [key: string]: unknown;
 }

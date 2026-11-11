@@ -46,6 +46,7 @@ import { executeCode } from "../src/worker/code.ts";
 import { __test__, resolveAtom, runTool } from "../src/agent/runtime.js";
 import { agentBridge } from "../src/agent/bridgeClient.js";
 import { projectPoint } from "../src/agent/photoCamera.js";
+import { createReferenceObject } from "../src/js/referenceObjects.js";
 
 const EDIT = { mode: "edit" };
 const READ = { mode: "read" };
@@ -343,22 +344,35 @@ describe("importing reference files", () => {
     expect(new Uint8Array(await stored.file.arrayBuffer())).toEqual(bytes);
   });
 
-  it("loads a PDF page at its printed size and switches pages", async () => {
+  it("loads a PDF's pages in a row at their printed size and switches pages", async () => {
     const id = await importFile(
       "datasheet.pdf",
       pdfBytes(["Bore diameter 12.5 mm", "Mounting holes M4"]),
     );
     expect(valueOf(id).geometryType).toBe("pdf");
+    const [all] = referencesOf(valueOf(id));
+    expect(all).toMatchObject({ kind: "pdf", page: 0, pageCount: 2 });
+    // Page 1 centered on the origin, page 2 after a gap of 5% of its width
+    expect(round(referenceBounds(all))).toEqual({
+      min: [-105, -148.5, 0],
+      max: [325.5, 148.5, 0],
+    });
+    // The 3D view draws a plane per page, in points (1.05 page widths apart)
+    const shown = await createReferenceObject(all);
+    const [first, second] = shown.object.children;
+    expect(shown.object.children).toHaveLength(2);
+    expect(first.position.x).toBeCloseTo(0);
+    expect(second.position.x).toBeCloseTo((210 * 1.05 * 72) / 25.4, 0);
+    shown.release();
+
+    await setParam(id, "Page", "2");
+    await settle();
     const [page] = referencesOf(valueOf(id));
-    expect(page).toMatchObject({ kind: "pdf", page: 1, pageCount: 2 });
+    expect(page.page).toBe(2);
     expect(round(referenceBounds(page))).toEqual({
       min: [-105, -148.5, 0],
       max: [105, 148.5, 0],
     });
-
-    await setParam(id, "Page (of 2)", 2);
-    await settle();
-    expect(referencesOf(valueOf(id))[0].page).toBe(2);
   });
 
   it("loads a glTF model in meters, Y-up, into a millimeter Z-up project", async () => {
@@ -646,7 +660,7 @@ describe("agent tools", () => {
     expect(result).toMatchObject({
       filename: "datasheet.pdf",
       page_count: 2,
-      reference: { kind: "pdf", page: 1, page_count: 2 },
+      reference: { kind: "pdf", page: "all", page_count: 2 },
       source: "https://github.com/tester/Proj/blob/main/datasheet.pdf",
     });
     expect(result.page_text.map((p) => p.text)).toEqual([

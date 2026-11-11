@@ -19,6 +19,9 @@ function baseName(path) {
   return String(path).split("/").pop();
 }
 
+/** The Page choice that shows every page of a PDF in a row. */
+const ALL_PAGES = "All pages";
+
 /**
  * This class creates an atom which imports a file: SVG, STL, and STEP files
  * as shapes, and PNG, JPG, PDF, GLB, and glTF files as references to model
@@ -75,17 +78,18 @@ export default class Import extends Atom {
     this.SVGwidth = 10;
 
     /**
-     * Width of an imported image or PDF page in project units, or null for
-     * the default (about 100 mm for an image, the printed size for a PDF).
+     * Width of an imported image or PDF page (page 1 when a PDF shows all its
+     * pages) in project units, or null for the default (about 100 mm for an
+     * image, the printed size for a PDF).
      * @type {number|null}
      */
     this.referenceWidth = null;
 
     /**
-     * The PDF page to show, from 1.
+     * The PDF page to show, from 1, or 0 to show every page in a row.
      * @type {number}
      */
-    this.page = 1;
+    this.page = 0;
 
     /**
      * The units an imported 3D model is in, a key of MODEL_UNITS.
@@ -493,11 +497,11 @@ export default class Import extends Atom {
       // The width as imported, before any Move or Rotate
       const { min, max } = item?.contentBounds || { min: [0], max: [0] };
       const scale = item ? Math.hypot(...item.matrix.slice(0, 3)) : 0;
+      const contentWidth = item?.pageWidth ?? max[0] - min[0];
       params[id + "referenceWidth"] = {
         type: "number",
         value:
-          this.referenceWidth ??
-          Math.round((max[0] - min[0]) * scale * 100) / 100,
+          this.referenceWidth ?? Math.round(contentWidth * scale * 100) / 100,
         label: `Width (${unitAbbreviation(unitsContextOf(this)) || "units"})`,
         step: 1,
         onChange: (value) => {
@@ -508,15 +512,18 @@ export default class Import extends Atom {
       };
     }
     if (kind === "pdf") {
+      const count = Math.max(item?.pageCount || 0, this.page);
       params[id + "page"] = {
-        type: "number",
-        value: this.page,
-        label: item?.pageCount ? `Page (of ${item.pageCount})` : "Page",
-        min: 1,
-        step: 1,
+        type: "select",
+        value: this.page === 0 ? ALL_PAGES : String(this.page),
+        options: [
+          ALL_PAGES,
+          ...Array.from({ length: count }, (_, i) => String(i + 1)),
+        ],
+        label: "Page",
         onChange: (value) => {
-          const page = Math.round(Number(value));
-          if (page >= 1 && page !== this.page) {
+          const page = value === ALL_PAGES ? 0 : Math.round(Number(value));
+          if (page >= 0 && page !== this.page) {
             this.page = page;
             this.refreshReference();
           }
@@ -707,7 +714,7 @@ export default class Import extends Atom {
       if (this.referenceWidth) {
         superSerialObject.referenceWidth = this.referenceWidth;
       }
-      if (this.page !== 1) superSerialObject.page = this.page;
+      if (this.page !== 0) superSerialObject.page = this.page;
       if (this.modelUnits !== DEFAULT_MODEL_UNITS) {
         superSerialObject.modelUnits = this.modelUnits;
       }

@@ -10,7 +10,11 @@
  * it) and its matrix (where Move, Rotate, and unit conversion placed it).
  */
 import { IDENTITY, applyMatrix } from "../js/referenceItems.js";
-import { getAsset, renderPdfPage } from "../js/referenceFiles.js";
+import {
+  getAsset,
+  pdfPageOf,
+  renderPdfReference,
+} from "../js/referenceFiles.js";
 
 /** Longest side, in pixels, of the copy of a reference that gets traced. */
 const TRACE_PIXELS = 2048;
@@ -81,7 +85,7 @@ export function pixelPlacement(item, width, height) {
  */
 export async function referenceCanvas(item, maxPixels) {
   if (item.kind === "pdf") {
-    return renderPdfPage(item.asset, item.page || 1, maxPixels);
+    return renderPdfReference(item.asset, pdfPageOf(item), maxPixels);
   }
   const bitmap = await createImageBitmap(getAsset(item.asset).blob);
   const scale = Math.min(1, maxPixels / Math.max(bitmap.width, bitmap.height));

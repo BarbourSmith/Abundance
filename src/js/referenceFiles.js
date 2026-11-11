@@ -13,7 +13,8 @@
  * Placement when imported:
  * - Images and PDF pages lie flat on the XY plane, centered on the origin and
  *   read from above, at the width chosen on the Import atom (a PDF defaults
- *   to its printed page size).
+ *   to its printed page size). A PDF shows all its pages in a row along +X,
+ *   page 1 centered on the origin, unless the atom picks one page.
  * - Models keep the position they have in the file, converted from the
  *   file's units (meters, the glTF standard, unless chosen otherwise) to the
  *   project's, and from glTF's Y-up to Abundance's Z-up.
@@ -204,6 +205,17 @@ async function pdfPage(id, page) {
   return { doc, page: await doc.getPage(page) };
 }
 
+/** Draw a pdf.js page at `scale` pixels per point. */
+async function drawPdfPage(pdfPageProxy, scale) {
+  const viewport = pdfPageProxy.getViewport({ scale });
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.ceil(viewport.width));
+  canvas.height = Math.max(1, Math.ceil(viewport.height));
+  // pdf.js paints the page white first, as it prints
+  await pdfPageProxy.render({ canvas, viewport }).promise;
+  return canvas;
+}
+
 /**
  * Draw a PDF page to a canvas whose longest side is about maxPixels.
  * @returns {Promise<HTMLCanvasElement>}
@@ -211,14 +223,96 @@ async function pdfPage(id, page) {
 export async function renderPdfPage(id, page, maxPixels = 3072) {
   const { page: pdfPageProxy } = await pdfPage(id, page);
   const unscaled = pdfPageProxy.getViewport({ scale: 1 });
-  const scale = maxPixels / Math.max(unscaled.width, unscaled.height);
-  const viewport = pdfPageProxy.getViewport({ scale });
+  return drawPdfPage(
+    pdfPageProxy,
+    maxPixels / Math.max(unscaled.width, unscaled.height),
+  );
+}
+
+/** Space between pages shown in a row, as a fraction of page 1's width. */
+const PDF_PAGE_GAP = 0.05;
+
+/**
+ * Where the pages of a PDF reference sit, in points. Page 0 means every page,
+ * in a row along +X with page 1 centered on the origin and each page centered
+ * on the X axis; any other page is that page alone, centered on the origin.
+ * @returns {Promise<{pageCount: number, pages: {page: number, center: number[], size: number[]}[], bounds: {min: number[], max: number[]}}>}
+ */
+export async function pdfLayout(id, page) {
+  const doc = await pdfDocument(id);
+  const numbers =
+    page === 0 ? Array.from({ length: doc.numPages }, (_, i) => i + 1) : [page];
+  const pages = [];
+  let left = 0;
+  let gap = 0;
+  for (const number of numbers) {
+    const { page: proxy } = await pdfPage(id, number);
+    const { width, height } = proxy.getViewport({ scale: 1 });
+    if (!pages.length) {
+      left = -width / 2;
+      gap = width * PDF_PAGE_GAP;
+    }
+    pages.push({
+      page: number,
+      center: [left + width / 2, 0],
+      size: [width, height],
+    });
+    left += width + gap;
+  }
+  const min = [Infinity, Infinity, 0];
+  const max = [-Infinity, -Infinity, 0];
+  for (const { center, size } of pages) {
+    for (let i = 0; i < 2; i++) {
+      min[i] = Math.min(min[i], center[i] - size[i] / 2);
+      max[i] = Math.max(max[i], center[i] + size[i] / 2);
+    }
+  }
+  return { pageCount: doc.numPages, pages, bounds: { min, max } };
+}
+
+/**
+ * Most pixels on the longest side of each page when showing many pages, so
+ * a long document stays within a sensible amount of texture memory.
+ */
+export function pixelsPerPage(pageCount, maxPixels = 3072) {
+  if (pageCount <= 4) return maxPixels;
+  return Math.max(512, Math.round(maxPixels * Math.sqrt(4 / pageCount)));
+}
+
+/**
+ * Draw the pages a PDF reference shows (see pdfLayout) to one canvas laid out
+ * like its contentBounds, with its longest side about maxPixels. The gaps
+ * between pages are transparent.
+ * @returns {Promise<HTMLCanvasElement>}
+ */
+export async function renderPdfReference(id, page, maxPixels = 3072) {
+  if (page !== 0) return renderPdfPage(id, page, maxPixels);
+  const { pages, bounds } = await pdfLayout(id, 0);
+  const width = bounds.max[0] - bounds.min[0];
+  const height = bounds.max[1] - bounds.min[1];
+  const scale = maxPixels / Math.max(width, height);
   const canvas = document.createElement("canvas");
-  canvas.width = Math.ceil(viewport.width);
-  canvas.height = Math.ceil(viewport.height);
-  // pdf.js paints the page white first, as it prints
-  await pdfPageProxy.render({ canvas, viewport }).promise;
+  canvas.width = Math.max(1, Math.round(width * scale));
+  canvas.height = Math.max(1, Math.round(height * scale));
+  const context = canvas.getContext("2d");
+  for (const { page: number, center, size } of pages) {
+    const { page: proxy } = await pdfPage(id, number);
+    const drawn = await drawPdfPage(proxy, scale);
+    // Canvas y runs down; the layout's runs up
+    context.drawImage(
+      drawn,
+      (center[0] - size[0] / 2 - bounds.min[0]) * scale,
+      (bounds.max[1] - (center[1] + size[1] / 2)) * scale,
+      size[0] * scale,
+      size[1] * scale,
+    );
+  }
   return canvas;
+}
+
+/** The page a PDF reference shows: 0 for all pages, else from 1. */
+export function pdfPageOf(item) {
+  return item.page === 0 ? 0 : item.page || 1;
 }
 
 /**
@@ -358,7 +452,7 @@ function rectangleBounds(width, height) {
  * @param {string} [options.unitsKey] - The project's units, "MM" or "Inches"
  * @param {number} [options.width] - Width of an image or PDF page, in project
  *   units. Defaults to about 100 mm for images and the printed size for PDFs.
- * @param {number} [options.page] - PDF page, from 1
+ * @param {number} [options.page] - PDF page, from 1, or 0 for all pages
  * @param {string} [options.modelUnits] - A key of MODEL_UNITS
  * @param {number} [options.opacity] - 0 to 1
  * @param {object} [options.resources] - A .gltf's other files, path -> asset id
@@ -398,20 +492,22 @@ export async function describeReferenceFile(assetId, options) {
   }
 
   if (fileType.kind === "pdf") {
-    const page = Number(options.page) || 1;
-    const { doc, page: pdfPageProxy } = await pdfPage(assetId, page);
-    const viewport = pdfPageProxy.getViewport({ scale: 1 });
-    const printedWidth = (viewport.width * MM_PER_POINT) / projectMM;
+    const page = options.page === 0 ? 0 : Number(options.page) || 1;
+    const { pageCount, pages, bounds } = await pdfLayout(assetId, page);
+    // Width is that of the page shown, or page 1 when showing them all
+    const pageWidth = pages[0].size[0];
+    const printedWidth = (pageWidth * MM_PER_POINT) / projectMM;
     const width = options.width > 0 ? options.width : printedWidth;
     return {
       geometryType,
       info: {
         ...info,
         page,
-        pageCount: doc.numPages,
-        contentBounds: rectangleBounds(viewport.width, viewport.height),
+        pageCount,
+        pageWidth,
+        contentBounds: bounds,
       },
-      placement: { scale: width / viewport.width },
+      placement: { scale: width / pageWidth },
     };
   }
 

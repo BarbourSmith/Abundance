@@ -36,8 +36,9 @@ import {
   REFERENCE_TYPES,
   getAsset,
   registerAsset,
+  pdfPageOf,
   pdfText,
-  renderPdfPage,
+  renderPdfReference,
 } from "../js/referenceFiles.js";
 import { createReferenceObjects } from "../js/referenceObjects.js";
 import {
@@ -1715,7 +1716,7 @@ const handlers = {
     if (item.kind === "pdf") {
       Object.assign(result, await readPdfText(item.asset, pages));
       result.preview = await previewOf(
-        await renderPdfPage(item.asset, item.page || 1, PREVIEW_PIXELS),
+        await renderPdfReference(item.asset, pdfPageOf(item), PREVIEW_PIXELS),
         "image/png",
       );
     }
