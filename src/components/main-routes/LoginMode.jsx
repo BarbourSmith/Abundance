@@ -4,6 +4,7 @@ import GlobalVariables from "../../js/globalvariables.js";
 import { Link } from "react-router-dom";
 import globalvariables from "../../js/globalvariables.js";
 import NewProjectPopUp from "../secondary/NewProjectPopUp.jsx";
+import RegisteredMark from "../secondary/RegisteredMark.jsx";
 import { useQuery } from "react-query";
 import useDebounce from "../../hooks/useDebounce.js";
 import { useNavigate } from "react-router-dom";
@@ -1769,6 +1770,7 @@ function LoginMode() {
               alt="logo"
               className="login-logo"
             />
+            <RegisteredMark />
           </div>
           <p style={{ padding: "0 20px" }}>Restoring your session...</p>
         </div>
@@ -1869,6 +1871,9 @@ function LoginMode() {
             alt="logo"
             id="welcome-logo-lettering"
             style={{ height: "20px", padding: "10px" }}
+          />
+          <RegisteredMark
+            style={{ alignSelf: "flex-start", margin: "8px 0 0 -8px" }}
           />
         </div>
 

@@ -9,6 +9,7 @@ import {
   featuredImageUrl,
   featuredModelUrl,
 } from "../../js/featuredModels.js";
+import RegisteredMark from "../secondary/RegisteredMark.jsx";
 import "../../styles/landing.css";
 import { GUIDE_CLIPS } from "../../js/guideClips.js";
 
@@ -213,7 +214,10 @@ const InitialLog = ({ setNoUserBrowsing }) => {
               }
               alt=""
             />
-            <span>Abundance</span>
+            <span>
+              Abundance
+              <RegisteredMark />
+            </span>
           </div>
           <nav className="landing-nav" aria-label="Main">
             <Link to="/user-guide" className="landing-nav-link">
@@ -246,8 +250,8 @@ const InitialLog = ({ setNoUserBrowsing }) => {
             </h1>
             <div className="landing-intro">
               <p>
-                Abundance is free, open source CAD in your browser. Every design
-                is a graph of simple steps: change any one of them and the part
+                Abundance® is free, open source CAD in your browser. Every
+                design is a graph of simple steps: change any one of them and the part
                 rebuilds. Share it, and anyone can remix it.
               </p>
             </div>
@@ -383,7 +387,10 @@ const InitialLog = ({ setNoUserBrowsing }) => {
       <footer className="landing-footer">
         <div className="landing-footer-inner">
           <div className="landing-footer-about">
-            <p className="landing-footer-name">Abundance</p>
+            <p className="landing-footer-name">
+              Abundance
+              <RegisteredMark />
+            </p>
             <p>
               Free, open source CAD for designs you can share and remix, made by
               the Maslow CNC team.
@@ -430,7 +437,7 @@ const InitialLog = ({ setNoUserBrowsing }) => {
           })}
         </div>
         <p className="landing-footer-legal">
-          Abundance is free software, released under the{" "}
+          Abundance® is free software, released under the{" "}
           <ExternalLink href={`${REPO_URL}/blob/main/LICENSE`}>
             GNU GPL v3
           </ExternalLink>

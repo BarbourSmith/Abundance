@@ -158,7 +158,7 @@ async function fetchProjectMetadata(owner, repo) {
     if (repoResponse.ok) {
       const repoData = await repoResponse.json();
       description =
-        repoData.description || "A collaborative CAD project in Abundance";
+        repoData.description || "A collaborative CAD project in Abundance®";
     }
 
     return {

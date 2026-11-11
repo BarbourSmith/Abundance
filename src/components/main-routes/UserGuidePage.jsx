@@ -5,6 +5,7 @@ import rehypeRaw from "rehype-raw";
 import { Octokit } from "octokit";
 import { useAuth } from "../../contexts/index.js";
 import localReadme from "../../../README.md?raw";
+import RegisteredMark from "../secondary/RegisteredMark.jsx";
 
 const FORUMS_URL = "https://forums.maslowcnc.com/c/software-issues/abundance/41";
 const REPO_URL = "https://github.com/BarbourSmith/Abundance";
@@ -166,6 +167,9 @@ function UserGuidePage() {
             alt="Abundance"
             id="welcome-logo-lettering"
             style={{ height: "20px", padding: "10px" }}
+          />
+          <RegisteredMark
+            style={{ alignSelf: "flex-start", margin: "8px 0 0 -8px" }}
           />
         </div>
         <nav className="readme-nav">

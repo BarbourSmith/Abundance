@@ -54,7 +54,7 @@ export default function GettingStartedShowcase({ sections }) {
         </div>
         <div className="featured-spotlight-info">
           <p className="featured-eyebrow">Start here</p>
-          <h2>New to Abundance?</h2>
+          <h2>New to Abundance®?</h2>
           <p className="featured-description">
             {small
               ? "The tutorials run in the editor on a computer. Until then, the videos below show how Abundance works."
