@@ -7,7 +7,7 @@
  *
  *   { kind: "image" | "pdf" | "model", asset, resources?, name, mimeType,
  *     bytes, contentBounds: { min, max }, matrix, opacity, tags, page?,
- *     pageCount?, pixels?, id, fileKey, geometryType }
+ *     pageCount?, pageWidth?, pixels?, id, fileKey, geometryType }
  *
  * The file's content spans contentBounds in its own units; matrix (4x4,
  * column-major, three.js Matrix4.elements order) places it in the project.
@@ -135,7 +135,10 @@ export function summarizeReference(item, index) {
     kind: item.kind,
     name: item.name,
     ...(item.kind === "pdf"
-      ? { page: item.page, page_count: item.pageCount }
+      ? {
+          page: item.page === 0 ? "all" : item.page || 1,
+          page_count: item.pageCount,
+        }
       : {}),
     ...(item.pixels ? { pixels: item.pixels } : {}),
     ...(item.tags?.length ? { tags: item.tags } : {}),

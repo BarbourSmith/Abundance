@@ -13,6 +13,9 @@ import {
   disposeObject,
   getAsset,
   parseModel,
+  pdfLayout,
+  pdfPageOf,
+  pixelsPerPage,
   registerAsset,
   renderPdfPage,
 } from "./referenceFiles.js";
@@ -26,7 +29,7 @@ const resources = new Map();
 const idle = [];
 
 function resourceKey(item) {
-  if (item.kind === "pdf") return `${item.asset}#${item.page || 1}`;
+  if (item.kind === "pdf") return `${item.asset}#${pdfPageOf(item) || "all"}`;
   if (item.kind === "model") {
     return `${item.asset}|${JSON.stringify(item.resources || {})}`;
   }
@@ -64,10 +67,25 @@ async function loadResource(item) {
     return { scene: await parseModel(item.asset, item.resources) };
   }
   if (item.kind === "pdf") {
+    const page = pdfPageOf(item);
+    if (page === 0) {
+      // A texture per page, so a long document stays sharp
+      const { pages } = await pdfLayout(item.asset, 0);
+      const maxPixels = pixelsPerPage(pages.length);
+      const textures = [];
+      try {
+        for (const { page: number, center, size } of pages) {
+          const canvas = await renderPdfPage(item.asset, number, maxPixels);
+          textures.push({ texture: await textureFrom(canvas), center, size });
+        }
+      } catch (err) {
+        textures.forEach(({ texture }) => texture.dispose());
+        throw err;
+      }
+      return { pages: textures };
+    }
     return {
-      texture: await textureFrom(
-        await renderPdfPage(item.asset, item.page || 1),
-      ),
+      texture: await textureFrom(await renderPdfPage(item.asset, page)),
     };
   }
   const asset = getAsset(item.asset);
@@ -84,6 +102,7 @@ async function loadResource(item) {
 
 function disposeResource(resource) {
   resource.texture?.dispose();
+  resource.pages?.forEach(({ texture }) => texture.dispose());
   if (resource.scene) disposeObject(resource.scene);
 }
 
@@ -141,31 +160,37 @@ export async function createReferenceObject(item, { opacity = 1 } = {}) {
   holder.matrix.fromArray(item.matrix || IDENTITY);
   holder.matrixWorldNeedsUpdate = true;
 
-  if (resource.texture) {
+  if (resource.texture || resource.pages) {
     const { min, max } = item.contentBounds;
-    const geometry = new THREE.PlaneGeometry(max[0] - min[0], max[1] - min[1]);
-    const material = new THREE.MeshBasicMaterial({
-      map: resource.texture,
-      side: THREE.DoubleSide,
-      transparent: alpha < 1,
-      opacity: alpha,
-      depthWrite: alpha >= 1,
-      toneMapped: false,
-      // Pushed back further than model faces (which use 2), so a face lying
-      // on a plan shows on top of it
-      polygonOffset: true,
-      polygonOffsetFactor: 4,
-      polygonOffsetUnits: 4,
-    });
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.position.set(
-      (min[0] + max[0]) / 2,
-      (min[1] + max[1]) / 2,
-      (min[2] + max[2]) / 2,
-    );
-    holder.add(mesh);
-    ownGeometries.push(geometry);
-    ownMaterials.push(material);
+    const z = (min[2] + max[2]) / 2;
+    const planes = resource.pages || [
+      {
+        texture: resource.texture,
+        center: [(min[0] + max[0]) / 2, (min[1] + max[1]) / 2],
+        size: [max[0] - min[0], max[1] - min[1]],
+      },
+    ];
+    for (const { texture, center, size } of planes) {
+      const geometry = new THREE.PlaneGeometry(size[0], size[1]);
+      const material = new THREE.MeshBasicMaterial({
+        map: texture,
+        side: THREE.DoubleSide,
+        transparent: alpha < 1,
+        opacity: alpha,
+        depthWrite: alpha >= 1,
+        toneMapped: false,
+        // Pushed back further than model faces (which use 2), so a face
+        // lying on a plan shows on top of it
+        polygonOffset: true,
+        polygonOffsetFactor: 4,
+        polygonOffsetUnits: 4,
+      });
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.position.set(center[0], center[1], z);
+      holder.add(mesh);
+      ownGeometries.push(geometry);
+      ownMaterials.push(material);
+    }
   } else {
     // Shares the decoded geometry and materials
     const scene = resource.scene.clone(true);
