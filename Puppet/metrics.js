@@ -236,8 +236,16 @@ async function getGcodeMetrics(page) {
           progress: gcodeAtom.progress || 0,
         };
 
+        // An atom with no input geometry (for example after a Cut Layout that
+        // is waiting for Compute Layout) can never generate, so don't wait out
+        // the timeout on it.
+        const hasInput = gcodeAtom.findIOValue?.("geometry") != null;
+        if (!gcodeAtom.gcodeGenerated && !hasInput) {
+          atomMetrics.skipped = `no input geometry (status ${gcodeAtom.status})`;
+        }
+
         // If the GCode hasn't been generated yet, try to generate it and measure
-        if (!gcodeAtom.gcodeGenerated) {
+        if (!gcodeAtom.gcodeGenerated && hasInput) {
           try {
             // Trigger GCode generation and measure time
             const genStartTime = performance.now();
@@ -493,6 +501,9 @@ async function measureProject(browser, baseUrl, projectName, replayCache) {
         errors: (gcode.atoms || [])
           .flatMap((a) => [a.generationError, a.visualizationError])
           .filter(Boolean),
+        skipped: (gcode.atoms || [])
+          .filter((a) => a.skipped)
+          .map((a) => `${a.atomName}: ${a.skipped}`),
       };
     }
   } catch (error) {
@@ -535,7 +546,20 @@ const formatSample = (s) =>
   s.error
     ? `FAILED: ${s.error}`
     : `cold ${s.coldLoadTimeMs}ms, warm ${s.warmLoadTimeMs}ms, ` +
-      `cache ${formatBytes(s.cacheSize)} (${s.cacheEntryCount} entries)`;
+      `cache ${formatBytes(s.cacheSize)} (${s.cacheEntryCount} entries)` +
+      formatGcode(s.gcode);
+
+// G-code problems only show up in metrics.json otherwise, which isn't uploaded
+// if the job times out.
+const formatGcode = (g) => {
+  if (!g) return "";
+  const notes = [];
+  if (g.skipped.length) {
+    notes.push(`${g.skipped.length} skipped (${g.skipped.join("; ")})`);
+  }
+  if (g.errors.length) notes.push(`errors: ${g.errors.join("; ")}`);
+  return `, G-code ${g.atomCount} atoms` + (notes.length ? `, ${notes.join(", ")}` : "");
+};
 
 /**
  * Main execution
