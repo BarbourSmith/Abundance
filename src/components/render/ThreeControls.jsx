@@ -5,9 +5,9 @@ import { useThree } from "@react-three/fiber";
 import { useRendering } from "../../contexts";
 import { useRef, useEffect, useState } from "react";
 
-// How close (in screen pixels) a double-click must land to the origin marker
-// or to an edge/point to pick it. The origin sphere is far too small to hit
-// directly at millimeter scale, so it is matched in screen space instead.
+// How close (in screen pixels) a double-click must land to the origin or to an
+// edge/point to pick it. Nothing is drawn at the origin to raycast against, so
+// it is matched in screen space instead.
 const PIVOT_PICK_PX = 10;
 const PIVOT_ANIMATION_MS = 250;
 
@@ -27,7 +27,7 @@ function isPivotCandidate(object) {
 
 /**
  * Double-clicking the model moves the orbit pivot to the clicked point, and
- * double-clicking the origin marker moves it back to the origin. OrbitControls
+ * double-clicking the origin (where the axes meet) moves it back there. OrbitControls
  * always looks at its pivot, so the camera slides by the same offset and the
  * picked point glides to the center of the view without changing the viewing
  * angle or zoom.
@@ -175,12 +175,6 @@ const Controls = React.memo(
           zoomSpeed={0.5}
           enableDamping={enableDamping}
         />
-
-        {/* Mark the origin with a small sphere */}
-        <mesh name="origin" position={[0, 0, 0]}>
-          <sphereGeometry args={[0.1, 32, 32]} />
-          <meshBasicMaterial color="gray" />
-        </mesh>
 
         {/* Add a visible ground plane under the origin */}
         {plane && extraPlane && geometryType == "replicad.Drawing" ? (
