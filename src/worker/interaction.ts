@@ -422,7 +422,16 @@ async function assembly(
   const insideOtherBatch = !!context.operationId;
   let startedOwnBatch = false;
   if (!insideOtherBatch) {
-    const batchId = "assembly-" + util.hashString(JSON.stringify(geometries));
+    // Bounding boxes are left out of the key: they follow from the geometry,
+    // and an input's bounds can differ between a computed and a cached value
+    // without the parts being any different (as Code atoms' keys also do).
+    const batchId =
+      "assembly-" +
+      util.hashString(
+        JSON.stringify(geometries, (key, value) =>
+          key === "boundingBox" ? undefined : value,
+        ),
+      );
     const batch: RequestContext | AbundanceObject =
       await util.geometryProvider!.startBatchOperation(context, batchId);
 
@@ -431,20 +440,13 @@ async function assembly(
       const batchWithBounds = batch.boundingBox
         ? batch
         : await util.withAssemblyBoundingBoxes(batch, context);
-      // Gather all nonReplicadSerialized and bom from input geometries
-      const nonReplicadGeoms: any[] = [];
-      const bomAssembly: any[] = [];
-      for (const geometry of geometries) {
-        if (
-          Array.isArray(geometry.nonReplicadSerialized) &&
-          geometry.nonReplicadSerialized.length > 0
-        ) {
-          nonReplicadGeoms.push(...geometry.nonReplicadSerialized);
-        }
-      }
-      // Always update to reflect current state, even if empty
-      batchWithBounds.nonReplicadSerialized = nonReplicadGeoms;
-      batchWithBounds.bom = bomAssembly;
+      // Labels come from the current inputs, gathered exactly as assemblyOf
+      // gathers them for a computed result: assemblies further down key
+      // their cached results on this value, so it must not depend on whether
+      // this one was computed or found.
+      batchWithBounds.nonReplicadSerialized =
+        util.collectNonReplicadSerialized(geometries);
+      batchWithBounds.bom = [];
       return batchWithBounds;
     }
 

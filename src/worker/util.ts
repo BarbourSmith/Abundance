@@ -642,8 +642,10 @@ async function actOnLeafs(
     return assembly;
   }
   plane = plane || assembly.plane;
+  // An array, as everywhere else: an empty object here used to end up as an
+  // element of the parent assembly's list (see collectNonReplicadSerialized).
   nonReplicadSerialized =
-    nonReplicadSerialized || assembly.nonReplicadSerialized || {};
+    nonReplicadSerialized || assembly.nonReplicadSerialized || [];
 
   if (isLeaf(assembly)) {
     const result = await action(assembly);
@@ -947,11 +949,33 @@ function assemblyOf(subAssemblies: AbundanceObject[]): AbundanceObject {
     tags: [],
     bom: [],
     geometryType: subAssemblies[0].geometryType,
-    nonReplicadSerialized: subAssemblies
-      .map((a) => a.nonReplicadSerialized || [])
-      .flat(),
+    nonReplicadSerialized: collectNonReplicadSerialized(subAssemblies),
   };
   return computeAssemblyBounds(result);
+}
+
+/**
+ * The non-replicad items (labels) of several objects, as one list for the
+ * assembly holding them.
+ *
+ * An object's own entry may be a list or a single item, and older results
+ * carry empty objects that stand for nothing; those are dropped. Assembly
+ * computes this both when it builds a result and when it finds one cached,
+ * and the two must match exactly: assemblies further down hash their inputs
+ * to find their own cached results, so a difference here makes every one of
+ * them recompute on the next load.
+ */
+function collectNonReplicadSerialized(objects: AbundanceObject[]): any[] {
+  return objects
+    .flatMap((object) => {
+      const items = object?.nonReplicadSerialized;
+      if (Array.isArray(items)) return items;
+      return items ? [items] : [];
+    })
+    .filter(
+      (item) =>
+        item && (typeof item !== "object" || Object.keys(item).length > 0),
+    );
 }
 
 function coPlanar(p1: SimplePlane, p2: SimplePlane): boolean {
@@ -987,6 +1011,7 @@ export {
   asReplicadPlane,
   asSimplePlane,
   assemblyOf,
+  collectNonReplicadSerialized,
   boundsOverlap,
   computeAssemblyBounds,
   coPlanar,
