@@ -22,6 +22,54 @@ function baseName(path) {
 /** The Page choice that shows every page of a PDF in a row. */
 const ALL_PAGES = "All pages";
 
+/** The file type option that picks the type from the file itself. */
+export const DETECT_TYPE = "Detect";
+
+/** File types by extension (lowercase, no dot). */
+const TYPES_BY_EXTENSION = {
+  svg: "SVG",
+  stl: "STL",
+  step: "STEP",
+  stp: "STEP",
+  ...Object.fromEntries(
+    Object.entries(REFERENCE_TYPES).flatMap(([type, { extensions }]) =>
+      extensions.map((extension) => [extension, type]),
+    ),
+  ),
+};
+
+/**
+ * The file type of a file: from its extension, or failing that from how it
+ * starts. Returns undefined for a file Import atoms can't load.
+ * @param {File} file
+ * @returns {Promise<string|undefined>}
+ */
+export async function detectImportType(file) {
+  const name = String(file.name || "");
+  const extension = name.includes(".")
+    ? name.slice(name.lastIndexOf(".") + 1).toLowerCase()
+    : "";
+  if (TYPES_BY_EXTENSION[extension]) return TYPES_BY_EXTENSION[extension];
+
+  const head = new Uint8Array(await file.slice(0, 512).arrayBuffer());
+  const text = new TextDecoder("latin1").decode(head);
+  const starts = (...bytes) => bytes.every((b, i) => head[i] === b);
+  if (starts(0x89, 0x50, 0x4e, 0x47)) return "PNG";
+  if (starts(0xff, 0xd8, 0xff)) return "JPG";
+  if (text.startsWith("%PDF")) return "PDF";
+  if (text.startsWith("glTF")) return "GLB";
+  if (text.startsWith("ISO-10303-21")) return "STEP";
+  if (/<svg[\s>]/i.test(text)) return "SVG";
+  if (/^\s*\{[\s\S]*"asset"/.test(text)) return "GLTF";
+  if (/^\s*solid\b/.test(text)) return "STL";
+  // A binary STL: an 80 byte header, a triangle count, and 50 bytes per triangle
+  if (file.size >= 84) {
+    const count = new DataView(head.buffer).getUint32(80, true);
+    if (84 + count * 50 === file.size) return "STL";
+  }
+  return undefined;
+}
+
 /**
  * This class creates an atom which imports a file: SVG, STL, and STEP files
  * as shapes, and PNG, JPG, PDF, GLB, and glTF files as references to model
@@ -106,6 +154,7 @@ export default class Import extends Atom {
     this.addIO("output", "geometry", undefined, "output");
 
     this.importOptions = [
+      DETECT_TYPE,
       "SVG",
       "STL",
       "STEP",
@@ -146,6 +195,11 @@ export default class Import extends Atom {
   }
 
   compute(inputs) {
+    // Nothing to load until a file is chosen
+    if (this.fileName == null) {
+      this.setWaiting();
+      return new Promise(() => {});
+    }
     return this.loadAndPropagate();
   }
 
@@ -564,16 +618,26 @@ export default class Import extends Atom {
    */
   loadFile(type, setInputChanged) {
     var f = document.getElementById("fileLoaderInput");
-    f.accept = (REFERENCE_TYPES[type]?.extensions || [type.toLowerCase()])
-      .map((extension) => "." + extension)
-      .join(",");
+    const extensions =
+      type === DETECT_TYPE
+        ? Object.keys(TYPES_BY_EXTENSION)
+        : REFERENCE_TYPES[type]?.extensions || [type.toLowerCase()];
+    f.accept = extensions.map((extension) => "." + extension).join(",");
     f.onchange = (event) => {
       const file = event.target.files[0];
       if (file) {
         // If a previous file exists, delete it
         this.deleteUploadedFile();
 
-        this.type = type;
+        // Detecting may read the file; the upload (CreateMode) waits for it
+        // in updateFile before processing the file
+        this.type = type === DETECT_TYPE ? null : type;
+        this.detectingType =
+          type === DETECT_TYPE
+            ? detectImportType(file).then((detected) => {
+                this.type = detected ?? null;
+              })
+            : null;
         this.fileName = file.name; // Set the new filename
 
         if (setInputChanged) {
@@ -630,9 +694,19 @@ export default class Import extends Atom {
   /**
    * Update the file, filename and sha of the atom
    */
-  updateFile(file, sha) {
+  async updateFile(file, sha) {
     this.fileName = file.name;
     this.sha = sha;
+    await this.detectingType;
+    if (!this.type && file instanceof File) {
+      this.type = (await detectImportType(file)) ?? null;
+    }
+    if (!this.type) {
+      this.setError(
+        `Couldn't tell what kind of file "${file.name}" is. Choose its File Type and load it again.`,
+      );
+      return;
+    }
     if (
       !GlobalVariables.currentAWSnode?.owner ||
       !GlobalVariables.currentAWSnode?.repoName
