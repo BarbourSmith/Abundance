@@ -420,34 +420,21 @@ async function assembly(
     ),
   );
   const insideOtherBatch = !!context.operationId;
+  // The batch started below is gone once it ends, so the result is built in
+  // the caller's context.
+  const callerContext = context;
   let startedOwnBatch = false;
   if (!insideOtherBatch) {
-    // Bounding boxes are left out of the key: they follow from the geometry,
-    // and an input's bounds can differ between a computed and a cached value
-    // without the parts being any different (as Code atoms' keys also do).
     const batchId =
       "assembly-" +
-      util.hashString(
-        JSON.stringify(geometries, (key, value) =>
-          key === "boundingBox" ? undefined : value,
-        ),
-      );
+      util.hashString(JSON.stringify(geometries.map(assemblyKeyOf)));
     const batch: RequestContext | AbundanceObject =
       await util.geometryProvider!.startBatchOperation(context, batchId);
 
-    // Full assembly cache hit. No work to do, but update nonReplicadSerialized if needed.
+    // Full assembly cache hit: the cut shapes are stored, and everything
+    // else comes from the current inputs.
     if (util.isAbundanceObject(batch)) {
-      const batchWithBounds = batch.boundingBox
-        ? batch
-        : await util.withAssemblyBoundingBoxes(batch, context);
-      // Labels come from the current inputs, gathered exactly as assemblyOf
-      // gathers them for a computed result: assemblies further down key
-      // their cached results on this value, so it must not depend on whether
-      // this one was computed or found.
-      batchWithBounds.nonReplicadSerialized =
-        util.collectNonReplicadSerialized(geometries);
-      batchWithBounds.bom = [];
-      return batchWithBounds;
+      return await dressAssembly(geometries, batch, context);
     }
 
     // cache miss on the batch operation.
@@ -489,24 +476,14 @@ async function assembly(
     assembly.push(geometries[geometries.length - 1]); // Final entry is always unmodified.
     reportCadProgress(`finalizing ${geometries.length} parts`);
 
-    // Build the initial assembly object with all children already having bounds
-    const assemblyObject: AbundanceObject = util.assemblyOf(
-      await Promise.all(assembly),
-    );
-
-    // Safety check with recursive validation disabled (forceRecompute=false)
-    // Since we've already computed bounds eagerly, this will detect our computed bounds
-    // and return immediately without recursive traversal
-    const result = await util.withAssemblyBoundingBoxes(
-      assemblyObject,
-      context,
-      false, // forceRecompute=false, so it skips unnecessary recursion
-    );
+    // Only the cut shapes are cached. The result is then built from them the
+    // same way a cache hit builds it, so the two can't differ.
+    const shape = assemblyShapeOf(util.assemblyOf(assembly));
     if (!insideOtherBatch) {
       console.trace("Ending batch operation with id " + context.operationId);
-      await util.geometryProvider!.endBatchOperation(context, result);
+      await util.geometryProvider!.endBatchOperation(context, shape);
     }
-    return result;
+    return await dressAssembly(geometries, shape, callerContext);
   } catch (error) {
     if (error instanceof FailedCutError) {
       // A previously-hanging boolean cut was reached. Replace the entire assembly
@@ -557,6 +534,118 @@ async function assembly(
 }
 
 //// Helper Functions ////
+
+/**
+ * What an assembly's cut shapes depend on, for its cache key: each part's
+ * geometry and kind, and a sketch's plane (sketches only cut coplanar
+ * sketches), in the shape of the input's tree.
+ *
+ * Everything else (color, tags including keepout, bom, metadata, labels) is
+ * carried from the inputs to the result by dressAssembly, so two inputs that
+ * differ only there share a cached result. Bounding boxes only let cuts be
+ * skipped, and an input's bounds can differ between a computed and a cached
+ * value of the same shape.
+ */
+function assemblyKeyOf(part: AbundanceObject): unknown {
+  if (util.isLeaf(part)) {
+    return part.geometryType === "replicad.Drawing"
+      ? [part.geometry, part.geometryType, part.plane]
+      : [part.geometry, part.geometryType];
+  }
+  return { parts: (part.geometry as AbundanceObject[]).map(assemblyKeyOf) };
+}
+
+/**
+ * The part of an assembly result that is cached: the tree of cut shape ids,
+ * with their bounds so a cache hit doesn't have to measure them again.
+ */
+function assemblyShapeOf(part: AbundanceObject): AbundanceObject {
+  if (util.isLeaf(part)) {
+    return {
+      geometry: part.geometry,
+      geometryType: part.geometryType,
+      ...(part.boundingBox ? { boundingBox: part.boundingBox } : {}),
+    } as AbundanceObject;
+  }
+  return {
+    geometry: (part.geometry as AbundanceObject[]).map(assemblyShapeOf),
+    ...(part.boundingBox ? { boundingBox: part.boundingBox } : {}),
+  } as AbundanceObject;
+}
+
+/**
+ * Builds an assembly's result from its inputs and the cut shapes (see
+ * assemblyShapeOf). Each input keeps all of its own properties and takes its
+ * shapes from the cut. Used both when the cuts were just computed and when
+ * they were found in the cache.
+ */
+async function dressAssembly(
+  inputs: AbundanceObject[],
+  shape: AbundanceObject,
+  context: RequestContext,
+): Promise<AbundanceObject> {
+  const shapes = shape.geometry as AbundanceObject[];
+  if (!Array.isArray(shapes) || shapes.length !== inputs.length) {
+    throw new Error("Cached assembly doesn't match its inputs");
+  }
+  return util.withAssemblyBoundingBoxes(
+    util.assemblyOf(inputs.map((input, i) => dressPart(input, shapes[i]))),
+    context,
+  );
+}
+
+function dressPart(
+  input: AbundanceObject,
+  shape: AbundanceObject,
+): AbundanceObject {
+  if (util.isLeaf(input)) {
+    if (util.isLeaf(shape)) {
+      return {
+        ...input,
+        geometry: shape.geometry,
+        boundingBox: input.boundingBox ?? shape.boundingBox,
+      };
+    }
+    // The cut split this part into pieces.
+    return piecesOf(input, shape.geometry as AbundanceLeaf[]);
+  }
+  const children = input.geometry as AbundanceObject[];
+  const shapes = shape.geometry as AbundanceObject[];
+  if (util.isLeaf(shape) || shapes.length !== children.length) {
+    throw new Error("Cached assembly doesn't match its inputs");
+  }
+  return util.computeAssemblyBounds({
+    ...input,
+    geometry: children.map((child, i) => dressPart(child, shapes[i])),
+  });
+}
+
+/**
+ * A part that a cut split into separate pieces: a branch holding one leaf
+ * per piece, each with the part's own properties.
+ */
+function piecesOf(
+  part: AbundanceLeaf,
+  pieces: { geometry: string; boundingBox?: util.AbundanceBounds }[],
+): AbundanceObject {
+  return {
+    geometry: pieces.map((piece) => ({
+      geometry: piece.geometry,
+      tags: part.tags,
+      color: part.color,
+      bom: part.bom,
+      plane: part.plane,
+      metadata: part.metadata,
+      geometryType: part.geometryType,
+      ...(piece.boundingBox ? { boundingBox: piece.boundingBox } : {}),
+    })),
+    tags: part.tags,
+    color: part.color,
+    bom: part.bom,
+    plane: part.plane,
+    metadata: part.metadata,
+  } as AbundanceObject;
+}
 
 /**
  * Recursively digs through an assembly and fuses all leaf geometries into a single geometry.
@@ -752,27 +841,10 @@ async function splitCompSolid(
   if (subPartIds.length <= 1) {
     return part;
   }
-
-  const resultGeoms = [];
-  for (const id of subPartIds) {
-    resultGeoms.push({
-      geometry: id,
-      tags: part.tags,
-      color: part.color,
-      bom: part.bom,
-      plane: part.plane,
-      metadata: part.metadata,
-      geometryType: part.geometryType,
-    });
-  }
-  return {
-    geometry: resultGeoms,
-    tags: part.tags,
-    color: part.color,
-    bom: part.bom,
-    plane: part.plane,
-    metadata: part.metadata,
-  };
+  return piecesOf(
+    part,
+    subPartIds.map((id: string) => ({ geometry: id })),
+  );
 }
 
 export {
