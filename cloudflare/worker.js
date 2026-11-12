@@ -57,7 +57,7 @@ function isCrawler(userAgent) {
 
 // Paths ending in these extensions are files, never project pages
 const STATIC_FILE_PATTERN =
-  /\.(js|mjs|css|map|wasm|json|png|jpe?g|gif|webp|svg|ico|glb|gltf|stl|step|stp|woff2?|ttf|otf|txt|xml|webmanifest)$/i;
+  /\.(js|mjs|css|map|wasm|json|png|jpe?g|gif|webp|svg|ico|glb|gltf|stl|step|stp|woff2?|ttf|otf|txt|xml|webmanifest|mp4|webm|mov|mp3|pdf|html)$/i;
 
 // First path segments that belong to the site, not to a GitHub owner
 const NON_PROJECT_FOLDERS = [
@@ -70,6 +70,7 @@ const NON_PROJECT_FOLDERS = [
   "imgs",
   "wasm",
   "diagrams",
+  "videos",
 ];
 
 /**
