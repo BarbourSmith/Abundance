@@ -6,6 +6,12 @@ import GlobalVariables from "../js/globalvariables.js";
  */
 export default class Move extends Atom {
   /**
+   * A list of numbers in a number input makes one result per value, returned
+   * as an assembly. See Atom.computeOverLists.
+   */
+  static arrayInputs = "assembly";
+
+  /**
    * The constructor function.
    * @param {object} values An array of values passed in which will be assigned to the class as this.x
    */
