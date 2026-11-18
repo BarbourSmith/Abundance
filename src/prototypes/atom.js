@@ -988,10 +988,27 @@ export default class Atom extends ObservableEntity {
         return;
       }
 
+      // An equation whose inputs are still computing has no value yet. Save
+      // the equation anyway: skipping it would reload the input at its default.
+      const value = ap.getValue();
       if (
-        typeof ap.getValue() == "number" ||
-        typeof ap.getValue() == "string" ||
-        typeof ap.getValue() == "boolean"
+        (value === null || value === undefined) &&
+        typeof ap.currentEquation === "string" &&
+        ap.currentEquation.trim() !== "" &&
+        ap.currentEquation.length <= 10000
+      ) {
+        ioValues.push({
+          name: ap.name,
+          ioValue: ap.defaultValue,
+          currentEquation: ap.currentEquation,
+        });
+        return;
+      }
+
+      if (
+        typeof value == "number" ||
+        typeof value == "string" ||
+        typeof value == "boolean"
       ) {
         // Only save values that differ from defaults or have custom equations
         const currentValue = ap.getValue();
