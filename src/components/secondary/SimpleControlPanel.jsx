@@ -2089,10 +2089,11 @@ export const SimpleControlPanel = forwardRef(function SimpleControlPanel(
                               tabIndex={isDisabled ? -1 : 0}
                               aria-label="Preview"
                               onClick={() => {
-                                setActiveEye((prev) => ({
-                                  ...prev,
-                                  [key]: !prev[key],
-                                }));
+                                // Only one part can be previewed at a time, so
+                                // selecting an eye clears any other selected eye.
+                                setActiveEye((prev) =>
+                                  prev[key] ? {} : { [key]: true }
+                                );
                                 if (typeof config.eyeIcon === "function") {
                                   config.eyeIcon(key);
                                 }

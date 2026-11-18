@@ -272,11 +272,21 @@ export default class Molecule extends Atom {
   previewHandler(atom) {
     // Track preview state on the atom
     if (!atom._isPreviewing) {
+      // Only one atom is previewed at a time; previewing this one replaces the
+      // previous preview, so clear that atom's flag. Otherwise its next click
+      // would restore the full model instead of previewing it.
+      const replacePreview = () => {
+        if (this._previewingAtom && this._previewingAtom !== atom) {
+          this._previewingAtom._isPreviewing = false;
+        }
+        this._previewingAtom = atom;
+        atom._isPreviewing = true;
+      };
       // Handle Gcode atoms
       if (atom.atomType === "Gcode") {
         if (atom.gcodeString) {
           atom.sendToRender();
-          atom._isPreviewing = true;
+          replacePreview();
         } else {
           console.error("G-code is not available yet");
           const event = new CustomEvent("user-notification", {
@@ -290,7 +300,7 @@ export default class Molecule extends Atom {
       else if (atom.atomType === "Export") {
         if (atom.value) {
           atom.sendToRender();
-          atom._isPreviewing = true;
+          replacePreview();
         } else {
           console.error("Export is not ready yet");
           const event = new CustomEvent("user-notification", {
