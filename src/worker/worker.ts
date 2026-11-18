@@ -177,9 +177,9 @@ function findFlatFaces(
   });
 }
 /**
- * Prepares geometry for visualization export in various file formats (STL, STEP, SVG, TXT).
+ * Prepares geometry for visualization export in various file formats (STL, STEP, GLB, SVG, TXT).
  * @param {AbundanceObject|string} input - The geometry to export (AbundanceObject for 3D formats, string for TXT)
- * @param {string} fileType - The file type for export ("STL", "STEP", "SVG", or "TXT")
+ * @param {string} fileType - The file type for export ("STL", "STEP", "GLB", "SVG", or "TXT")
  * @returns {Promise<targetID>} A promise that resolves to ID of the result when the export preparation is completed successfully
  */
 function visExport(
@@ -207,6 +207,8 @@ function visExport(
         "Geometry To Export has no geometry after keepout is applied",
       );
     }
+    // GLB keeps each part separate with its color, so show it that way.
+    if (fileType == "GLB") return geometryToExport;
     const fusedGeometry = await fuseAssembly(geometryToExport, context);
     let finalGeometry = fusedGeometry;
     if (fileType == "SVG") {
@@ -336,6 +338,56 @@ async function downExport(
     const stepShape = geom.clone();
     return (mmScale === 1 ? stepShape : stepShape.scale(mmScale)).blobSTEP();
   }
+}
+
+/**
+ * Meshes each solid part of `input` for a mesh export (GLB), keeping parts
+ * separate so each keeps its color. Keep-outs are left out, as are 2D
+ * drawings, wires, and points, which have no surface to export.
+ * @param input - The geometry to export
+ * @param tolerance - Max chordal deviation, in project units
+ * @returns One mesh per part, in project units
+ */
+async function exportMeshes(
+  input: AbundanceObject,
+  context: RequestContext,
+  tolerance?: number,
+): Promise<{ faces: replicad.ShapeMesh; color: string }[]> {
+  await started;
+  if (!util.isAbundanceObject(input)) {
+    throw new Error("GLB export requires 3D geometry");
+  }
+  const geometryToExport = util.extractKeepOut(input);
+  if (!geometryToExport) {
+    throw new Error(
+      "Geometry To Export has no geometry after keepout is applied",
+    );
+  }
+  const meshes = [];
+  for (const leaf of util.flattenAssembly(geometryToExport)) {
+    if (
+      util.isReferenceLeaf(leaf) ||
+      leaf.geometry === util.geometryProvider!.EMPTY_SHAPE_SENTINEL
+    ) {
+      continue;
+    }
+    const shape = (await util.geometryProvider!.get(
+      leaf.geometry,
+      context,
+    )) as AnyShape;
+    if (!replicad.isShape3D(shape)) continue;
+    meshes.push({
+      faces: shape.mesh({
+        tolerance: tolerance && tolerance > 0 ? tolerance : 0.1,
+        angularTolerance: 0.5,
+      }),
+      color: leaf.color,
+    });
+  }
+  if (meshes.length === 0) {
+    throw new Error("GLB export requires 3D geometry");
+  }
+  return meshes;
 }
 
 /**
@@ -978,6 +1030,7 @@ const REFERENCE_POLICY: Record<string, ["reject", string] | ["skip"]> = {
   displayLayout: ["skip"],
   displayOrientation: ["skip"],
   downExport: ["skip"],
+  exportMeshes: ["skip"],
   findFlatFaces: ["skip"],
   generateThumbnail: ["skip"],
   layout: ["skip"],
@@ -1111,6 +1164,7 @@ if (
     generateThumbnail,
     visExport,
     downExport,
+    exportMeshes,
     shrinkWrapSketches,
     move,
     rotate,
@@ -1216,6 +1270,7 @@ export {
   difference,
   displayLayout,
   downExport,
+  exportMeshes,
   extractNotKeepOut,
   extractParts,
   extrude,
