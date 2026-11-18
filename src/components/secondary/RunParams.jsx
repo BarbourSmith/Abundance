@@ -81,22 +81,22 @@ export default function RunParams({
       label: "Project Units",
     };
 
-    // Add a button at the end to see the project readme
-    inputParams.seeProjectReadme = {
-      type: "button",
-      label: "See Project Readme",
-      order: 9999,
-      onClick: () => {
-        setReadMe();
-      },
-    };
-
+    // Add buttons at the end to see the bill of materials and project readme
     inputParams.seeBillOfMaterials = {
       type: "button",
       label: "See Bill of Materials",
-      order: 10000,
+      order: 9999,
       onClick: () => {
         setBillOfMaterials();
+      },
+    };
+
+    inputParams.seeProjectReadme = {
+      type: "button",
+      label: "See Project Readme",
+      order: 10000,
+      onClick: () => {
+        setReadMe();
       },
     };
   }
