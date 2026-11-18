@@ -2,6 +2,7 @@ import Atom from "../prototypes/atom.js";
 import GlobalVariables from "../js/globalvariables.js";
 import { saveAs } from "file-saver";
 import { Status } from "../prototypes/observableEntity.js";
+import { exportGeometryAsGLB } from "../js/exportGLB.js";
 
 /**
  * This class creates an atom which supports uploading a .svg file
@@ -44,7 +45,7 @@ export default class Export extends Atom {
 
     const isMM = GlobalVariables.topLevelMolecule?.unitsKey === "MM";
     /**
-     * Max chordal deviation (in project units) used when meshing for STL export. Smaller is finer.
+     * Max chordal deviation (in project units) used when meshing for STL and GLB export. Smaller is finer.
      * @type {number}
      */
     this.stlTolerance = isMM ? 0.05 : 0.002;
@@ -129,7 +130,7 @@ export default class Export extends Atom {
     // custom param panel below.
     super.createInputParams(setInputChanged);
     let inputParams = {};
-    const exportOptions = ["STEP", "STL", "SVG", "TXT"];
+    const exportOptions = ["STEP", "STL", "GLB", "SVG", "TXT"];
 
     /** Runs through active atom inputs and adds IO parameters to default param*/
 
@@ -175,7 +176,7 @@ export default class Export extends Atom {
         }
         if (
           input.name == "STL Tolerance" &&
-          this.findIOValue("File Type") === "STL"
+          ["STL", "GLB"].includes(this.findIOValue("File Type"))
         ) {
           const isMM = GlobalVariables.topLevelMolecule?.unitsKey === "MM";
           inputParams[this.uniqueID + input.name] = {
@@ -268,14 +269,23 @@ export default class Export extends Atom {
           "No geometry to export. Please make sure the geometry is ready.",
         );
       }
-      const result = await GlobalVariables.cad.downExport(
-        geometry,
-        fileType,
-        resolution,
-        GlobalVariables.topLevelMolecule.unitsKey,
-        this.getContext(),
-        stlTolerance,
-      );
+      const units = GlobalVariables.topLevelMolecule.unitsKey;
+      const result =
+        fileType === "GLB"
+          ? await exportGeometryAsGLB(
+              geometry,
+              units,
+              this.getContext(),
+              stlTolerance,
+            )
+          : await GlobalVariables.cad.downExport(
+              geometry,
+              fileType,
+              resolution,
+              units,
+              this.getContext(),
+              stlTolerance,
+            );
 
       saveAs(result, partName + "." + fileType.toLowerCase());
     } catch (err) {

@@ -606,13 +606,13 @@ export const TOOLS = [
     name: "export_geometry",
     permission: "read",
     description:
-      "Export an atom's output to STL, STEP, or SVG. The bridge writes the file to disk and returns its path.",
+      "Export an atom's output to STL, STEP, GLB, or SVG. GLB keeps each part as its own colored mesh, in meters. The bridge writes the file to disk and returns its path.",
     output: "file",
     inputSchema: {
       type: "object",
       properties: {
         atom: OPTIONAL_ATOM_REF,
-        format: { type: "string", enum: ["STL", "STEP", "SVG"] },
+        format: { type: "string", enum: ["STL", "STEP", "GLB", "SVG"] },
         output_path: {
           type: "string",
           description:

@@ -17,6 +17,7 @@ import {
   DeleteConnectorCommand,
 } from "../js/undoCommands.js";
 import { meshKey, splitDisplayMesh } from "../js/displayScheduler.js";
+import { exportGeometryAsGLB } from "../js/exportGLB.js";
 import {
   extractBase64FromDataURL,
   generateMeshPNG,
@@ -2124,14 +2125,18 @@ const handlers = {
       );
     }
     const units = topLevel().unitsKey;
-    const blob = await GlobalVariables.cad.downExport(
-      value,
-      format,
-      96,
-      units,
-      atom.getContext(),
-      units === "Inches" ? 0.002 : 0.05,
-    );
+    const tolerance = units === "Inches" ? 0.002 : 0.05;
+    const blob =
+      format === "GLB"
+        ? await exportGeometryAsGLB(value, units, atom.getContext(), tolerance)
+        : await GlobalVariables.cad.downExport(
+            value,
+            format,
+            96,
+            units,
+            atom.getContext(),
+            tolerance,
+          );
     const buffer = await blob.arrayBuffer();
     return {
       filename: `${atom.name || "export"}.${format.toLowerCase()}`,
