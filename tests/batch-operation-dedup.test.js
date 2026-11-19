@@ -40,6 +40,10 @@ vi.mock("../src/worker/indexeddbUtils", () => ({
   },
   shapeExists: async (projectId, shapeKey) =>
     store.has(`${projectId}::${shapeKey}`),
+  getBinary: async () => undefined,
+  putBinary: async () => {},
+  getPairCache: async () => undefined,
+  putPairCache: async () => {},
   deleteProjectCache: async () => {},
   getAllProjectIds: async () => [],
   filter: async () => {},
@@ -104,6 +108,54 @@ describe("GeometryProvider batch-operation concurrency", () => {
     const b2 = await p2;
     expect(b2.operationId).toBe("batch-race-fail");
     expect(b2).not.toHaveProperty("__cached");
+  });
+
+  it("lets several waiters re-run a failed batch one at a time", async () => {
+    // Identical code atoms (e.g. copies of one GitHub molecule given the same
+    // inputs) share a batch id. When the first run failed, every waiter woke
+    // at once: the first restarted the batch and the rest threw "already
+    // exists", hiding the real error.
+    const p1 = gp.startBatchOperation(context, "multi-fail", true);
+    const p2 = gp.startBatchOperation(context, "multi-fail", true);
+    const p3 = gp.startBatchOperation(context, "multi-fail", true);
+
+    const b1 = await p1;
+    gp.cleanupBatchWithoutCaching(b1);
+
+    // Exactly one waiter re-runs it; the other keeps waiting.
+    const second = await Promise.race([p2, p3]);
+    expect(second.operationId).toBe("batch-multi-fail");
+    const other =
+      second === (await Promise.race([p2, Promise.resolve(null)])) ? p3 : p2;
+    let otherSettled = false;
+    other.then(() => (otherSettled = true));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(otherSettled).toBe(false);
+
+    // The re-run fails too, so the last waiter runs it as well.
+    gp.cleanupBatchWithoutCaching(second);
+    const third = await other;
+    expect(third.operationId).toBe("batch-multi-fail");
+    expect(third).not.toHaveProperty("__cached");
+  });
+
+  it("hands the re-run's result to the remaining waiters", async () => {
+    const result = { __cached: true, geometry: [] };
+    const p1 = gp.startBatchOperation(context, "multi-retry", true);
+    const p2 = gp.startBatchOperation(context, "multi-retry", true);
+    const p3 = gp.startBatchOperation(context, "multi-retry", true);
+
+    const b1 = await p1;
+    gp.cleanupBatchWithoutCaching(b1);
+
+    const second = await Promise.race([p2, p3]);
+    expect(second.operationId).toBe("batch-multi-retry");
+    await gp.endBatchOperation(second, result);
+
+    const [r2, r3] = await Promise.all([p2, p3]);
+    const cachedOne = r2 === second ? r3 : r2;
+    expect(cachedOne).toMatchObject({ __cached: true });
+    expect(cachedOne).not.toHaveProperty("operationId");
   });
 
   it("returns the cached assembly immediately on a warm second call", async () => {
