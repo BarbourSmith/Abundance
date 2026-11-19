@@ -150,11 +150,11 @@ describe("interaction rejection for new primitive types", () => {
   describe("fusion()", () => {
     it("throws for Wire inputs", async () => {
       await expect(
-        fusion([makeLeaf("replicad.Wire"), makeLeaf("replicad.Wire")], {}),
+        fusion([makeLeaf("replicad.Wire"), makeLeaf("replicad.Wire")], false, {}),
       ).rejects.toThrow("fusion()");
     });
     it("throws for Point3D inputs", async () => {
-      await expect(fusion([makeLeaf("replicad.Vertex")], {})).rejects.toThrow(
+      await expect(fusion([makeLeaf("replicad.Vertex")], false, {})).rejects.toThrow(
         "fusion()",
       );
     });

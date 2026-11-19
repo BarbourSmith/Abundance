@@ -931,6 +931,26 @@ class GeometryProvider {
     return chamferId;
   }
 
+  /**
+   * Merges faces of a solid that share a surface, removing seam edges left by
+   * booleans. Sketches are returned unchanged.
+   */
+  async simplify(id: string, context: RequestContext): Promise<string> {
+    if (id === this.EMPTY_SHAPE_SENTINEL) {
+      return this.EMPTY_SHAPE_SENTINEL;
+    }
+    const geometry = await this.get(id, context);
+    if (!this.isShape3D(geometry)) {
+      return id;
+    }
+    const simplifyId = this._makeId("simplify", id);
+    await this.createIfAbsent(simplifyId, context, async () => {
+      const shape = await this.get(id, context);
+      return (shape as replicad.Shape3D).simplify();
+    });
+    return simplifyId;
+  }
+
   // TODO(tristan): this isn't ideal since it could fall out of sync with
   // replicad definitions of Shape3D
   isShape3D(obj: any): obj is replicad.Shape3D {

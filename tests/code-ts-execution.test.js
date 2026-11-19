@@ -176,7 +176,7 @@ describe("Code atom TS-mode execution (executeCode, interpreterVersion=1)", () =
       const box = await extrude(rect, 5, context);
 
       // This must NOT throw.
-      const fused = await fusion([codeResult, box], context);
+      const fused = await fusion([codeResult, box], false, context);
       expect(fused).toBeDefined();
       expect(is3D(fused)).toBe(true);
     });
