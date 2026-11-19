@@ -91,7 +91,7 @@ export const TOOLS = [
     name: "get_atom",
     permission: "read",
     description:
-      "Everything about one atom: status and error, inputs and what feeds them, what its output feeds, its editable parameters (the same fields the user sees in the properties panel, used with set_param), code and console output for Code atoms, and a summary of its computed value (geometry type, bounding box, part count, tags, and the reference files it carries: images, PDF pages, and 3D models, each with its bounding box in project units). geometry_warnings lists parts with broken geometry: invalid shapes, faces that fail to mesh (they render see-through), and sliver faces; it checks for a few seconds, and check_geometry covers the rest. For a GitHub molecule made in other units than the project, units gives the units its number inputs take, the scale applied to geometry wired into it, and the scale applied to its output to convert it to the project's units. With part, it also describes that one part." +
+      "Everything about one atom: status and error, inputs and what feeds them (an input that acts on picked edges, faces, or parts says so in selects, with its picks), what its output feeds, its editable parameters (the same fields the user sees in the properties panel, used with set_param), code and console output for Code atoms, and a summary of its computed value (geometry type, bounding box, part count, tags, and the reference files it carries: images, PDF pages, and 3D models, each with its bounding box in project units). geometry_warnings lists parts with broken geometry: invalid shapes, faces that fail to mesh (they render see-through), and sliver faces; it checks for a few seconds, and check_geometry covers the rest. For a GitHub molecule made in other units than the project, units gives the units its number inputs take, the scale applied to geometry wired into it, and the scale applied to its output to convert it to the project's units. With part, it also describes that one part." +
       UNTRUSTED_NOTE,
     inputSchema: {
       type: "object",
@@ -678,7 +678,7 @@ export const TOOLS = [
     name: "set_param",
     permission: "edit",
     description:
-      "Change one editable parameter of an atom, exactly as if the user typed it in the properties panel. Use the param label from get_atom. Numbers may be given as equations that reference other inputs by name.",
+      "Change one editable parameter of an atom, exactly as if the user typed it in the properties panel. Use the param label from get_atom. Numbers may be given as equations that reference other inputs by name. Array params, such as an array Input's Default Values or a molecule's array input, take a list.",
     inputSchema: {
       type: "object",
       properties: {
@@ -689,10 +689,90 @@ export const TOOLS = [
         },
         value: {
           description:
-            "New value: number, string, boolean, or [x, y, z] for points.",
+            "New value: number, string, boolean, [x, y, z] for points, or a list such as [10, 20, 35] for array params.",
         },
       },
       required: ["atom", "param", "value"],
+    },
+  },
+  {
+    name: "set_input_selection",
+    permission: "edit",
+    description:
+      "Pick the edges, faces, or parts that a molecule's edge-select, face-select, or part-select input acts on, as the user does with its Select Edges, Select Faces, or Select Parts button. Molecules such as fillets of chosen edges or a wire between two round edges take their picks this way; get_atom marks these inputs with selects and lists their picks. Connect the shape to the input first: connecting a new shape clears its picks. This waits for the shape to compute. Each pick is the edge, face, or part passing nearest point; or the one whose center is nearest center (a circle's or arc's center, a straight edge's midpoint, a face's center), best for a hole or a pin end given with type circle; or part and index from an earlier result. The picks replace the input's current ones unless add is true; an empty list clears them. Returns each pick's type, position, and size (a circle's center, radius, and axis) and the next nearest candidates with their distances, to check it picked what you meant. Circles are often drawn as two half-circle arcs: as_near counts others just as near, and all_nearest picks them too, such as a whole hole rim to fillet. Picks are stored by number, so pick again after changing the shape wired in.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        atom: {
+          ...ATOM_REF,
+          description:
+            ATOM_REF.description +
+            " The molecule (or imported GitHub molecule) whose input to set.",
+        },
+        input: {
+          type: "string",
+          description: "The input's name, as get_atom lists it.",
+        },
+        picks: {
+          type: "array",
+          description:
+            "What to pick, in project coordinates and units. Each is { point } or { center }, optionally with type and part, or { part, index }. A part-select input takes { part } or { point }.",
+          items: {
+            type: "object",
+            properties: {
+              point: {
+                ...POINT3,
+                description:
+                  "Pick what passes nearest this point, such as a point on the edge or face.",
+              },
+              center: {
+                ...POINT3,
+                description:
+                  "Pick what has its center nearest this point, such as the center of a hole's rim.",
+              },
+              type: {
+                type: "string",
+                enum: [
+                  "line",
+                  "circle",
+                  "ellipse",
+                  "curve",
+                  "plane",
+                  "cylinder",
+                  "cone",
+                  "sphere",
+                  "torus",
+                  "curved",
+                ],
+                description:
+                  "Only edges (line, circle, ellipse, curve) or faces (plane, cylinder, cone, sphere, torus, curved) of this type.",
+              },
+              part: {
+                type: "integer",
+                minimum: 0,
+                description:
+                  "Only this part of the shape wired in, numbered from 0 as other tools number parts.",
+              },
+              index: {
+                type: "integer",
+                minimum: 0,
+                description:
+                  "With part: this edge or face, numbered as an earlier result gave it.",
+              },
+              all_nearest: {
+                type: "boolean",
+                description:
+                  "Also pick everything just as near, such as the other arc of a circle drawn as two half circles.",
+              },
+            },
+          },
+        },
+        add: {
+          type: "boolean",
+          description: "Keep the input's current picks and add these.",
+        },
+      },
+      required: ["atom", "input", "picks"],
     },
   },
   {
@@ -915,7 +995,7 @@ export const TOOLS = [
     name: "apply_edits",
     permission: "edit",
     description:
-      "Run several edit tools (set_param, set_code, add_atom, add_github_molecule, import_file, connect, disconnect, delete_atoms, group_atoms) as one change that the user can undo in a single step. Later edits may refer to atoms added earlier in the batch by their ref (or name).",
+      "Run several edit tools (set_param, set_input_selection, set_code, add_atom, add_github_molecule, import_file, connect, disconnect, delete_atoms, group_atoms) as one change that the user can undo in a single step. Later edits may refer to atoms added earlier in the batch by their ref (or name).",
     inputSchema: {
       type: "object",
       properties: {
@@ -1017,6 +1097,7 @@ export const IMPORT_EXTENSIONS = [
 /** Tools that apply_edits may run. */
 export const BATCHABLE_TOOLS = [
   "set_param",
+  "set_input_selection",
   "set_code",
   "add_atom",
   "add_github_molecule",

@@ -815,6 +815,342 @@ async function resolveSelectionPoints(
 }
 
 /**
+ * What the agent's set_input_selection asks for: one edge, face, or part of
+ * an input's geometry. With point, the one passing nearest it; with center,
+ * the one whose center is nearest it; with part and index, that one. type
+ * and part narrow the search.
+ */
+type PickQuery = {
+  kind: "edge" | "face" | "part";
+  point?: number[];
+  center?: number[];
+  type?: string;
+  part?: number;
+  index?: number;
+  /** Also pick every candidate just as near as the nearest. */
+  all?: boolean;
+  alternatives?: number;
+};
+
+/** Plain names for replicad's curve and surface types. */
+const EDGE_TYPES: Record<string, string> = {
+  LINE: "line",
+  CIRCLE: "circle",
+  ELLIPSE: "ellipse",
+};
+const FACE_TYPES: Record<string, string> = {
+  PLANE: "plane",
+  CYLINDRE: "cylinder",
+  CONE: "cone",
+  SPHERE: "sphere",
+  TORUS: "torus",
+};
+
+type Vec3 = [number, number, number];
+const sub3 = (a: Vec3, b: Vec3): Vec3 => [
+  a[0] - b[0],
+  a[1] - b[1],
+  a[2] - b[2],
+];
+const dot3 = (a: Vec3, b: Vec3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const cross3 = (a: Vec3, b: Vec3): Vec3 => [
+  a[1] * b[2] - a[2] * b[1],
+  a[2] * b[0] - a[0] * b[2],
+  a[0] * b[1] - a[1] * b[0],
+];
+const vec3 = (v: replicad.Vector): Vec3 => [v.x, v.y, v.z];
+/** Rounded for the agent to read; -0 shows as 0. */
+const round4 = (n: number) => Math.round(n * 1e4) / 1e4 || 0;
+const round3v = (v: number[]) => v.map(round4);
+
+/**
+ * The circle through three points on an edge, as Code atoms that read picked
+ * circles find it (center, unit axis, radius), or null for a straight edge.
+ */
+function circleThrough(edge: replicad.Edge) {
+  const a = vec3(edge.pointAt(0));
+  const b = vec3(edge.pointAt(1 / 3));
+  const c = vec3(edge.pointAt(2 / 3));
+  const ab = sub3(b, a);
+  const ac = sub3(c, a);
+  const n = cross3(ab, ac);
+  const n2 = dot3(n, n);
+  if (n2 < 1e-12 * dot3(ab, ab) * dot3(ac, ac)) return null;
+  const u = cross3(n, ab);
+  const w = cross3(ac, n);
+  const k1 = dot3(ac, ac) / (2 * n2);
+  const k2 = dot3(ab, ab) / (2 * n2);
+  const center: Vec3 = [
+    a[0] + u[0] * k1 + w[0] * k2,
+    a[1] + u[1] * k1 + w[1] * k2,
+    a[2] + u[2] * k1 + w[2] * k2,
+  ];
+  const len = Math.sqrt(n2);
+  const radius = Math.sqrt(dot3(sub3(a, center), sub3(a, center)));
+  return { center, axis: n.map((x) => x / len) as Vec3, radius };
+}
+
+/** An edge for the agent: its type, size, and where it is. */
+function describeEdge(edge: replicad.Edge) {
+  const type = EDGE_TYPES[edge.geomType] ?? "curve";
+  const start = vec3(edge.startPoint);
+  const end = vec3(edge.endPoint);
+  const info: Record<string, any> = { type, length: round4(edge.length) };
+  let center: Vec3 = vec3(edge.pointAt(0.5));
+  const circle = type === "circle" ? circleThrough(edge) : null;
+  if (circle) {
+    center = circle.center;
+    info.center = round3v(circle.center);
+    info.radius = round4(circle.radius);
+    info.axis = round3v(circle.axis);
+    if (!edge.isClosed)
+      Object.assign(info, {
+        arc: true,
+        start: round3v(start),
+        end: round3v(end),
+      });
+  } else {
+    Object.assign(info, { start: round3v(start), end: round3v(end) });
+    if (type !== "line") info.midpoint = round3v(center);
+  }
+  return { info, center };
+}
+
+/** A face for the agent: its type, size, and where it is. */
+function describeFace(face: replicad.Face) {
+  const type = FACE_TYPES[face.geomType] ?? "curved";
+  const center = vec3(face.center);
+  const info: Record<string, any> = {
+    type,
+    center: round3v(center),
+    area: round4(replicad.measureArea(face)),
+  };
+  if (type === "plane") info.normal = round3v(vec3(face.normalAt()));
+  if (type === "cylinder") {
+    // The axis and radius, read from the surface itself
+    let adaptor: any, cylinder: any, axis: any, direction: any;
+    try {
+      adaptor = (face as any)._geomAdaptor();
+      cylinder = adaptor.Cylinder();
+      axis = cylinder.Axis();
+      direction = axis.Direction();
+      info.radius = round4(cylinder.Radius());
+      info.axis = round3v([direction.X(), direction.Y(), direction.Z()]);
+    } catch {
+      // Described without them
+    } finally {
+      [direction, axis, cylinder, adaptor].forEach((o) => o?.delete?.());
+    }
+  }
+  return { info, center };
+}
+
+/**
+ * Find the edges, faces, or parts set_input_selection picks on an input's
+ * geometry. Parts are numbered as the other agent tools number them
+ * (non-empty leaves in order) and leaf gives each one's place among all the
+ * leaves, which is how an Input atom stores its picks. Returns, for each
+ * query, the pick and the next nearest candidates, or an error to show.
+ */
+async function findSelectable(
+  value: AbundanceObject,
+  queries: PickQuery[],
+  context: RequestContext,
+) {
+  await started;
+  const leaves = util.isAbundanceObject(value)
+    ? util.flattenAssembly(value)
+    : [];
+  const parts: { leaf: number; node: AbundanceLeaf }[] = [];
+  leaves.forEach((node, leaf) => {
+    if (node.geometry !== util.geometryProvider?.EMPTY_SHAPE_SENTINEL) {
+      parts.push({ leaf, node });
+    }
+  });
+  const kinds = { edge: "edges", face: "faces", part: "parts" };
+
+  /** The shape of one part, or why it has nothing to pick. */
+  const shapeOf = async (
+    part: number,
+    kind: PickQuery["kind"],
+  ): Promise<{ shape?: replicad.Shape<any>; why?: string }> => {
+    const { node } = parts[part];
+    if (isReferenceLeaf(node)) {
+      return { why: `part ${part} is a reference file, not a shape` };
+    }
+    const shape = await getShapeCached(node.geometry, context);
+    if (kind !== "part") {
+      if (!shape || shape instanceof replicad.Drawing) {
+        return {
+          why: `part ${part} is a 2D drawing, which has no ${kinds[kind]} to pick in 3D`,
+        };
+      }
+      if (shape instanceof replicad.Vertex) {
+        return { why: `part ${part} is a point` };
+      }
+      if (kind === "face" && shape instanceof replicad.Wire) {
+        return { why: `part ${part} is a wire, which has no faces` };
+      }
+    }
+    return { shape: shape as replicad.Shape<any> };
+  };
+
+  const findOne = async (query: PickQuery): Promise<Record<string, any>> => {
+    const { kind } = query;
+    if (query.part !== undefined && !parts[query.part]) {
+      return {
+        error: `the shape wired in has ${parts.length} part(s), numbered from 0; there is no part ${query.part}.`,
+      };
+    }
+    const partNumbers =
+      query.part !== undefined ? [query.part] : parts.map((_, i) => i);
+    const target = query.point ?? query.center;
+    const vertex = query.point
+      ? replicad.makeVertex(query.point as Vec3)
+      : null;
+    const distance = vertex ? new replicad.DistanceQuery(vertex) : null;
+    const measure = (shape: replicad.AnyShape, center: Vec3) => {
+      if (!target) return 0;
+      if (distance) {
+        try {
+          return distance.distanceTo(shape);
+        } catch {
+          return Infinity;
+        }
+      }
+      const d = sub3(center, target as Vec3);
+      return Math.sqrt(dot3(d, d));
+    };
+    const candidates: { distance: number; pick: Record<string, any> }[] = [];
+    const skipped: string[] = [];
+    try {
+      for (const part of partNumbers) {
+        const { leaf } = parts[part];
+        const found = await shapeOf(part, kind);
+        if (!found.shape) {
+          if (query.part !== undefined) return { error: found.why + "." };
+          skipped.push(found.why!);
+          continue;
+        }
+        const shape = found.shape;
+        if (kind === "part") {
+          const bounds = shape?.boundingBox?.bounds;
+          const center: Vec3 = bounds
+            ? ([0, 1, 2].map((i) => (bounds[0][i] + bounds[1][i]) / 2) as Vec3)
+            : [0, 0, 0];
+          candidates.push({
+            distance: measure(shape as replicad.AnyShape, center),
+            pick: {
+              part,
+              leaf,
+              ...(bounds
+                ? {
+                    bounding_box: {
+                      min: round3v(bounds[0]),
+                      max: round3v(bounds[1]),
+                    },
+                  }
+                : {}),
+              ...(parts[part].node.tags?.length
+                ? { tags: parts[part].node.tags }
+                : {}),
+            },
+          });
+          continue;
+        }
+        const elements: (replicad.Edge | replicad.Face)[] =
+          kind === "edge" ? shape.edges : shape.faces;
+        try {
+          if (query.index !== undefined) {
+            const element = elements[query.index];
+            if (!element) {
+              return {
+                error: `part ${part} has ${elements.length} ${kinds[kind]}, numbered from 0; there is no ${kind} ${query.index}.`,
+              };
+            }
+            const { info } =
+              kind === "edge"
+                ? describeEdge(element as replicad.Edge)
+                : describeFace(element as replicad.Face);
+            if (query.type && info.type !== query.type) {
+              return {
+                error: `${kind} ${query.index} of part ${part} is a ${info.type}, not a ${query.type}.`,
+              };
+            }
+            return { pick: { part, leaf, index: query.index, ...info } };
+          }
+          elements.forEach((element, index) => {
+            const { info, center } =
+              kind === "edge"
+                ? describeEdge(element as replicad.Edge)
+                : describeFace(element as replicad.Face);
+            if (query.type && info.type !== query.type) return;
+            candidates.push({
+              distance: measure(element, center),
+              pick: { part, leaf, index, ...info },
+            });
+          });
+        } finally {
+          elements.forEach((element) => element.delete());
+        }
+      }
+    } finally {
+      distance?.delete();
+      vertex?.delete();
+    }
+
+    if (!candidates.length) {
+      const where =
+        query.part !== undefined ? `part ${query.part}` : "the shape wired in";
+      const what = query.type ? `${query.type} ${kinds[kind]}` : kinds[kind];
+      const why = skipped.length
+        ? ` (${[...new Set(skipped)].join("; ")})`
+        : "";
+      return { error: `${where} has no ${what} to pick${why}.` };
+    }
+    if (kind === "part" && !target) {
+      return { pick: candidates[0].pick };
+    }
+    candidates.sort((a, b) => a.distance - b.distance);
+    const withDistance = ({ distance, pick }: (typeof candidates)[number]) => ({
+      ...pick,
+      distance: round4(distance),
+    });
+    // Others just as near, such as the other half of a circle drawn as two
+    // arcs, or the edges meeting at a corner
+    const best = candidates[0].distance;
+    const tolerance =
+      1e-6 * Math.max(1, ...(target as number[]).map((n) => Math.abs(n)));
+    let tied = 1;
+    while (
+      tied < candidates.length &&
+      candidates[tied].distance - best <= tolerance
+    ) {
+      tied++;
+    }
+    const picked = query.all ? tied : 1;
+    return {
+      pick: withDistance(candidates[0]),
+      also: candidates.slice(1, picked).map(withDistance),
+      as_near: tied - picked,
+      nearest: candidates
+        .slice(picked, picked + (query.alternatives ?? 2))
+        .map(withDistance),
+    };
+  };
+
+  const results: Record<string, any>[] = [];
+  for (const query of queries) {
+    try {
+      results.push(await findOne(query));
+    } catch (e) {
+      results.push({ error: (e as Error).message || String(e) });
+    }
+  }
+  return results;
+}
+
+/**
  * Agent diagnostics: check each part (or one part) for invalid shapes, faces
  * that fail to mesh, and sliver faces. Stops after budgetMs and reports how
  * many parts it checked.
@@ -997,6 +1333,11 @@ workerpool.worker({
     refs: SelectionRef[],
     context: RequestContext,
   ) => withShapeCache(() => resolveSelectionPoints(value, refs, context)),
+  findSelectable: (
+    value: AbundanceObject,
+    queries: PickQuery[],
+    context: RequestContext,
+  ) => withShapeCache(() => findSelectable(value, queries, context)),
   inspectParts: (
     value: AbundanceObject,
     context: RequestContext,
