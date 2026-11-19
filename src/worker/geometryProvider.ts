@@ -1210,8 +1210,8 @@ class GeometryProvider {
     // sub-assemblies (e.g. repeated bolts) hash to the same batch id and are
     // dispatched concurrently; without this the second caller would throw
     // "already exists".
-    const existing = this.inFlightBatches.get(batchId);
-    if (existing) {
+    let existing = this.inFlightBatches.get(batchId);
+    while (existing) {
       // Prevent self-deadlock if a batch tries to start itself again before settling.
       if (context.operationId === batchId) {
         throw new Error(
@@ -1223,8 +1223,11 @@ class GeometryProvider {
       if (afterWait) {
         return afterWait;
       }
-      // The in-flight batch failed and cached nothing. Fall through and run
-      // the batch ourselves.
+      // The in-flight batch failed and cached nothing. When several callers
+      // were waiting on it, the first to get here starts it again; the rest
+      // wait for that run too instead of racing it into "already exists".
+      // Otherwise fall through and run the batch ourselves.
+      existing = this.inFlightBatches.get(batchId);
     }
 
     if (this.warmCache.has(batchId)) {
