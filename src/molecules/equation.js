@@ -3,6 +3,7 @@ import GlobalVariables from "../js/globalvariables.js";
 import { ValueChangeCommand } from "../js/undoCommands.js";
 import { parse } from "mathjs";
 import { Status } from "../prototypes/observableEntity.js";
+import { combinationsOf } from "../js/arrayInputs.js";
 
 /**
  * This class creates the Equation atom.
@@ -14,6 +15,12 @@ export default class Equation extends Atom {
    * @type {Set<string>}
    */
   static BUILTIN_CONSTS = new Set(["pi", "e", "tau", "Infinity", "NaN"]);
+
+  /**
+   * Variables holding lists are handled by evaluateOverLists, so the result is
+   * a list too. See Atom.computeOverLists.
+   */
+  static arrayInputs = "self";
 
   /**
    * The constructor function.
@@ -277,7 +284,10 @@ export default class Equation extends Atom {
 
     inputParams[`${this.uniqueID} result`] = {
       type: "string",
-      value: this.getState().value, // Possibly undefined if computation is in progress.
+      // Possibly undefined if computation is in progress.
+      value: Array.isArray(this.getState().value)
+        ? this.getState().value.join(", ")
+        : this.getState().value,
       label: "Result",
       disabled: true,
     };
@@ -319,11 +329,33 @@ export default class Equation extends Atom {
 
   compute(_) {
     return new Promise((resolve, reject) => {
-      // Use Atom's evaluateEquation method
-      this.value = super.evaluateEquation(this.currentEquation);
+      this.value = this.evaluateOverLists();
       resolve(this.value);
       this.rerenderInputs();
     });
+  }
+
+  /**
+   * Evaluate the equation. If any of its variables hold lists, evaluate it
+   * once for every combination of their values and return the results as one
+   * flat list: x - y with x = [1, 2, 3] and y = 5 gives [-4, -3, -2].
+   */
+  evaluateOverLists() {
+    const lists = this._extractVariablesFromEquation()
+      .map((variable) => [variable, this.resolveVariable(variable)])
+      .filter(([, value]) => Array.isArray(value));
+    if (lists.length === 0) {
+      return this.evaluateEquation(this.currentEquation);
+    }
+    const empty = lists.find(([, values]) => values.length === 0);
+    if (empty) {
+      throw new Error(
+        `"${empty[0]}" is an empty list, so there is nothing to compute.`,
+      );
+    }
+    return combinationsOf(lists).map((values) =>
+      this.evaluateEquation(this.currentEquation, values),
+    );
   }
 
   /**

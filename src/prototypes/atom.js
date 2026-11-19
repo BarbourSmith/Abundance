@@ -5,6 +5,8 @@ import AttachmentPoint from "./attachmentpoint";
 import { ObservableEntity, Status } from "./observableEntity.js";
 import { getPredictedAtoms } from "../js/atomPrediction.js";
 import { checkAtomGeometry } from "../js/geometryCheck.js";
+import { combinationsOf, numbersIn } from "../js/arrayInputs.js";
+import { assemblyOf } from "../worker/util";
 import {
   EQUATION_UNIT_WORDS,
   equationUnitFactor,
@@ -1102,6 +1104,52 @@ export default class Atom extends ObservableEntity {
     );
   }
 
+  /**
+   * Compute this atom's value from its inputs, running compute once for each
+   * combination of values when lists of numbers are wired into number inputs
+   * (see arrayInputs.js).
+   *
+   * An atom class says how it takes lists with `static arrayInputs`:
+   * "assembly" returns the results as one assembly with Make Disjoint off, and
+   * "self" passes the lists to compute to handle itself. Other atoms can't
+   * take a list.
+   */
+  computeOverLists(argsDict) {
+    const listed = this.inputs.filter(
+      (input) =>
+        input.valueType === "number" && Array.isArray(argsDict[input.name]),
+    );
+    const mode = this.constructor.arrayInputs;
+    if (listed.length === 0 || mode === "self") {
+      return this.compute(argsDict);
+    }
+    if (mode !== "assembly") {
+      return Promise.reject(
+        new Error(
+          `${this.atomType} can't take a list of numbers, but "${listed[0].name}" is one.`,
+        ),
+      );
+    }
+    let combinations;
+    try {
+      combinations = combinationsOf(
+        listed.map((input) => [
+          input.name,
+          numbersIn(input.name, argsDict[input.name]),
+        ]),
+      );
+    } catch (err) {
+      return Promise.reject(err);
+    }
+    return Promise.all(
+      combinations.map((values) => this.compute({ ...argsDict, ...values })),
+    ).then((parts) => {
+      const assembly = assemblyOf(parts);
+      assembly.metadata = { mightOverlap: true };
+      return assembly;
+    });
+  }
+
   setError(err) {
     if (err instanceof Error) {
       err = err.message;
@@ -1526,7 +1574,7 @@ export default class Atom extends ObservableEntity {
       this.setProcessing();
 
       const handleError = this.alertingErrorHandler();
-      this.compute(argsDict)
+      this.computeOverLists(argsDict)
         .then((value) => {
           if (!isCurrent()) return;
           this.buildNonReplicadGeom(value);
@@ -2071,6 +2119,9 @@ export default class Atom extends ObservableEntity {
           let displayValue;
           if (hasConnector) {
             displayValue = input.getValue();
+            if (Array.isArray(displayValue)) {
+              displayValue = displayValue.join(", ");
+            }
           } else {
             displayValue = input.currentEquation || input.value;
           }
@@ -2240,9 +2291,10 @@ export default class Atom extends ObservableEntity {
   }
 
   /**
-   * Evaluate the equation
+   * Evaluate the equation. Variables named in `overrides` take the value
+   * given there instead of their input's value.
    */
-  evaluateEquation(equation) {
+  evaluateEquation(equation, overrides = {}) {
     let substitutedEquation = String(equation ?? "").trim();
 
     // Handle empty or whitespace-only equations gracefully
@@ -2262,17 +2314,17 @@ export default class Atom extends ObservableEntity {
 
     if (hasStringLiterals) {
       // Handle as string concatenation
-      return this.evaluateStringExpression(substitutedEquation);
+      return this.evaluateStringExpression(substitutedEquation, overrides);
     } else {
       // Handle as mathematical expression (existing behavior)
-      return this.evaluateMathExpression(substitutedEquation);
+      return this.evaluateMathExpression(substitutedEquation, overrides);
     }
   }
 
   /**
    * Evaluate string concatenation expressions
    */
-  evaluateStringExpression(equation) {
+  evaluateStringExpression(equation, overrides = {}) {
     // Parse string concatenation expression
     const parts = [];
     let current = "";
@@ -2316,7 +2368,7 @@ export default class Atom extends ObservableEntity {
         // Variable or number - resolve its value
         const trimmed = part.trim();
         if (trimmed) {
-          const value = this.resolveVariable(trimmed);
+          const value = this.resolveVariable(trimmed, overrides);
           result += String(value);
         }
       }
@@ -2354,7 +2406,7 @@ export default class Atom extends ObservableEntity {
   /**
    * Evaluate mathematical expressions (existing logic extracted)
    */
-  evaluateMathExpression(substitutedEquation) {
+  evaluateMathExpression(substitutedEquation, overrides = {}) {
     substitutedEquation = this.convertEquationUnits(substitutedEquation);
     const variables = this.extractVariablesFromEquation(substitutedEquation);
     const notFound = [];
@@ -2370,8 +2422,12 @@ export default class Atom extends ObservableEntity {
         }
         let value = null;
         let wasFound = false;
+        if (Object.hasOwn(overrides, variable)) {
+          value = overrides[variable];
+          wasFound = true;
+        }
         // Try parent inputs first (now includes all ancestors)
-        for (let j = 0; j < parentInputs.length; j++) {
+        for (let j = 0; j < parentInputs.length && !wasFound; j++) {
           if (parentInputs[j].name === variable) {
             value =
               typeof parentInputs[j].getValue === "function"
@@ -2490,7 +2546,7 @@ export default class Atom extends ObservableEntity {
   /**
    * Resolve a variable name to its value
    */
-  resolveVariable(variableName) {
+  resolveVariable(variableName, overrides = {}) {
     const BUILTIN_CONSTS = new Set(["pi", "e", "tau", "Infinity", "NaN"]);
 
     if (BUILTIN_CONSTS.has(variableName)) {
@@ -2501,6 +2557,10 @@ export default class Atom extends ObservableEntity {
     const num = Number(variableName);
     if (!isNaN(num) && isFinite(num)) {
       return num;
+    }
+
+    if (Object.hasOwn(overrides, variableName)) {
+      return overrides[variableName];
     }
 
     // Try parent inputs first (now includes all ancestors up the chain)
