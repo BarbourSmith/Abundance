@@ -244,54 +244,64 @@ function AgentBridgeChip({ state }) {
   const connected = state.status === "connected";
 
   return (
-    <div className="agent-chip" role="status" aria-live="polite">
+    // Collapsed to a colored dot; hovering or focusing it shows the rest.
+    <div
+      className="agent-chip"
+      role="status"
+      aria-live="polite"
+      aria-label={statusText(state)}
+      tabIndex={0}
+      title={statusText(state)}
+    >
       <span
         className="agent-chip-dot"
         data-status={state.status}
         data-mode={state.mode}
         data-busy={busy ? "true" : "false"}
       />
-      <span className="agent-chip-label" title={statusText(state)}>
-        {statusText(state)}
-      </span>
-      {connected && (busy || recent) && (
-        <span className="agent-chip-activity">{activity.tool}</span>
-      )}
-      {connected && (
-        <label
-          className="agent-chip-toggle"
-          title="Let the agent change this project. Resets when the page reloads."
-        >
-          <input
-            type="checkbox"
-            checked={state.mode === "edit"}
-            onChange={(e) =>
-              agentBridge.setMode(e.target.checked ? "edit" : "read")
-            }
-          />
-          Allow edits
-        </label>
-      )}
-      {state.status === "error" &&
-        (state.errorKind === "no-token" ? (
-          <button className="agent-chip-button" onClick={openAgentDialog}>
-            Set up
-          </button>
-        ) : (
-          <button
-            className="agent-chip-button"
-            onClick={() => agentBridge.retry()}
+      <span className="agent-chip-details">
+        <span className="agent-chip-label" title={statusText(state)}>
+          {statusText(state)}
+        </span>
+        {connected && (busy || recent) && (
+          <span className="agent-chip-activity">{activity.tool}</span>
+        )}
+        {connected && (
+          <label
+            className="agent-chip-toggle"
+            title="Let the agent change this project. Resets when the page reloads."
           >
-            Retry
-          </button>
-        ))}
-      <button
-        className="agent-chip-button"
-        onClick={() => agentBridge.updateSettings({ enabled: false })}
-        title="Disconnect and turn the AI agent bridge off"
-      >
-        Disconnect
-      </button>
+            <input
+              type="checkbox"
+              checked={state.mode === "edit"}
+              onChange={(e) =>
+                agentBridge.setMode(e.target.checked ? "edit" : "read")
+              }
+            />
+            Allow edits
+          </label>
+        )}
+        {state.status === "error" &&
+          (state.errorKind === "no-token" ? (
+            <button className="agent-chip-button" onClick={openAgentDialog}>
+              Set up
+            </button>
+          ) : (
+            <button
+              className="agent-chip-button"
+              onClick={() => agentBridge.retry()}
+            >
+              Retry
+            </button>
+          ))}
+        <button
+          className="agent-chip-button"
+          onClick={() => agentBridge.updateSettings({ enabled: false })}
+          title="Disconnect and turn the AI agent bridge off"
+        >
+          Disconnect
+        </button>
+      </span>
     </div>
   );
 }
