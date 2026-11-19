@@ -974,14 +974,14 @@ export default class AttachmentPoint extends ObservableEntity {
       if (this.parentMolecule === upstream) {
         throw new Error("Tried to make a circular connection");
       }
-      upstream.subscribe(() => {
-        this.onUpstreamChange();
-      }, this.uniqueID);
 
       // A new upstream connection means any previously selected parts/edges/faces
       // may no longer correspond to valid indexes on the newly connected geometry.
       // Mark for re-derivation from the new assembly's own selection flags (if
       // any) once its first READY value arrives, instead of just clearing.
+      // This must happen before subscribing: subscribing delivers an upstream
+      // that has already computed right away, and its selection would
+      // otherwise be read and then cleared.
       // Skip this while a project is being loaded/deserialized, or while undoing,
       // since those connections are being restored rather than newly made by
       // the user — the saved selection state should be preserved in that case.
@@ -993,6 +993,10 @@ export default class AttachmentPoint extends ObservableEntity {
       ) {
         this.options.inputAtom.markPendingSelectionInheritance();
       }
+
+      upstream.subscribe(() => {
+        this.onUpstreamChange();
+      }, this.uniqueID);
     } else {
       this.connectors.push(connector);
     }

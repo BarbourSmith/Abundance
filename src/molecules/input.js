@@ -626,6 +626,7 @@ export default class Input extends Atom {
     this.selectedLeafIndexes = [];
     this.selectedEdgeData = {};
     this.selectedFaceData = {};
+    this._lastUpstreamSelectionHash = undefined;
     GlobalVariables.bumpSelectionVersion();
     if (typeof this._panelSetInputChanged === "function") {
       this._panelSetInputChanged(String(Date.now()));
@@ -642,6 +643,8 @@ export default class Input extends Atom {
     this.selectedLeafIndexes = [];
     this.selectedEdgeData = {};
     this.selectedFaceData = {};
+    this._lastUpstreamSelectionHash = undefined;
+    this._selectionInheritancePending = true;
     GlobalVariables.bumpSelectionVersion();
     if (typeof this._panelSetInputChanged === "function") {
       this._panelSetInputChanged(String(Date.now()));
@@ -655,10 +658,20 @@ export default class Input extends Atom {
    * (e.g. produced by a code atom) starts populated instead of empty.
    */
   inheritSelectionFromAssembly(assembly) {
-    if (hashAssembly(this.value) == hashAssembly(assembly)) {
-      // no-op if the upstream is identical to prior.
+    // Re-deliveries of the same upstream value keep the current selection
+    // (which may hold picks the user made here). Compare against the last
+    // upstream value, not this input's own output: the output carries the
+    // applied selection, so it can match an upstream that already has the
+    // same picks and wrongly skip re-reading them after a new connection.
+    const upstreamHash = hashAssembly(assembly);
+    if (
+      !this._selectionInheritancePending &&
+      upstreamHash === this._lastUpstreamSelectionHash
+    ) {
       return;
     }
+    this._lastUpstreamSelectionHash = upstreamHash;
+    this._selectionInheritancePending = false;
     const leafIndexes = [];
     const edgeData = {};
     const faceData = {};
