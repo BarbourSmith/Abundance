@@ -113,6 +113,7 @@ function timeoutFor(name, args) {
     case "locate_photo":
     case "section_view":
     case "import_file":
+    case "set_input_selection":
     case "check_geometry":
     case "check_interference":
     case "export_geometry":

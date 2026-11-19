@@ -230,9 +230,9 @@ describe("reading the project", () => {
 
   it("keeps summarized values small", () => {
     expect(summarizeValue("a".repeat(1000))).toMatch(/… \(1000 chars\)$/);
-    expect(summarizeValue({ geometry: "abc", geometryType: "replicad.Shape3D" })).toBe(
-      "<replicad.Shape3D geometry>",
-    );
+    expect(
+      summarizeValue({ geometry: "abc", geometryType: "replicad.Shape3D" }),
+    ).toBe("<replicad.Shape3D geometry>");
     expect(summarizeValue([1, 2, 3])).toEqual([1, 2, 3]);
     expect(summarizeValue(new Array(50).fill({ a: 1 }))).toBe("<array of 50>");
     expect(summarizeValue(Infinity)).toBe("Infinity");
@@ -1415,5 +1415,269 @@ describe("atom names follow the editor's rules", () => {
     } finally {
       GlobalVariables.cad = realCad;
     }
+  });
+});
+
+describe("array params", () => {
+  /** An array Input named Positions, as an agent would add one. */
+  async function arrayInput(params = {}) {
+    return (
+      await runTool(
+        "add_atom",
+        {
+          type: "Input",
+          name: "Positions",
+          params: { "Input Type": "array", ...params },
+        },
+        EDIT,
+      )
+    ).id;
+  }
+
+  it("sets an array Input's Default Values from a list, as one undo step", async () => {
+    const id = await arrayInput();
+    // The properties panel has never shown this atom
+    expect(resolveAtom(id).setInputChanged).toBeUndefined();
+    GlobalVariables.undoCommandStack = [];
+
+    const result = await runTool(
+      "set_param",
+      { atom: id, param: "Default Values", value: [10, 20, 35] },
+      EDIT,
+    );
+    expect(result.value).toEqual([10, 20, 35]);
+    expect(resolveAtom(id).options).toEqual([10, 20, 35]);
+    expect(resolveAtom(id).setInputChanged).toBeUndefined();
+    await settle();
+    expect(resolveAtom(id).value).toEqual([10, 20, 35]);
+
+    const { params } = await runTool("get_atom", { atom: id }, READ);
+    expect(params.find((p) => p.label === "Default Values")).toMatchObject({
+      type: "array",
+      value: [10, 20, 35],
+    });
+
+    await runTool("undo", {}, EDIT);
+    expect(resolveAtom(id).options).toEqual([]);
+  });
+
+  it("takes Default Values with the Input in add_atom, and as text", async () => {
+    const id = await arrayInput({ "Default Values": [1, 2.5] });
+    expect(resolveAtom(id).options).toEqual([1, 2.5]);
+    await runTool(
+      "set_param",
+      { atom: id, param: "Default Values", value: "4, 5,6" },
+      EDIT,
+    );
+    expect(resolveAtom(id).options).toEqual([4, 5, 6]);
+    await runTool(
+      "set_param",
+      { atom: id, param: "Default Values", value: "[7, 8]" },
+      EDIT,
+    );
+    expect(resolveAtom(id).options).toEqual([7, 8]);
+  });
+
+  it("shows a long list whole", async () => {
+    const list = Array.from({ length: 40 }, (_, i) => i * 5);
+    const id = await arrayInput({ "Default Values": list });
+    const { params } = await runTool("get_atom", { atom: id }, READ);
+    expect(params.find((p) => p.label === "Default Values").value).toEqual(
+      list,
+    );
+  });
+
+  it("refuses values that aren't a list of plain values", async () => {
+    const id = await arrayInput();
+    for (const value of [{ a: 1 }, [[1, 2]], 5, "[1, 2"]) {
+      await expectToolError(
+        runTool(
+          "set_param",
+          { atom: id, param: "Default Values", value },
+          EDIT,
+        ),
+        ERROR_CODES.INVALID_PARAMS,
+        /needs a list/,
+      );
+    }
+  });
+
+  it("sets a molecule's array input from its parent", async () => {
+    const mol = (
+      await runTool("add_atom", { type: "Molecule", name: "Holes" }, EDIT)
+    ).id;
+    await runTool(
+      "add_atom",
+      {
+        type: "Input",
+        molecule: mol,
+        name: "Positions",
+        params: { "Input Type": "array", "Default Values": [1, 2] },
+      },
+      EDIT,
+    );
+    const result = await runTool(
+      "set_param",
+      { atom: mol, param: "Positions", value: [30, 60, 90] },
+      EDIT,
+    );
+    expect(result.value).toEqual([30, 60, 90]);
+    const holes = resolveAtom(mol);
+    expect(holes.inputs.find((ap) => ap.name === "Positions").value).toEqual([
+      30, 60, 90,
+    ]);
+  });
+});
+
+describe("input selections", () => {
+  /** A molecule whose input named Shape is an Input atom of `type`. */
+  async function selectionMolecule(type = "edgeselect") {
+    const mol = (
+      await runTool("add_atom", { type: "Molecule", name: "Pick" }, EDIT)
+    ).id;
+    await runTool(
+      "add_atom",
+      {
+        type: "Input",
+        molecule: mol,
+        name: "Shape",
+        params: { "Input Type": type },
+      },
+      EDIT,
+    );
+    await runTool(
+      "add_atom",
+      { type: "Input", molecule: mol, name: "Size" },
+      EDIT,
+    );
+    return mol;
+  }
+
+  it("shows what a selection input picks and its picks", async () => {
+    const mol = await selectionMolecule();
+    const { inputs } = await runTool("get_atom", { atom: mol }, READ);
+    expect(inputs.find((i) => i.name === "Shape")).toMatchObject({
+      type: "geometry",
+      selects: "edges",
+      picks: [],
+    });
+    expect(inputs.find((i) => i.name === "Size").selects).toBeUndefined();
+
+    const input = resolveAtom(`${nameOf(mol)}/Shape`);
+    input.selectedEdgeData = { 0: [4, 7], 2: [1] };
+    const after = await runTool("get_atom", { atom: mol }, READ);
+    expect(after.inputs.find((i) => i.name === "Shape").picks).toEqual([
+      { part: 0, index: 4 },
+      { part: 0, index: 7 },
+      { part: 2, index: 1 },
+    ]);
+  });
+
+  it("explains which inputs take picks", async () => {
+    const mol = await selectionMolecule("faceselect");
+    await expectToolError(
+      runTool(
+        "set_input_selection",
+        { atom: mol, input: "Size", picks: [] },
+        EDIT,
+      ),
+      ERROR_CODES.INVALID_PARAMS,
+      /isn't an edge-select.*"Shape" \(faces\)/,
+    );
+  });
+
+  it("needs a shape connected before picking", async () => {
+    const mol = await selectionMolecule();
+    await expectToolError(
+      runTool(
+        "set_input_selection",
+        { atom: mol, input: "Shape", picks: [{ center: [0, 0, 0] }] },
+        EDIT,
+      ),
+      ERROR_CODES.CONFLICT,
+      /Nothing is connected to "Shape".*Connect the shape/,
+    );
+  });
+
+  it("picks on an imported GitHub molecule's inputs, not inside it", async () => {
+    const mol = await selectionMolecule();
+    const imported = resolveAtom(mol);
+    imported.atomType = "GitHubMolecule";
+    // Its own inputs are set from its panel, like any molecule's
+    await expectToolError(
+      runTool(
+        "set_input_selection",
+        { atom: mol, input: "Shape", picks: [{ center: [0, 0, 0] }] },
+        EDIT,
+      ),
+      ERROR_CODES.CONFLICT,
+      /Nothing is connected/,
+    );
+    // A molecule inside it belongs to the other project
+    const inner = new Molecule({
+      x: 0.5,
+      y: 0.5,
+      parent: imported,
+      uniqueID: GlobalVariables.generateUniqueID(),
+      name: "Inner",
+    });
+    imported.nodesOnTheScreen.push(inner);
+    await expectToolError(
+      runTool(
+        "set_input_selection",
+        { atom: inner.uniqueID, input: "Shape", picks: [] },
+        EDIT,
+      ),
+      ERROR_CODES.PERMISSION_DENIED,
+      /read-only/,
+    );
+  });
+
+  it("checks each pick before looking at the geometry", async () => {
+    const mol = await selectionMolecule();
+    for (const [pick, message] of [
+      [{ point: [0, 0, 0], center: [0, 0, 0] }, /point or center, not both/],
+      [{ index: 2 }, /index needs the part/],
+      [{ part: 0, index: 1, point: [1, 2, 3] }, /index or point\/center/],
+      [{ center: [0, 0, 0], type: "plane" }, /isn't a type of edges/],
+      [{ point: [0, 0] }, /"point" needs \[x, y, z\]/],
+      [{ part: 0 }, /give point or center/],
+      [{ nearest: [0, 0, 0] }, /unknown "nearest"/],
+    ]) {
+      await expectToolError(
+        runTool(
+          "set_input_selection",
+          { atom: mol, input: "Shape", picks: [pick] },
+          EDIT,
+        ),
+        ERROR_CODES.INVALID_PARAMS,
+        message,
+      );
+    }
+    await expectToolError(
+      runTool(
+        "set_input_selection",
+        { atom: mol, input: "Shape", picks: [] },
+        READ,
+      ),
+      ERROR_CODES.PERMISSION_DENIED,
+    );
+  });
+
+  it("picks whole parts on a part-select input", async () => {
+    const mol = await selectionMolecule("partselect");
+    await expectToolError(
+      runTool(
+        "set_input_selection",
+        {
+          atom: mol,
+          input: "Shape",
+          picks: [{ part: 0, index: 1 }],
+        },
+        EDIT,
+      ),
+      ERROR_CODES.INVALID_PARAMS,
+      /picks whole parts/,
+    );
   });
 });

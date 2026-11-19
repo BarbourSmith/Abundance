@@ -15,6 +15,7 @@ import {
   CompositeCommand,
   DeleteAtomsCommand,
   DeleteConnectorCommand,
+  ValueChangeCommand,
 } from "../js/undoCommands.js";
 import { meshKey, splitDisplayMesh } from "../js/displayScheduler.js";
 import { exportGeometryAsGLB } from "../js/exportGLB.js";
@@ -364,7 +365,11 @@ const PARAM_TYPES = new Set([
   "rangeSlider",
   "point",
   "color",
+  "array",
 ]);
+
+/** Most entries of an array param get_atom shows. */
+const MAX_LIST = 200;
 
 // ---------------------------------------------------------------------------
 // Graph helpers
@@ -652,6 +657,68 @@ function alertText(atom) {
   return null;
 }
 
+/**
+ * The Input atom types that hold picks on the geometry wired in, as
+ * src/molecules/input.js stores them: per-leaf edge or face numbers, or leaf
+ * numbers for parts.
+ */
+const SELECTION_KINDS = {
+  edgeselect: {
+    kind: "edge",
+    plural: "edges",
+    field: "selectedEdgeData",
+    apply: "applyEdgeSelection",
+  },
+  faceselect: {
+    kind: "face",
+    plural: "faces",
+    field: "selectedFaceData",
+    apply: "applyFaceSelection",
+  },
+  partselect: {
+    kind: "part",
+    plural: "parts",
+    field: "selectedLeafIndexes",
+    apply: "applyPartSelection",
+  },
+};
+
+/** The selection Input atom behind a molecule's input, or null. */
+function selectionInputOf(ap) {
+  const inputAtom = ap?.options?.inputAtom;
+  return inputAtom && SELECTION_KINDS[inputAtom.type] ? inputAtom : null;
+}
+
+/**
+ * Leaf number (how an Input atom stores picks: every leaf counts) to part
+ * number (how agent tools number parts: empty leaves are skipped).
+ */
+function leafToPart(value) {
+  const map = [];
+  if (!isGeometryValue(value)) return map;
+  let part = 0;
+  flattenAssembly(value).forEach((leaf, i) => {
+    map[i] = leaf.geometry === EMPTY_SHAPE ? null : part++;
+  });
+  return map;
+}
+
+/** An input's picks, numbered as set_input_selection takes them. */
+function describePicks(inputAtom, value) {
+  const spec = SELECTION_KINDS[inputAtom.type];
+  const map = leafToPart(value);
+  const part = (leaf) => map[leaf] ?? Number(leaf);
+  if (spec.kind === "part") {
+    return (inputAtom.selectedLeafIndexes || []).map((leaf) => ({
+      part: part(leaf),
+    }));
+  }
+  return Object.entries(inputAtom[spec.field] || {}).flatMap(
+    ([leaf, indexes]) =>
+      (indexes || []).map((index) => ({ part: part(leaf), index })),
+  );
+}
+
 function describeInputs(atom) {
   return (atom.inputs || []).map((ap) => {
     const entry = { name: ap.name, type: ap.valueType };
@@ -662,6 +729,13 @@ function describeInputs(atom) {
     } else {
       if (ap.currentEquation) entry.equation = ap.currentEquation;
       if (ap.valueType !== "geometry") entry.value = summarizeValue(ap.value);
+    }
+    const selector = selectionInputOf(ap);
+    if (selector) {
+      entry.selects = SELECTION_KINDS[selector.type].plural;
+      const picks = describePicks(selector, ap.value);
+      entry.picks = picks.slice(0, 20);
+      if (picks.length > 20) entry.pick_count = picks.length;
     }
     if (ap.isOptional) entry.optional = true;
     return entry;
@@ -740,11 +814,26 @@ function collectParams(atom) {
   return out;
 }
 
+/** An array param's value: the whole list when it's a short list of values. */
+function summarizeList(value) {
+  if (
+    Array.isArray(value) &&
+    value.length <= MAX_LIST &&
+    value.every((v) => v === null || typeof v !== "object")
+  ) {
+    return value.map((v) => (typeof v === "string" ? summarizeValue(v) : v));
+  }
+  return summarizeValue(value);
+}
+
 function describeParam({ label, config }) {
   const entry = {
     label,
     type: config.type,
-    value: summarizeValue(config.value),
+    value:
+      config.type === "array"
+        ? summarizeList(config.value)
+        : summarizeValue(config.value),
   };
   if (config.options) {
     entry.options = Array.isArray(config.options)
@@ -793,6 +882,8 @@ function coerceParamValue(param, value) {
       }
       return value.map(Number);
     }
+    case "array":
+      return coerceList(param, value);
     case "select": {
       const allowed = Array.isArray(options)
         ? options
@@ -814,6 +905,54 @@ function coerceParamValue(param, value) {
         );
       }
       return String(value);
+  }
+}
+
+/**
+ * A list for an array param, such as an array Input's Default Values: a list
+ * of numbers, text, or true/false, or that list as JSON or comma-separated
+ * text. Entries follow the field's element type where it has one.
+ */
+function coerceList(param, value) {
+  const fail = (why) =>
+    new ToolError(
+      ERROR_CODES.INVALID_PARAMS,
+      `"${param.label}" needs a list, such as [10, 20, 35]${why ? `: ${why}` : ""}.`,
+    );
+  let list = value;
+  if (typeof list === "string") {
+    const text = list.trim();
+    if (text.startsWith("[")) {
+      try {
+        list = JSON.parse(text);
+      } catch {
+        throw fail(`${text} isn't valid JSON`);
+      }
+    } else {
+      list = text
+        .split(/[\n,]/)
+        .map((s) => s.trim())
+        .filter((s) => s !== "");
+    }
+  }
+  if (!Array.isArray(list)) throw fail();
+  if (list.some((v) => v === null || typeof v === "object")) {
+    throw fail("each entry is one number, text, or true/false");
+  }
+  switch (param.config.elementType) {
+    case "number":
+      return list.map((v) => {
+        const n = typeof v === "string" && v.trim() === "" ? NaN : Number(v);
+        if (!Number.isFinite(n))
+          throw fail(`${JSON.stringify(v)} isn't a number`);
+        return n;
+      });
+    case "boolean":
+      return list.map((v) => v === true || String(v).toLowerCase() === "true");
+    case "string":
+      return list.map(String);
+    default:
+      return list;
   }
 }
 
@@ -1693,7 +1832,10 @@ const handlers = {
   },
 
   async get_reference({ atom: ref, index = 0, pages }) {
-    const { atom, item, asset, references } = await requireReference(ref, index);
+    const { atom, item, asset, references } = await requireReference(
+      ref,
+      index,
+    );
     const result = {
       filename: item.name,
       base64: arrayBufferToBase64(await asset.blob.arrayBuffer()),
@@ -2237,17 +2379,28 @@ const handlers = {
     }
     const coerced = coerceParamValue(target, value);
     const nameBefore = atom.name;
-    // The panel passes the field's key too; Cut Orient and Cut Layout need it
-    // to tell which part's field changed.
-    await target.config.onChange(coerced, target.key);
+    // Some handlers (an Input's Default Values, Min Value, ...) refresh the
+    // panel through atom.setInputChanged, which only exists once the
+    // properties panel has shown the atom.
+    const noPanel = () => {};
+    if (typeof atom.setInputChanged !== "function") {
+      atom.setInputChanged = noPanel;
+    }
+    try {
+      // The panel passes the field's key too; Cut Orient and Cut Layout need
+      // it to tell which part's field changed.
+      await target.config.onChange(coerced, target.key);
+    } finally {
+      if (atom.setInputChanged === noPanel) delete atom.setInputChanged;
+    }
     refreshPanel(atom);
     const after = collectParams(atom).find((p) => p.label === target.label);
+    const summarize =
+      target.config.type === "array" ? summarizeList : summarizeValue;
     const result = {
       atom: atomRef(atom),
       param: target.label,
-      value: after
-        ? summarizeValue(after.config.value)
-        : summarizeValue(coerced),
+      value: after ? summarize(after.config.value) : summarize(coerced),
     };
     if (atom.name !== nameBefore) {
       result.renamed = {
@@ -2255,6 +2408,81 @@ const handlers = {
         to: atom.name,
         note: "Refer to this atom by its new path or ID.",
       };
+    }
+    return result;
+  },
+
+  async set_input_selection({ atom: ref, input, picks, add = false }, ctx) {
+    const { molecule, inputAtom, ap, spec } = resolveSelectionInput(ref, input);
+    const queries = picks.map((pick, i) => pickQuery(pick, spec, i));
+    const value = await selectionGeometry(molecule, ap, ctx);
+
+    const found = queries.length
+      ? await meshWorkerCall(
+          "findSelectable",
+          [value, queries, inputAtom.getContext()],
+          180000,
+        )
+      : [];
+    found.forEach((f, i) => {
+      if (f?.error) {
+        throw new ToolError(ERROR_CODES.NOT_FOUND, `Pick ${i + 1}: ${f.error}`);
+      }
+    });
+
+    // Picks are kept per leaf: every leaf counts, as the Input atom numbers them
+    const before = copySelection(inputAtom[spec.field], spec);
+    const data = add
+      ? copySelection(before, spec)
+      : spec.kind === "part"
+        ? []
+        : {};
+    for (const { pick, also = [] } of found) {
+      for (const element of [pick, ...also]) {
+        if (spec.kind === "part") {
+          if (!data.includes(element.leaf)) data.push(element.leaf);
+        } else {
+          const list = (data[element.leaf] ||= []);
+          if (!list.includes(element.index)) list.push(element.index);
+        }
+      }
+    }
+    GlobalVariables.pushUndoCommand(
+      new ValueChangeCommand(
+        inputAtom.uniqueID,
+        inputAtom.parent,
+        spec.field,
+        before,
+        (atom, old) => applySelection(atom, old),
+        `Pick ${spec.plural} for "${ap.name}"`,
+      ),
+    );
+    applySelection(inputAtom, data);
+    refreshPanel(molecule);
+
+    const all = describePicks(inputAtom, value);
+    // leaf is how the input stores a pick; the agent numbers parts instead
+    const shown = (pick) => {
+      const copy = { ...pick };
+      delete copy.leaf;
+      return copy;
+    };
+    const result = {
+      atom: atomRef(molecule),
+      input: ap.name,
+      selects: spec.plural,
+      picked: found.map(({ pick, also, as_near, nearest }) => ({
+        ...shown(pick),
+        ...(also?.length ? { also_picked: also.map(shown) } : {}),
+        ...(as_near ? { as_near } : {}),
+        ...(nearest?.length ? { next_nearest: nearest.map(shown) } : {}),
+      })),
+      pick_count: all.length,
+      units: topLevel().unitsKey || null,
+    };
+    if (add) result.picks = all.slice(0, 50);
+    if (carriesOwnPicks(value, spec)) {
+      result.note = `The shape wired into "${ap.name}" already carries ${spec.plural} picked upstream. Whenever it recomputes, the input takes those picks in place of these.`;
     }
     return result;
   },
@@ -3039,6 +3267,222 @@ const handlers = {
   },
 };
 
+// ---------------------------------------------------------------------------
+// Picks on edge-select, face-select, and part-select inputs
+// ---------------------------------------------------------------------------
+
+/**
+ * The selection input set_input_selection works on: a molecule's input backed
+ * by a partselect, edgeselect, or faceselect Input atom, or that Input atom.
+ */
+function resolveSelectionInput(ref, name) {
+  const atom = resolveAtom(ref, { allowEmpty: false });
+  const isInput = atom.atomType === "Input";
+  const molecule = isInput ? atom.parent : atom;
+  // Picks on an imported molecule's own inputs are set from its panel, like
+  // any molecule's; anything inside one belongs to another project.
+  assertEditable(molecule);
+  const ap = isInput ? atom.parentAP : findInput(atom, name);
+  const inputAtom = selectionInputOf(ap);
+  if (!inputAtom || (isInput && inputAtom !== atom)) {
+    const selectable = (molecule?.inputs || [])
+      .filter(selectionInputOf)
+      .map(
+        (io) =>
+          `"${io.name}" (${SELECTION_KINDS[io.options.inputAtom.type].plural})`,
+      );
+    throw new ToolError(
+      ERROR_CODES.INVALID_PARAMS,
+      `"${ap?.name ?? name}" on ${atomPath(molecule || atom)} isn't an edge-select, face-select, or part-select input. ${
+        selectable.length
+          ? `Its inputs that take picks: ${selectable.join(", ")}.`
+          : "It has no inputs that take picks."
+      }`,
+    );
+  }
+  return {
+    molecule,
+    inputAtom,
+    ap,
+    spec: SELECTION_KINDS[inputAtom.type],
+  };
+}
+
+const PICK_KEYS = new Set([
+  "point",
+  "center",
+  "type",
+  "part",
+  "index",
+  "all_nearest",
+]);
+const EDGE_TYPES = ["line", "circle", "ellipse", "curve"];
+const FACE_TYPES = ["plane", "cylinder", "cone", "sphere", "torus", "curved"];
+
+/** One of set_input_selection's picks, checked, as the mesh worker takes it. */
+function pickQuery(pick, spec, i) {
+  const fail = (why) =>
+    new ToolError(ERROR_CODES.INVALID_PARAMS, `Pick ${i + 1}: ${why}`);
+  if (!pick || typeof pick !== "object" || Array.isArray(pick)) {
+    throw fail("each pick is an object, such as { center: [x, y, z] }.");
+  }
+  for (const key of Object.keys(pick)) {
+    if (!PICK_KEYS.has(key)) {
+      throw fail(
+        `unknown "${key}". A pick takes point, center, type, part, index, and all_nearest.`,
+      );
+    }
+  }
+  const { point, center, type, part, index, all_nearest } = pick;
+  if (all_nearest !== undefined && typeof all_nearest !== "boolean") {
+    throw fail('"all_nearest" must be true or false.');
+  }
+  for (const [key, v] of [
+    ["point", point],
+    ["center", center],
+  ]) {
+    if (
+      v !== undefined &&
+      !(
+        Array.isArray(v) &&
+        v.length === 3 &&
+        v.every((n) => typeof n === "number" && Number.isFinite(n))
+      )
+    ) {
+      throw fail(`"${key}" needs [x, y, z] numbers.`);
+    }
+  }
+  for (const [key, v] of [
+    ["part", part],
+    ["index", index],
+  ]) {
+    if (v !== undefined && !(Number.isInteger(v) && v >= 0)) {
+      throw fail(`"${key}" must be a whole number, 0 or more.`);
+    }
+  }
+  if (point && center) throw fail("give point or center, not both.");
+  const located = !!(point || center);
+  if (spec.kind === "part") {
+    if (index !== undefined || type !== undefined) {
+      throw fail(
+        "a part-select input picks whole parts: give part, point, or center.",
+      );
+    }
+    if (!located && part === undefined) {
+      throw fail("give part, point, or center.");
+    }
+  } else {
+    const allowed = spec.kind === "edge" ? EDGE_TYPES : FACE_TYPES;
+    if (type !== undefined && !allowed.includes(type)) {
+      throw fail(
+        `"${type}" isn't a type of ${spec.plural}. Use one of: ${allowed.join(", ")}.`,
+      );
+    }
+    if (index !== undefined) {
+      if (part === undefined) throw fail("index needs the part it's on.");
+      if (located) throw fail("give index or point/center, not both.");
+    } else if (!located) {
+      throw fail(
+        `give point or center to pick the nearest ${spec.kind}, or part and index.`,
+      );
+    }
+  }
+  return {
+    kind: spec.kind,
+    point,
+    center,
+    type,
+    part,
+    index,
+    all: all_nearest === true,
+  };
+}
+
+/**
+ * The geometry wired into a selection input, waiting for it while it
+ * computes (a batch may connect it just before picking).
+ */
+async function selectionGeometry(molecule, ap, ctx, timeoutMs = 120000) {
+  if (!ap.connectors?.length) {
+    throw new ToolError(
+      ERROR_CODES.CONFLICT,
+      `Nothing is connected to "${ap.name}" on ${atomPath(molecule)}. Connect the shape to pick on first (connecting a shape clears the input's picks).`,
+    );
+  }
+  const started = Date.now();
+  let lastProgressAt = 0;
+  for (;;) {
+    const { status, value } = ap.getState();
+    if (status === Status.READY && value !== null && value !== undefined) {
+      if (!isGeometryValue(value)) {
+        throw new ToolError(
+          ERROR_CODES.CONFLICT,
+          `"${ap.name}" on ${atomPath(molecule)} gets ${typeof value}, not a shape.`,
+        );
+      }
+      return value;
+    }
+    if (status === Status.ERROR || status === Status.UPSTREAM_ERROR) {
+      throw new ToolError(
+        ERROR_CODES.CONFLICT,
+        `The shape wired into "${ap.name}" on ${atomPath(molecule)} has an error. get_errors lists it.`,
+      );
+    }
+    if (Date.now() - started > timeoutMs) {
+      throw new ToolError(
+        ERROR_CODES.TIMEOUT,
+        `The shape wired into "${ap.name}" on ${atomPath(molecule)} was still ${status} after ${timeoutMs / 1000} s. Call wait_for_settle, then pick again.`,
+      );
+    }
+    if (Date.now() - lastProgressAt > 1000) {
+      lastProgressAt = Date.now();
+      ctx?.progress?.({
+        message: `Waiting for the shape wired into "${ap.name}"`,
+      });
+    }
+    await new Promise((r) => setTimeout(r, 200));
+  }
+}
+
+/** A copy of an Input atom's picks, so later changes don't touch it. */
+function copySelection(data, spec) {
+  if (spec.kind === "part") return Array.isArray(data) ? [...data] : [];
+  return Object.fromEntries(
+    Object.entries(data || {}).map(([leaf, ids]) => [leaf, [...(ids || [])]]),
+  );
+}
+
+/**
+ * Give a selection Input atom new picks and send the geometry they mark
+ * downstream, as finishing a pick in the 3D view does. Re-marks the
+ * geometry already wired in instead of running the input's upstream change,
+ * which would let picks the geometry carries replace these.
+ */
+function applySelection(inputAtom, data) {
+  const spec = SELECTION_KINDS[inputAtom.type];
+  if (!spec) return;
+  inputAtom[spec.field] = copySelection(data, spec);
+  GlobalVariables.bumpSelectionVersion?.();
+  inputAtom._panelSetInputChanged?.(String(Date.now()));
+  const { status, value } = inputAtom.parentAP?.getState() || {};
+  if (
+    inputAtom.status !== Status.DISABLED &&
+    status === Status.READY &&
+    isGeometryValue(value)
+  ) {
+    inputAtom.setReady(inputAtom[spec.apply](value, inputAtom[spec.field]));
+  }
+}
+
+/** Whether geometry already carries picks of this kind from upstream. */
+function carriesOwnPicks(value, spec) {
+  return flattenAssembly(value).some((leaf) =>
+    spec.kind === "part"
+      ? leaf.selection?.part === true
+      : leaf.selection?.[spec.plural]?.length > 0,
+  );
+}
+
 /**
  * The reference file numbered `index` in an atom's output (default: the open
  * molecule's), loaded in the page.
@@ -3449,6 +3893,8 @@ function describeEdit(name, args) {
   switch (name) {
     case "set_param":
       return `set ${args.param} on ${nameFor(args.atom)}`;
+    case "set_input_selection":
+      return `pick on ${args.input} of ${nameFor(args.atom)}`;
     case "set_code":
       return `edit code of ${nameFor(args.atom)}`;
     case "add_atom": {
