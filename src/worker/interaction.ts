@@ -317,10 +317,14 @@ async function intersect(
 }
 
 /**
- * Return the boolean union between all entries in shapes.
+ * Return the boolean union between all entries in shapes. With `simplify`,
+ * faces that share a surface are merged afterwards, removing the seam edges
+ * left where the inputs met (see occtWorkarounds.ts for why booleans don't
+ * merge them by default).
  */
 async function fusion(
   shapes: AbundanceObject[],
+  simplify: boolean,
   context: RequestContext,
 ): Promise<AbundanceLeaf> {
   await util.init();
@@ -373,6 +377,12 @@ async function fusion(
       context,
     );
     bomAssembly.push(...(filteredShapes[i].bom || []));
+  }
+  if (simplify) {
+    fusedGeometry = await util.geometryProvider!.simplify(
+      fusedGeometry,
+      context,
+    );
   }
   return {
     // TODO: requires a real fix.

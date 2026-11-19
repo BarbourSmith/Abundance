@@ -42,7 +42,10 @@ export default class Join extends Atom {
      * @type {string}
      */
     this.description =
-      "Pick between assembly and fusion to join input geometries. Assembly takes multiple shapes together into one, shapes higher in the inputs list will cut into shapes lower on the input list where they overlap. Fusion takes all shapes or sketches and fuses them permanently into a single shape";
+      "Pick between assembly and fusion to join input geometries. Assembly takes multiple shapes together into one, shapes higher in the inputs list will cut into shapes lower on the input list where they overlap. Fusion takes all shapes or sketches and fuses them permanently into a single shape. Check simplify to merge faces that share a surface, removing the seam edges left where the shapes met.";
+
+    this._addIOWithoutSubscribing("simplify", "boolean", false).noConnections =
+      true;
 
     this.setValues(values);
 
@@ -121,10 +124,14 @@ export default class Join extends Atom {
     // Preserve input order. This isn't strictly required for fusion but it is done 1)
     // for consistency with assembly and 2) to provide more stability for caching in the future.
     const nonnullInputIds = this.inputs
-      .filter((io) => io.connectors.length > 0)
+      .filter((io) => io.connectors.length > 0 && io.valueType == "geometry")
       .map((io) => inputs[io.name])
       .filter(Boolean);
-    return this.cad.fusion(nonnullInputIds, this.getContext());
+    return this.cad.fusion(
+      nonnullInputIds,
+      Boolean(inputs.simplify),
+      this.getContext(),
+    );
   }
 
   /**
@@ -146,6 +153,12 @@ export default class Join extends Atom {
         ioValues.push(saveIO);
       }
     });
+
+    // The simplify checkbox has no connectors, so save it separately.
+    const simplifyIO = this.inputs.find((io) => io.name === "simplify");
+    if (simplifyIO?.getValue()) {
+      ioValues.push({ name: "simplify", ioValue: true });
+    }
 
     thisAsObject.ioValues = ioValues;
     thisAsObject.unionType = this.unionType;
