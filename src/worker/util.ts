@@ -478,8 +478,8 @@ function boundsOverlap(
   bounds1: AbundanceBounds | undefined,
   bounds2: AbundanceBounds | undefined,
 ): boolean {
-  if (!bounds1 || !bounds2) {
-    return true; // If either is undefined, assume they might overlap
+  if (!isKnownBounds(bounds1) || !isKnownBounds(bounds2)) {
+    return true; // Unknown bounds might overlap anything
   }
 
   return !(
@@ -493,43 +493,76 @@ function boundsOverlap(
 }
 
 /**
- * Eagerly computes bounding boxes for an assembly by merging existing child bounds.
- * This is more efficient than withAssemblyBoundingBoxes() because it doesn't recursively
- * traverse the tree - it assumes all children already have valid bounds from prior operations.
- *
- * Use this when creating assemblies or after operations where you know children have bounds.
+ * True if `bounds` is a real box of six finite numbers. An empty box
+ * (EMPTY_BOUNDS, all infinite) turns into nulls once stored as JSON, and
+ * neither says where anything is.
+ */
+function isKnownBounds(bounds: unknown): bounds is AbundanceBounds {
+  const box = bounds as AbundanceBounds | undefined;
+  return (
+    !!box &&
+    Array.isArray(box.min) &&
+    Array.isArray(box.max) &&
+    box.min.length === 3 &&
+    box.max.length === 3 &&
+    [...box.min, ...box.max].every(
+      (v) => typeof v === "number" && Number.isFinite(v),
+    )
+  );
+}
+
+/**
+ * A branch's bounds from its children's, or undefined unless every child that
+ * holds any geometry has known bounds. Merging only the known ones would give
+ * a box too small to hold the branch, and cuts against the parts left out
+ * would be skipped as if they couldn't touch.
+ */
+function branchBounds(children: AbundanceObject[]): AbundanceBounds | undefined {
+  const holding = children.filter(
+    (child) => isLeaf(child) || leafCount(child) > 0,
+  );
+  const bounds = holding.map((child) => child.boundingBox);
+  if (bounds.length === 0 || !bounds.every(isKnownBounds)) {
+    return undefined;
+  }
+  return mergeBounds(bounds as AbundanceBounds[]);
+}
+
+/** `branch` with `boundingBox` set to `bounds`, or without one if undefined. */
+function withBranchBounds(
+  branch: AbundanceObject,
+  bounds: AbundanceBounds | undefined,
+): AbundanceObject {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { boundingBox: _old, ...rest } = branch;
+  return (bounds ? { ...rest, boundingBox: bounds } : rest) as AbundanceObject;
+}
+
+/**
+ * Sets a branch's bounds from its children's, without measuring anything:
+ * the branch is left without bounds unless every child's are known (see
+ * branchBounds). Use withAssemblyBoundingBoxes to measure what's missing.
  */
 function computeAssemblyBounds(geometry: AbundanceObject): AbundanceObject {
   if (isLeaf(geometry)) {
     return geometry;
   }
-
-  const childBounds = (geometry.geometry as AbundanceObject[])
-    .map((child) => child.boundingBox)
-    .filter((bounds): bounds is AbundanceBounds => bounds !== undefined);
-
-  const boundingBox =
-    childBounds.length > 0 ? mergeBounds(childBounds) : EMPTY_BOUNDS;
-
-  return {
-    ...geometry,
-    boundingBox,
-  };
+  return withBranchBounds(
+    geometry,
+    branchBounds(geometry.geometry as AbundanceObject[]),
+  );
 }
 
 /**
- * Computes and caches bounding boxes for geometries.
+ * Gives every part of `geometry` its bounding box. A leaf is measured only if
+ * it has no known bounds (or forceRecompute is set); a branch's bounds are
+ * always merged again from its children's, so a branch box that misses some
+ * of its parts can't survive (see branchBounds). Walking the tree is cheap:
+ * only leaves without bounds load their shape.
  *
- * Optimization: If a geometry and all its children already have valid bounds,
- * this function returns immediately without recursive traversal (unless forceRecompute=true).
- *
- * When to use forceRecompute=true:
- * - When geometry children have been modified and bounds are stale
- * - When bounds need to be recalculated for performance analysis
- * - Normally, you should NOT use this - leaves bounds are only computed once,
- *   and assembly bounds are eagerly computed when assemblies are created
- *
- * Normal usage: forceRecompute=false (default) - reuses existing bounds when available
+ * Bounds can still be larger than the part, for example a leaf keeps its
+ * bounds through a cut that removes some of it. That only means a later cut
+ * isn't skipped when it could have been.
  */
 async function withAssemblyBoundingBoxes(
   geometry: AbundanceObject,
@@ -537,63 +570,32 @@ async function withAssemblyBoundingBoxes(
   forceRecompute: boolean = false,
 ): Promise<AbundanceObject> {
   if (isLeaf(geometry)) {
-    if (geometry.boundingBox && !forceRecompute) {
+    if (isKnownBounds(geometry.boundingBox) && !forceRecompute) {
       return geometry;
     }
     let bounds: AbundanceBounds | undefined = undefined;
     try {
       const boundsResult = await getBounds(geometry, context);
-      bounds = {
+      const measured = {
         min: boundsResult.min as [number, number, number],
         max: boundsResult.max as [number, number, number],
       };
+      bounds = isKnownBounds(measured) ? measured : undefined;
     } catch (_) {
       // Bounds metadata is an optimization; keep geometry operation non-fatal.
     }
-    return {
-      ...geometry,
-      ...(bounds ? { boundingBox: bounds } : {}),
-    };
+    return withBranchBounds(geometry, bounds);
   }
 
-  // Optimization: if assembly already has bounds and all children have bounds, just return
-  // unless we're forced to recompute
-  if (!forceRecompute && geometry.boundingBox) {
-    const childBounds = (geometry.geometry as AbundanceObject[])
-      .map((child) => child.boundingBox)
-      .filter((bounds): bounds is AbundanceBounds => bounds !== undefined);
-
-    // All children have bounds, so assembly bounds are valid
-    if (childBounds.length === geometry.geometry.length) {
-      return geometry;
-    }
-  }
-
-  const childWithBounds = await Promise.all(
+  const children = await Promise.all(
     (geometry.geometry as AbundanceObject[]).map((child) =>
       withAssemblyBoundingBoxes(child, context, forceRecompute),
     ),
   );
-  if (childWithBounds.length === 0) {
-    return {
-      ...geometry,
-      geometry: [],
-      boundingBox: EMPTY_BOUNDS,
-    };
-  }
-
-  const childBounds = childWithBounds
-    .map((child) => child.boundingBox)
-    .filter((bounds): bounds is AbundanceBounds => bounds !== undefined);
-
-  const boundingBox =
-    childBounds.length > 0 ? mergeBounds(childBounds) : EMPTY_BOUNDS;
-
-  return {
-    ...geometry,
-    geometry: childWithBounds,
-    boundingBox,
-  };
+  return withBranchBounds(
+    { ...geometry, geometry: children } as AbundanceObject,
+    branchBounds(children),
+  );
 }
 
 function isAbundanceObject(obj: any): obj is AbundanceObject {
