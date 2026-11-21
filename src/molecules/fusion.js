@@ -42,9 +42,9 @@ export default class Join extends Atom {
      * @type {string}
      */
     this.description =
-      "Pick between assembly and fusion to join input geometries. Assembly takes multiple shapes together into one, shapes higher in the inputs list will cut into shapes lower on the input list where they overlap. Fusion takes all shapes or sketches and fuses them permanently into a single shape. Check simplify to merge faces that share a surface, removing the seam edges left where the shapes met.";
+      "Pick between assembly and fusion to join input geometries. Assembly takes multiple shapes together into one, shapes higher in the inputs list will cut into shapes lower on the input list where they overlap. Fusion takes all shapes or sketches and fuses them permanently into a single shape. Simplify (on by default) merges faces that share a surface, removing the seam edges left where the shapes met.";
 
-    this._addIOWithoutSubscribing("simplify", "boolean", false).noConnections =
+    this._addIOWithoutSubscribing("simplify", "boolean", true).noConnections =
       true;
 
     this.setValues(values);
@@ -154,10 +154,11 @@ export default class Join extends Atom {
       }
     });
 
-    // The simplify checkbox has no connectors, so save it separately.
+    // The simplify checkbox has no connectors, so save it separately. It is
+    // on by default, so only an unchecked box needs saving.
     const simplifyIO = this.inputs.find((io) => io.name === "simplify");
-    if (simplifyIO?.getValue()) {
-      ioValues.push({ name: "simplify", ioValue: true });
+    if (simplifyIO && !simplifyIO.getValue()) {
+      ioValues.push({ name: "simplify", ioValue: false });
     }
 
     thisAsObject.ioValues = ioValues;
