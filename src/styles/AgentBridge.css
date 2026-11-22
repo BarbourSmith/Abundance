@@ -55,10 +55,6 @@
   background: #3fb950;
 }
 
-.agent-chip-dot[data-status="connected"][data-mode="edit"] {
-  background: #d29922;
-}
-
 .agent-chip-dot[data-status="connecting"] {
   background: #58a6ff;
 }
@@ -87,14 +83,6 @@
   opacity: 0.7;
   font-family: monospace;
   font-size: 12px;
-}
-
-.agent-chip-toggle {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  white-space: nowrap;
-  cursor: pointer;
 }
 
 .agent-chip-button {

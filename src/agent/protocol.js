@@ -6,7 +6,7 @@
  *
  *   page   -> bridge  request       "bridge.hello"   (first message, carries the pairing token)
  *   bridge -> page    request       "tool.call"      { name, arguments }
- *   page   -> bridge  notification  "session.update" (project/mode/focus changed)
+ *   page   -> bridge  notification  "session.update" (project/focus changed)
  *   page   -> bridge  notification  "tool.progress"  { callId, message, progress, total }
  *
  * This file must stay dependency-free: it is imported by browser code and by

@@ -74,7 +74,7 @@ import { Octokit } from "octokit";
 import moleculeLibrary from "./moleculeLibrary.json";
 import { agentBridge } from "./bridgeClient.js";
 import { ERROR_CODES, ToolError } from "./protocol.js";
-import { BATCHABLE_TOOLS, TOOLS_BY_NAME, isToolAllowed } from "./tools.js";
+import { BATCHABLE_TOOLS, TOOLS_BY_NAME } from "./tools.js";
 
 /** Whether a geometry id has been moved or rotated (see lazyTransform.ts). */
 const isTransformedId = (id) => !!id && !!parseTransformedId(id);
@@ -1328,7 +1328,6 @@ const handlers = {
       error_count: errors.length,
       atoms,
       ...(codeAtomAdvice(atoms) ? { advice: codeAtomAdvice(atoms) } : {}),
-      edits_enabled: ctx.mode === "edit",
       can_save: canSave(),
       page: typeof window !== "undefined" ? window.location.pathname : null,
     };
@@ -3939,19 +3938,13 @@ function describeEdit(name, args) {
  * Run one tool call from the bridge.
  * @param {string} name
  * @param {object} args
- * @param {{ mode: "read"|"edit", progress?: (p: object) => void }} ctx
+ * @param {{ progress?: (p: object) => void }} ctx
  */
-export async function runTool(name, args = {}, ctx = { mode: "read" }) {
+export async function runTool(name, args = {}, ctx = {}) {
   const tool = TOOLS_BY_NAME[name];
   const impl = handlers[name];
   if (!tool || !impl) {
     throw new ToolError(ERROR_CODES.METHOD_NOT_FOUND, `Unknown tool ${name}.`);
-  }
-  if (!isToolAllowed(name, ctx.mode)) {
-    throw new ToolError(
-      ERROR_CODES.PERMISSION_DENIED,
-      'Edits are turned off in the page. Ask the user to turn on "Allow edits" in the AI agent chip at the top of the Abundance window.',
-    );
   }
   validateArgs(tool, args);
 
