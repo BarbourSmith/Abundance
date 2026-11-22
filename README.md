@@ -200,7 +200,7 @@ An AI agent running on your computer, such as Claude Code, can look at and edit 
 2. In Abundance, open **Connect an AI agent**: the sparkle button on the right in Run Mode, or under the Run Mode button in Create Mode (also **AI Agent** in its menu). Adding `#agent` to the end of the page address opens it too.
 3. Paste the bridge's pairing token and turn on **Connect local AI agent**.
 
-The agent starts read-only. To let it make changes, tick **Allow edits** in the AI agent chip at the top of the window. Each change the agent makes is one step you can undo, labeled "AI:". While edits are allowed, autosave pauses, and the agent can only save after you confirm. Use Chrome or Firefox, since Safari blocks this connection.
+Once connected, the agent can change the project. Each change the agent makes is one step you can undo, labeled "AI:", and saved versions stay in the project's GitHub history. Use Chrome or Firefox, since Safari blocks this connection.
 
 
 <details>

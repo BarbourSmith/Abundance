@@ -21,7 +21,7 @@ The browser tab connects out to the bridge. The website never accepts connection
 4. Open Abundance in Chrome or Firefox and open **Connect an AI agent**. In run mode it's the sparkle button in the column on the right. In the editor it's the sparkle button under the Run Mode button, or **AI Agent** in the menu. You can also add `#agent` to the end of any Abundance address. The same settings are in Developer Settings (Ctrl+Shift+D, or Cmd+Shift+D on a Mac).
 5. Paste the token, check the port, and turn on **Connect local AI agent**.
 
-A chip at the top of the window shows the connection. The agent starts read-only. Tick **Allow edits** in the chip to let it change the project. Edit permission resets to read-only whenever the page reloads.
+A chip at the top of the window shows the connection. A connected agent can change the project.
 
 Without a copy of this repository, have the AI app install the published package. Ask it:
 
@@ -87,7 +87,6 @@ npm run agent:library
 - **Opt-in per browser.** A tab never touches localhost unless the user turned the bridge on in that browser.
 - **Loopback only.** The bridge binds to 127.0.0.1 and accepts only the Abundance site and `http://localhost` origins. Add others with `--origin`.
 - **Pairing token.** A tab must present the token stored in `~/.abundance-bridge/token`. Regenerate it with `node bridge/index.js --new-token`.
-- **Read-only by default.** Edits need the user to tick Allow edits, which resets on reload.
 - **One undo step per agent change.** Every edit, and every batch from `apply_edits`, is a single entry labeled `AI:` in the user's undo history. A failed batch is rolled back. The agent's `undo` refuses to undo the user's own changes.
 - **Saves go to the user's own repository.** Autosave keeps running while the agent edits, and `save_project` commits without asking, since every change is in the repository's history. `open_pull_request` only proposes changes to the original project; merging stays with its owner.
 - **No arbitrary code in the page.** There is no tool that runs JavaScript in the tab. Code atoms run in the CAD worker as they do for users.

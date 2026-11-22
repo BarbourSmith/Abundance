@@ -28,7 +28,7 @@ const CLIENT_ID_KEY = "abundance-agent-bridge-client";
 const MAX_BACKOFF_MS = 30_000;
 const PROJECT_POLL_MS = 2_000;
 
-/** Settings persisted in localStorage. Edit mode is deliberately not saved. */
+/** Settings persisted in localStorage. */
 export function loadSettings(storage = safeLocalStorage()) {
   const defaults = { enabled: false, port: DEFAULT_BRIDGE_PORT, token: "" };
   try {
@@ -112,7 +112,6 @@ export class AgentBridgeClient {
     this.settings = loadSettings();
     this.state = {
       status: "off", // off | connecting | connected | error
-      mode: "read", // read | edit
       sessionId: null,
       error: null,
       activity: null, // { tool, at, ok }
@@ -201,18 +200,6 @@ export class AgentBridgeClient {
     if (next.enabled) this._connect();
   }
 
-  /** Turn edits on or off for this page load. */
-  setMode(mode) {
-    const next = mode === "edit" ? "edit" : "read";
-    if (next === this.state.mode) return;
-    this._setState({ mode: next });
-    this._sendUpdate({ mode: next });
-  }
-
-  isEditMode() {
-    return this.state.mode === "edit";
-  }
-
   /** Retry now instead of waiting for the backoff timer. */
   retry() {
     if (!this.settings.enabled) return;
@@ -280,7 +267,6 @@ export class AgentBridgeClient {
           appVersion: this.appVersion,
           url: typeof location === "undefined" ? null : location.href,
           project: this.getProject(),
-          mode: this.state.mode,
           focused: this._isFocused(),
         }),
       );
@@ -413,10 +399,7 @@ export class AgentBridgeClient {
       this._send(makeNotification("tool.progress", { callId: msg.id, ...p }));
     const run = async () => {
       const runtime = await this.loadRuntime();
-      return runtime.runTool(name, args || {}, {
-        mode: this.state.mode,
-        progress,
-      });
+      return runtime.runTool(name, args || {}, { progress });
     };
 
     // Edits and view changes run one at a time so undo groups never interleave.

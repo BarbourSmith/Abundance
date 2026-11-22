@@ -124,29 +124,6 @@ describe("resolving atoms", () => {
 });
 
 describe("permissions and validation", () => {
-  it("refuses every edit tool in read-only mode", async () => {
-    await buildWidthAndDouble();
-    for (const [name, args] of [
-      ["set_param", { atom: D, param: "x", value: 3 }],
-      ["add_atom", { type: "Constant" }],
-      ["delete_atoms", { atoms: ["Width"] }],
-      [
-        "apply_edits",
-        {
-          description: "x",
-          edits: [{ tool: "add_atom", arguments: { type: "Constant" } }],
-        },
-      ],
-    ]) {
-      await expectToolError(
-        runTool(name, args, READ),
-        ERROR_CODES.PERMISSION_DENIED,
-        /Allow edits/,
-      );
-    }
-    expect(top.nodesOnTheScreen).toHaveLength(2);
-  });
-
   it("rejects unknown, missing, and mistyped arguments", async () => {
     await expectToolError(
       runTool("wait_for_settle", { timout_ms: 10 }, READ),
@@ -178,7 +155,6 @@ describe("reading the project", () => {
       project: { owner: "tester", repo: "Proj" },
       top_level: { name: "Proj" },
       open_molecule: { path: "Proj" },
-      edits_enabled: false,
       can_save: false,
     });
     const { atoms } = await runTool("list_atoms", {}, READ);
@@ -687,10 +663,6 @@ describe("project description", () => {
       "Old words",
     );
     await expectToolError(
-      runTool("set_project_description", { description: "New" }, READ),
-      ERROR_CODES.PERMISSION_DENIED,
-    );
-    await expectToolError(
       runTool(
         "set_project_description",
         { description: "x".repeat(501) },
@@ -731,10 +703,6 @@ describe("cut layout", () => {
       runTool("compute_cut_layout", { atom: id }, EDIT),
       ERROR_CODES.CONFLICT,
       /no geometry to lay out/,
-    );
-    await expectToolError(
-      runTool("compute_cut_layout", { atom: id }, READ),
-      ERROR_CODES.PERMISSION_DENIED,
     );
   });
 
@@ -841,14 +809,6 @@ describe("saving", () => {
     expect(calls).toEqual([
       { title: "Taller legs", description: "Legs are 50 mm taller." },
     ]);
-  });
-
-  it("needs edits allowed to open a pull request", async () => {
-    agentBridge.pullRequestHandler = async () => ({ opened: true });
-    await expectToolError(
-      runTool("open_pull_request", {}, READ),
-      ERROR_CODES.PERMISSION_DENIED,
-    );
   });
 });
 
@@ -1654,14 +1614,6 @@ describe("input selections", () => {
         message,
       );
     }
-    await expectToolError(
-      runTool(
-        "set_input_selection",
-        { atom: mol, input: "Shape", picks: [] },
-        READ,
-      ),
-      ERROR_CODES.PERMISSION_DENIED,
-    );
   });
 
   it("picks whole parts on a part-select input", async () => {

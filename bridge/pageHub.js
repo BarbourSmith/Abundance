@@ -28,7 +28,7 @@ const HANDED_OFF = 4007;
  * Events:
  *   "session"        (session)            a page completed the handshake
  *   "session-closed" (session, code)      a page went away
- *   "session-update" (session)            a page reported new project/mode info
+ *   "session-update" (session)            a page reported new project info
  *   "rejected"       ({ reason, origin })  a connection was refused
  *   "handed-off"     ()                    another bridge took over the port
  *
@@ -188,7 +188,6 @@ export class PageHub extends EventEmitter {
       session_id: s.id,
       active: s === active,
       project: s.info.project || null,
-      mode: s.info.mode || "read",
       url: s.info.url || null,
       focused: !!s.info.focused,
       app_version: s.info.appVersion || null,
@@ -507,7 +506,7 @@ export class PageHub extends EventEmitter {
 
 function pickInfo(params) {
   const info = {};
-  for (const key of ["project", "mode", "url", "focused", "appVersion"]) {
+  for (const key of ["project", "url", "focused", "appVersion"]) {
     if (params[key] !== undefined) info[key] = params[key];
   }
   return info;

@@ -7,7 +7,7 @@
  * until this guide has been read in the chat.
  */
 export const MODELING_GUIDE = `Understand before changing:
-- get_project for owner/repo, units, progress, errors, and whether edits are allowed.
+- get_project for owner/repo, units, progress, and errors.
 - list_atoms to see the graph and wiring; use depth 2 or more to see nested molecules.
 - get_atom for one atom's params, inputs, output summary (bounding box, part count, tags), and code.
 - get_errors lists atoms in an error state; get_worker_logs shows CAD-worker failures.
@@ -89,7 +89,6 @@ Keep the project description up to date:
 - It's saved with the project, so remind the user to save.
 
 Edit:
-- Edit tools only work after the user ticks "Allow edits" in the AI agent chip at the top of the Abundance window. If edits are refused, ask them to, and don't retry until they have.
 - set_param uses the labels from get_atom's params. Number fields accept numbers or equations that reference inputs. Array fields take a list: set an array Input's defaults with its Default Values param, such as [40, 80, 120].
 - Each edit is one undo step. Group related edits in apply_edits so the user can undo them together; if any edit in it fails, the whole batch rolls back.
 - Edits recompute asynchronously: afterwards call wait_for_settle, check its errors, and confirm the result with render_image or get_atom bounding boxes before reporting success.

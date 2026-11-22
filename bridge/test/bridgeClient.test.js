@@ -54,7 +54,7 @@ describe("AgentBridgeClient against a real bridge", () => {
       WebSocketImpl: BrowserLikeWebSocket,
       loadRuntime: async () => ({
         runTool: async (name, args, ctx) => {
-          runtimeCalls.push({ name, args, mode: ctx.mode });
+          runtimeCalls.push({ name, args });
           return runtimeImpl(name, args, ctx);
         },
       }),
@@ -84,10 +84,8 @@ describe("AgentBridgeClient against a real bridge", () => {
     expect(client.getState().sessionId).toBe("tab-1");
     expect(hub.listSessions()[0]).toMatchObject({
       project: { owner: "moatmaslow", repo: "Wall-Anchor" },
-      mode: "read",
       app_version: "test",
     });
-    // Settings persist, edit mode does not.
     expect(JSON.parse(localStorage.getItem("abundance-agent-bridge"))).toEqual({
       enabled: true,
       port,
@@ -95,22 +93,19 @@ describe("AgentBridgeClient against a real bridge", () => {
     });
   });
 
-  it("runs tool calls in the page and passes the current mode", async () => {
+  it("runs reads and edits in the page", async () => {
     client.start();
     client.updateSettings({ enabled: true, port, token: TOKEN });
     await waitFor(() => client.getState().status === "connected");
     const result = await hub.call(undefined, "get_atom", { atom: "Box" });
     expect(result).toEqual({ ran: "get_atom", args: { atom: "Box" } });
-    expect(runtimeCalls[0].mode).toBe("read");
 
-    client.setMode("edit");
-    await waitFor(() => hub.listSessions()[0].mode === "edit");
     await hub.call(undefined, "set_param", {
       atom: "Box",
       param: "x",
       value: 1,
     });
-    expect(runtimeCalls[1].mode).toBe("edit");
+    expect(runtimeCalls.map((c) => c.name)).toEqual(["get_atom", "set_param"]);
     expect(client.getState().activity).toMatchObject({
       tool: "set_param",
       ok: true,
@@ -162,7 +157,6 @@ describe("AgentBridgeClient against a real bridge", () => {
     };
     client.start();
     client.updateSettings({ enabled: true, port, token: TOKEN });
-    client.setMode("edit");
     await waitFor(() => client.getState().status === "connected");
 
     const first = hub.call(undefined, "set_param", { n: 1 });

@@ -30,9 +30,9 @@ claude mcp add --scope user abundance -- npx -y @maslowcnc/abundance-bridge@late
 3. Paste the token, check the port, and turn on **Connect local AI agent**.
 4. Ask your AI app:
 
-   > Connect to the Abundance project open in my browser. Tell me the project name and whether access is read-only.
+   > Connect to the Abundance project open in my browser. Tell me the project name and what it contains.
 
-The agent starts read-only. Tick **Allow edits** in the chip at the top of the window to let it change the project. Edit permission resets whenever the page reloads.
+Once connected, the agent can change the project. Each change it makes is one step you can undo, and saved versions stay in the project's GitHub history.
 
 ## Options
 

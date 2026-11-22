@@ -6,10 +6,10 @@
  * file dependency-free and data-only.
  *
  * permission:
- *   "read" - inspects the project; always allowed once connected.
+ *   "read" - inspects the project.
  *   "view" - changes what the user is looking at (selection, open molecule)
- *            but never the project; allowed in read-only mode.
- *   "edit" - changes the project; requires the user to turn on edits.
+ *            but never the project.
+ *   "edit" - changes the project; runs as one undo step, one call at a time.
  *
  * output (bridge only): tells the bridge the page returns a file payload that
  * the bridge writes to disk instead of sending it to the model.
@@ -65,7 +65,7 @@ export const TOOLS = [
     name: "get_project",
     permission: "read",
     description:
-      "Summarize the open Abundance project: owner/repo, units, top-level status and progress, the molecule open in the editor, the selected atom, error count, how many Code atoms and built-in atoms it has (with advice when code has taken the place of built-ins), and whether edits are enabled." +
+      "Summarize the open Abundance project: owner/repo, units, top-level status and progress, the molecule open in the editor, the selected atom, error count, how many Code atoms and built-in atoms it has (with advice when code has taken the place of built-ins), and whether the page can save." +
       UNTRUSTED_NOTE,
     inputSchema: { type: "object", properties: {} },
   },
@@ -1109,15 +1109,3 @@ export const BATCHABLE_TOOLS = [
 ];
 
 export const TOOLS_BY_NAME = Object.fromEntries(TOOLS.map((t) => [t.name, t]));
-
-/**
- * Whether a tool may run in the given page mode.
- * @param {string} toolName
- * @param {"read"|"edit"} mode
- */
-export function isToolAllowed(toolName, mode) {
-  const tool = TOOLS_BY_NAME[toolName];
-  if (!tool) return false;
-  if (tool.permission === "edit") return mode === "edit";
-  return true;
-}

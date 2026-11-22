@@ -94,9 +94,7 @@ export function useAgentBridgeState() {
 function statusText(state) {
   switch (state.status) {
     case "connected":
-      return state.mode === "edit"
-        ? "AI agent connected, can edit"
-        : "AI agent connected, read-only";
+      return "AI agent connected";
     case "connecting":
       return "AI agent: connecting…";
     case "error":
@@ -256,7 +254,6 @@ function AgentBridgeChip({ state }) {
       <span
         className="agent-chip-dot"
         data-status={state.status}
-        data-mode={state.mode}
         data-busy={busy ? "true" : "false"}
       />
       <span className="agent-chip-details">
@@ -265,21 +262,6 @@ function AgentBridgeChip({ state }) {
         </span>
         {connected && (busy || recent) && (
           <span className="agent-chip-activity">{activity.tool}</span>
-        )}
-        {connected && (
-          <label
-            className="agent-chip-toggle"
-            title="Let the agent change this project. Resets when the page reloads."
-          >
-            <input
-              type="checkbox"
-              checked={state.mode === "edit"}
-              onChange={(e) =>
-                agentBridge.setMode(e.target.checked ? "edit" : "read")
-              }
-            />
-            Allow edits
-          </label>
         )}
         {state.status === "error" &&
           (state.errorKind === "no-token" ? (
@@ -428,8 +410,8 @@ export function AgentBridgeSettings() {
         {statusText(state)}
       </p>
       <p className="agent-settings-help">
-        Turn on <strong>Allow edits</strong> in the connection chip only when
-        you want the agent to change the project.
+        A connected agent can change the project. Each change is one undo step,
+        and saved versions stay in the project's GitHub history.
       </p>
     </div>
   );

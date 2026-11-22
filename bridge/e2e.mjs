@@ -172,7 +172,6 @@ try {
   await check("summarizes the project", async () => {
     const { data } = await call("get_project");
     assert.equal(`${data.project.owner}/${data.project.repo}`, PROJECT);
-    assert.equal(data.edits_enabled, false);
   });
 
   await check("lists atoms and describes one in detail", async () => {
@@ -206,19 +205,6 @@ try {
     await expectError("add_atom", { type: "Constant" }, "CONFLICT");
     const { data: guide } = await call("get_modeling_guide");
     assert.match(guide, /built-in/);
-  });
-
-  await check("refuses edits until the user allows them", async () => {
-    await expectError("add_atom", { type: "Constant" }, "PERMISSION_DENIED");
-  });
-
-  await check("turns on edits from the chip", async () => {
-    await page.getByLabel("Allow edits").check();
-    await waitFor(
-      async () => hub.listSessions()[0]?.mode === "edit",
-      5000,
-      "edit mode",
-    );
   });
 
   await check(

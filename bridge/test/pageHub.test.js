@@ -75,7 +75,6 @@ describe("PageHub", () => {
       session_id: "tab-1",
       active: true,
       project: { owner: "moatmaslow", repo: "Wall-Anchor" },
-      mode: "read",
     });
   });
 
@@ -224,16 +223,16 @@ describe("PageHub", () => {
     expect(await hub.call("tab-2", "x", {})).toBe("B");
   });
 
-  it("records mode changes from session.update", async () => {
+  it("records project changes from session.update", async () => {
     const p = page();
     await p.hello;
     p.send({
       jsonrpc: "2.0",
       method: "session.update",
-      params: { mode: "edit" },
+      params: { project: { owner: "a", repo: "b" } },
     });
     await new Promise((r) => setTimeout(r, 30));
-    expect(hub.listSessions()[0].mode).toBe("edit");
+    expect(hub.listSessions()[0].project).toEqual({ owner: "a", repo: "b" });
   });
 
   it("ignores malformed frames without dropping the session", async () => {
