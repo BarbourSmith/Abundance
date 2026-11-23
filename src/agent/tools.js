@@ -678,7 +678,7 @@ export const TOOLS = [
     name: "set_param",
     permission: "edit",
     description:
-      "Change one editable parameter of an atom, exactly as if the user typed it in the properties panel. Use the param label from get_atom. Numbers may be given as equations that reference other inputs by name. Array params, such as an array Input's Default Values or a molecule's array input, take a list.",
+      "Change one editable parameter of an atom, exactly as if the user typed it in the properties panel. Use the param label from get_atom. Numbers may be given as equations that reference other inputs by name. Array params, such as an array Input's Default Values or a molecule's array input, take a list. A text param that holds JSON data, such as a Code atom string input read with JSON.parse, takes the object or list itself: pass it as JSON, not escaped into a string, and it is stored as JSON text.",
     inputSchema: {
       type: "object",
       properties: {
@@ -689,7 +689,7 @@ export const TOOLS = [
         },
         value: {
           description:
-            "New value: number, string, boolean, [x, y, z] for points, or a list such as [10, 20, 35] for array params.",
+            "New value: number, string, boolean, [x, y, z] for points, a list such as [10, 20, 35] for array params, or an object or list for a text param that holds JSON.",
         },
       },
       required: ["atom", "param", "value"],
@@ -969,7 +969,7 @@ export const TOOLS = [
     name: "group_atoms",
     permission: "edit",
     description:
-      "Move atoms into a new molecule, with the connections between them, as the editor's Ctrl+M does: to gather a design into one molecule, or split a crowded molecule into named parts. The atoms get new IDs (moved lists old and new). The atom that feeds the molecule's Output is output, or the one atom whose connections leave the group; its outside connections are rewired from the new molecule. Other connections into or out of the group are removed and listed in dropped; restore them with Input atoms or from the new molecule's output. One undo step.",
+      "Move atoms into a new molecule, with the connections between them, as the editor's Ctrl+M does: to gather a design into one molecule, or split a crowded molecule into named parts. The atoms get new IDs (moved lists old and new). The atom that feeds the molecule's Output is output, or the one atom whose connections leave the group; its outside connections are rewired from the new molecule. Connections into the group are kept: each outside atom that fed it gets an Input atom in the new molecule, named after that atom and listed in inputs_added, and is wired to the new molecule's matching input. Connections leaving the group from any other atom can't pass through the one Output, so they are removed and listed in dropped. One undo step.",
     inputSchema: {
       type: "object",
       properties: {

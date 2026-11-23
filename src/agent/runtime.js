@@ -846,6 +846,28 @@ function describeParam({ label, config }) {
   return entry;
 }
 
+/** Input Type values that pass a connection's value through unchanged. */
+const PASS_THROUGH_INPUT_TYPES = new Set([
+  "number",
+  "string",
+  "geometry",
+  "array",
+  "boolean",
+  "point3d",
+]);
+
+/**
+ * The Input Type for an Input atom that group_atoms adds to carry a
+ * connection into the new molecule: the type of what fed it, or of the input
+ * it fed when that's open-ended (an Equation's "any").
+ */
+function groupInputType(sourceAP, targetAP) {
+  for (const type of [sourceAP?.valueType, targetAP?.valueType]) {
+    if (PASS_THROUGH_INPUT_TYPES.has(type)) return type;
+  }
+  return DEFAULT_REFERENCABLE_TYPES.Input;
+}
+
 function coerceParamValue(param, value) {
   const { type, options } = param.config;
   switch (type) {
@@ -898,7 +920,13 @@ function coerceParamValue(param, value) {
       return text;
     }
     default:
-      if (typeof value === "object") {
+      // A text field holding structured data (a Code atom's string input
+      // read with JSON.parse, say) takes the object or list itself, so the
+      // agent doesn't have to escape it into a string.
+      if (value !== null && typeof value === "object") {
+        return JSON.stringify(value);
+      }
+      if (value === null || value === undefined) {
         throw new ToolError(
           ERROR_CODES.INVALID_PARAMS,
           `"${param.label}" needs a text or number value.`,
@@ -3036,8 +3064,8 @@ const handlers = {
 
     // Connections inside the group move with it. Connections leaving it are
     // rewired from the new molecule when they leave from the atom that feeds
-    // its Output; connections into it can't cross a molecule boundary
-    // without an Input atom, so they're reported for the caller to redo.
+    // its Output. Connections into it pass through an Input atom added to
+    // the new molecule, one for each atom outside that fed the group.
     const internal = [];
     const leaving = [];
     const entering = [];
@@ -3127,11 +3155,49 @@ const handlers = {
         });
       }
     }
+    const inputsAdded = [];
+    const bySource = new Map();
     for (const conn of entering) {
-      dropped.push({
-        from: atomRef(conn.from),
-        to: `${atomPath(target)}/${conn.to.name}`,
+      if (!bySource.has(conn.from)) bySource.set(conn.from, []);
+      bySource.get(conn.from).push(conn);
+    }
+    let row = 0;
+    for (const [from, conns] of bySource) {
+      const inputs = conns.map((conn) => ({
+        atom: resolveAtom(newID.get(conn.to.uniqueID)),
+        ap: findInput(resolveAtom(newID.get(conn.to.uniqueID)), conn.input),
         input: conn.input,
+      }));
+      const type = groupInputType(from.output, inputs[0].ap);
+      const inputAtom = await handlers.add_atom({
+        type: "Input",
+        molecule: target.uniqueID,
+        name: from.name || "Input",
+        x: 0.05,
+        y: Math.min(0.9, 0.15 + 0.12 * row++),
+        ...(type !== DEFAULT_REFERENCABLE_TYPES.Input
+          ? { params: { "Input Type": type } }
+          : {}),
+      });
+      for (const { atom, input } of inputs) {
+        await handlers.connect({
+          from: inputAtom.id,
+          to: atom.uniqueID,
+          input,
+        });
+      }
+      await handlers.connect({
+        from: from.uniqueID,
+        to: target.uniqueID,
+        input: resolveAtom(inputAtom.id).name,
+      });
+      inputsAdded.push({
+        input: atomRef(resolveAtom(inputAtom.id)),
+        from: atomRef(from),
+        feeds: inputs.map(({ atom, input }) => ({
+          atom: atomRef(atom),
+          input,
+        })),
       });
     }
     return {
@@ -3144,10 +3210,11 @@ const handlers = {
         ? { output_from: atomRef(resolveAtom(newID.get(source.uniqueID))) }
         : {}),
       ...(rewired.length ? { rewired } : {}),
+      ...(inputsAdded.length ? { inputs_added: inputsAdded } : {}),
       ...(dropped.length
         ? {
             dropped,
-            note: "These connections crossed into or out of the group and were removed. Add Input atoms to the new molecule, or connect from its output, to restore them.",
+            note: "These connections left the group from an atom other than the one feeding the new molecule's Output, which a molecule can't pass on, so they were removed. Group those atoms separately, or move the atoms they feed into the group too.",
           }
         : {}),
     };
