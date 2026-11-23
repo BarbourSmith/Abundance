@@ -25,6 +25,10 @@ import {
   generateMeshPNG,
   extractBase64FromDataURL,
 } from "../js/meshPNGGenerator.js";
+import {
+  MAX_SAVED_VALUE_LENGTH,
+  takeDroppedValues,
+} from "../js/savedValueLimit.js";
 
 const ProjectContext = createContext();
 
@@ -70,6 +74,36 @@ export function ProjectProvider({ children, cad, loadProject }) {
 
   // Prevent concurrent save operations from racing on GitHub file SHAs.
   const saveInProgress = useRef(false);
+
+  // Values already reported as too large to save, so autosave doesn't repeat
+  // the same warning every interval.
+  const reportedDroppedValues = useRef(new Set());
+
+  // Serialize the project and tell the user about any value that was too
+  // large to go into the project file, since it will be gone on reload.
+  const serializeProject = () => {
+    takeDroppedValues();
+    const json = GlobalVariables.topLevelMolecule.serialize();
+    const dropped = takeDroppedValues().filter(({ atomName, key }) => {
+      const id = `${atomName}\u0000${key}`;
+      if (reportedDroppedValues.current.has(id)) return false;
+      reportedDroppedValues.current.add(id);
+      return true;
+    });
+    if (dropped.length > 0) {
+      const names = dropped
+        .map(
+          ({ atomName, key, length }) =>
+            `${atomName} → ${key} (${length.toLocaleString()} characters)`,
+        )
+        .join(", ");
+      setNotification(
+        `Not saved, too large: ${names}. Values over ${MAX_SAVED_VALUE_LENGTH.toLocaleString()} characters are left out of the project file and reset to their defaults when it reloads.`,
+        "warning",
+      );
+    }
+    return json;
+  };
 
   var navigate = useNavigate();
 
@@ -443,7 +477,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
       GlobalVariables.topLevelMolecule.name = currentRepoName;
     }
 
-    var jsonRepOfProject = GlobalVariables.topLevelMolecule.serialize();
+    var jsonRepOfProject = serializeProject();
     jsonRepOfProject.filetypeVersion = 1;
     const projectContent = window.btoa(
       GlobalVariables.toBinaryStr(JSON.stringify(jsonRepOfProject, null, 4)),
@@ -1732,7 +1766,7 @@ export function ProjectProvider({ children, cad, loadProject }) {
         }
 
         //We only want to save if something has actually changed since the last save
-        var jsonRepOfProject = GlobalVariables.topLevelMolecule.serialize();
+        var jsonRepOfProject = serializeProject();
 
         // Add filetypeVersion before change detection so it's consistent
         jsonRepOfProject.filetypeVersion = 1;

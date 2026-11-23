@@ -6,6 +6,10 @@ import { ObservableEntity, Status } from "./observableEntity.js";
 import { getPredictedAtoms } from "../js/atomPrediction.js";
 import { checkAtomGeometry } from "../js/geometryCheck.js";
 import {
+  MAX_SAVED_VALUE_LENGTH,
+  noteDroppedValue,
+} from "../js/savedValueLimit.js";
+import {
   EQUATION_UNIT_WORDS,
   equationUnitFactor,
   unitsContextOf,
@@ -878,8 +882,6 @@ export default class Atom extends ObservableEntity {
    * @returns {boolean} - True if value was added, false if skipped
    */
   static safeSerializeValue(target, key, value, atomName = "unknown") {
-    const MAX_VALUE_SIZE = 10000; // 10KB limit
-
     // Skip null/undefined
     if (value === null || value === undefined) {
       return false;
@@ -898,10 +900,8 @@ export default class Atom extends ObservableEntity {
     }
 
     // Check string size
-    if (typeof value === "string" && value.length > MAX_VALUE_SIZE) {
-      console.warn(
-        `Skipping serialization of large string (${value.length} chars) for ${atomName}.${key}`,
-      );
+    if (typeof value === "string" && value.length > MAX_SAVED_VALUE_LENGTH) {
+      noteDroppedValue(atomName, key, value.length);
       return false;
     }
 
@@ -909,10 +909,8 @@ export default class Atom extends ObservableEntity {
     if (typeof value === "object" && value !== null) {
       try {
         const stringified = JSON.stringify(value);
-        if (stringified.length > MAX_VALUE_SIZE) {
-          console.warn(
-            `Skipping serialization of large object (${stringified.length} chars) for ${atomName}.${key}`,
-          );
+        if (stringified.length > MAX_SAVED_VALUE_LENGTH) {
+          noteDroppedValue(atomName, key, stringified.length);
           return false;
         }
       } catch (e) {
@@ -995,7 +993,7 @@ export default class Atom extends ObservableEntity {
         (value === null || value === undefined) &&
         typeof ap.currentEquation === "string" &&
         ap.currentEquation.trim() !== "" &&
-        ap.currentEquation.length <= 10000
+        ap.currentEquation.length <= MAX_SAVED_VALUE_LENGTH
       ) {
         ioValues.push({
           name: ap.name,
@@ -1016,16 +1014,12 @@ export default class Atom extends ObservableEntity {
           ap.currentEquation && ap.currentEquation.trim() !== "";
         const isDifferentFromDefault = ap.defaultValue !== currentValue;
 
-        // Skip if value is a very large string (likely serialized object data)
-        // Normal equations and values should be under 10KB
-        const MAX_VALUE_SIZE = 10000;
+        // Skip runaway strings (likely serialized object data)
         if (
           typeof currentValue === "string" &&
-          currentValue.length > MAX_VALUE_SIZE
+          currentValue.length > MAX_SAVED_VALUE_LENGTH
         ) {
-          console.warn(
-            `Skipping serialization of large string value (${currentValue.length} chars) for attachment point: ${ap.name}`,
-          );
+          noteDroppedValue(this.name, ap.name, currentValue.length);
           return;
         }
 
@@ -1042,9 +1036,11 @@ export default class Atom extends ObservableEntity {
           };
           // Only include currentEquation if it exists and it's not too large
           if (hasCustomEquation) {
-            if (ap.currentEquation.length > MAX_VALUE_SIZE) {
-              console.warn(
-                `Skipping serialization of large equation (${ap.currentEquation.length} chars) for attachment point: ${ap.name}`,
+            if (ap.currentEquation.length > MAX_SAVED_VALUE_LENGTH) {
+              noteDroppedValue(
+                this.name,
+                `${ap.name} equation`,
+                ap.currentEquation.length,
               );
             } else {
               saveIO.currentEquation = ap.currentEquation;
