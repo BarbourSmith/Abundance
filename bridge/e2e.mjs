@@ -111,8 +111,67 @@ const browser = await chromium.launch({ headless: !HEADED });
 const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
 page.on("pageerror", (err) => console.log(`  [page error] ${err.message}`));
 
+// The page reads the project from GitHub without logging in, which GitHub
+// limits to 60 requests an hour per IP address. CI runners share addresses, so
+// that limit is often already spent. With a token the requests count against
+// the token instead.
+const GITHUB_API = "https://api.github.com/";
+const githubToken = process.env.GITHUB_TOKEN;
+if (githubToken) {
+  await page.route(`${GITHUB_API}**`, (route) => {
+    const request = route.request();
+    if (request.method() === "OPTIONS") return route.continue();
+    return route.continue({
+      headers: { ...request.headers(), authorization: `Bearer ${githubToken}` },
+    });
+  });
+}
+
+// Requests to other servers that failed, so a project that doesn't load says why.
+const failedRequests = [];
+const noteFailedRequest = (line) => {
+  failedRequests.push(line);
+  console.log(`  [request failed] ${line}`);
+};
+page.on("response", (response) => {
+  if (response.status() < 400 || response.url().startsWith(BASE)) return;
+  const rateLimited =
+    response.url().startsWith(GITHUB_API) &&
+    response.headers()["x-ratelimit-remaining"] === "0";
+  noteFailedRequest(
+    `${response.status()} ${response.url()}` +
+      (rateLimited ? " (GitHub rate limit used up)" : ""),
+  );
+});
+page.on("requestfailed", (request) => {
+  const reason = request.failure()?.errorText;
+  // A page reload aborts whatever was still loading, which isn't a failure.
+  if (request.url().startsWith(BASE) || reason === "net::ERR_ABORTED") return;
+  noteFailedRequest(`${reason} ${request.url()}`);
+});
+
+const PROJECT_DID_NOT_LOAD = Symbol("project did not load");
+
 try {
   await page.goto(`${BASE}/run/${PROJECT}`);
+
+  // Every later check needs the project, so stop here if it didn't load
+  // instead of letting each of them time out.
+  await check("loads the project", async () => {
+    try {
+      await page
+        .getByRole("button", { name: "Connect an AI agent" })
+        .waitFor({ timeout: 60_000 });
+    } catch {
+      throw new Error(
+        `${PROJECT} did not load within 60 seconds. ` +
+          (failedRequests.length
+            ? `Failed requests:\n         ${failedRequests.join("\n         ")}`
+            : "No requests to other servers failed."),
+      );
+    }
+  });
+  if (!results.at(-1).ok) throw PROJECT_DID_NOT_LOAD;
 
   const dialog = () =>
     page.getByRole("dialog", { name: "Connect an AI agent" });
@@ -515,6 +574,8 @@ try {
     assert.equal(data.settled, true);
     assert.deepEqual(data.errors, []);
   });
+} catch (err) {
+  if (err !== PROJECT_DID_NOT_LOAD) throw err;
 } finally {
   await browser.close();
   await client.close();
