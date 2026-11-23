@@ -271,6 +271,84 @@ describe("editing", () => {
     expect(await valueOf(D)).toBe(42);
   });
 
+  it("takes a JSON object or list for a text param, without escaping", async () => {
+    const mol = (
+      await runTool("add_atom", { type: "Molecule", name: "Data" }, EDIT)
+    ).id;
+    await runTool(
+      "add_atom",
+      {
+        type: "Input",
+        molecule: mol,
+        name: "Points",
+        params: { "Input Type": "string" },
+      },
+      EDIT,
+    );
+    const data = {
+      points: [
+        [0, 0],
+        [10, 5.5],
+      ],
+      label: 'say "hi"',
+    };
+    await runTool(
+      "set_param",
+      { atom: mol, param: "Points", value: data },
+      EDIT,
+    );
+    const ap = resolveAtom(mol).inputs.find((i) => i.name === "Points");
+    expect(JSON.parse(ap.value)).toEqual(data);
+    // Escaped text still works as before
+    await runTool(
+      "set_param",
+      { atom: mol, param: "Points", value: "[1,2]" },
+      EDIT,
+    );
+    expect(ap.value).toBe("[1,2]");
+  });
+
+  it("group_atoms carries connections into the group through Input atoms", async () => {
+    await buildWidthAndDouble();
+    await runTool("connect", { from: "Width", to: D, input: "x" }, EDIT);
+    const before = await valueOf(D);
+    GlobalVariables.undoCommandStack = [];
+
+    const grouped = await runTool(
+      "group_atoms",
+      { atoms: [D], name: "Doubler" },
+      EDIT,
+    );
+    await settle();
+    expect(grouped.dropped).toBeUndefined();
+    expect(grouped.inputs_added).toEqual([
+      expect.objectContaining({
+        from: expect.objectContaining({ path: "Proj/Width" }),
+        feeds: [expect.objectContaining({ input: "x" })],
+      }),
+    ]);
+    const doubler = resolveAtom(grouped.molecule.id);
+    const outside = doubler.inputs.find((ap) => ap.name === "Width");
+    expect(outside.connectors).toHaveLength(1);
+    expect(outside.connectors[0].attachmentPoint1.parentMolecule.name).toBe(
+      "Width",
+    );
+    const inside = resolveAtom(grouped.inputs_added[0].input.id);
+    expect(inside.atomType).toBe("Input");
+    expect(inside.output.connectors).toHaveLength(1);
+    // The moved Equation still computes from Width, now through the Input
+    expect(await valueOf(grouped.moved[0].now.id)).toBe(before);
+
+    // One undo puts it all back
+    await runTool("undo", {}, EDIT);
+    await settle();
+    expect(top.nodesOnTheScreen.some((a) => a.atomType === "Molecule")).toBe(
+      false,
+    );
+    expect(resolveAtom("Width").output.connectors).toHaveLength(1);
+    expect(await valueOf(D)).toBe(before);
+  });
+
   it("refuses to edit a parameter that is driven by a connection", async () => {
     await buildWidthAndDouble();
     await runTool("connect", { from: "Width", to: D, input: "x" }, EDIT);
