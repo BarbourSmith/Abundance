@@ -24,6 +24,7 @@ import {
 import { isReferenceId, scaleReferenceId, storedKey } from "./references";
 import { reportBooleanInflight, reportCadProgress } from "./progress";
 import { BooleanOpCache } from "./booleanOpCache";
+import { runBooleanMany } from "./occtWorkarounds";
 import {
   RigidTransform,
   parseTransformedId,
@@ -269,7 +270,10 @@ class GeometryProvider {
 
     // case 3D
     if (this.areAll3DShapes(geoms)) {
-      const volumes = geoms.map(replicad.measureVolume);
+      // Only an arg the result may equal needs measuring.
+      const volumes = geoms.map((geom, index) =>
+        resultCanBeArg(index) ? replicad.measureVolume(geom) : NaN,
+      );
       console.warn(
         `[boolean] ${resultId.split("-")[0]} arg volumes measured at: ${
           performance.now() - start
@@ -1118,29 +1122,29 @@ class GeometryProvider {
     if (partIds.length === 1) {
       return partIds[0];
     }
-    const id = this._makeId("assemblyFuse", ...partIds.sort());
+    // The id says "fuseAll" so results cached under "assemblyFuse", which
+    // were wrong for parts that overlap, aren't reused.
+    const id = this._makeId("fuseAll", ...partIds.sort());
     await this.createIfAbsent(id, context, async () => {
       const shapes = await Promise.all(
         partIds.map((partId) => this.get(partId, context)),
       );
 
+      // Fusing a wire is a no-op.
+      const fusable = shapes.filter(
+        (shape) => !(shape instanceof replicad.Wire),
+      );
+      if (fusable.length > 1 && this.areAll3DShapes(fusable)) {
+        // No glue option: the parts of an assembly can overlap (Make Disjoint
+        // off), and glue then gives a solid with the wrong volume.
+        return this.as3dShapeOrThrow(
+          runBooleanMany("fuse", fusable[0], fusable.slice(1)),
+        );
+      }
       let result = undefined;
-      for (let i = 0; i < shapes.length; i++) {
-        const shape = shapes[i];
-        if (shape instanceof replicad.Wire) {
-          continue; // fusing a wire is a no-op.
-        }
-        if (!result) {
-          result = shape;
-        } else {
-          if (this.isShape3D(result) && this.isShape3D(shape)) {
-            // Optimized fuse since we know assembly components don't intersect
-            result = result.fuse(shape, { optimisation: "commonFace" });
-          } else {
-            //@ts-ignore
-            result = result.fuse(shape); // both drawings
-          }
-        }
+      for (const shape of fusable) {
+        //@ts-expect-error both drawings
+        result = result ? result.fuse(shape) : shape;
       }
       if (!result) {
         throw new Error("assembly was all wires. Cannot be fused");
@@ -1148,6 +1152,133 @@ class GeometryProvider {
       return result;
     });
     return id;
+  }
+
+  /**
+   * Fuse any number of geometries together in one boolean.
+   */
+  async fuseMany(inputIds: string[], context: RequestContext): Promise<string> {
+    const ids = [
+      ...new Set(inputIds.filter((id) => id !== this.EMPTY_SHAPE_SENTINEL)),
+    ].sort();
+    if (ids.length === 0) {
+      return this.EMPTY_SHAPE_SENTINEL;
+    }
+    if (ids.length === 1) {
+      return ids[0];
+    }
+    if (ids.length === 2) {
+      return this.fuse(ids[0], ids[1], context);
+    }
+    const resultId = this._makeId("fuseMany", ...ids);
+    const boolResult = await this.maybeOp(resultId, ids, context, (geoms) =>
+      this.areAll3DShapes(geoms)
+        ? (runBooleanMany("fuse", geoms[0], geoms.slice(1)) as replicad.Shape3D)
+        : (geoms as replicad.Drawing[]).reduce((fused, geom) =>
+            fused.fuse(geom),
+          ),
+    );
+    if (boolResult.outcome == BooleanOutcome.NewShape) {
+      for (const id of ids) {
+        this.booleanOpCache.recordOcclusion(id, resultId, context.project);
+      }
+    }
+    return boolResult.resultId;
+  }
+
+  /**
+   * The cutters that `cutMany` would pass to its boolean: no duplicates,
+   * empty shapes, or cutters already known not to touch `toCut`. Sorted, so
+   * the same set always makes the same id.
+   */
+  cuttersToApply(
+    toCut: string,
+    cutters: string[],
+    context: RequestContext,
+  ): string[] {
+    return [...new Set(cutters)]
+      .filter(
+        (cutter) =>
+          cutter !== this.EMPTY_SHAPE_SENTINEL &&
+          !this.booleanOpCache.isDisjoint(toCut, cutter, context.project),
+      )
+      .sort();
+  }
+
+  /** The id `cutMany` stores its result under. */
+  cutManyId(toCut: string, cutters: string[]): string {
+    return this._makeId("cutMany", toCut, ...cutters);
+  }
+
+  /**
+   * Cut a geometry by every cutter in one boolean. The cutters may overlap
+   * each other.
+   */
+  async cutMany(
+    toCut: string,
+    cutters: string[],
+    context: RequestContext,
+  ): Promise<string> {
+    if (toCut === this.EMPTY_SHAPE_SENTINEL) {
+      return toCut;
+    }
+    const tools = this.cuttersToApply(toCut, cutters, context);
+    if (tools.length === 0) {
+      return toCut;
+    }
+    if (tools.length === 1) {
+      return this.cut(toCut, tools[0], context);
+    }
+    if (
+      tools.some((tool) =>
+        this.booleanOpCache.isOccluded(toCut, tool, context.project),
+      )
+    ) {
+      return this.EMPTY_SHAPE_SENTINEL;
+    }
+    const resultId = this.cutManyId(toCut, tools);
+    const boolResult = await this.maybeOp(
+      resultId,
+      [toCut, ...tools],
+      context,
+      (geoms) => {
+        // If this hangs, the watchdog records the whole list as a bad cut
+        // and the retry cuts one cutter at a time to find the pair at fault.
+        reportBooleanInflight(toCut, resultId, true);
+        let result: replicad.Shape3D | replicad.Drawing;
+        if (this.areAll3DShapes(geoms)) {
+          result = runBooleanMany(
+            "cut",
+            geoms[0],
+            geoms.slice(1),
+          ) as replicad.Shape3D;
+        } else {
+          let cut = geoms[0] as replicad.Drawing;
+          for (const tool of geoms.slice(1) as replicad.Drawing[]) {
+            //@ts-expect-error - no other way to check if shape is nonexistent
+            if (!cut.innerShape) break;
+            cut = cut.cut(tool);
+          }
+          result = cut;
+        }
+        reportBooleanInflight(toCut, resultId, false);
+        return result;
+      },
+      // A cutter can never be the result.
+      (index) => index === 0,
+    );
+    if (boolResult.outcome == BooleanOutcome.InputShape) {
+      for (const tool of tools) {
+        this.booleanOpCache.recordDisjoint(toCut, tool, context.project);
+      }
+    }
+    if (boolResult.outcome == BooleanOutcome.NewShape) {
+      for (const tool of tools) {
+        this.booleanOpCache.recordDisjoint(resultId, tool, context.project);
+      }
+      this.booleanOpCache.recordOcclusion(resultId, toCut, context.project);
+    }
+    return boolResult.resultId;
   }
 
   async cut(
@@ -1177,8 +1308,15 @@ class GeometryProvider {
       resultId,
       [toCut, cutter],
       context,
-      //@ts-expect-error type checking happens in maybeop
-      (args) => args[0].cut(args[1]),
+      (args) => {
+        // Tells the main thread which cut is running, so a cut that hangs
+        // the worker can be recorded and skipped on the retry.
+        reportBooleanInflight(toCut, cutter, true);
+        //@ts-expect-error type checking happens in maybeop
+        const result = args[0].cut(args[1]);
+        reportBooleanInflight(toCut, cutter, false);
+        return result;
+      },
       // The cutter can never be the result, so a volume match against it is a
       // coincidence and the cut must still be stored.
       (index) => index === 0,
