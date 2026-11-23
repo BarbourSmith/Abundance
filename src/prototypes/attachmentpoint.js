@@ -5,6 +5,19 @@ import { Global } from "@emotion/react";
 import { ObservableEntity, Status } from "./observableEntity.js";
 import { DeleteConnectorCommand } from "../js/undoCommands.js";
 
+const BUILTIN_CONSTANTS = new Set(["pi", "e", "tau", "Infinity", "NaN"]);
+
+/** The error shown for equation names that match nothing. */
+export function missingNamesMessage(names, portName) {
+  const quoted = names.map((name) => `"${name}"`).join(", ");
+  const where = portName ? ` in "${portName}"` : "";
+  return (
+    `${names.length > 1 ? "Names" : "Name"} ${quoted}${where} ` +
+    `${names.length > 1 ? "don't" : "doesn't"} match any Input or Constant. ` +
+    `If ${names.length > 1 ? "they were" : "it was"} renamed, update the equation.`
+  );
+}
+
 /**
  * Sentinel value to represent an optional geometry input that has no connection.
  * This allows geometry inputs with defaultValue: null to be marked as READY
@@ -152,6 +165,14 @@ export default class AttachmentPoint extends ObservableEntity {
      * @type {boolean}
      */
     this._nameSubscriptionActive = false;
+
+    /**
+     * Why this port's equation can't be evaluated (a name that matches
+     * nothing, or an invalid expression), or null. The atom shows it as its
+     * error.
+     * @type {string|null}
+     */
+    this.equationError = null;
 
     /**
      * This atom's parent, usually the molecule which contains this atom...how is this different from this.parent?
@@ -624,10 +645,11 @@ export default class AttachmentPoint extends ObservableEntity {
             // Re-subscribe to variables in the equation
             this.subscribeToVariablesInEquation(currentValue);
             if (
-              this._nameSubscribedAtoms &&
-              this._nameSubscribedAtoms.size > 0
+              this.equationError ||
+              (this._nameSubscribedAtoms && this._nameSubscribedAtoms.size > 0)
             ) {
-              // Successfully re-established name subscriptions, no need to call setDefault
+              // Name subscriptions are back (or the port shows why they
+              // can't be), so don't fall back to the default
               return;
             }
           }
@@ -740,6 +762,7 @@ export default class AttachmentPoint extends ObservableEntity {
    * Unsubscribes from all existing name-based subscriptions
    */
   unsubscribeAllNameSubscriptions() {
+    this.equationError = null;
     if (this._nameSubscribedAtoms && this._nameSubscribedAtoms.size > 0) {
       for (const [varName, inputAtom] of this._nameSubscribedAtoms) {
         inputAtom.unsubscribe(this.uniqueID);
@@ -801,15 +824,34 @@ export default class AttachmentPoint extends ObservableEntity {
    * When any subscribed Input atom changes, the equation is re-evaluated.
    * @param {string} equation - The equation string containing variable references
    */
-  subscribeToVariablesInEquation(equation) {
+  subscribeToVariablesInEquation(
+    equation,
+    { reportMissing = !GlobalVariables.projectIsLoading } = {},
+  ) {
     // First, unsubscribe from any existing subscriptions
     this.unsubscribeAllNameSubscriptions();
+    this.equationError = null;
+
+    if (typeof equation !== "string" || !equation.trim()) {
+      return;
+    }
 
     // Extract variables from the equation
     const variables = this.extractVariablesFromEquation(equation);
 
     if (variables.length === 0) {
       return;
+    }
+
+    // While a project loads, an Input placed later in the file isn't there
+    // yet; the molecule checks again once all its atoms are placed.
+    if (reportMissing) {
+      const missing = this.missingVariables(equation);
+      if (missing.length > 0) {
+        this.equationError = missingNamesMessage(missing, this.name);
+        this.setStatus(Status.ERROR);
+        return;
+      }
     }
 
     // Subscribe to each variable that matches an Input atom
@@ -837,6 +879,43 @@ export default class AttachmentPoint extends ObservableEntity {
       // Trigger initial evaluation
       this.reevaluateEquation();
     }
+  }
+
+  /**
+   * The names in a typed equation that nothing defines: no Input or Constant
+   * above this port, no input port on its atom, and no input of a molecule
+   * it sits in. Only number ports are checked, since text ports hold
+   * ordinary words.
+   * @param {string} equation
+   * @returns {string[]}
+   */
+  missingVariables(equation) {
+    if (this.valueType !== "number" || typeof equation !== "string") {
+      return [];
+    }
+    const atom = this.parentMolecule;
+    let expression = equation;
+    try {
+      // "5 mm" is a length, not a variable named mm
+      if (typeof atom?.convertEquationUnits === "function") {
+        expression = atom.convertEquationUnits(equation);
+      }
+    } catch {
+      // No project units: evaluating it reports that
+    }
+    if (/["']/.test(expression)) return []; // text, not math
+    const known = new Set([
+      ...(atom?.inputs || []).map((ap) => ap.name),
+      ...(typeof atom?.getInputsFromAncestors === "function"
+        ? atom.getInputsFromAncestors().map((ap) => ap.name)
+        : []),
+    ]);
+    return this.extractVariablesFromEquation(expression).filter(
+      (name) =>
+        !BUILTIN_CONSTANTS.has(name) &&
+        !known.has(name) &&
+        !this.findInputAtomByName(name),
+    );
   }
 
   /**
@@ -928,7 +1007,13 @@ export default class AttachmentPoint extends ObservableEntity {
         this.setStatus(Status.WAITING);
       }
     } catch (err) {
-      this.setStatus(Status.WAITING);
+      if (this.valueType === "number") {
+        // Show why, instead of leaving the port waiting with no explanation
+        this.equationError = `"${this.name}": ${err?.message || err}`;
+        this.setStatus(Status.ERROR);
+      } else {
+        this.setStatus(Status.WAITING);
+      }
     }
   }
 
@@ -1050,6 +1135,8 @@ export default class AttachmentPoint extends ObservableEntity {
           // Store as current equation and let the setter handle subscriptions
           this.currentEquation = newValue;
 
+          // A name in it matches nothing: the port now shows that error
+          if (this.equationError) return;
           // If we successfully subscribed to variables, the reevaluateEquation will set the value
           if (this._nameSubscribedAtoms && this._nameSubscribedAtoms.size > 0) {
             // Subscriptions are active, value will be set by reevaluateEquation

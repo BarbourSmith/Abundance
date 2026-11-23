@@ -61,7 +61,13 @@ export default class Equation extends Atom {
     this.currentEquation = "x + y";
 
     this.setValues(values);
-    this.addAndRemoveInputs();
+    // A saved equation only gets back the ports it was saved with. A name it
+    // used without a port of its own followed an Input, and if that Input is
+    // gone (renamed or deleted) the equation should say so rather than
+    // quietly getting a new port set to 1.
+    this.addAndRemoveInputs({
+      fromSave: values != null && "currentEquation" in values,
+    });
     this.setValues(values); //Set values again to load input values which were saved
     this.name = this.currentEquation; // Set name to match the current equation for display
   }
@@ -189,7 +195,7 @@ export default class Equation extends Atom {
   /**
    * Add and remove inputs as needed from the atom
    */
-  addAndRemoveInputs() {
+  addAndRemoveInputs({ fromSave = false } = {}) {
     // Use AST-based variable extraction
     let variables = this._extractVariablesFromEquation();
     // Only add inputs for variables NOT present in any ancestor molecule's inputs
@@ -216,7 +222,8 @@ export default class Equation extends Atom {
       for (var variable of variables) {
         if (
           !this.inputs.some((input) => input.name === variable) &&
-          !moleculeInputs.includes(variable)
+          !moleculeInputs.includes(variable) &&
+          (!fromSave || this.ioValues?.some((saved) => saved.name === variable))
         ) {
           inputArgs.push({
             name: variable,
@@ -229,6 +236,18 @@ export default class Equation extends Atom {
       // constructed.
       this.addAllIOs(inputArgs);
     }
+  }
+
+  /**
+   * A saved connection can target a port the equation was saved without
+   * (one whose upstream had no value yet, so it wasn't written to the
+   * file). Make that port when the connection is placed.
+   * @param {string} name
+   * @returns {object|undefined} the port
+   */
+  inputForConnection(name) {
+    if (!this._extractVariablesFromEquation().includes(name)) return;
+    return this.addIO(name, "number", 1);
   }
 
   rerenderInputs() {
