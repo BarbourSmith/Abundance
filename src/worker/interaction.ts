@@ -187,7 +187,7 @@ async function difference(
     };
     // Process each leaf of target independently
     return util.actOnLeafs(target, async (leaf: AbundanceLeaf) => {
-      return await recursiveCut(leaf, cutter, context, progressCallback);
+      return await recursiveCut(leaf, [cutter], context, progressCallback);
     });
   } else {
     throw new Error("Both inputs must be either 3D or 2D");
@@ -361,23 +361,23 @@ async function fusion(
   const bomAssembly = filteredShapes[0].bom
     ? filteredShapes[0].bom.slice()
     : [];
+  const geometriesToFuse = [fusedGeometry];
   for (let i = 1; i < filteredShapes.length; i++) {
-    // Report progress before each pairwise fuse. Fusion is iterative: fusing
-    // many shapes (e.g. a multi-blade propeller) on a large/bloated OCCT heap
-    // can take a long time cumulatively. Without a progress signal the CAD
-    // worker's inactivity watchdog treats the whole loop as one silent op and
-    // kills it at 90s even though it is making steady progress (this is exactly
-    // why a molecule can fail only inside a large host project but load fine
-    // standalone). Emitting progress resets the watchdog per iteration, so it
-    // only fires on a genuine single-fuse hang. Mirrors `assembly` above.
+    // Each input that is an assembly is fused into one shape first. Progress
+    // is reported before each one so the CAD worker's inactivity watchdog
+    // sees steady progress and only fires on a single fuse that hangs.
     reportCadProgress(`fusing part ${i + 1}/${filteredShapes.length}`);
-    fusedGeometry = await util.geometryProvider!.fuse(
-      fusedGeometry,
+    geometriesToFuse.push(
       (await fuseAssembly(filteredShapes[i], context)).geometry,
-      context,
     );
     bomAssembly.push(...(filteredShapes[i].bom || []));
   }
+  // The inputs are then fused together in one boolean.
+  reportCadProgress(`fusing ${filteredShapes.length} parts`);
+  fusedGeometry = await util.geometryProvider!.fuseMany(
+    geometriesToFuse,
+    context,
+  );
   if (simplify) {
     fusedGeometry = await util.geometryProvider!.simplify(
       fusedGeometry,
@@ -650,25 +650,15 @@ async function cutAssembly(
     return newAssembly;
   } else {
     // Part to cut is a single leaf.
-    let partCutCopy = partToCut;
-    for (const cuttingPart of cuttingParts) {
-      // Check if bounding boxes overlap before attempting cut
-      // If they don't overlap, skip the cut operation entirely
-      if (util.boundsOverlap(partToCut.boundingBox, cuttingPart.boundingBox)) {
-        // for each cutting part cut the part
-        partCutCopy = await recursiveCut(
-          partCutCopy,
-          cuttingPart,
-          context,
-          progressCallback,
-        );
-      } else {
-        // Bounding boxes don't overlap - skipping cut operation
-        console.log(
-          "⏭️ Skipping cut operation (non-overlapping bounding boxes)",
-        );
-      }
-    }
+    // Cutting parts whose bounding boxes don't overlap the part are skipped.
+    const partCutCopy = await recursiveCut(
+      partToCut,
+      cuttingParts.filter((cuttingPart) =>
+        util.boundsOverlap(partToCut.boundingBox, cuttingPart.boundingBox),
+      ),
+      context,
+      progressCallback,
+    );
     // return new cut part, expand compound solid if it was cut into disconnected
     // parts
     return splitCompSolid(partCutCopy, context);
@@ -676,35 +666,37 @@ async function cutAssembly(
 }
 
 /**
- * Recursively applies boolean cutting operations between geometries with optimization.
+ * Cuts a part by every leaf of the cutting parts that could touch it.
  *
- * @param {Object} partToCut - The geometry object to be cut
- * @param {Object} cuttingPart - The library object (may be assembly) used to cut the part
- * @returns {Object} - The resulting geometry after all applicable cuts have been performed
+ * Leaves are skipped when their bounding box doesn't overlap the part's, and
+ * 2D leaves when they aren't on the part's plane. The leaves that remain cut
+ * the part together in one boolean, which is several times faster than one
+ * boolean per leaf when there are many.
  *
- * This function:
- * - Recursively processes assemblies, applying cuts only when necessary
- * - Performs bounding box intersection checks to skip non-intersecting geometries
- * - Handles nested assemblies by traversing the entire tree of cutting geometries
- * - Optimizes performance by avoiding cuts with geometries that cannot intersect
- * - Preserves the structure of both the target and cutting geometries
+ * If that one boolean hung the worker before, the part is cut one leaf at a
+ * time instead. A hang there is recorded against a single pair of parts, and
+ * the next attempt throws FailedCutError so the assembly can show both in
+ * red.
  *
- * The function is a core part of the boolean difference system and is designed
- * to efficiently handle complex hierarchical structures.
+ * @param partToCut - The leaf to be cut
+ * @param cuttingParts - The parts (leaves or assemblies) to cut it by
+ * @returns The part after all the cuts
  */
 async function recursiveCut(
   partToCut: AbundanceLeaf,
-  cuttingParts: AbundanceObject,
+  cuttingParts: AbundanceObject[],
   context: RequestContext,
   progressCallback: () => void,
 ): Promise<AbundanceLeaf> {
-  let resultGeomId: string = partToCut.geometry;
-
+  const provider = util.geometryProvider!;
   // TODO: traversing leafs in this way isn't optimal for bounding box
   // checks since we could find an entire branch of the assembly which doesn't
   // intersect bounding box. This is simpler implemenation but may someday warrant
   // a change.
-  for (const cuttingPart of util.flattenAssembly(cuttingParts)) {
+  const cutters: AbundanceLeaf[] = [];
+  for (const cuttingPart of cuttingParts.flatMap((part) =>
+    util.flattenAssembly(part),
+  )) {
     // --- Coplanarity check for 2D shapes ---
     if (
       partToCut.geometryType === "replicad.Drawing" &&
@@ -722,15 +714,36 @@ async function recursiveCut(
     if (!util.boundsOverlap(partToCut.boundingBox, cuttingPart.boundingBox)) {
       continue; // skip: bounding boxes don't overlap
     }
-
-    // Heartbeat before each real boolean cut — this is the expensive atomic
-    // operation, so reporting here resets the inactivity watchdog even when a
-    // single leaf is cut by many parts.
+    // Heartbeat for each leaf that cuts the part: resets the inactivity
+    // watchdog and keeps the "boolean cut n / total" count moving.
     progressCallback();
+    cutters.push(cuttingPart);
+  }
+
+  const cutterIds = provider.cuttersToApply(
+    partToCut.geometry,
+    cutters.map((cutter) => cutter.geometry),
+    context,
+  );
+  const cutTogether =
+    cutterIds.length > 1 &&
+    !provider.isBadCut(
+      partToCut.geometry,
+      provider.cutManyId(partToCut.geometry, cutterIds),
+    );
+  if (cutTogether) {
+    return {
+      ...partToCut,
+      geometry: await provider.cutMany(partToCut.geometry, cutterIds, context),
+    };
+  }
+
+  let resultGeomId: string = partToCut.geometry;
+  for (const cuttingPart of cutters) {
     // If this exact cut hung the worker before, do not run it again. Signal the
     // assembly to surface both parts in red instead of hanging or silently
     // dropping the cut.
-    if (util.geometryProvider!.isBadCut(resultGeomId, cuttingPart.geometry)) {
+    if (provider.isBadCut(resultGeomId, cuttingPart.geometry)) {
       throw new FailedCutError(
         resultGeomId,
         cuttingPart.geometry,
@@ -738,17 +751,16 @@ async function recursiveCut(
         cuttingPart,
       );
     }
-    resultGeomId = await util.geometryProvider!.cut(
+    resultGeomId = await provider.cut(
       resultGeomId,
       cuttingPart.geometry,
       context,
     );
   }
-  const result = {
+  return {
     ...partToCut,
     geometry: resultGeomId,
   };
-  return result;
 }
 
 async function splitCompSolid(
@@ -786,6 +798,7 @@ async function splitCompSolid(
 }
 
 export {
+  FailedCutError,
   assembly,
   cutAssembly,
   difference,

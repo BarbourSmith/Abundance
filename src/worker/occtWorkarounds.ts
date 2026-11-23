@@ -96,6 +96,40 @@ function runBoolean(
 }
 
 /**
+ * Fuses or cuts a list of shapes in one OpenCascade call: the union of every
+ * shape for a fuse, or `shape` less every tool for a cut. The tools may
+ * overlap each other. OpenCascade intersects all the shapes together once,
+ * where a chain of two-shape booleans intersects the growing result again at
+ * every step, so this is several times faster for long lists. Faces aren't
+ * merged, as in `runBoolean`.
+ */
+export function runBooleanMany(
+  kind: "fuse" | "cut",
+  shape: replicad.Shape3D,
+  tools: replicad.Shape3D[],
+): replicad.AnyShape {
+  const oc = replicad.getOC() as any;
+  const builder = new oc[BOOLEAN_BUILDERS[kind]]();
+  const argumentList = new oc.NCollection_List_TopoDS_Shape();
+  const toolList = new oc.NCollection_List_TopoDS_Shape();
+  try {
+    argumentList.Append(shape.wrapped);
+    for (const tool of tools) {
+      toolList.Append(tool.wrapped);
+    }
+    builder.SetArguments(argumentList);
+    builder.SetTools(toolList);
+    builder.Build();
+    return replicad.cast(builder.Shape());
+  } finally {
+    builder.Clear();
+    builder.delete();
+    argumentList.delete();
+    toolList.delete();
+  }
+}
+
+/**
  * A copy of the shape with faces that share a surface merged, as replicad's
  * booleans did. The shape is copied first because the merge edits faces in
  * place, even in its safe-input mode, and the faces may belong to a cached
