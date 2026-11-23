@@ -391,6 +391,7 @@ export default class Molecule extends Atom {
         },
         eyeIcon: () => this.previewHandler(atom),
       };
+      Object.assign(exportParams, atom.createSendToMaslowParams(atom.partName));
     });
 
     return exportParams;
