@@ -142,13 +142,17 @@ export default class ExtractTag extends Atom {
     let tagList = (this.tagList.tags || []).filter(
       (tag) => tag !== "Select Tag",
     );
+    // Ticked tags the input no longer has still get a checkbox, so they can
+    // be unticked. They stay ticked until then, in case the tag comes back.
+    const missingTags = this.getMissingTags();
     let inputParams = {};
 
-    tagList.forEach((tag) => {
+    [...tagList, ...missingTags].forEach((tag) => {
+      const missing = missingTags.includes(tag);
       inputParams[this.uniqueID + "tag_" + tag] = {
         type: "boolean",
         value: this.selectedTags.includes(tag),
-        label: tag,
+        label: missing ? `${tag} (missing)` : tag,
         onChange: (checked) => {
           if (checked) {
             if (!this.selectedTags.includes(tag)) {
@@ -159,6 +163,10 @@ export default class ExtractTag extends Atom {
           }
           this.updateName();
           this.onUpstreamChange();
+          // Drop an unticked missing tag's checkbox from the panel.
+          if (missing && typeof this.setInputChanged === "function") {
+            this.setInputChanged(String(Date.now()));
+          }
         },
       };
     });
@@ -186,6 +194,19 @@ export default class ExtractTag extends Atom {
     };
 
     return inputParams;
+  }
+
+  /**
+   * Ticked tags the current input geometry doesn't have. Empty until the
+   * input's tags are known.
+   * @returns {string[]}
+   */
+  getMissingTags() {
+    if (!this.tagList.source) {
+      return [];
+    }
+    const tags = this.tagList.tags || [];
+    return this.selectedTags.filter((tag) => !tags.includes(tag));
   }
 
   /**
