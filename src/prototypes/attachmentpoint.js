@@ -669,6 +669,16 @@ export default class AttachmentPoint extends ObservableEntity {
       return true;
     }
 
+    // A list of numbers can go into a number input of an atom that takes
+    // lists (see Atom.computeOverLists).
+    if (
+      outputAP.valueType === "array" &&
+      inputAP.valueType === "number" &&
+      inputAP.parentMolecule?.constructor?.arrayInputs
+    ) {
+      return true;
+    }
+
     // Special compatibility rules:
     // - geometry can connect to geometry
     // - number can connect to number
