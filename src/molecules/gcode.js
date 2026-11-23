@@ -7,6 +7,11 @@ import { Status } from "../prototypes/observableEntity.js";
 
 import { GCodeLoader } from "../js/GCodeAbundanceLoader.js";
 import { Group } from "three";
+import {
+  getMachineAddress,
+  saveMachineAddress,
+  sendToMaslow,
+} from "../js/maslowSender.js";
 
 /**
  * This class creates the circle atom.
@@ -792,10 +797,7 @@ export default class Gcode extends Atom {
       onClick: () => {
         if (this.gcodeGenerated && this.gcodeString) {
           // Get the current part name dynamically when button is clicked
-          const currentPartName =
-            this.findIOValue("Part Name") || this.partName || "output";
-          const fileName = `${currentPartName}.gcode`;
-          this.downloadGcode(this.gcodeString, fileName);
+          this.downloadGcode(this.gcodeString, this.gcodeFileName());
         } else {
           console.warn("No G-code available. Please generate G-code first.");
           // You could also show an alert or notification to the user here
@@ -804,7 +806,114 @@ export default class Gcode extends Atom {
       },
     };
 
+    Object.assign(inputParams, this.createSendToMaslowParams(partName));
+
     return inputParams;
+  }
+
+  /**
+   * The file name the G-code is downloaded and sent to the machine under.
+   */
+  gcodeFileName() {
+    const partName = this.findIOValue("Part Name") || this.partName || "output";
+    return `${partName}.gcode`;
+  }
+
+  /**
+   * The controls for sending the G-code to a Maslow on the local network: the button, the
+   * machine's address and a line of status. Shared by this atom's own panel and the export menu
+   * of the molecule it is in. The address is one setting for the whole app, so its key is the
+   * same for every Gcode atom and it appears once.
+   */
+  createSendToMaslowParams(partName) {
+    const params = {};
+    params[`${this.uniqueID}-send-to-maslow`] = {
+      type: "button",
+      label: `Send to Maslow - ${partName}`,
+      title:
+        "Opens the Maslow's page in a new tab and puts this G-code on its SD card. Nothing starts cutting until you press Play there.",
+      disabled: this.status !== Status.READY,
+      onClick: () => this.sendToMaslow(),
+    };
+    if (this.maslowStatus) {
+      params[`${this.uniqueID}-maslow-status`] = {
+        type: "note",
+        value: this.maslowStatus,
+      };
+    }
+    params["Maslow Address"] = {
+      type: "string",
+      value: getMachineAddress(),
+      label: "Maslow Address",
+      onChange: (value) => {
+        const saved = saveMachineAddress(value);
+        if (saved.error) {
+          this.setMaslowStatus(saved.error, "error");
+        } else {
+          // Redraw so the field shows the address as it was saved
+          this.setMaslowStatus(null);
+        }
+      },
+    };
+    return params;
+  }
+
+  /**
+   * Show how sending to the machine is going in the parameters panel, and as a notification when
+   * type is given.
+   */
+  setMaslowStatus(message, type) {
+    this.maslowStatus = message;
+    if (typeof this.setInputChanged === "function") {
+      this.setInputChanged(`maslow ${Date.now()} ${message}`);
+    }
+    if (message && type) {
+      window.dispatchEvent(
+        new CustomEvent("user-notification", { detail: { message, type } }),
+      );
+    }
+  }
+
+  /**
+   * Send the G-code to the Maslow by opening its page in a new tab and handing it the file
+   * (see maslowSender.js). Must run directly in a click handler or the tab is blocked as a popup.
+   */
+  sendToMaslow() {
+    if (!this.gcodeGenerated || !this.gcodeString) {
+      this.setMaslowStatus("No G-code available to send.", "error");
+      return;
+    }
+    // A second click replaces a send that is still waiting
+    this.cancelMaslowSend?.();
+
+    const address = getMachineAddress();
+    const fileName = this.gcodeFileName();
+    const stageText = {
+      opening: "Opening the Maslow page...",
+      waiting: `Waiting for the Maslow at ${address}...`,
+      sending: `Sending ${fileName} to the Maslow...`,
+    };
+    const { result, cancel } = sendToMaslow({
+      address,
+      name: fileName,
+      gcode: this.gcodeString,
+      onStatus: ({ stage }) => this.setMaslowStatus(stageText[stage]),
+    });
+    this.cancelMaslowSend = cancel;
+    result.then((outcome) => {
+      if (outcome.reason === "cancelled") {
+        return;
+      }
+      this.cancelMaslowSend = null;
+      if (outcome.ok) {
+        this.setMaslowStatus(
+          `Sent ${outcome.name} to the Maslow. Press Play there to start cutting.`,
+          "notice",
+        );
+      } else {
+        this.setMaslowStatus(outcome.detail, "error");
+      }
+    });
   }
 
   //Function to download G-code from a G-code string
