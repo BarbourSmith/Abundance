@@ -413,11 +413,10 @@ async function assembly(
     return geometries[0];
   }
 
-  // Dimension assertions:
-  // Allowed inputs -> all 2d, all 3d, or just wires/points
-  const geomType = util.validateMixOfTypes(geometries);
-  // Fast return if all points or wires.
-  if (geomType === "Mixable" || geomType === "replicad.Face") {
+  // Any mix of 2D, 3D, faces, wires and points may be assembled. Only 2D cuts
+  // 2D and 3D cuts 3D (see util.assemblyLeavesInteract); everything else sits
+  // side by side untouched. Fast return when no two inputs can cut each other.
+  if (!util.assemblyNeedsCuts(geometries)) {
     return util.assemblyOf(geometries);
   }
 
@@ -493,6 +492,7 @@ async function assembly(
           geometries.slice(i + 1),
           context,
           progressCallback,
+          true,
         ),
       );
     }
@@ -616,6 +616,7 @@ async function cutAssembly(
   cuttingParts: AbundanceObject[],
   context: RequestContext,
   progressCallback: (() => void) | undefined = undefined,
+  onlyMatchingTypes = false,
 ): Promise<AbundanceObject> {
   await util.init();
 
@@ -639,7 +640,13 @@ async function cutAssembly(
       reportCadProgress(`cutting subpart ${subIndex}/${subParts.length}`);
       // make new assembly from cut parts
       partsAfterCut.push(
-        await cutAssembly(part, cuttingParts, context, progressCallback),
+        await cutAssembly(
+          part,
+          cuttingParts,
+          context,
+          progressCallback,
+          onlyMatchingTypes,
+        ),
       );
     }
 
@@ -650,6 +657,9 @@ async function cutAssembly(
     return newAssembly;
   } else {
     // Part to cut is a single leaf.
+    if (onlyMatchingTypes && !util.isAssemblyCuttable(partToCut.geometryType)) {
+      return partToCut; // Faces, wires and points are never cut in an assembly.
+    }
     let partCutCopy = partToCut;
     for (const cuttingPart of cuttingParts) {
       // Check if bounding boxes overlap before attempting cut
@@ -661,6 +671,7 @@ async function cutAssembly(
           cuttingPart,
           context,
           progressCallback,
+          onlyMatchingTypes,
         );
       } else {
         // Bounding boxes don't overlap - skipping cut operation
@@ -697,6 +708,7 @@ async function recursiveCut(
   cuttingParts: AbundanceObject,
   context: RequestContext,
   progressCallback: () => void,
+  onlyMatchingTypes = false,
 ): Promise<AbundanceLeaf> {
   let resultGeomId: string = partToCut.geometry;
 
@@ -705,6 +717,16 @@ async function recursiveCut(
   // intersect bounding box. This is simpler implemenation but may someday warrant
   // a change.
   for (const cuttingPart of util.flattenAssembly(cuttingParts)) {
+    // In an assembly, 2D only cuts 2D and 3D only cuts 3D.
+    if (
+      onlyMatchingTypes &&
+      !util.assemblyLeavesInteract(
+        partToCut.geometryType,
+        cuttingPart.geometryType,
+      )
+    ) {
+      continue;
+    }
     // --- Coplanarity check for 2D shapes ---
     if (
       partToCut.geometryType === "replicad.Drawing" &&

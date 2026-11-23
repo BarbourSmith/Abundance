@@ -328,48 +328,43 @@ function isWireGeometry(part: AbundanceObject): boolean {
   return _checkFirstDimIs(part, "replicad.Wire");
 }
 
-function validateMixOfTypes(
-  geometries: AbundanceObject[],
-):
-  | "replicad.Drawing"
-  | "replicad.Shape3D"
-  | "replicad.Face"
-  | "Mixable"
-  | undefined {
-  const dimensions = geometries
-    .map((geom) => {
-      const dims: GeometryType[] = [];
-      actOnLeafsSync(geom, (leaf: AbundanceLeaf) => {
-        dims.push(leaf.geometryType);
-        return leaf;
-      });
-      return dims;
-    })
-    .flat();
-  const constraints = dimensions.map((dim) => {
-    if (dim === "replicad.Wire" || dim === "replicad.Vertex") {
-      return "Mixable";
-    }
-    return dim;
+/**
+ * Whether two leaves of an assembly cut each other. Only 2D sketches cut 2D
+ * sketches and only 3D solids cut 3D solids. Faces, wires and points never cut
+ * or get cut, so any mix of types can share an assembly without interacting.
+ */
+function assemblyLeavesInteract(a: GeometryType, b: GeometryType): boolean {
+  return a === b && isAssemblyCuttable(a);
+}
+
+/** Whether a leaf of this type can be cut at all in an assembly. */
+function isAssemblyCuttable(type: GeometryType): boolean {
+  return type === "replicad.Drawing" || type === "replicad.Shape3D";
+}
+
+/**
+ * Checks that every leaf of the inputs is a shape, and says whether any two
+ * inputs hold leaves that cut each other in an assembly. Any mix of 2D, 3D,
+ * faces, wires and points is allowed.
+ */
+function assemblyNeedsCuts(geometries: AbundanceObject[]): boolean {
+  const typesPerInput = geometries.map((geom) => {
+    const types = new Set<GeometryType>();
+    actOnLeafsSync(geom, (leaf: AbundanceLeaf) => {
+      types.add(leaf.geometryType);
+      return leaf;
+    });
+    return types;
   });
-  const uniqConst = new Set(constraints);
-  if (constraints.some((c) => !isReplicadType(c) && c !== "Mixable")) {
+  const allTypes = typesPerInput.flatMap((types) => [...types]);
+  if (allTypes.some((type) => !isReplicadType(type))) {
     throw new Error(
-      "Input geometries must be shapes. Found: " + dimensions.join(", "),
+      "Input geometries must be shapes. Found: " + allTypes.join(", "),
     );
   }
-  if (!(uniqConst.size === 1)) {
-    throw new Error(
-      "Input geometries must be all 2D, all 3D, all Faces, or mix of wires/points. Found: " +
-        dimensions.join(", "),
-    );
-  }
-  return uniqConst.values().next().value as
-    | "replicad.Drawing"
-    | "replicad.Shape3D"
-    | "replicad.Face"
-    | "Mixable"
-    | undefined;
+  return (["replicad.Drawing", "replicad.Shape3D"] as GeometryType[]).some(
+    (type) => typesPerInput.filter((types) => types.has(type)).length > 1,
+  );
 }
 
 async function getBounds(
@@ -517,7 +512,9 @@ function isKnownBounds(bounds: unknown): bounds is AbundanceBounds {
  * a box too small to hold the branch, and cuts against the parts left out
  * would be skipped as if they couldn't touch.
  */
-function branchBounds(children: AbundanceObject[]): AbundanceBounds | undefined {
+function branchBounds(
+  children: AbundanceObject[],
+): AbundanceBounds | undefined {
   const holding = children.filter(
     (child) => isLeaf(child) || leafCount(child) > 0,
   );
@@ -1035,7 +1032,9 @@ export {
   is2D,
   is3D,
   isFace,
-  validateMixOfTypes,
+  assemblyLeavesInteract,
+  isAssemblyCuttable,
+  assemblyNeedsCuts,
   isAbundanceObject,
   isAssembly,
   isLeaf,
