@@ -1,11 +1,18 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import Atom from '../src/prototypes/atom.js';
+// Load attachmentpoint (and through it the molecule registry) before Atom,
+// as the app does; importing atom.js first hits a circular import.
 import AttachmentPoint from '../src/prototypes/attachmentpoint.js';
+import Atom from '../src/prototypes/atom.js';
+import {
+  MAX_SAVED_VALUE_LENGTH,
+  takeDroppedValues,
+} from '../src/js/savedValueLimit.js';
 
 describe('Serialize Protection Against Large Values', () => {
   let testAtom;
 
   beforeEach(() => {
+    takeDroppedValues();
     // Create a test atom
     testAtom = new Atom({
       atomType: 'TestAtom',
@@ -37,7 +44,30 @@ describe('Serialize Protection Against Large Values', () => {
     expect(serialized.ioValues.length).toBe(0);
   });
 
-  it('should exclude very large string values (>10KB)', () => {
+  it('should save long text values such as point data (15K chars)', () => {
+    const stringAP = new AttachmentPoint({
+      name: 'points',
+      type: 'input',
+      valueType: 'string',
+      parentMolecule: testAtom,
+      defaultValue: '',
+      uniqueID: 1
+    });
+    const points = JSON.stringify(
+      Array.from({ length: 1000 }, (_, i) => [i * 1.25, i * 2.5]),
+    );
+    expect(points.length).toBeGreaterThan(10000);
+    stringAP.value = points;
+    testAtom.inputs = [stringAP];
+
+    const serialized = testAtom.serialize();
+
+    expect(serialized.ioValues).toHaveLength(1);
+    expect(serialized.ioValues[0].ioValue).toBe(points);
+    expect(takeDroppedValues()).toEqual([]);
+  });
+
+  it('should exclude runaway string values and record them', () => {
     // Create a normal number input
     const numberAP = new AttachmentPoint({
       name: 'testValue',
@@ -49,15 +79,17 @@ describe('Serialize Protection Against Large Values', () => {
     });
     
     // Set a very large string value (simulating accidentally stringified data)
-    const largeString = 'x'.repeat(15000); // 15KB string
+    const largeString = 'x'.repeat(MAX_SAVED_VALUE_LENGTH + 1);
     numberAP.value = largeString;
     testAtom.inputs = [numberAP];
 
     const serialized = testAtom.serialize();
     
-    // Large string should NOT be saved
-    expect(serialized.ioValues).toBeDefined();
-    expect(serialized.ioValues.length).toBe(0);
+    // Large string should NOT be saved, and the save is told about it
+    expect(serialized.ioValues).toBeUndefined();
+    expect(takeDroppedValues()).toEqual([
+      { atomName: testAtom.name, key: 'testValue', length: MAX_SAVED_VALUE_LENGTH + 1 },
+    ]);
   });
 
   it('should include normal string values under size limit', () => {
@@ -102,7 +134,7 @@ describe('Serialize Protection Against Large Values', () => {
     expect(serialized.ioValues[0].ioValue).toBe(25.5);
   });
 
-  it('should exclude large equations (>10KB)', () => {
+  it('should exclude runaway equations', () => {
     const numberAP = new AttachmentPoint({
       name: 'calculated',
       type: 'input',
@@ -113,7 +145,7 @@ describe('Serialize Protection Against Large Values', () => {
     });
     
     // Set a very large equation (unlikely but test the protection)
-    const largeEquation = 'x + y + '.repeat(3000); // ~18KB
+    const largeEquation = 'x + y + '.repeat(MAX_SAVED_VALUE_LENGTH / 8 + 1);
     numberAP.currentEquation = largeEquation;
     numberAP.value = 20; // Different from default
     testAtom.inputs = [numberAP];
@@ -125,6 +157,9 @@ describe('Serialize Protection Against Large Values', () => {
     expect(serialized.ioValues.length).toBe(1);
     expect(serialized.ioValues[0].ioValue).toBe(20);
     expect(serialized.ioValues[0].currentEquation).toBeUndefined();
+    expect(takeDroppedValues().map((d) => d.key)).toEqual([
+      'calculated equation',
+    ]);
   });
 
   it('should include normal equations under size limit', () => {
@@ -200,7 +235,7 @@ describe('Serialize Protection Against Large Values', () => {
       defaultValue: '',
       uniqueID: 3
     });
-    largeString.value = 'x'.repeat(15000);
+    largeString.value = 'x'.repeat(MAX_SAVED_VALUE_LENGTH + 1);
 
     // Normal string (should be saved)
     const normalString = new AttachmentPoint({
@@ -217,15 +252,16 @@ describe('Serialize Protection Against Large Values', () => {
 
     const serialized = testAtom.serialize();
     
-    // Only the normal number and normal string should be saved
-    expect(serialized.ioValues).toBeDefined();
-    expect(serialized.ioValues.length).toBe(2);
-    
-    const savedNames = serialized.ioValues.map(io => io.name);
-    expect(savedNames).toContain('height');
-    expect(savedNames).toContain('label');
-    expect(savedNames).not.toContain('shape');
-    expect(savedNames).not.toContain('bigData');
+    // The runaway string is left out; the rest are kept (geometry as a
+    // placeholder, never its value)
+    const saved = Object.fromEntries(
+      serialized.ioValues.map((io) => [io.name, io.ioValue]),
+    );
+    expect(saved).toEqual({
+      height: 20,
+      shape: '__GEOMETRY_INPUT__',
+      label: 'My Label',
+    });
   });
 
   it('should calculate reasonable file size for typical project', () => {

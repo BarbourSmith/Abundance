@@ -20,6 +20,10 @@ import {
 import { ObservableEntity, Status } from "../prototypes/observableEntity.js";
 import { saveAs } from "file-saver";
 import { extractBomList, walkAssembly } from "../worker/util";
+import {
+  MAX_SAVED_VALUE_LENGTH,
+  noteDroppedValue,
+} from "../js/savedValueLimit.js";
 
 /**
  * This class creates the Molecule atom.
@@ -1316,7 +1320,6 @@ export default class Molecule extends Atom {
       const existingIoValues = thisAsObject.ioValues || [];
       const existingNames = new Set(existingIoValues.map((io) => io.name));
 
-      const MAX_VALUE_SIZE = 10000;
       const additionalIoValues = [];
 
       inputAtoms.forEach((inputAtom) => {
@@ -1338,10 +1341,11 @@ export default class Molecule extends Atom {
         }
 
         // Skip large strings
-        if (typeof value === "string" && value.length > MAX_VALUE_SIZE) {
-          console.warn(
-            `Skipping serialization of large string value (${value.length} chars) for Input atom: ${inputAtom.name}`,
-          );
+        if (
+          typeof value === "string" &&
+          value.length > MAX_SAVED_VALUE_LENGTH
+        ) {
+          noteDroppedValue(this.name, inputAtom.name, value.length);
           return;
         }
 

@@ -271,6 +271,23 @@ describe("editing", () => {
     expect(await valueOf(D)).toBe(42);
   });
 
+  it("refuses text too long to save in the project file", async () => {
+    await buildWidthAndDouble();
+    await expectToolError(
+      runTool(
+        "set_param",
+        {
+          atom: D,
+          param: "Current Equation",
+          value: "1+".repeat(500_001),
+        },
+        EDIT,
+      ),
+      ERROR_CODES.INVALID_PARAMS,
+      /can't be saved in the project file/,
+    );
+  });
+
   it("refuses to edit a parameter that is driven by a connection", async () => {
     await buildWidthAndDouble();
     await runTool("connect", { from: "Width", to: D, input: "x" }, EDIT);

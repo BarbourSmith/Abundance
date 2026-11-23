@@ -68,6 +68,7 @@ import {
 } from "./scanMeasure.js";
 import { millimetersPerUnit, unitAbbreviation } from "../js/units.js";
 import { addOrDeletePorts } from "../js/alwaysOneFreeInput.js";
+import { MAX_SAVED_VALUE_LENGTH } from "../js/savedValueLimit.js";
 import { isTranspilerReady } from "../molecules/code.js";
 import { fetchGitHubFileContent } from "../js/githubFileUtils.js";
 import { Octokit } from "octokit";
@@ -2377,6 +2378,15 @@ const handlers = {
       );
     }
     const coerced = coerceParamValue(target, value);
+    if (
+      typeof coerced === "string" &&
+      coerced.length > MAX_SAVED_VALUE_LENGTH
+    ) {
+      throw new ToolError(
+        ERROR_CODES.INVALID_PARAMS,
+        `"${param}" is ${coerced.length} characters; values over ${MAX_SAVED_VALUE_LENGTH} can't be saved in the project file. Compute large data inside a Code atom or import it as a file instead.`,
+      );
+    }
     const nameBefore = atom.name;
     // Some handlers (an Input's Default Values, Min Value, ...) refresh the
     // panel through atom.setInputChanged, which only exists once the
