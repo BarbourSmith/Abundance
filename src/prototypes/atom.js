@@ -1509,6 +1509,13 @@ export default class Atom extends ObservableEntity {
       (this._computeGeneration || 0) + 1);
     const isCurrent = () => generation === this._computeGeneration;
 
+    // A typed equation that can't be evaluated is this atom's own error
+    const brokenEquation = this.inputs.find((input) => input.equationError);
+    if (brokenEquation) {
+      this.setError(brokenEquation.equationError);
+      return;
+    }
+
     // Check for errors in inputs first
     if (this.inputsHaveErrors()) {
       this.setUpstreamError();

@@ -5,6 +5,7 @@ import { ValueChangeCommand } from "../js/undoCommands.js";
 import { Octokit } from "octokit";
 import { hashAssembly } from "../worker/util.ts";
 import { unitAbbreviation } from "../js/units.js";
+import { renameNameReferences } from "../js/nameReferences.js";
 
 // Default values for range type inputs
 const DEFAULT_RANGE_MIN = 0;
@@ -482,6 +483,12 @@ export default class Input extends Atom {
 
       if (this.replaceStaleArrayValue()) return; // re-entered with the array
 
+      // The equation typed into this molecule input can't be evaluated
+      if (this.parentAP.equationError) {
+        this.setError(this.parentAP.equationError);
+        return;
+      }
+
       this.setStatus(parentState.status, parentState.value);
 
       // Update our internal value if status is READY
@@ -930,6 +937,17 @@ export default class Input extends Atom {
       }
       this.setInputChanged?.(this.name);
     }
+  }
+
+  /**
+   * Renames this input and its port on the molecule, and updates the
+   * equations that use its name so they keep following it.
+   */
+  rename(newName) {
+    const oldName = this.name;
+    this.name = newName;
+    if (this.parentAP) this.parentAP.name = newName;
+    renameNameReferences(this, oldName, newName);
   }
 
   /**
@@ -1575,8 +1593,7 @@ export default class Input extends Atom {
                 "inputName",
                 oldName,
                 (atom, val) => {
-                  atom.name = val;
-                  if (atom.parentAP) atom.parentAP.name = val;
+                  atom.rename(val);
                   if (typeof atom.setInputChanged === "function")
                     atom.setInputChanged(val);
                 },
@@ -1584,8 +1601,7 @@ export default class Input extends Atom {
               ),
             );
           }
-          this.name = sanitizedName;
-          this.parentAP.name = sanitizedName; // Update the attachment point name
+          this.rename(sanitizedName);
           setInputChanged(sanitizedName);
         } else if (newName !== sanitizedName) {
           setInputChanged(sanitizedName);

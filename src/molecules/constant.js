@@ -2,6 +2,7 @@ import Atom from "../prototypes/atom";
 import GlobalVariables from "../js/globalvariables.js";
 import { ValueChangeCommand } from "../js/undoCommands.js";
 import { Status } from "../prototypes/observableEntity.js";
+import { renameNameReferences } from "../js/nameReferences.js";
 
 /**
  * This class creates the constant atom instance which can be used to define a numerical constant.
@@ -91,6 +92,29 @@ export default class Constant extends Atom {
     GlobalVariables.c.closePath();
   }
 
+  /**
+   * Renames this constant and updates the equations that use its name.
+   */
+  rename(newName) {
+    const oldName = this.name;
+    this.name = newName;
+    renameNameReferences(this, oldName, newName);
+  }
+
+  /**
+   * Sets the equation and recomputes the value without recording an undo
+   * step (used by undo and by renames of the names it uses).
+   */
+  setEquationText(equation) {
+    this.currentEquation = equation;
+    try {
+      const result = this.evaluateEquation(equation);
+      this.setReady(Number.isFinite(result) ? result : NaN);
+    } catch {
+      this.setReady(NaN);
+    }
+  }
+
   createInputParams(setInputChangedCallback) {
     let inputParams = {};
     inputParams[this.uniqueID + "name"] = {
@@ -105,7 +129,22 @@ export default class Constant extends Atom {
           [this],
         );
         if (this.name !== sanitizedName) {
-          this.name = sanitizedName;
+          if (!GlobalVariables.isUndoing && this.parent) {
+            GlobalVariables.pushUndoCommand(
+              new ValueChangeCommand(
+                this.uniqueID,
+                this.parent,
+                "constantName",
+                this.name,
+                (atom, val) => {
+                  atom.rename(val);
+                  atom.setInputChanged?.(val);
+                },
+                `Rename constant "${this.name}" → "${sanitizedName}"`,
+              ),
+            );
+          }
+          this.rename(sanitizedName);
           setInputChangedCallback();
         } else {
           this.name = sanitizedName;
@@ -127,15 +166,7 @@ export default class Constant extends Atom {
               this.parent,
               "currentEquation",
               oldEquation,
-              (atom, val) => {
-                atom.currentEquation = val;
-                try {
-                  const result = atom.evaluateEquation(val);
-                  atom.setReady(Number.isFinite(result) ? result : NaN);
-                } catch {
-                  atom.setReady(NaN);
-                }
-              },
+              (atom, val) => atom.setEquationText(val),
               `Change constant "${this.name}"`,
             ),
           );

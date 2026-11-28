@@ -191,15 +191,16 @@ describe("AttachmentPoint name-based Input subscription", () => {
     expect(geometryAP.status).toBe(Status.WAITING);
   });
 
-  it("should handle non-existent Input atom names gracefully", () => {
+  it("should report non-existent Input atom names as an error", () => {
     // Try to subscribe to a non-existent input
     attachmentPoint.setValue("nonexistent");
 
     // Should not have subscribed to anything
     expect(inputAtom.subscribers[attachmentPoint.uniqueID]).toBeUndefined();
     
-    // Should fall back to treating it as a regular value or stay at default
-    expect(attachmentPoint.status).toBe(Status.READY);
+    // A name that matches nothing is an error, not a silently kept value
+    expect(attachmentPoint.status).toBe(Status.ERROR);
+    expect(attachmentPoint.equationError).toMatch(/"nonexistent"/);
   });
 
   it("should update subscription when name changes", () => {

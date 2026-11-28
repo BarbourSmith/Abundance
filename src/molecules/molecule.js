@@ -1441,7 +1441,9 @@ export default class Molecule extends Atom {
         // Reset variable name subscriptions now that all atoms are placed.
         this.nodesOnTheScreen.forEach((atom) => {
           atom.inputs.forEach((ap) => {
-            ap.subscribeToVariablesInEquation(ap.currentEquation);
+            ap.subscribeToVariablesInEquation(ap.currentEquation, {
+              reportMissing: true,
+            });
           });
         });
 
@@ -2188,6 +2190,9 @@ export default class Molecule extends Atom {
             inputAttachmentPoint = input; //Until we find the one with the right name
           }
         });
+        if (!inputAttachmentPoint && atom.inputForConnection) {
+          inputAttachmentPoint = atom.inputForConnection(connectorObj.ap2Name);
+        }
       }
     });
 
