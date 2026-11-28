@@ -20,22 +20,33 @@ function itemKey(item) {
 
 /**
  * Shows the references (images, PDF pages, 3D models) in the displayed value,
- * and, faded, those in the open molecule's output. The mesh worker sends them
- * with the meshes (see App.jsx); they are decoded on the main thread (see
- * src/js/referenceObjects.js).
+ * and, faded, those in the open molecule's output when Output Context is on.
+ * The mesh worker sends them with the meshes (see App.jsx); they are decoded
+ * on the main thread (see src/js/referenceObjects.js).
  */
 export default function ReferenceMeshes() {
-  const { referenceItems, backgroundReferenceItems } = useRendering();
+  const {
+    referenceItems,
+    backgroundReferenceItems,
+    wireParam,
+    isViewingOutputMesh,
+    selectionModeAtom,
+  } = useRendering();
   const { invalidate } = useThree();
   const [objects, setObjects] = useState([]);
   const shownRef = useRef(null);
 
   const foreground = referenceItems || [];
   const foregroundKeys = new Set(foreground.map(itemKey));
-  // A reference in both is shown once, in front
-  const background = (backgroundReferenceItems || []).filter(
-    (item) => !foregroundKeys.has(itemKey(item)),
-  );
+  // The faded output follows the Output Context toggle, like its wireframe
+  // in lowerHalf.jsx. A reference in both is shown once, in front.
+  const showBackground =
+    wireParam && !isViewingOutputMesh && !selectionModeAtom;
+  const background = showBackground
+    ? (backgroundReferenceItems || []).filter(
+        (item) => !foregroundKeys.has(itemKey(item)),
+      )
+    : [];
   const key = JSON.stringify([
     foreground.map(itemKey),
     background.map(itemKey),
