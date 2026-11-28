@@ -73,6 +73,49 @@
   }
 }
 
+/* Status shown on the AI agent button in place of the floating chip. */
+.agent-button-dot {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 8px;
+  height: 8px;
+  box-shadow: 0 0 0 2px var(--abundance-color-background, #fff);
+}
+
+.agent-button-details {
+  position: absolute;
+  top: 50%;
+  right: calc(100% + 8px);
+  transform: translateY(-50%);
+  padding: 6px 8px 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--dialog-border, #c5a3d5);
+  background: var(--dialog-background, #232832);
+  color: var(--dialog-text, #e0e0e0);
+  font-family: "Roboto", sans-serif;
+  font-size: 13px;
+  white-space: nowrap;
+  max-width: calc(100vw - 90px);
+  box-sizing: border-box;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+
+/* Covers the gap to the button so the details stay open while moving to them. */
+.agent-button-details::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 100%;
+  width: 10px;
+}
+
+.agent-button-status:hover .agent-button-details,
+.agent-button-status:focus-within .agent-button-details {
+  display: flex;
+}
+
 .agent-chip-label {
   white-space: nowrap;
   overflow: hidden;

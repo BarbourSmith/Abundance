@@ -42,17 +42,40 @@ export function AgentIcon({ size = 20, color = "#c4a3d5" }) {
   );
 }
 
+// How many AgentButtons are on screen. While one is, it shows the bridge
+// status itself and the floating chip stays hidden.
+let buttonCount = 0;
+const buttonListeners = new Set();
+function subscribeButtons(listener) {
+  buttonListeners.add(listener);
+  return () => buttonListeners.delete(listener);
+}
+function changeButtonCount(delta) {
+  buttonCount += delta;
+  buttonListeners.forEach((l) => l());
+}
+
 /**
  * Square button that opens the Connect an AI agent dialog. Each mode places it
- * next to its own buttons with `style` (position, top, right, ...).
+ * next to its own buttons with `style` (position, top, right, ...). While the
+ * bridge is on, it also shows the connection status in place of the floating
+ * chip: a colored dot on the button, with details on hover or focus.
  */
 export function AgentButton({ size = 40, style }) {
-  const label = "Connect an AI agent";
-  return (
+  const state = useAgentBridgeState();
+  const enabled = state.settings.enabled;
+
+  useEffect(() => {
+    changeButtonCount(1);
+    return () => changeButtonCount(-1);
+  }, []);
+
+  const label = enabled ? statusText(state) : "Connect an AI agent";
+  const button = (
     <button
       id="Agent-button"
       style={{
-        position: "fixed",
+        position: enabled ? "relative" : "fixed",
         background: "var(--abundance-color-background)",
         border: "1px solid var(--panel-border)",
         boxShadow: "0 4px 16px rgba(20,24,31,0.16)",
@@ -70,14 +93,28 @@ export function AgentButton({ size = 40, style }) {
         fontFamily: "JetBrains Mono, monospace",
         outline: "none",
         zIndex: 2,
-        ...style,
+        ...(enabled ? {} : style),
       }}
       onClick={openAgentDialog}
-      title={label}
+      title={enabled ? undefined : label}
       aria-label={label}
     >
       <AgentIcon />
+      {enabled && <AgentStatusDot state={state} className="agent-button-dot" />}
     </button>
+  );
+
+  if (!enabled) return button;
+  return (
+    <div
+      className="agent-button-status"
+      role="status"
+      aria-live="polite"
+      style={{ position: "fixed", zIndex: 2, ...style }}
+    >
+      <AgentChipDetails state={state} className="agent-button-details" />
+      {button}
+    </div>
   );
 }
 
@@ -115,6 +152,10 @@ export function AgentBridgeHost() {
   const { setActiveAtom } = useAppState();
   const { openDevSettings } = useDevSettings();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const buttonShown = useSyncExternalStore(
+    subscribeButtons,
+    () => buttonCount > 0,
+  );
 
   useEffect(() => {
     const open = () => setDialogOpen(true);
@@ -176,7 +217,9 @@ export function AgentBridgeHost() {
   return (
     <>
       {dialogOpen && <AgentBridgeDialog onClose={() => setDialogOpen(false)} />}
-      {state.settings.enabled && <AgentBridgeChip state={state} />}
+      {state.settings.enabled && !buttonShown && (
+        <AgentBridgeChip state={state} />
+      )}
     </>
   );
 }
@@ -227,7 +270,21 @@ function AgentBridgeDialog({ onClose }) {
   );
 }
 
-function AgentBridgeChip({ state }) {
+/** Status dot: gray off, blue connecting, green connected, red error. */
+function AgentStatusDot({ state, className = "" }) {
+  const activity = state.activity;
+  const busy = activity && activity.ok === null;
+  return (
+    <span
+      className={`agent-chip-dot ${className}`.trim()}
+      data-status={state.status}
+      data-busy={busy ? "true" : "false"}
+    />
+  );
+}
+
+/** Status text, the running tool, and Retry/Disconnect buttons. */
+function AgentChipDetails({ state, className = "" }) {
   const [now, setNow] = useState(Date.now());
   const activity = state.activity;
   const busy = activity && activity.ok === null;
@@ -242,6 +299,40 @@ function AgentBridgeChip({ state }) {
   const connected = state.status === "connected";
 
   return (
+    <span className={`agent-chip-details ${className}`.trim()}>
+      <span className="agent-chip-label" title={statusText(state)}>
+        {statusText(state)}
+      </span>
+      {connected && (busy || recent) && (
+        <span className="agent-chip-activity">{activity.tool}</span>
+      )}
+      {state.status === "error" &&
+        (state.errorKind === "no-token" ? (
+          <button className="agent-chip-button" onClick={openAgentDialog}>
+            Set up
+          </button>
+        ) : (
+          <button
+            className="agent-chip-button"
+            onClick={() => agentBridge.retry()}
+          >
+            Retry
+          </button>
+        ))}
+      <button
+        className="agent-chip-button"
+        onClick={() => agentBridge.updateSettings({ enabled: false })}
+        title="Disconnect and turn the AI agent bridge off"
+      >
+        Disconnect
+      </button>
+    </span>
+  );
+}
+
+/** Floating status chip, for pages without an AgentButton. */
+function AgentBridgeChip({ state }) {
+  return (
     // Collapsed to a colored dot; hovering or focusing it shows the rest.
     <div
       className="agent-chip"
@@ -251,39 +342,8 @@ function AgentBridgeChip({ state }) {
       tabIndex={0}
       title={statusText(state)}
     >
-      <span
-        className="agent-chip-dot"
-        data-status={state.status}
-        data-busy={busy ? "true" : "false"}
-      />
-      <span className="agent-chip-details">
-        <span className="agent-chip-label" title={statusText(state)}>
-          {statusText(state)}
-        </span>
-        {connected && (busy || recent) && (
-          <span className="agent-chip-activity">{activity.tool}</span>
-        )}
-        {state.status === "error" &&
-          (state.errorKind === "no-token" ? (
-            <button className="agent-chip-button" onClick={openAgentDialog}>
-              Set up
-            </button>
-          ) : (
-            <button
-              className="agent-chip-button"
-              onClick={() => agentBridge.retry()}
-            >
-              Retry
-            </button>
-          ))}
-        <button
-          className="agent-chip-button"
-          onClick={() => agentBridge.updateSettings({ enabled: false })}
-          title="Disconnect and turn the AI agent bridge off"
-        >
-          Disconnect
-        </button>
-      </span>
+      <AgentStatusDot state={state} />
+      <AgentChipDetails state={state} />
     </div>
   );
 }
