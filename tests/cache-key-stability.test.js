@@ -65,6 +65,82 @@ describe("Assembly cache keys", () => {
   });
 });
 
+describe("Assembly cache key holds only what changes the cuts", () => {
+  const recolor = (part, color, tags) =>
+    util.isLeaf(part)
+      ? { ...part, color, tags }
+      : { ...part, color, tags, geometry: part.geometry.map((c) => recolor(c, color, tags)) };
+
+  it("reuses the cuts when only colors, tags, bom or metadata change", async () => {
+    const context = newContext();
+    const inputs = [await box(10, context), await move(await box(10, context), 5, 0, 0, context)];
+    const first = await assembly(structuredClone(inputs), context);
+
+    const changed = structuredClone(inputs).map((part, i) => ({
+      ...recolor(part, i ? "#00ff00" : "#ff0000", [`part-${i}`]),
+      bom: [{ BOMitemName: `item-${i}`, numberNeeded: 1, costUSD: 1, source: "" }],
+      metadata: { note: i },
+    }));
+    const cut = vi.spyOn(util.geometryProvider, "cut");
+    try {
+      const second = await assembly(changed, context);
+      expect(cut).not.toHaveBeenCalled();
+      // Same cut shapes, with the new inputs' own properties.
+      expect(second.geometry.map((p) => p.geometry)).toEqual(
+        first.geometry.map((p) => p.geometry),
+      );
+      expect(second.geometry.map((p) => [p.color, p.tags, p.metadata])).toEqual([
+        ["#ff0000", ["part-0"], { note: 0 }],
+        ["#00ff00", ["part-1"], { note: 1 }],
+      ]);
+      expect(second.geometry[0].bom[0].BOMitemName).toBe("item-0");
+    } finally {
+      cut.mockRestore();
+    }
+  });
+
+  it("recomputes when a part's geometry changes", async () => {
+    const context = newContext();
+    const a = await box(10, context);
+    await assembly([a, await move(await box(10, context), 5, 0, 0, context)], context);
+
+    const cut = vi.spyOn(util.geometryProvider, "cut");
+    try {
+      await assembly([a, await move(await box(10, context), 4, 0, 0, context)], context);
+      expect(cut).toHaveBeenCalled();
+    } finally {
+      cut.mockRestore();
+    }
+  });
+
+  it("returns a part split into pieces the same way from the cache", async () => {
+    const context = newContext();
+    const bar = {
+      ...(await extrude(await rectangle(30, 10, context), 10, context)),
+      color: "#123456",
+      tags: ["bar"],
+    };
+    const wall = await move(
+      await extrude(await rectangle(2, 40, context), 20, context),
+      0,
+      0,
+      -5,
+      context,
+    );
+    const computed = await assembly(structuredClone([bar, wall]), context);
+    const cached = await assembly(structuredClone([bar, wall]), context);
+
+    expect(JSON.stringify(cached)).toBe(JSON.stringify(computed));
+    const pieces = computed.geometry[0];
+    expect(util.isLeaf(pieces)).toBe(false);
+    expect(pieces.geometry).toHaveLength(2);
+    for (const piece of pieces.geometry) {
+      expect(piece.color).toBe("#123456");
+      expect(piece.tags).toEqual(["bar"]);
+    }
+  });
+});
+
 describe("collectNonReplicadSerialized", () => {
   it("drops empty entries and keeps single items", () => {
     const label = { type: "Label", text: "a" };
