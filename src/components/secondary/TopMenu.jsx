@@ -53,12 +53,6 @@ function TopMenu({
     setAxes,
     setWire,
     setSolid,
-    backgroundUsdzFile,
-    setBackgroundUsdzFile,
-    backgroundUsdzSha,
-    setBackgroundUsdzSha,
-    showBackgroundModel,
-    setShowBackgroundModel,
   } = useRendering();
   const { duplicateProject, renameProject, loadProject } = useProject();
 
@@ -508,13 +502,6 @@ function TopMenu({
             setAxes,
             setWire,
             setSolid,
-            backgroundUsdzFile,
-            setBackgroundUsdzFile,
-            backgroundUsdzSha,
-            setBackgroundUsdzSha,
-            showBackgroundModel,
-            setShowBackgroundModel,
-            authorizedUserOcto,
             saveProject,
             setSaveState,
             setSavePopUp,
