@@ -31,12 +31,6 @@ export function RenderingProvider({ children }) {
   const [wireParam, setWire] = useState(true);
   const [solidParam, setSolid] = useState(false);
 
-  // Background model state
-  const [backgroundUsdzFile, setBackgroundUsdzFile] = useState(null);
-  const [backgroundUsdzSha, setBackgroundUsdzSha] = useState(null);
-  const [showBackgroundModel, setShowBackgroundModel] = useState(false);
-  const [userUploadedFile, setUserUploadedFile] = useState(false);
-
   // Top-level molecule context state
   const [showTopLevelWireframe, setShowTopLevelWireframe] = useState(false);
   const [topLevelWireMesh, setTopLevelWireMesh] = useState(null);
@@ -91,16 +85,6 @@ export function RenderingProvider({ children }) {
     setWire,
     solidParam,
     setSolid,
-
-    // Background model
-    backgroundUsdzFile,
-    setBackgroundUsdzFile,
-    backgroundUsdzSha,
-    setBackgroundUsdzSha,
-    showBackgroundModel,
-    setShowBackgroundModel,
-    userUploadedFile,
-    setUserUploadedFile,
 
     // Top-level molecule context
     showTopLevelWireframe,

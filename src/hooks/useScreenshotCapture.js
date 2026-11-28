@@ -3,7 +3,7 @@ import * as THREE from "three";
 
 /**
  * Custom hook to capture high-resolution screenshots of only the mesh geometry.
- * Excludes grid, axes, background models, and other helper objects.
+ * Excludes grid, axes, and other helper objects.
  * Must be used inside a Canvas component from @react-three/fiber.
  *
  * @param {function} onCaptureCallback - Callback function called when screenshot is captured. Receives { dataUrl, projectName }
@@ -51,7 +51,7 @@ export function useScreenshotCapture(onCaptureCallback) {
       // Step 1: Save visibility state and hide UI helper objects by name
       const visibilityState = new Map();
       const objectsToHide = ["grid", "origin"]; // Named objects to exclude from screenshot
-      const typesToHide = ["AxesHelper", "GizmoHelper", "BackgroundModel"]; // Types of objects to exclude
+      const typesToHide = ["AxesHelper", "GizmoHelper"]; // Types of objects to exclude
       scene.background = null; // Set background to transparent for screenshot
       scene.traverse((obj) => {
         visibilityState.set(obj, obj.visible);

@@ -54,9 +54,6 @@ export default function RenderMenu({
     setAxes,
     setWire,
     setSolid,
-    backgroundUsdzFile,
-    showBackgroundModel,
-    setShowBackgroundModel,
     showTopLevelWireframe,
     setShowTopLevelWireframe,
     activeTags,
@@ -165,17 +162,6 @@ export default function RenderMenu({
         setSolid(value);
       },
     },
-    backgroundModel: {
-      value: backgroundUsdzFile ? showBackgroundModel : false,
-      label: "Background Model",
-      type: "boolean",
-      disabled: !backgroundUsdzFile,
-      onChange: (value) => {
-        if (backgroundUsdzFile) {
-          setShowBackgroundModel(value);
-        }
-      },
-    },
     topLevelContext: {
       value: showTopLevelWireframe,
       label: "Top Level Context",
@@ -201,8 +187,6 @@ export default function RenderMenu({
     { controls, registerControl, removeControl },
   ] = useControls(renderSettings, [
     inputChanged,
-    backgroundUsdzFile,
-    showBackgroundModel,
     showTopLevelWireframe,
     availableTags,
     activeAtom,

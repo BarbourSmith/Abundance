@@ -107,29 +107,6 @@ describe('Thumbnail Generation Conditional Logic', () => {
     expect(finalSVG).toBe('<svg>mock thumbnail</svg>');
   });
 
-  it('should generate thumbnail for Background 3D Model Upload Save', async () => {
-    // Mock the saveProject function behavior for background model save
-    const mockSetState = vi.fn();
-    const typeSave = "Background 3D Model Upload Save";
-    const lastSaveData = { current: null }; // Simulate no previous save data
-    
-    // Simulate the thumbnail generation logic from saveProject
-    let finalSVG;
-    
-    // Only generate thumbnail for user-triggered saves, not auto saves
-    if (typeSave !== "Auto Save") {
-      finalSVG = await GlobalVariables.topLevelMolecule
-        .generateProjectThumbnail()
-        .catch((error) => {
-          console.error("Error generating final project thumbnail: ", error);
-        });
-    }
-    
-    // Verify that generateProjectThumbnail WAS called for background model save
-    expect(mockGenerateProjectThumbnail).toHaveBeenCalledTimes(1);
-    expect(finalSVG).toBe('<svg>mock thumbnail</svg>');
-  });
-
   it('should handle undefined save type as user save (generate thumbnail)', async () => {
     // Test when typeSave is undefined (fallback behavior)
     const mockSetState = vi.fn();

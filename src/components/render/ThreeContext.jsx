@@ -3,9 +3,7 @@ import { Canvas } from "@react-three/fiber";
 import { Wireframe, Grid, OrthographicCamera } from "@react-three/drei";
 import * as THREE from "three";
 import Controls from "./ThreeControls.jsx";
-import BackgroundModel from "./BackgroundModel.jsx";
-import GlobalVariables from "../../js/globalvariables.js";
-import { useRendering, useAuth } from "../../contexts/index.js";
+import { useRendering } from "../../contexts/index.js";
 import ScreenshotCaptureComponent from "./ScreenshotCaptureComponent.jsx";
 import CameraClipping from "./CameraClipping.jsx";
 
@@ -15,19 +13,7 @@ import CameraClipping from "./CameraClipping.jsx";
 THREE.Object3D.DEFAULT_UP.set(0, 0, 1);
 
 export default function ext({ children, cameraZoom, ...otherProps }) {
-  const {
-    outdatedMesh,
-    gridParam,
-    axesParam,
-    backgroundUsdzFile,
-    showBackgroundModel,
-  } = useRendering();
-  const { authorizedUserOcto } = useAuth();
-
-  // Read the project units on each render. Consumers of the rendering context
-  // re-render as the project loads, at which point the resolved unitsKey is
-  // forwarded to BackgroundModel so it scales/positions consistently.
-  const unitsKey = GlobalVariables.topLevelMolecule?.unitsKey;
+  const { outdatedMesh, gridParam, axesParam } = useRendering();
 
   const dpr = Math.min(window.devicePixelRatio, 2);
   let backColor = outdatedMesh ? "#ababab" : "#f5f5f5";
@@ -121,16 +107,6 @@ export default function ext({ children, cameraZoom, ...otherProps }) {
         ) : (
           <ambientLight intensity={0.4} />
         )}
-
-        {/* Background USDZ model - rendered behind CAD models */}
-        {backgroundUsdzFile && showBackgroundModel ? (
-          <BackgroundModel
-            fileName={backgroundUsdzFile}
-            showModel={showBackgroundModel}
-            authorizedUserOcto={authorizedUserOcto}
-            unitsKey={unitsKey}
-          />
-        ) : null}
 
         <ScreenshotCaptureComponent />
 
